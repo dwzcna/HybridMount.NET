@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
+    <IsPackable>false</IsPackable><IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);HYBRIDMOUNT_HEADLESS_TEST</DefineConstants>
+    <PlatformTarget Condition="'$(Platform)' == 'ARM64'">ARM64</PlatformTarget>
+    <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\HybridMount\Models\AppearancePreferences.cs" Link="Production\AppearancePreferences.cs"/>
+    <Compile Include="..\HybridMount\Models\IpcMessages.cs" Link="Production\IpcMessages.cs"/>
+    <Compile Include="..\HybridMount\Models\Diagnostics\*.cs" Link="Production\Diagnostics\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Common\IAppearancePreferenceStore.cs" Link="Production\IAppearancePreferenceStore.cs"/>
+    <Compile Include="..\HybridMount\Services\ApplicationPaths.cs" Link="Production\ApplicationPaths.cs"/>
+    <Compile Include="..\HybridMount\Services\AppearanceSettingsService.cs" Link="Production\AppearanceSettingsService.cs"/>
+    <Compile Include="..\HybridMount\Services\AppearancePreferenceStoreService.cs" Link="Production\AppearancePreferenceStoreService.cs"/>
+    <Compile Include="..\HybridMount\Services\WinRegisterService.cs" Link="Production\WinRegisterService.cs"/>
+    <Compile Include="..\HybridMount\Services\LoggerService.cs" Link="Production\LoggerService.cs"/>
+    <Compile Include="..\HybridMount\Services\Ipc*.cs" Link="Production\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\SingleInstanceService.cs"/>
+    <Compile Include="..\HybridMount\ViewModels\AppearanceSettingsViewModel.cs" Link="Production\AppearanceSettingsViewModel.cs"/>
+    <Using Include="HybridMount.Models"/><Using Include="HybridMount.Common"/><Using Include="HybridMount.Services"/><Using Include="Xunit"/>
+  </ItemGroup>
+</Project>

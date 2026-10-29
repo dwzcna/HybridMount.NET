@@ -1,0 +1,36 @@
+# 本机维护说明与 IDE 缓存
+/AGENTS.md
+/HybridMount-devplan.md
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 编译、SDK 缓存和交付产物；build/ 保存构建脚本
+**/[Bb]in/
+**/[Oo]bj/
+/artifacts/
+**/TestResults/
+*.trx
+*.coverage
+*.coveragexml
+*.log
+.pn3dkit-logs/
+/patch/
+
+# 本机密钥与环境配置
+*.pfx
+*.p12
+*.snk
+.env
+.env.*
+!.env.example
+
+# 系统临时文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.bak

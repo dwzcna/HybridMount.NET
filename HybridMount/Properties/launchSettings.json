@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "HybridMount (Packaged)": {
+      "commandName": "MsixPackage"
+    },
+    "HybridMount (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
