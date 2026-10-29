@@ -34,7 +34,8 @@ try {
     }
     if ($Package) {
         [xml]$versionProps=Get-Content -LiteralPath (Join-Path $repoRoot 'Directory.Build.props') -Raw
-        $packageVersion=[string]$versionProps.Project.PropertyGroup[0].Version+'.0'
+        $packageVersion=[string]$versionProps.Project.PropertyGroup[0].Version
+        if(([version]$packageVersion).Revision -lt 0) { $packageVersion += '.0' }
         $packagePattern='*_'+$packageVersion+'_'+$Platform.ToLowerInvariant()+'.msix'
         $packages = @(Get-ChildItem -LiteralPath $packageDirectory -Filter $packagePattern -Recurse -File)
         if (-not $packages.Count) { throw '构建未生成 MSIX。' }

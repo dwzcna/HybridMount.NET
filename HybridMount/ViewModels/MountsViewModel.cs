@@ -16,7 +16,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     public string Status { get=>_status; set=>SetProperty(ref _status,value); }
     public event Action? Refreshed;
     public ObservableCollection<MountSnapshot> Mounts { get; }=[];
-    public ObservableCollection<MountOperationSnapshot> Operations { get; }=[];
+
     public MountsViewModel(MountManager manager){_manager=manager;_manager.Changed+=Changed;Refresh();}
     private void Changed()
     {
@@ -25,7 +25,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     }
     private void Refresh()
     {
-        try {Mounts.Clear();foreach(var mount in _manager.Mounts)Mounts.Add(mount);Operations.Clear();foreach(var operation in _manager.Operations)Operations.Add(operation);Refreshed?.Invoke();}
+        try {Mounts.Clear();foreach(var mount in _manager.Mounts)Mounts.Add(mount);Refreshed?.Invoke();}
         catch(Exception error){Status=error.Message;}
     }
     public void Dispose(){_disposed=true;_manager.Changed-=Changed;}

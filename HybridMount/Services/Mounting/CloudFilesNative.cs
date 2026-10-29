@@ -60,7 +60,7 @@ public static class CloudFilesNative
             var result = CfGetSyncRootInfoByPath(path, 1, buffer, 8192, out _);
             if (result < 0) return null;
             // SDK CF_SYNC_ROOT_STANDARD_INFO：IdentityLength 位于 1052，字节数据位于 1056。
-            var length = Marshal.ReadInt32(buffer,1052); if (length is < 1 or > 4096) return null;
+            var length = Marshal.ReadInt32(buffer,1052); if (length is < 1 or > 4096) return [];
             var bytes = new byte[length]; Marshal.Copy(buffer+1056,bytes,0,length); return bytes;
         }
         finally { Marshal.FreeHGlobal(buffer); }

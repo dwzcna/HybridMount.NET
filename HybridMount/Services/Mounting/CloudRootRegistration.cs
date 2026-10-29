@@ -29,7 +29,7 @@ public static class CloudRootRegistration
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.None,
             InSyncPolicy = StorageProviderInSyncPolicy.FileLastWriteTime | StorageProviderInSyncPolicy.DirectoryLastWriteTime |
                 StorageProviderInSyncPolicy.FileCreationTime | StorageProviderInSyncPolicy.DirectoryCreationTime,
-            HardlinkPolicy = StorageProviderHardlinkPolicy.None, Version = "0.0.2", ShowSiblingsAsGroup = false,
+            HardlinkPolicy = StorageProviderHardlinkPolicy.None, Version = typeof(MountManager).Assembly.GetName().Version!.ToString(), ShowSiblingsAsGroup = false,
             Context = CryptographicBuffer.CreateFromByteArray(MountPathGuard.RootBytes(mount.Id))
         };
         token.ThrowIfCancellationRequested(); StorageProviderSyncRootManager.Register(info);

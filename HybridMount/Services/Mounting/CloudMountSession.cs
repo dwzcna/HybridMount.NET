@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using HybridMount.Common;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
@@ -9,7 +10,9 @@ namespace HybridMount.Services.Mounting;
 public sealed class CloudMountSession : IAsyncDisposable
 {
     private readonly MountDefinition _mount;
-    private readonly MockFileSource _source;
+    private readonly IFileSource? _source;
+    private readonly object _fetchGate=new();
+    private bool _clearing;
     private readonly MountRepository _repository;
     private readonly LoggerService _logger;
     private readonly CancellationTokenSource _stop = new();
@@ -18,8 +21,8 @@ public sealed class CloudMountSession : IAsyncDisposable
     private readonly ConcurrentDictionary<(long,long), (CancellationTokenSource Cancel,Task Work)> _fetches = new();
     private readonly ConcurrentDictionary<string,int> _open = new(StringComparer.Ordinal);
     private long _connection;
-    public CloudMountSession(MountDefinition mount,MockFileSource source,MountRepository repository,LoggerService logger)
-    { _mount=mount; _source=source; _repository=repository; _logger=logger; }
+    public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false)
+    { _mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration; }
     public void Connect()
     {
         var registrations=new List<CloudFilesNative.CallbackRegistration>();
@@ -51,12 +54,16 @@ public sealed class CloudMountSession : IAsyncDisposable
             if (marker?.MountId!=_mount.Id || string.IsNullOrEmpty(marker.EntryId)) { if(type==0) Complete(info,0,0,unchecked((int)0xc000cf00)); return; }
             if (type==0)
             {
+                lock(_fetchGate)
+                {
+                if(_clearing) { Complete(info,0,0,unchecked((int)0xc000cf00));return; }
                 var offset=Marshal.ReadInt64(parameters,16); var length=Marshal.ReadInt64(parameters,24);
                 var key=(info.TransferKey,info.RequestKey); var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
                 var start=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work=Task.Run(async()=>{ if(!await start.Task.ConfigureAwait(false)){cancel.Dispose();return;} try { await FetchAsync(info,marker.EntryId,offset,length,cancel.Token).ConfigureAwait(false); } finally { _fetches.TryRemove(key,out _); cancel.Dispose(); } });
                 if (!_fetches.TryAdd(key,(cancel,work))) { start.SetResult(false); return; }
                 start.SetResult(true); return;
+                }
             }
             if (type==2) { if(_fetches.TryGetValue((info.TransferKey,info.RequestKey),out var fetch)) fetch.Cancel.Cancel(); return; }
             var self=info.ProcessInfo!=0 && Marshal.ReadInt32(info.ProcessInfo,4)==Environment.ProcessId;
@@ -65,6 +72,7 @@ public sealed class CloudMountSession : IAsyncDisposable
             if (type==9) { Ack(info,6,0); return; }
             if (type==11)
             {
+                if(Volatile.Read(ref _clearing)) { Ack(info,7,unchecked((int)0xc0000022));return; }
                 var flags=Marshal.ReadInt32(parameters,8);
                 var target=NativePath(info,Marshal.ReadIntPtr(parameters,16));
                 if ((flags&4)==0 || !MountPathGuard.IsUnder(_mount.LocalPath,target)) { Ack(info,7,unchecked((int)0xc0000022)); return; }
@@ -112,7 +120,8 @@ public sealed class CloudMountSession : IAsyncDisposable
         {
             await _reads.WaitAsync(token).ConfigureAwait(false); held=true;
             var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id && !item.Deleted) ?? throw new FileNotFoundException("占位身份不存在。");
-            var metadata=await _source.GetMetadataAsync(entry.SourcePath,token).ConfigureAwait(false);
+            var source=_source??throw new IOException("清空期间不提供内容读取。");
+            var metadata=await source.GetMetadataAsync(entry.SourcePath,token).ConfigureAwait(false);
             if(metadata.Version!=entry.Version) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0 || length<=0 || offset>metadata.Size || length>metadata.Size-offset) throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096; var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));
@@ -122,7 +131,7 @@ public sealed class CloudMountSession : IAsyncDisposable
                 while(start<end)
                 {
                     token.ThrowIfCancellationRequested(); var count=(int)Math.Min(bytes.Length,end-start); var read=0;
-                    while(read<count) { var n=await _source.ReadRangeAsync(metadata,start+read,bytes.AsMemory(read,count-read),token).ConfigureAwait(false); if(n==0) throw new EndOfStreamException(); read+=n; }
+                    while(read<count) { var n=await source.ReadRangeAsync(metadata,start+read,bytes.AsMemory(read,count-read),token).ConfigureAwait(false); if(n==0) throw new EndOfStreamException(); read+=n; }
                     token.ThrowIfCancellationRequested(); Complete(info,start,count,0,pin.AddrOfPinnedObject()); start+=count;
                 }
             }
@@ -134,6 +143,14 @@ public sealed class CloudMountSession : IAsyncDisposable
             if(error is not OperationCanceledException) _logger.Queue("按需读取","Error",error.Message);
         }
         finally { if(held) _reads.Release(); }
+    }
+    /// <summary>阻止新增水合和重命名，取消并等候在途读取；保留删除确认回调。</summary>
+    public async Task BeginClearAsync()
+    {
+        (CancellationTokenSource Cancel,Task Work)[] pending;
+        lock(_fetchGate) { _clearing=true;pending=_fetches.Values.ToArray(); }
+        foreach(var item in pending)try{item.Cancel.Cancel();}catch(ObjectDisposedException){}
+        await Task.WhenAll(pending.Select(item=>item.Work)).ConfigureAwait(false);
     }
     public bool IsActive(string id) => _open.TryGetValue(id,out var count) && count>0;
     /// <summary>创建真实占位，不使用 File.WriteAllBytes 伪装；每个已创建条目单独记录。</summary>

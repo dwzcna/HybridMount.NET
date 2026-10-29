@@ -17,7 +17,8 @@ try {
     [xml]$manifest = [Text.Encoding]::UTF8.GetString((Read-Bytes 'AppxManifest.xml')).TrimStart([char]0xfeff)
     [xml]$props = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\Directory.Build.props') -Raw
     $version = [string]$props.Project.PropertyGroup[0].Version
-    if ($manifest.Package.Identity.Version -ne "$version.0" -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NET') { throw 'MSIX 产品身份或版本不一致。' }
+    $binaryVersion=if(([version]$version).Revision -lt 0) { "$version.0" } else { $version }
+    if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NET') { throw 'MSIX 产品身份或版本不一致。' }
     if ($manifest.Package.Identity.ProcessorArchitecture -ne $Platform.ToLowerInvariant()) { throw '包声明架构不正确。' }
     $expectedMachine = if ($Platform -eq 'ARM64') { 0xaa64 } else { 0x8664 }
     foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','coreclr.dll')) {

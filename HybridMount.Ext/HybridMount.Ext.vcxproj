@@ -18,7 +18,7 @@
   </ItemDefinitionGroup>
   <ItemGroup><ClCompile Include="ShellMenu.cpp"/><ClCompile Include="PipeClient.cpp"/><ClInclude Include="Extension.h"/><ResourceCompile Include="HybridMount.Ext.rc"/><None Include="Exports.def"/></ItemGroup>
   <Target Name="GenerateVersionHeader" BeforeTargets="ResourceCompile">
-    <WriteLinesToFile File="$(IntDir)Version.h" Lines="#define HYBRIDMOUNT_VERSION $(Version.Replace('.', ',')),0%0A#define HYBRIDMOUNT_VERSION_TEXT &quot;$(Version).0&quot;" Overwrite="true" WriteOnlyWhenDifferent="true"/>
+    <WriteLinesToFile File="$(IntDir)Version.h" Lines="#define HYBRIDMOUNT_VERSION $(BinaryVersion.Replace('.', ','))%0A#define HYBRIDMOUNT_VERSION_TEXT &quot;$(BinaryVersion)&quot;" Overwrite="true" WriteOnlyWhenDifferent="true"/>
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
 </Project>

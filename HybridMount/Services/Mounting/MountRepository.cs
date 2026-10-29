@@ -36,7 +36,7 @@ public sealed class MountRepository
                 using var child = key.OpenSubKey(name);
                 if (child?.GetValue("Definition") is not string json) continue;
                 var definition = JsonSerializer.Deserialize<MountDefinition>(json) ?? throw new IOException("挂载配置为空。");
-                if (definition.Id == Guid.Empty || definition.Id.ToString("N") != name || !Path.IsPathFullyQualified(definition.LocalPath)) throw new IOException("挂载配置无效。");
+                if (!Enum.IsDefined(definition.RemovalMode) || !Enum.IsDefined(definition.RemovalStage) || definition.Id == Guid.Empty || definition.Id.ToString("N") != name || !Path.IsPathFullyQualified(definition.LocalPath)) throw new IOException("挂载配置无效。");
                 result.Add(definition);
             }
             return result;
@@ -44,9 +44,18 @@ public sealed class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 1, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 2, RegistryValueKind.DWord); }
     }
     public void DeleteDefinition(Guid id) { lock (_gate) Registry.CurrentUser.DeleteSubKeyTree(_registry + "\\" + id.ToString("N"), false); }
+    /// <summary>只清除已完成移除的挂载映射；任务历史和模拟源内容保留。</summary>
+    public void DeleteEntries(Guid mount)
+    {
+        lock(_gate)
+        {
+            using var db=Open();using var command=db.CreateCommand();
+            command.CommandText="DELETE FROM entries WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+        }
+    }
     public IReadOnlyList<MountEntry> Entries(Guid mount)
     {
         lock (_gate)

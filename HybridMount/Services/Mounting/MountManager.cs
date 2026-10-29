@@ -12,7 +12,8 @@ public sealed class MountManager : IAsyncDisposable
         public readonly SemaphoreSlim Gate=new(1,1);
         public CloudMountSession? Session;
         public MockFileSource? Source;
-        public string Status="未连接",Detail="";
+        public string Status=definition.RemovalPending?"移除未完成":"未连接";
+        public string Detail=definition.RemovalPending?"请继续已选择的移除方式；不会自动重放删除操作。":"";
     }
     private sealed class Job(string id,Guid root,string operation,CancellationToken token)
     {
@@ -65,7 +66,7 @@ public sealed class MountManager : IAsyncDisposable
     private async Task ConnectCoreAsync(Runtime root,CancellationToken token)
     {
         if(root.Session is not null)return;
-        if(root.Definition.RemovalPending)throw new IOException("上次移除尚未完成，请重试移除以保留本地文件。");
+        if(root.Definition.RemovalPending)throw new IOException("上次移除尚未完成，请继续相同的移除方式。");
         Status(root,"连接中");
         try
         {
@@ -160,8 +161,11 @@ public sealed class MountManager : IAsyncDisposable
     public string Queue(Guid id,string operation,string[]? paths=null)
     {
         _stop.Token.ThrowIfCancellationRequested(); var root=Root(id);
-        if(operation is not("keepOnDevice" or "freeSpace" or "refresh" or "remove"))throw new ArgumentException("未知挂载操作。");
-        if(operation=="remove")foreach(var current in _jobs.Values.Where(job=>job.Root==id))current.Cancel.Cancel();
+        if(operation is not("keepOnDevice" or "freeSpace" or "refresh" or "remove" or "clearAndRemove"))throw new ArgumentException("未知挂载操作。");
+        var removing=operation is "remove" or "clearAndRemove";
+        var mode=operation=="clearAndRemove"?MountRemovalMode.ClearContents:MountRemovalMode.PreserveFiles;
+        if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除未完成，不能改用其他模式或执行缓存任务。");
+        if(removing)foreach(var current in _jobs.Values.Where(job=>job.Root==id && job.Snapshot.State is "Queued" or "Running"))current.Cancel.Cancel();
         var job=new Job(Guid.NewGuid().ToString("N"),id,operation,_stop.Token);
         _jobs[job.Snapshot.Id]=job;Save(job);
         job.Work=Task.Run(async()=>
@@ -169,7 +173,11 @@ public sealed class MountManager : IAsyncDisposable
             var held=false;
             try
             {
-                await root.Gate.WaitAsync(job.Cancel.Token).ConfigureAwait(false);held=true; Update(job,"Running");
+                await root.Gate.WaitAsync(job.Cancel.Token).ConfigureAwait(false);held=true;
+                if(!_roots.ContainsKey(id))throw new IOException("挂载已被移除。");
+                if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除模式已固定，请继续原来的移除任务。");
+                Update(job,"Running");
+                if(operation=="clearAndRemove") { Update(job,await ClearAndRemoveAsync(root,job).ConfigureAwait(false)?"Completed":"PartialFailure");return; }
                 if(operation=="remove") { await RemoveAsync(root,job).ConfigureAwait(false);Update(job,"Completed");return; }
                 if(root.Session is null)throw new IOException("挂载尚未连接，请在挂载页连接后重试。");
                 Reconcile(root);
@@ -204,26 +212,77 @@ public sealed class MountManager : IAsyncDisposable
             }
             catch(OperationCanceledException){Update(job,"Canceled");}
             catch(Exception error){Update(job,"Failed",error.Message);_logger.Queue("挂载任务","Error",error.Message);}
-            finally{if(held)root.Gate.Release();Notify();}
+            finally
+            {
+                if(held)
+                {
+                    if(root.Definition.RemovalPending && _roots.ContainsKey(id))Status(root,"移除未完成",root.Definition.RemovalMode==MountRemovalMode.ClearContents?"清空尚未完成；已删内容不会恢复，请重试清空并移除。":"请继续下载并移除，以保留本地文件。");
+                    root.Gate.Release();
+                }
+                Notify();
+            }
         });
         return job.Snapshot.Id;
+    }
+    /// <summary>保存不可切换的移除意图；旧版 Pending 默认按保留文件恢复。</summary>
+    private void MarkRemoval(Runtime root,MountRemovalMode mode)
+    {
+        if(root.Definition.RemovalPending && root.Definition.RemovalMode!=mode)throw new IOException("不能切换已开始的移除模式。");
+        root.Definition=root.Definition with{RemovalPending=true,RemovalMode=mode};_repository.SaveDefinition(root.Definition);
+    }
+    private void MarkUnregistering(Runtime root)
+    { root.Definition=root.Definition with{RemovalStage=MountRemovalStage.Unregistering};_repository.SaveDefinition(root.Definition); }
+    private void Forget(Runtime root)
+    {
+        _repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
+        _roots.TryRemove(root.Definition.Id,out _);Notify();
+    }
+    /// <summary>清空本地目录；保留 CFAPI 删除确认，不读取或删除源内容。失败／取消保留意图供显式重试。</summary>
+    private async Task<bool> ClearAndRemoveAsync(Runtime root,Job job)
+    {
+        var mount=root.Definition;
+        if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("根身份变化，不能清空。");
+        var marker=MountPathGuard.ReadRoot(mount.LocalPath);
+        var registered=marker?.MountId==mount.Id;
+        if(registered)MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+        else if(!mount.RemovalPending || mount.RemovalMode!=MountRemovalMode.ClearContents || mount.RemovalStage!=MountRemovalStage.Unregistering || CloudFilesNative.RootIdentity(mount.LocalPath) is not null || CloudFilesNative.IsCloudPath(mount.LocalPath) || MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))
+            throw new IOException("同步根归属不明，保留配置，拒绝清空。");
+        MarkRemoval(root,MountRemovalMode.ClearContents);Status(root,"清空中","删除全部本地内容，保留空根目录及文件源内容。");
+        if(registered && root.Session is null)
+        {
+            // 离线清空不依赖模拟源数据库或内容文件，不播种、不下载。
+            root.Session=new CloudMountSession(root.Definition,null,_repository,_logger,blockHydration:true);root.Session.Connect();
+        }
+        if(root.Session is not null)await root.Session.BeginClearAsync().ConfigureAwait(false);
+        job.Cancel.Token.ThrowIfCancellationRequested();
+        var failures=MountContentCleaner.Clear(root.Definition,registered,job.Cancel.Token,
+            count=>{job.Snapshot=job.Snapshot with{Total=job.Snapshot.Total+count};Save(job);},
+            (path,status,message)=>Result(job,path,status,message));
+        if(failures>0)return false;
+        if(!MountContentCleaner.IsEmpty(root.Definition))throw new IOException("目录出现新内容，保留配置以供重试。");
+        job.Cancel.Token.ThrowIfCancellationRequested();MarkUnregistering(root);
+        await DisconnectCoreAsync(root).ConfigureAwait(false);
+        if(registered)CloudRootRegistration.Unregister(root.Definition);
+        if(!MountContentCleaner.IsEmpty(root.Definition))throw new IOException("注销后目录出现新内容，保留清空状态以供重试。");
+        Forget(root);return true;
     }
     private async Task RemoveAsync(Runtime root,Job job)
     {
         var mount=root.Definition;
         if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("根身份变化，不能解除。");
+        MarkRemoval(root,MountRemovalMode.PreserveFiles);
         if(MountPathGuard.ReadRoot(mount.LocalPath) is null)
         {
-            if(MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))throw new IOException("注册丢失但仍有云文件，保留配置待恢复。");
-            _repository.DeleteDefinition(mount.Id);_roots.TryRemove(mount.Id,out _);return;
+            if(CloudFilesNative.RootIdentity(mount.LocalPath) is not null || MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))throw new IOException("注册丢失或归属不明，保留配置待恢复。");
+            await DisconnectCoreAsync(root).ConfigureAwait(false);Forget(root);return;
         }
+        MountPathGuard.ValidateOperation(root.Definition,mount.LocalPath);
         if(root.Session is null)
         {
             root.Source=new MockFileSource(Path.Combine(_repository.DataDirectory,"MockSources",mount.Id.ToString("N")));
             root.Session=new CloudMountSession(mount,root.Source,_repository,_logger);root.Session.Connect();
         }
-        root.Definition=mount with{RemovalPending=true};_repository.SaveDefinition(root.Definition);Status(root,"移除中","完整下载后保留为普通本地目录。");
-        Reconcile(root);
+        Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
         var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
         job.Snapshot=job.Snapshot with{Total=entries.Length};Save(job);
         // 所有剩余文件完整下载成功后，才开始解除任何占位。
@@ -247,15 +306,20 @@ public sealed class MountManager : IAsyncDisposable
         }
         job.Cancel.Token.ThrowIfCancellationRequested();
         if(MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))throw new IOException("仍有未解除的云文件，保留配置和注册以供恢复。");
-        await DisconnectCoreAsync(root).ConfigureAwait(false);
-        CloudRootRegistration.Unregister(mount);_repository.DeleteDefinition(mount.Id);_roots.TryRemove(mount.Id,out _);Notify();
+        MarkUnregistering(root);await DisconnectCoreAsync(root).ConfigureAwait(false);
+        CloudRootRegistration.Unregister(root.Definition);Forget(root);
     }
     private void Result(Job job,string path,string status,string message)
     {job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,Results=job.Snapshot.Results.Append(new(path,status,message)).ToArray()};Save(job);}
     private void Update(Job job,string state,string? error=null){job.Snapshot=job.Snapshot with{State=state,Error=error};Save(job);}
     private void Save(Job job){_repository.SaveOperation(job.Snapshot);Notify();}
     public MountOperationSnapshot? GetOperation(string id)=>_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id);
-    public bool Cancel(string id){if(!_jobs.TryGetValue(id,out var job))return false;job.Cancel.Cancel();return true;}
+    /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
+    public bool Cancel(string id)
+    {
+        if(!_jobs.TryGetValue(id,out var job) || job.Snapshot.State is not("Queued" or "Running"))return false;
+        try { job.Cancel.Cancel();return true; }catch(ObjectDisposedException){return false;}
+    }
     public ValueTask DisposeAsync()=>new(_dispose??=StopAsync());
     private async Task StopAsync()
     {
