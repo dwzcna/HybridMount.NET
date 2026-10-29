@@ -18,7 +18,7 @@ public sealed record MountDefinition(Guid Id, string Name, string LocalPath, boo
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false);
 public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail)
 {
-    public string SourceDisplay => Definition.Source?.Kind.ToString() ?? "旧版模拟源（仅迁出）";
+    public string SourceDisplay => Definition.Source?.Kind switch { FileSourceKind.WebDav=>"WebDAV",FileSourceKind.S3=>"S3 对象存储",FileSourceKind.Smb=>"SMB（预留）",FileSourceKind.Nfs=>"NFS（预留）",_=>"旧版模拟源（仅迁出）" };
 }
 public sealed record MountItemResult(string Path, string Status, string Message);
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,

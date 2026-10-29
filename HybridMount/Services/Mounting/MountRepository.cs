@@ -76,7 +76,7 @@ public sealed class MountRepository
     {
         lock (_gate)
         {
-            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "INSERT INTO entries VALUES($m,$id,$s,$l,$v,$d,$x,$p,$c) ON CONFLICT(mount,id) DO UPDATE SET local=$l,version=$v,deleted=$x,protected=$p,materialized=$c";
+            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "INSERT INTO entries VALUES($m,$id,$s,$l,$v,$d,$x,$p,$c) ON CONFLICT(mount,id) DO UPDATE SET local=$l,version=$v,deleted=MAX(deleted,$x),protected=MAX(protected,$p),materialized=MAX(materialized,$c)";
             cmd.Parameters.AddWithValue("$m", mount.ToString("N")); cmd.Parameters.AddWithValue("$id", entry.Id); cmd.Parameters.AddWithValue("$s", entry.SourcePath); cmd.Parameters.AddWithValue("$l", entry.LocalPath); cmd.Parameters.AddWithValue("$v", entry.Version); cmd.Parameters.AddWithValue("$d", entry.IsDirectory); cmd.Parameters.AddWithValue("$x", entry.Deleted); cmd.Parameters.AddWithValue("$p", entry.Protected); cmd.Parameters.AddWithValue("$c", entry.Materialized); cmd.ExecuteNonQuery();
         }
     }

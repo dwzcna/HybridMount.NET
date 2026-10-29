@@ -51,9 +51,11 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools"/>
     <PackageReference Include="CommunityToolkit.Mvvm"/>
     <PackageReference Include="Microsoft.Data.Sqlite"/>
+    <PackageReference Include="AWSSDK.S3"/>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <Content Include="ThirdParty\**\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
     <Content Include="Assets\HybridMount.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
     <Manifest Include="$(ApplicationManifest)"/>
     <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(NativeConfiguration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>

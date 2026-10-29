@@ -6,7 +6,7 @@
             <TextBlock Text="将远端文件显示为本地占位文件，打开时按需下载。本地修改不会自动上传。" TextWrapping="Wrap"/>
         </StackPanel>
         <Button Grid.Row="1" Content="新增挂载">
-            <Button.Flyout><MenuFlyout><MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/></MenuFlyout></Button.Flyout>
+            <Button.Flyout><MenuFlyout><MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/><MenuFlyoutItem Text="S3 对象存储" Click="CreateS3Mount"/></MenuFlyout></Button.Flyout>
         </Button>
         <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" Spacing="8">

@@ -14,6 +14,7 @@ public sealed class FileSourceFactory : IFileSourceFactory
     private readonly Dictionary<FileSourceKind, Func<FileSourceConfiguration, SourceCredentials, string, IFileSource>> _adapters = new();
     public FileSourceFactory()
     {
+        Register(FileSourceKind.S3, (options, secrets, work) => new S3FileSource(options, secrets, work));
         Register(FileSourceKind.WebDav, (options, secrets, cache) => new WebDavFileSource(options, secrets, new WholeFileCache(cache)));
     }
     /// <summary>启动前注册未来适配器；不增加工程或修改统一契约。</summary>
@@ -27,7 +28,9 @@ public sealed class FileSourceFactory : IFileSourceFactory
             return new LegacyRecoverySource(Path.Combine(repository.DataDirectory, "MockSources", mount.Id.ToString("N")));
         }
         if (!_adapters.TryGetValue(config.Kind, out var adapter)) throw new NotSupportedException("此协议尚未实现。");
-        var source = adapter(config, new CredentialStore(repository.DataDirectory).Load(mount.Id), Path.Combine(repository.DataDirectory, "RangeCache", mount.Id.ToString("N")));
+        var cacheDirectory=Path.Combine(repository.DataDirectory,"RangeCache",mount.Id.ToString("N"));
+        WholeFileCache.CleanupAbandoned(cacheDirectory);
+        var source = adapter(config, new CredentialStore(repository.DataDirectory).Load(mount.Id), cacheDirectory);
         try { await source.ProbeAsync(token).ConfigureAwait(false); return source; }
         catch { await source.DisposeAsync().ConfigureAwait(false); throw; }
     }

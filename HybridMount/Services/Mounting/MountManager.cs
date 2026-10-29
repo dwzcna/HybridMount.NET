@@ -54,6 +54,12 @@ public sealed class MountManager : IAsyncDisposable
         {
             if(source is null || source.Kind is FileSourceKind.LegacyMock or FileSourceKind.Smb or FileSourceKind.Nfs)throw new NotSupportedException("请选择已实现的网络协议。");
             FileSourceFactory.Endpoint(source);
+            if(source.Kind==FileSourceKind.S3)
+            {
+                S3FileSource.ValidateOptions(source);
+                if(!source.UseDefaultCredentials&&(string.IsNullOrWhiteSpace(credentials?.AccessKey)||string.IsNullOrWhiteSpace(credentials?.SecretKey)))throw new ArgumentException("请填写 S3 访问密钥或选择默认凭据链。");
+            }
+            if(source.Kind==FileSourceKind.WebDav&&credentials?.UserName.Contains(':')==true)throw new ArgumentException("WebDAV 账号不能包含冒号。");
         }
         if(string.IsNullOrWhiteSpace(name))throw new ArgumentException("请输入挂载名称。");
         var root=MountPathGuard.NormalizeRoot(directory);
@@ -70,12 +76,19 @@ public sealed class MountManager : IAsyncDisposable
     }
     public SourceCredentials GetCredentials(Guid id) { Root(id);return new CredentialStore(_repository.DataDirectory).Load(id); }
     /// <summary>只更换凭据，不能将已有占位悄悄重绑定到另一数据源。</summary>
-    public async Task UpdateCredentialsAsync(Guid id,SourceCredentials credentials,CancellationToken token=default)
+    public async Task UpdateCredentialsAsync(Guid id,SourceCredentials credentials,CancellationToken token=default,FileSourceConfiguration? settings=null)
     {
         var root=Root(id);await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if(root.Definition.RemovalPending)throw new IOException("移除过程中不能更换凭据。");
+            if(settings is not null)
+            {
+                var previous=root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
+                if(previous.Kind!=settings.Kind||previous.Endpoint!=settings.Endpoint||previous.Bucket!=settings.Bucket||previous.Prefix!=settings.Prefix||previous.AllowHttp!=settings.AllowHttp)
+                    throw new IOException("已有挂载不能更换远端根，请新建挂载。");
+                root.Definition=root.Definition with{Source=settings};_repository.SaveDefinition(root.Definition);
+            }
             new CredentialStore(_repository.DataDirectory).Save(id,credentials);
             await DisconnectCoreAsync(root).ConfigureAwait(false);await ConnectCoreAsync(root,token).ConfigureAwait(false);
         }

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using HybridMount.Models.Mounting;
@@ -8,7 +7,8 @@ namespace HybridMount.Services.Mounting;
 /// <summary>不可变整文件缓存；同键串行下载，未完成文件不可见，读取与回收互斥。</summary>
 public sealed class WholeFileCache(string directory)
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim[] Locks=Enumerable.Range(0,64).Select(_=>new SemaphoreSlim(1,1)).ToArray();
+    private static SemaphoreSlim Gate(string path)=>Locks[(StringComparer.OrdinalIgnoreCase.GetHashCode(Path.GetFullPath(path))&int.MaxValue)%Locks.Length];
     private readonly string _session = Guid.NewGuid().ToString("N");
     public async ValueTask<int> ReadAsync(string scope, SourceEntry entry, long offset, Memory<byte> buffer,
         Func<Stream, CancellationToken, Task> download, CancellationToken token)
@@ -16,7 +16,7 @@ public sealed class WholeFileCache(string directory)
         Directory.CreateDirectory(directory);
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new[]{_session,scope,entry.Path,entry.Version}))));
         var path = Path.Combine(directory, key + ".cache");
-        var gate = Locks.GetOrAdd(path, _ => new(1, 1)); await gate.WaitAsync(token).ConfigureAwait(false);
+        var gate = Gate(path); await gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if (!File.Exists(path))
@@ -40,6 +40,12 @@ public sealed class WholeFileCache(string directory)
         }
         finally { gate.Release(); }
     }
+    /// <summary>只在旧会话已停止后清理未完成的本地临时文件；完整缓存继续计入软上限。</summary>
+    public static void CleanupAbandoned(string directory)
+    {
+        if(!Directory.Exists(directory))return;
+        foreach(var path in Directory.EnumerateFiles(directory,"*.tmp"))try{File.Delete(path);}catch(IOException){}catch(UnauthorizedAccessException){}
+    }
     /// <summary>仅清理已关闭的完整缓存；在途临时下载及读取通过文件共享限制得到保护。</summary>
     public static long Trim(string root, long bytesToFree)
     {
@@ -47,7 +53,7 @@ public sealed class WholeFileCache(string directory)
         foreach (var file in new DirectoryInfo(root).EnumerateFiles("*.cache", SearchOption.AllDirectories).OrderBy(file => file.LastWriteTimeUtc))
         {
             if (freed >= bytesToFree) break;
-            var gate=Locks.GetOrAdd(file.FullName,_=>new(1,1));if(!gate.Wait(0))continue;
+            var gate=Gate(file.FullName);if(!gate.Wait(0))continue;
             try { var length = file.Length; File.Delete(file.FullName); freed += length; } catch (IOException) { } catch (UnauthorizedAccessException) { }
             finally { gate.Release(); }
         }

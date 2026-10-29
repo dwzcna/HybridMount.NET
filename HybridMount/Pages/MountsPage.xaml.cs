@@ -35,6 +35,11 @@ public sealed partial class MountsPage : Page, IDisposable
         var dialog=new NetworkMountDialog{XamlRoot=XamlRoot};await dialog.ShowAsync();
         if(dialog.CreatedMount is not null) { _selectedMount=dialog.CreatedMount.Id;RestoreSelection();ViewModel.Status=dialog.ResultMessage; }
     });
+    private async void CreateS3Mount(object sender,RoutedEventArgs args)=>await Run(async()=>
+    {
+        var dialog=new NetworkMountDialog(FileSourceKind.S3){XamlRoot=XamlRoot};await dialog.ShowAsync();
+        if(dialog.CreatedMount is not null){_selectedMount=dialog.CreatedMount.Id;RestoreSelection();ViewModel.Status=dialog.ResultMessage;}
+    });
     private async void Connect(object sender,RoutedEventArgs args)=>await Run(()=>App.Current.Mounts.ConnectAsync(Selected().Definition.Id));
     private async void UpdateCredentials(object sender,RoutedEventArgs args)=>await Run(async()=>
     {

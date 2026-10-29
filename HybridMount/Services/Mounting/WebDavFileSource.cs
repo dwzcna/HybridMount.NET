@@ -31,7 +31,7 @@ public sealed class WebDavFileSource : IFileSource
         if (credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 用户名不能包含冒号。");
         if (credentials.UserName.Length != 0)
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials.UserName + ":" + credentials.Password)));
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HybridMount/0.0.3");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HybridMount/" + typeof(WebDavFileSource).Assembly.GetName().Version!.ToString(3));
     }
     private Uri Address(string path, bool directory = false)
     {
@@ -232,6 +232,15 @@ public sealed class WebDavFileSource : IFileSource
                     if (response.StatusCode != HttpStatusCode.PreconditionFailed)
                     { Capabilities = Capabilities with { ConditionalWrite = CapabilitySupport.Unsupported }; throw new NotSupportedException("服务器忽略条件写，已拒绝修改用户内容。"); }
                 }
+                foreach(var method in new[]{HttpMethod.Delete,new HttpMethod("MOVE")})
+                {
+                    using var request=new HttpRequestMessage(method,Address(path));
+                    request.Headers.IfMatch.ParseAdd("\"hybridmount-never-match-"+Guid.NewGuid().ToString("N")+"\"");
+                    if(method.Method=="MOVE"){request.Headers.Add("Destination",Address(path+"-destination").AbsoluteUri);request.Headers.Add("Overwrite","F");}
+                    using var response=await SendAsync(request,token,true).ConfigureAwait(false);
+                    if(response.StatusCode!=HttpStatusCode.PreconditionFailed)
+                    {Capabilities=Capabilities with{ConditionalWrite=CapabilitySupport.Unsupported};throw new NotSupportedException("服务器未通过条件删除或移动验证，已拒绝用户内容修改。");}
+                }
                 _writesVerified = true; Capabilities = Capabilities with { ConditionalWrite = CapabilitySupport.Supported };
             }
             finally
@@ -239,9 +248,12 @@ public sealed class WebDavFileSource : IFileSource
                 if (created)
                 {
                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-                    using var request = new HttpRequestMessage(HttpMethod.Delete, Address(path));
-                    using var response = await SendAsync(request, cleanup.Token, true).ConfigureAwait(false);
-                    Success(response);
+                    foreach(var temporary in new[]{path,path+"-destination"})
+                    {
+                        using var request = new HttpRequestMessage(HttpMethod.Delete, Address(temporary));
+                        using var response = await SendAsync(request, cleanup.Token, true).ConfigureAwait(false);
+                        if(response.StatusCode!=HttpStatusCode.NotFound)Success(response);
+                    }
                 }
             }
         }
