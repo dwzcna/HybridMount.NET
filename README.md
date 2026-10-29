@@ -1,18 +1,22 @@
 # HybridMount.NET
 
-当前版本 **0.0.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64。主程序使用 WinUI 3、.NET 10 和 MSIX；命名空间为 `HybridMount`。
+当前版本 **0.0.2**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-本版提供首页、日志和设置界面；支持跟随系统／浅色／深色主题、五种窗口背景、注册表配置、SQLite 日志、常驻托盘及登录启动。新应用、托盘和安装包均使用本项目的骡子主题图标。
-
-资源管理器的文件、目录和目录背景菜单中提供 HybridMount.NET，包含“释放空间”“始终保留在设备上”。**0.0.1 的命令只记录请求并提示尚未实现，不修改文件。此版本没有网络协议或 CFAPI 挂载。**
+导航为“首页 → 挂载 → 日志”，设置位于底部。挂载使用 MapDrive 图标；品牌资源继续使用本项目的骡子图形。
 
 ## 使用
 
-- 关闭窗口默认隐藏到通知区域；最小化保留任务栏行为。托盘双击或“显示主窗口”可以恢复，托盘“退出 HybridMount.NET”会真正退出。
-- 设置页可改变关闭行为。登录启动默认关闭，开启后静默进入托盘；系统策略或用户在任务管理器中的禁用会反映到实际状态。
-- 普通重复启动恢复已有窗口，`HybridMount.NET.exe --tray` 静默启动或检查已有实例。
-- 日志页显示最近 100 条，可筛选、复制、导出和清除；数据库保留最多 30 天／10,000 条，重复消息限频。
-- 配置位于 `HKCU\Software\HybridMount.NET`。开发运行的数据位于 `%LOCALAPPDATA%\HybridMount.NET`，MSIX 使用本包的 `LocalState`，日志位于其 `Logs\diagnostics.db`。
+1. 在挂载页展开“新增挂载”，填写名称并选择本地 NTFS 空目录，点击“创建并连接”。目前只有内置模拟文件源，无需服务器或网络。
+2. 在资源管理器浏览真实占位文件，打开时按需读取；“始终保留在设备上”固定并下载，“释放空间”解除固定并回收合格缓存。本地修改、新建、活动文件和状态不明项目受到保护。
+3. 挂载页支持连接、断开、刷新、打开目录和后台任务查询／取消／逐项结果。移除挂载会先完整下载剩余文件，再解除占位，保留普通本地目录；失败可重试，不自动删除内容。
+
+本地修改、删除和重命名会保留，**本版本不自动上传或双向同步**。网络协议、自动缓存回收和状态显示完善按后续版本交付。
+
+关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出仅断开 CFAPI，保留同步根注册，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
+
+配置位于 `HKCU\Software\HybridMount.NET`，挂载定义在其 Mounts/Packaged 或 Mounts/Unpackaged 子键。运行索引和任务使用 SQLite，模拟源内容及版本保存在本产品数据目录的 Mounting/MockSources。打包数据位于本包 LocalState，非打包数据位于 `%LOCALAPPDATA%\HybridMount.NET`；调试使用独立挂载目录，不接管另一模式缺少配置的根。
+
+日志页提供筛选、复制、导出与清除，最近显示 100 条，保留最多 30 天／10,000 条。主题、窗口背景和关闭行为可以在设置中调整。
 
 ## 构建
 
@@ -54,4 +58,4 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-验证细节及待测项目见 [docs/Validation-0.0.1.md](docs/Validation-0.0.1.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。
+验证细节及待测项目见 [docs/Validation-0.0.2.md](docs/Validation-0.0.2.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。

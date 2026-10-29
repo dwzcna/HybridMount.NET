@@ -102,14 +102,14 @@ public sealed class ContractTests
     [Fact]
     public async Task FramingAndRequestValidation()
     {
-        var request = new IpcRequest(1, Guid.NewGuid().ToString(), "freeSpace", [@"D:\测试\文件.txt"]);
+        var request = new IpcRequest(2, Guid.NewGuid().ToString(), "freeSpace", [@"D:\测试\文件.txt"]);
         using var stream = new MemoryStream();
         await IpcProtocol.WriteAsync(stream, request); stream.Position = 0;
         var read = await IpcProtocol.ReadAsync<IpcRequest>(stream);
         Assert.Equal(request.Paths, read.Paths); Assert.True(IpcProtocol.IsValid(read));
         Assert.False(IpcProtocol.IsValid(request with { Paths = ["relative.txt"] }));
         Assert.False(IpcProtocol.IsValid(request with { Operation = "delete" }));
-        Assert.False(IpcProtocol.IsValid(request with { Version = 2 }));
+        Assert.False(IpcProtocol.IsValid(request with { Version = 3 }));
         using var truncated = new MemoryStream(new byte[] { 10, 0, 0, 0, 123 });
         await Assert.ThrowsAsync<EndOfStreamException>(() => IpcProtocol.ReadAsync<IpcRequest>(truncated));
     }
@@ -131,7 +131,7 @@ public sealed class ContractTests
             { await malformed.ConnectAsync(3000); await malformed.WriteAsync(new byte[4]); }
             foreach (var operation in new[] { "freeSpace", "keepOnDevice" })
             {
-                var response = await IpcClient.SendAsync(new(1, Guid.NewGuid().ToString(), operation, [file]), name);
+                var response = await IpcClient.SendAsync(new(2, Guid.NewGuid().ToString(), operation, [file]), name);
                 Assert.Equal("notImplemented", response.Status);
             }
             Assert.Equal("original", await File.ReadAllTextAsync(file));

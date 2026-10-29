@@ -62,8 +62,8 @@ public sealed class NativeExtensionTests
                 Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint*,int>)Table(first)[6])(first, &clone));
                 keep = Next(clone); Assert.Equal("始终保留在设备上", Title(keep));
                 uint state = 99;
-                Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(free)[7])(free, 0, 0, &state));
-                Assert.Equal(0u, state);
+                Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(free)[7])(free, 0, 1, &state));
+                Assert.NotEqual(0u, state);
             }
             finally { Release(keep); Release(freeAgain); Release(free); Release(clone); Release(second); Release(first); }
         }

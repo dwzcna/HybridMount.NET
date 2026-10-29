@@ -10,19 +10,21 @@ namespace HybridMount.Services;
 public static class IpcProtocol
 {
     /// <summary>首版传输版本，与产品源码版本分离。</summary>
-    public const int Version = 1;
+    public const int Version = 2;
     /// <summary>单帧上限，避免异常输入造成无界分配。</summary>
     public const int MaximumFrameBytes = 1024 * 1024;
     /// <summary>单次文件系统选择上限，超限明确拒绝而不截断。</summary>
     public const int MaximumPaths = 1024;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = 16 };
     /// <summary>按用户与登录会话隔离的管道名，和原生端保持一致。</summary>
-    public static string PipeName => $"HybridMount.NET.v1.{WindowsIdentity.GetCurrent().User?.Value ?? throw new InvalidOperationException("缺少用户 SID")}.{Process.GetCurrentProcess().SessionId}";
+    public static string PipeName => $"HybridMount.NET.v2.{WindowsIdentity.GetCurrent().User?.Value ?? throw new InvalidOperationException("缺少用户 SID")}.{Process.GetCurrentProcess().SessionId}";
 
+    public static string LegacyPipeName => PipeName.Replace(".v2.",".v1.");
     /// <summary>验证请求结构；文件命令不探测或修改所选路径。</summary>
     public static bool IsValid(IpcRequest request)
     {
         if (request.Version != Version || !Guid.TryParse(request.RequestId, out _) || request.Paths is null) return false;
+        if (request.Operation is "getOperation" or "cancelOperation") return request.Paths.Length == 0 && Guid.TryParse(request.JobId,out _);
         if (request.Operation is "ping" or "showWindow") return request.Paths.Length == 0;
         if (request.Operation is not ("freeSpace" or "keepOnDevice") || request.Paths.Length is < 1 or > MaximumPaths) return false;
         return request.Paths.All(path => !string.IsNullOrWhiteSpace(path) && path.Length <= 32767 && !path.Contains('\0') && Path.IsPathFullyQualified(path));

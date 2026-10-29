@@ -33,7 +33,10 @@ try {
         Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'-v:minimal') "tests-$Platform-$Configuration"
     }
     if ($Package) {
-        $packages = @(Get-ChildItem -LiteralPath $packageDirectory -Filter '*.msix' -Recurse -File)
+        [xml]$versionProps=Get-Content -LiteralPath (Join-Path $repoRoot 'Directory.Build.props') -Raw
+        $packageVersion=[string]$versionProps.Project.PropertyGroup[0].Version+'.0'
+        $packagePattern='*_'+$packageVersion+'_'+$Platform.ToLowerInvariant()+'.msix'
+        $packages = @(Get-ChildItem -LiteralPath $packageDirectory -Filter $packagePattern -Recurse -File)
         if (-not $packages.Count) { throw '构建未生成 MSIX。' }
         foreach ($msix in $packages) {
             if ($CertificateThumbprint) {

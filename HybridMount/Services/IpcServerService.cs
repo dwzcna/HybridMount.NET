@@ -8,6 +8,7 @@ public sealed class IpcServerService : IAsyncDisposable
 {
     private readonly LoggerService _logger;
     private readonly string _pipeName;
+    public Func<IpcRequest,IpcResponse>? Handler { get; set; }
     private readonly CancellationTokenSource _stop = new();
     private Task[]? _workers;
     private Task? _dispose;
@@ -57,6 +58,7 @@ public sealed class IpcServerService : IAsyncDisposable
     }
     private IpcResponse Handle(IpcRequest request)
     {
+        if (Handler is not null) return Handler(request);
         if (!IpcProtocol.IsValid(request)) return new(IpcProtocol.Version, request.RequestId ?? "", "invalidRequest", "请求版本、操作或路径无效。");
         if (request.Operation is "freeSpace" or "keepOnDevice")
         {

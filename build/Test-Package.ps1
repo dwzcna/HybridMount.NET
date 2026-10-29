@@ -40,8 +40,8 @@ try {
     if ($runtime.runtimeOptions.framework -or $runtime.runtimeOptions.frameworks) { throw '主程序仍依赖共享 .NET 运行时。' }
     if ($entries.Keys | Where-Object { $_ -match '(?i)EPaperKit|ProKit|Square44x44Logo|StoreLogo' }) { throw '包内出现旧产品资源或组件。' }
     $text = $manifest.OuterXml
-    foreach ($registration in @('windows.startupTask','windows.comServer','windows.fileExplorerContextMenus','HybridMountStartup','HybridMount.Ext.dll')) {
+    foreach ($registration in @('windows.cloudFiles','CloudFiles','windows.startupTask','windows.comServer','windows.fileExplorerContextMenus','HybridMountStartup','HybridMount.Ext.dll')) {
         if (-not $text.Contains($registration)) { throw "清单缺少 $registration" }
     }
-    Write-Host "包验证通过：$Platform / $version / 自包含 / 原生扩展 / 全新资源 / 启动与菜单声明。"
+    Write-Host "包验证通过：$Platform / $version / 自包含 / 原生扩展 / 全新资源 / CloudFiles、启动与菜单声明。"
 } finally { $archive.Dispose() }

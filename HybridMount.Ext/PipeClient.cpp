@@ -36,7 +36,7 @@ namespace {
 		LocalFree(rawSid);
 		DWORD session = 0;
 		Check(ProcessIdToSessionId(GetCurrentProcessId(), &session) != FALSE);
-		return L"\\\\.\\pipe\\HybridMount.NET.v1." + sid + L"." + std::to_wstring(session);
+		return L"\\\\.\\pipe\\HybridMount.NET.v2." + sid + L"." + std::to_wstring(session);
 	}
 	/// <summary>只转义 JSON 字符串；路径作为数据，不拼接进命令行。</summary>
 	std::wstring Quote(const std::wstring& input) {
@@ -99,7 +99,7 @@ namespace {
 				ComPtr<IApplicationActivationManager> activation;
 				DWORD process = 0;
 				if (SUCCEEDED(CoCreateInstance(CLSID_ApplicationActivationManager, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&activation)))
-					&& SUCCEEDED(activation->ActivateApplication((family + L"!App").c_str(), L"--tray", AO_NOERRORUI, &process))) return;
+					&& SUCCEEDED(activation->ActivateApplication((family + L"!App").c_str(), L"--background", AO_NOERRORUI, &process))) return;
 			}
 		}
 		std::wstring modulePath(32768, L'\0');
@@ -107,7 +107,7 @@ namespace {
 		Check(count > 0 && count < modulePath.size());
 		modulePath.resize(count);
 		const auto exe = modulePath.substr(0, modulePath.find_last_of(L'\\') + 1) + L"HybridMount.NET.exe";
-		auto command = L"\"" + exe + L"\" --tray";
+		auto command = L"\"" + exe + L"\" --background";
 		STARTUPINFOW startup{ sizeof(startup) };
 		PROCESS_INFORMATION process{};
 		Check(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process) != FALSE);
@@ -138,7 +138,7 @@ namespace {
 		Check(SUCCEEDED(CoCreateGuid(&guid)));
 		wchar_t id[40]{};
 		Check(StringFromGUID2(guid, id, ARRAYSIZE(id)) > 0);
-		std::wstring json = L"{\"version\":1,\"requestId\":" + Quote(id) + L",\"operation\":\"" + (work.keep ? L"keepOnDevice" : L"freeSpace") + L"\",\"paths\":[";
+		std::wstring json = L"{\"version\":2,\"requestId\":" + Quote(id) + L",\"operation\":\"" + (work.keep ? L"keepOnDevice" : L"freeSpace") + L"\",\"paths\":[";
 		for (size_t index = 0; index < work.paths.size(); ++index) { if (index) json += L','; json += Quote(work.paths[index]); }
 		json += L"]}";
 		auto bytes = Utf8(json);
@@ -158,18 +158,18 @@ namespace {
 		Check(SUCCEEDED(jsonFactory->Parse(HStringReference(text.c_str()).Get(), &root)));
 		HString correlation, status;
 		double version = 0;
-		Check(SUCCEEDED(root->GetNamedNumber(HStringReference(L"version").Get(), &version)) && version == 1);
+		Check(SUCCEEDED(root->GetNamedNumber(HStringReference(L"version").Get(), &version)) && version == 2);
 		Check(SUCCEEDED(root->GetNamedString(HStringReference(L"requestId").Get(), correlation.GetAddressOf())));
 		Check(wcscmp(correlation.GetRawBuffer(nullptr), id) == 0);
 		Check(SUCCEEDED(root->GetNamedString(HStringReference(L"status").Get(), status.GetAddressOf())));
-		Check(wcscmp(status.GetRawBuffer(nullptr), L"notImplemented") == 0);
+		Check(wcscmp(status.GetRawBuffer(nullptr), L"accepted") == 0 || wcscmp(status.GetRawBuffer(nullptr), L"notImplemented") == 0);
 	}
 	DWORD WINAPI RunWork(void* parameter) noexcept {
 		auto work = std::unique_ptr<Work>(static_cast<Work*>(parameter));
 		const auto module = work->module;
 		const HRESULT initialized = RoInitialize(RO_INIT_MULTITHREADED);
 		try { Check(SUCCEEDED(initialized)); Send(*work); }
-		catch (...) { MessageBoxW(nullptr, L"无法将占位请求发送给 HybridMount.NET。请启动应用后重试。未修改所选文件。", L"HybridMount.NET", MB_OK | MB_ICONWARNING); }
+		catch (...) { MessageBoxW(nullptr, L"无法确认任务结果。请在 HybridMount.NET 挂载页查看；已接纳的任务可能继续执行。", L"HybridMount.NET", MB_OK | MB_ICONWARNING); }
 		if (SUCCEEDED(initialized)) RoUninitialize();
 		work.reset();
 		FreeLibraryAndExitThread(module, 0);

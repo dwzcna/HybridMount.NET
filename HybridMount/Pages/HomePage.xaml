@@ -3,8 +3,9 @@
     <StackPanel Margin="32" Spacing="24" MaxWidth="1040" HorizontalAlignment="Stretch">
       <StackPanel Orientation="Horizontal" Spacing="16"><Image Source="ms-appx:///Assets/HybridMount.png" Width="64" Height="64"/><StackPanel Spacing="8"><TextBlock Text="HybridMount.NET" Style="{ThemeResource TitleTextBlockStyle}"/><TextBlock Text="远端文件的本地视图" Style="{ThemeResource SubtitleTextBlockStyle}"/></StackPanel></StackPanel>
       <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
-        <TextBlock Text="基础功能已就绪" FontSize="20" FontWeight="SemiBold"/>
-        <TextBlock Text="此版本提供外观设置、日志、常驻托盘与资源管理器占位菜单。文件挂载将在后续版本开放。" TextWrapping="Wrap"/>
+        <TextBlock Text="按需挂载已就绪" FontSize="20" FontWeight="SemiBold"/>
+        <TextBlock Text="本版支持本地 NTFS 目录的模拟源挂载、按需读取与手动离线缓存。本地修改受到保护，网络协议将在后续版本提供。" TextWrapping="Wrap"/>
+        <Button Content="管理挂载" Click="OpenMounts" Style="{StaticResource PageActionButtonStyle}"/>
         <TextBlock x:Name="VersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
       </StackPanel></Border>
       <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>

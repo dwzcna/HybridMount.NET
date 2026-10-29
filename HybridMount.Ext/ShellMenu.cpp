@@ -5,12 +5,67 @@
 #include "Extension.h"
 #include <shlguid.h>
 #include <new>
+#include <winternl.h>
+#include <cfapi.h>
+#include <windows.data.json.h>
+#include <wrl/wrappers/corewrappers.h>
+#include <roapi.h>
+#include <cstddef>
+#include <sddl.h>
+static_assert(offsetof(CF_SYNC_ROOT_STANDARD_INFO, SyncRootIdentity) == 1056);
+static_assert(offsetof(CF_PLACEHOLDER_STANDARD_INFO, FileIdentity) == 60);
+static_assert(sizeof(CF_CALLBACK_INFO) == 152);
+static_assert(sizeof(CF_OPERATION_INFO) == 48);
+static_assert(sizeof(CF_OPERATION_PARAMETERS) == 48);
 
 using namespace Microsoft::WRL;
 HMODULE g_module = nullptr;
 std::atomic<long> g_objects{ 0 };
 namespace {
 	enum class Operation { Root, FreeSpace, KeepOnDevice };
+/// <summary>只读取本机 CFAPI 根身份；不访问服务或水合内容，未知或畸形信息隐藏菜单。</summary>
+bool OwnedRoot(const std::wstring& path, GUID& mount) {
+    if (path.size() < 3 || path[1] != L':' || PathIsUNCW(path.c_str())) return false;
+    const std::wstring drive = path.substr(0, 3);
+    if (GetDriveTypeW(drive.c_str()) == DRIVE_REMOTE) return false;
+    std::vector<BYTE> buffer(8192);
+    if (FAILED(CfGetSyncRootInfoByPath(path.c_str(), CF_SYNC_ROOT_INFO_STANDARD, buffer.data(), static_cast<DWORD>(buffer.size()), nullptr))) return false;
+    const auto info = reinterpret_cast<const CF_SYNC_ROOT_STANDARD_INFO*>(buffer.data());
+    if (info->SyncRootIdentityLength == 0 || info->SyncRootIdentityLength > 4096) return false;
+    const auto data = reinterpret_cast<const char*>(info->SyncRootIdentity);
+    const auto count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data, static_cast<int>(info->SyncRootIdentityLength), nullptr, 0);
+    if (count <= 0) return false;
+    std::wstring json(count, L'\0');
+    if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data, static_cast<int>(info->SyncRootIdentityLength), json.data(), count)) return false;
+    const auto initialized = RoInitialize(RO_INIT_SINGLETHREADED);
+    struct RoScope { HRESULT status; ~RoScope() { if (SUCCEEDED(status)) RoUninitialize(); } } ro{ initialized };
+    ComPtr<ABI::Windows::Data::Json::IJsonObjectStatics> factory;
+    ComPtr<ABI::Windows::Data::Json::IJsonObject> root;
+    using Microsoft::WRL::Wrappers::HString;
+    using Microsoft::WRL::Wrappers::HStringReference;
+    if (FAILED(RoGetActivationFactory(HStringReference(RuntimeClass_Windows_Data_Json_JsonObject).Get(), IID_PPV_ARGS(&factory))) || FAILED(factory->Parse(HStringReference(json.c_str()).Get(), &root))) return false;
+    HString product, id;
+    double schema = 0;
+    if (FAILED(root->GetNamedString(HStringReference(L"Product").Get(), product.GetAddressOf())) || wcscmp(product.GetRawBuffer(nullptr), L"HybridMount.NET") != 0 ||
+        FAILED(root->GetNamedNumber(HStringReference(L"Schema").Get(), &schema)) || schema != 1 ||
+        FAILED(root->GetNamedString(HStringReference(L"MountId").Get(), id.GetAddressOf()))) return false;
+    HString owner;
+    if (FAILED(root->GetNamedString(HStringReference(L"Owner").Get(), owner.GetAddressOf()))) return false;
+    HANDLE rawToken = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &rawToken)) return false;
+    struct TokenScope { HANDLE value; ~TokenScope() { CloseHandle(value); } } token{ rawToken };
+    DWORD tokenSize = 0;
+    GetTokenInformation(token.value, TokenUser, nullptr, 0, &tokenSize);
+    std::vector<BYTE> user(tokenSize);
+    if (!GetTokenInformation(token.value, TokenUser, user.data(), tokenSize, &tokenSize)) return false;
+    LPWSTR sid = nullptr;
+    if (!ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid, &sid)) return false;
+    const auto sameUser = wcscmp(sid, owner.GetRawBuffer(nullptr)) == 0;
+    LocalFree(sid);
+    if (!sameUser) return false;
+    auto guid = std::wstring(L"{") + id.GetRawBuffer(nullptr) + L"}";
+    return SUCCEEDED(CLSIDFromString(guid.c_str(), &mount));
+}
 	class Command;
 	/// <summary>每次枚举拥有独立游标；Clone 复制位置但不共享可变枚举状态。</summary>
 	class CommandEnumerator final : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IEnumExplorerCommand>, private ModuleLifetime {
@@ -80,7 +135,7 @@ namespace {
 		}
 		IFACEMETHODIMP GetToolTip(IShellItemArray*, PWSTR* text) override {
 			if (!text) return E_POINTER;
-			return SHStrDupW(L"0.0.1 占位命令：记录请求，不修改文件。", text);
+			return SHStrDupW(L"管理此挂载的离线缓存；本地修改会受到保护。", text);
 		}
 		IFACEMETHODIMP GetCanonicalName(GUID* name) override {
 			if (!name) return E_POINTER;
@@ -88,13 +143,28 @@ namespace {
 			name->Data4[7] += static_cast<BYTE>(_operation);
 			return S_OK;
 		}
-		IFACEMETHODIMP GetState(IShellItemArray*, BOOL, EXPCMDSTATE* state) override {
-			if (!state) return E_POINTER;
-			// 首版全局可见；此回调不查询网络、文件属性或 IPC。
-			*state = ECS_ENABLED;
-			return S_OK;
-		}
-		IFACEMETHODIMP Invoke(IShellItemArray* selection, IBindCtx*) override {
+		IFACEMETHODIMP GetState(IShellItemArray* selection, BOOL slow, EXPCMDSTATE* state) override {
+        if (!state) return E_POINTER;
+        *state = ECS_HIDDEN;
+        if (!slow) return E_PENDING;
+        try {
+            std::vector<std::wstring> paths;
+            DWORD count = 0;
+            if (selection && FAILED(selection->GetCount(&count))) return S_OK;
+            if (count > 1024) return S_OK;
+            for (DWORD index = 0; index < count; ++index) {
+                ComPtr<IShellItem> item; PWSTR raw = nullptr;
+                if (FAILED(selection->GetItemAt(index, &item)) || FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &raw))) return S_OK;
+                paths.emplace_back(raw); CoTaskMemFree(raw);
+            }
+            if (paths.empty()) { std::wstring background; if (FAILED(BackgroundPath(_site.Get(), background))) return S_OK; paths.push_back(std::move(background)); }
+            GUID expected{}; bool first = true;
+            for (const auto& path : paths) { GUID current{}; if (!OwnedRoot(path, current) || (!first && current != expected)) return S_OK; expected = current; first = false; }
+            *state = ECS_ENABLED;
+        } catch (...) { *state = ECS_HIDDEN; }
+        return S_OK;
+    }
+    IFACEMETHODIMP Invoke(IShellItemArray* selection, IBindCtx*) override {
 			if (_operation == Operation::Root) return S_OK;
 			try {
 				std::vector<std::wstring> paths;

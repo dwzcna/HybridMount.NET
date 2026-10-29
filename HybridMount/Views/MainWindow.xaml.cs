@@ -32,12 +32,12 @@ public sealed partial class MainWindow : Window
         ApplyAppearance();
         Navigation.SelectedItem = Navigation.MenuItems[0];
     }
-    /// <summary>切换页面；缓存限三个页面，退出时解除日志订阅。</summary>
+    /// <summary>切换页面；缓存限四个页面，退出时解除日志订阅。</summary>
     public void Navigate(string key)
     {
         if (!_pages.TryGetValue(key, out var page))
         {
-            page = key switch { "Logs" => new LogsPage(), "Settings" => new SettingsPage(), _ => new HomePage() };
+            page = key switch { "Mounts" => new MountsPage(), "Logs" => new LogsPage(), "Settings" => new SettingsPage(), _ => new HomePage() };
             _pages[key] = page;
         }
         ContentFrame.Content = page;

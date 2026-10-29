@@ -10,7 +10,7 @@ public sealed class SingleInstanceService : IDisposable
     /// <summary>原生崩溃遗留的互斥量可以由下一实例接管。</summary>
     public SingleInstanceService(string? name = null)
     {
-        _mutex = new Mutex(false, name ?? $"Local\\{IpcProtocol.PipeName}.Instance");
+        _mutex = new Mutex(false, name ?? $"Local\\{IpcProtocol.PipeName.Replace(".v2.", ".")}.Instance");
         try { _owned = _mutex.WaitOne(0); }
         catch (AbandonedMutexException) { _owned = true; }
     }

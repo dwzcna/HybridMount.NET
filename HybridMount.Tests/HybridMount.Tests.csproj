@@ -22,6 +22,9 @@
     <Compile Include="..\HybridMount\Services\Ipc*.cs" Link="Production\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\SingleInstanceService.cs"/>
     <Compile Include="..\HybridMount\ViewModels\AppearanceSettingsViewModel.cs" Link="Production\AppearanceSettingsViewModel.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\*.cs" Link="Production\Mounting\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Services\Mounting\*.cs" Link="Production\Mounting\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Common\IFileSource.cs" Link="Production\IFileSource.cs"/>
     <Using Include="HybridMount.Models"/><Using Include="HybridMount.Common"/><Using Include="HybridMount.Services"/><Using Include="Xunit"/>
   </ItemGroup>
 </Project>

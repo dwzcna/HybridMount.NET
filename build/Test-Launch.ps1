@@ -1,16 +1,28 @@
 # 通过进程元数据和公开 IPC 验证启动；不自动点击桌面，不代替视觉验收。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ExecutablePath,[ValidateSet('Packaged','Unpackaged')][string]$Deployment='Unpackaged')
+param([Parameter(Mandatory)][string]$ExecutablePath,[ValidateSet('Packaged','Unpackaged')][string]$Deployment='Unpackaged',[int]$ExistingProcessId)
 $ErrorActionPreference='Stop'
 $executable=[IO.Path]::GetFullPath($ExecutablePath)
 if (-not (Test-Path -LiteralPath $executable)) { throw '找不到应用可执行文件。' }
 $evidence=[Collections.Generic.List[string]]::new()
 $evidence.Add("UTC: $([DateTime]::UtcNow.ToString('O'))")
 function Send-Request([string]$operation,[string[]]$paths=@()) { & (Join-Path $PSScriptRoot 'Invoke-Request.ps1') -Operation $operation -Paths $paths }
-if (Get-Process -Name 'HybridMount.NET' -ErrorAction SilentlyContinue) { throw '请先退出正在运行的 HybridMount.NET，避免影响已有实例。' }
-$primary=Start-Process -FilePath $executable -ArgumentList '--tray' -WindowStyle Hidden -PassThru
+if ($ExistingProcessId) {
+    # 允许继续验证调用方指定的既有测试进程，不结束正在运行的应用或挂载。
+    $primary=Get-Process -Id $ExistingProcessId
+    if($primary.ProcessName -ne 'HybridMount.NET' -or $primary.Path -ne $executable) { throw '既有测试进程与目标 EXE 不符。' }
+    $evidence.Add("继续验证既有测试进程 PID: $ExistingProcessId。")
+} else {
+    if (Get-Process -Name 'HybridMount.NET' -ErrorAction SilentlyContinue) { throw '请先退出正在运行的 HybridMount.NET，避免影响已有实例。' }
+    $primary=Start-Process -FilePath $executable -ArgumentList '--tray' -WindowStyle Hidden -PassThru
+}
 try {
-    $ready=Send-Request 'ping'
+    # WinUI 首次冷启动可能超过单次 IPC 截止时间；仅就绪检查重试，不重复提交文件操作。
+    $readyDeadline=[DateTime]::UtcNow.AddSeconds(30)
+    do {
+        try { $ready=Send-Request 'ping'; break }
+        catch { $primary.Refresh(); if($primary.HasExited -or [DateTime]::UtcNow -ge $readyDeadline){throw}; Start-Sleep -Milliseconds 100 }
+    } while ($true)
     if ($ready.status -ne 'ready') { throw '主实例未就绪。' }
     $primary.Refresh()
     if ($primary.HasExited -or $primary.MainWindowHandle -ne 0) { throw '静默启动未保持无主窗口状态。' }
@@ -33,10 +45,10 @@ try {
         [IO.File]::WriteAllText($testFile,'original')
         foreach ($operation in @('freeSpace','keepOnDevice')) {
             $response=Send-Request $operation @($testFile)
-            if ($response.status -ne 'notImplemented') { throw '占位操作未明确报告尚未实现。' }
+            if ($response.status -ne 'rejected') { throw '非挂载目录的请求未被拒绝。' }
             if ([IO.File]::ReadAllText($testFile) -ne 'original') { throw '占位操作改动了测试文件。' }
         }
-        $evidence.Add('PASS: 实际 WinUI 进程中的两个占位请求返回尚未实现，测试文件未改变。')
+        $evidence.Add('PASS: 实际 WinUI 进程拒绝非挂载目录的两个缓存请求，测试文件未改变。')
     } finally { if (Test-Path -LiteralPath $testDirectory) { Remove-Item -LiteralPath $testFile; Remove-Item -LiteralPath $testDirectory } }
     $evidence.Add("主实例 PID: $($primary.Id)，保留运行以便手工验收。")
 } catch { $evidence.Add("FAIL: $($_.Exception.Message)"); throw }
