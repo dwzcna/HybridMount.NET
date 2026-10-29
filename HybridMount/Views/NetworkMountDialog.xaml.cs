@@ -5,8 +5,8 @@ using Windows.Storage.Pickers;
 
 namespace HybridMount.Views;
 
-/// <summary>创建模拟挂载的表单；验证失败保留输入，持久创建后连接失败则返回列表重试。</summary>
-public sealed partial class MockMountDialog : ContentDialog
+/// <summary>创建网络挂载的表单；验证失败保留输入，持久创建后连接失败则返回列表重试。</summary>
+public sealed partial class NetworkMountDialog : ContentDialog
 {
     private bool _submitting,_picking;
     /// <summary>已持久创建的挂载；取消或校验失败时为空。</summary>
@@ -14,7 +14,20 @@ public sealed partial class MockMountDialog : ContentDialog
     /// <summary>返回挂载页显示的创建或连接结果。</summary>
     public string ResultMessage { get; private set; }="";
     /// <summary>初始化新表单；目录在本次对话框内选择。</summary>
-    public MockMountDialog()=>InitializeComponent();
+    private readonly MountDefinition? _existing;
+    public NetworkMountDialog(FileSourceKind kind=FileSourceKind.WebDav,MountDefinition? existing=null)
+    {
+        InitializeComponent();_existing=existing;
+        if(existing is not null)
+        {
+            Title="更新连接凭据";PrimaryButtonText="保存并重连";
+            NameField.Text=existing.Name;NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
+            EndpointField.Text=existing.Source!.Endpoint;EndpointField.IsReadOnly=true;HttpField.IsChecked=existing.Source.AllowHttp;HttpField.IsEnabled=false;
+            AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;
+            var saved=App.Current.Mounts.GetCredentials(existing.Id);UserField.Text=saved.UserName;
+            PasswordField.Password=saved.Password;
+        }
+    }
     private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args) { if(_submitting || _picking)args.Cancel=true; }
     private async void ChooseFolder(object sender,RoutedEventArgs args)
     {
@@ -37,12 +50,15 @@ public sealed partial class MockMountDialog : ContentDialog
         var before=App.Current.Mounts.Mounts.Select(mount=>mount.Definition.Id).ToHashSet();
         try
         {
-            CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn);
+            var settings=new FileSourceConfiguration(FileSourceKind.WebDav,EndpointField.Text.Trim(),AllowHttp:HttpField.IsChecked==true);
+            var credentials=new SourceCredentials(UserField.Text.Trim(),PasswordField.Password);
+            if(_existing is null)CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn,source:settings,credentials:credentials);
+            else { await App.Current.Mounts.UpdateCredentialsAsync(_existing.Id,credentials);CreatedMount=_existing; }
             ResultMessage=$"已连接 {CreatedMount.Name}。";args.Cancel=false;
         }
         catch(Exception error)
         {
-            var created=App.Current.Mounts.Mounts.FirstOrDefault(mount=>!before.Contains(mount.Definition.Id)&&mount.Definition.LocalPath.Equals(PathField.Text,StringComparison.OrdinalIgnoreCase));
+            var created=_existing is null?App.Current.Mounts.Mounts.FirstOrDefault(mount=>!before.Contains(mount.Definition.Id)&&mount.Definition.LocalPath.Equals(PathField.Text,StringComparison.OrdinalIgnoreCase)):App.Current.Mounts.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_existing.Id);
             if(created is not null)
             {
                 CreatedMount=created.Definition;ResultMessage=$"挂载已创建，但连接失败：{error.Message}；请选择该挂载后点击连接重试。";args.Cancel=false;

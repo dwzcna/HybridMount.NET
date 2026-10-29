@@ -1,6 +1,5 @@
 # 本机维护说明与 IDE 缓存
 /AGENTS.md
-/HybridMount-devplan.md
 .vs/
 .idea/
 *.suo

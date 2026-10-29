@@ -30,12 +30,17 @@ public sealed partial class MountsPage : Page, IDisposable
         catch(Exception error) { ViewModel.Status=error.Message;App.Current.Logger.Queue("挂载","Error",error.Message); }
         finally { _busy=false; }
     }
-    private async void CreateMockMount(object sender,RoutedEventArgs args)=>await Run(async()=>
+    private async void CreateWebDavMount(object sender,RoutedEventArgs args)=>await Run(async()=>
     {
-        var dialog=new MockMountDialog{XamlRoot=XamlRoot};await dialog.ShowAsync();
+        var dialog=new NetworkMountDialog{XamlRoot=XamlRoot};await dialog.ShowAsync();
         if(dialog.CreatedMount is not null) { _selectedMount=dialog.CreatedMount.Id;RestoreSelection();ViewModel.Status=dialog.ResultMessage; }
     });
     private async void Connect(object sender,RoutedEventArgs args)=>await Run(()=>App.Current.Mounts.ConnectAsync(Selected().Definition.Id));
+    private async void UpdateCredentials(object sender,RoutedEventArgs args)=>await Run(async()=>
+    {
+        var mount=Selected().Definition;if(mount.Source is null)throw new InvalidOperationException("旧版模拟源仅支持迁出。");
+        var dialog=new NetworkMountDialog(mount.Source.Kind,mount){XamlRoot=XamlRoot};await dialog.ShowAsync();ViewModel.Status=dialog.ResultMessage;
+    });
     private async void Disconnect(object sender,RoutedEventArgs args)=>await Run(()=>App.Current.Mounts.DisconnectAsync(Selected().Definition.Id));
     private async void OpenFolder(object sender,RoutedEventArgs args)=>await Run(async()=>{var folder=await StorageFolder.GetFolderFromPathAsync(Selected().Definition.LocalPath);await Windows.System.Launcher.LaunchFolderAsync(folder);});
     private void Queue(string operation)

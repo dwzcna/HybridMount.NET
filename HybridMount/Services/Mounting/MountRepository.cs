@@ -44,7 +44,13 @@ public sealed class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 2, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 3, RegistryValueKind.DWord); }
+    }
+    /// <summary>此仓库的全局缓存软上限；旧配置默认 10 GiB，0 为关闭。</summary>
+    public long CacheLimitBytes
+    {
+        get { lock(_gate) { using var key=Registry.CurrentUser.OpenSubKey(_registry);return key?.GetValue("CacheLimitBytes") is long value&&value>=0?value:10L*1024*1024*1024; } }
+        set { lock(_gate) { using var key=Registry.CurrentUser.CreateSubKey(_registry,true);key.SetValue("CacheLimitBytes",value,RegistryValueKind.QWord); } }
     }
     public void DeleteDefinition(Guid id) { lock (_gate) Registry.CurrentUser.DeleteSubKeyTree(_registry + "\\" + id.ToString("N"), false); }
     /// <summary>只清除已完成移除的挂载映射；任务历史和模拟源内容保留。</summary>

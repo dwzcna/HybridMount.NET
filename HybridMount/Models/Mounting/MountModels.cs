@@ -13,10 +13,13 @@ public enum MountRemovalMode { PreserveFiles, ClearContents }
 /// <summary>Working 表示处理内容；Unregistering 表示内容已处理、正在解除注册。</summary>
 public enum MountRemovalStage { Working, Unregistering }
 /// <summary>根位置不可原地修改；未完成的移除必须按已保存的模式恢复。</summary>
-public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working);
+public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null);
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false);
-public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail);
+public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail)
+{
+    public string SourceDisplay => Definition.Source?.Kind.ToString() ?? "旧版模拟源（仅迁出）";
+}
 public sealed record MountItemResult(string Path, string Status, string Message);
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,
     IReadOnlyList<MountItemResult> Results, string? Error)

@@ -66,7 +66,7 @@ public sealed class MountingTests
         Guid id=default;
         try
         {
-            await using(var manager=new MountManager(repository,logger))
+            await using(var manager=new MountManager(repository,logger,TestSourceFactory.Instance))
             {
                 var mount=await manager.AddAsync("CFAPI 测试",local,true).WaitAsync(TimeSpan.FromSeconds(30));id=mount.Id;
                 Assert.Equal(id,MountPathGuard.ReadRoot(local)!.MountId);
@@ -92,7 +92,7 @@ public sealed class MountingTests
                 Assert.False(File.Exists(Path.Combine(local,"空文件.txt")));
                 Assert.True(File.Exists(Path.Combine(local,"中文目录","多层","改名.txt")));
             }
-            await using(var reopened=new MountManager(repository,logger))
+            await using(var reopened=new MountManager(repository,logger,TestSourceFactory.Instance))
             {
                 await reopened.StartAsync();Assert.Equal("已连接",Assert.Single(reopened.Mounts).Status);
                 Assert.Equal("本地修改必须保留",await File.ReadAllTextAsync(Path.Combine(local,"说明.txt")));
@@ -138,7 +138,7 @@ public sealed class MountingTests
                 var area=Path.GetDirectoryName(mount.LocalPath)!;
                 var repository=new MountRepository(Path.Combine(area,"data"),registry);
                 await using var logger=new LoggerService(Path.Combine(area,"recovery.db"));
-                await using var manager=new MountManager(repository,logger);
+                await using var manager=new MountManager(repository,logger,TestSourceFactory.Instance);
                 var job=manager.Queue(mount.Id,"remove");await Finished(manager,job);
                 // 仅解除测试注册，保留上次测试目录供诊断。
             }

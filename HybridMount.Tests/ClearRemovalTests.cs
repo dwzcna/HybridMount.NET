@@ -170,7 +170,7 @@ public sealed class ClearRemovalTests
         private Fixture()
         {
             Directory.CreateDirectory(Local);Repository=new MountRepository(Path.Combine(Area,"data"),RegistryPath);
-            Logger=new LoggerService(Path.Combine(Area,"log.db"));Manager=new MountManager(Repository,Logger);
+            Logger=new LoggerService(Path.Combine(Area,"log.db"));Manager=new MountManager(Repository,Logger,TestSourceFactory.Instance);
         }
         internal static async Task<Fixture> CreateAsync()
         {
@@ -179,13 +179,13 @@ public sealed class ClearRemovalTests
             catch { await test.DisposeAsync();throw; }
         }
         internal async Task RestartAsync()
-        { await Manager.DisposeAsync();Manager=new MountManager(Repository,Logger);await Manager.StartAsync(); }
+        { await Manager.DisposeAsync();Manager=new MountManager(Repository,Logger,TestSourceFactory.Instance);await Manager.StartAsync(); }
         public async ValueTask DisposeAsync()
         {
             await Manager.DisposeAsync();
             if(Repository.LoadDefinitions().Count>0)
             {
-                await using var recovery=new MountManager(Repository,Logger);
+                await using var recovery=new MountManager(Repository,Logger,TestSourceFactory.Instance);
                 foreach(var definition in Repository.LoadDefinitions())
                 {
                     if(definition.LocalPath!=Local || definition.RootIdentity!=MountPathGuard.FileIdentity(Local))continue;

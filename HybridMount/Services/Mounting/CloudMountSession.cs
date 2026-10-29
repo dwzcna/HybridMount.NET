@@ -21,6 +21,8 @@ public sealed class CloudMountSession : IAsyncDisposable
     private readonly ConcurrentDictionary<(long,long), (CancellationTokenSource Cancel,Task Work)> _fetches = new();
     private readonly ConcurrentDictionary<string,int> _open = new(StringComparer.Ordinal);
     private long _connection;
+    private readonly ConcurrentDictionary<string,int> _reading=new();
+    private readonly ConcurrentDictionary<string,DateTimeOffset> _lastRead=new();
     public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false)
     { _mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration; }
     public void Connect()
@@ -115,7 +117,7 @@ public sealed class CloudMountSession : IAsyncDisposable
     }
     private async Task FetchAsync(CloudFilesNative.CallbackInfo info,string id,long offset,long length,CancellationToken token)
     {
-        var held=false;
+        var held=false;_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;
         try
         {
             await _reads.WaitAsync(token).ConfigureAwait(false); held=true;
@@ -142,7 +144,7 @@ public sealed class CloudMountSession : IAsyncDisposable
             try { Complete(info,offset,length,error is OperationCanceledException?unchecked((int)0xc0000120):unchecked((int)0xc000cf00)); } catch(Exception completion) { _logger.Queue("CFAPI","Warning",$"请求结束：{completion.GetType().Name}"); }
             if(error is not OperationCanceledException) _logger.Queue("按需读取","Error",error.Message);
         }
-        finally { if(held) _reads.Release(); }
+        finally { if(held) _reads.Release();_reading.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1)); }
     }
     /// <summary>阻止新增水合和重命名，取消并等候在途读取；保留删除确认回调。</summary>
     public async Task BeginClearAsync()
@@ -152,7 +154,21 @@ public sealed class CloudMountSession : IAsyncDisposable
         foreach(var item in pending)try{item.Cancel.Cancel();}catch(ObjectDisposedException){}
         await Task.WhenAll(pending.Select(item=>item.Work)).ConfigureAwait(false);
     }
-    public bool IsActive(string id) => _open.TryGetValue(id,out var count) && count>0;
+    public bool IsActive(string id) => (_open.TryGetValue(id,out var count) && count>0)||(_reading.TryGetValue(id,out var reads)&&reads>0);
+    public DateTimeOffset LastRead(string id)=>_lastRead.GetValueOrDefault(id,DateTimeOffset.MinValue);
+    /// <summary>在排他 oplock 下验证干净状态并以 CFAPI 更新/脱水；失败保留旧索引版本。</summary>
+    public bool RefreshPlaceholder(MountEntry entry,SourceEntry metadata)
+    {
+        if(IsActive(entry.Id))return false;
+        var path=RelativePaths.ToLocal(_mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(_mount,path);
+        using var handle=CloudFilesNative.Open(path,true);
+        var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+        if(info is null||marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||info.Value.Info.PinState is not(0 or 2))return false;
+        var time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc();
+        var fs=new CloudFilesNative.FsMetadata{Basic=new(){CreationTime=time,LastWriteTime=time,LastAccessTime=time,ChangeTime=time,FileAttributes=0x80},FileSize=metadata.Size};
+        CloudFilesNative.Check(CloudFilesNative.CfUpdatePlaceholder(handle,fs,0,0,[new(){Offset=0,Length=-1}],1,7,0,0));
+        return true;
+    }
     /// <summary>创建真实占位，不使用 File.WriteAllBytes 伪装；每个已创建条目单独记录。</summary>
     public void CreatePlaceholder(MountEntry entry,SourceEntry metadata)
     {

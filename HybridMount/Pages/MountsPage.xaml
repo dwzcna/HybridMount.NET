@@ -3,15 +3,16 @@
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <StackPanel Spacing="6">
             <TextBlock Text="挂载" Style="{ThemeResource TitleTextBlockStyle}"/>
-            <TextBlock Text="将内置模拟文件源显示为本地占位文件，打开时按需读取。" TextWrapping="Wrap"/>
+            <TextBlock Text="将远端文件显示为本地占位文件，打开时按需下载。本地修改不会自动上传。" TextWrapping="Wrap"/>
         </StackPanel>
         <Button Grid.Row="1" Content="新增挂载">
-            <Button.Flyout><MenuFlyout><MenuFlyoutItem Text="模拟挂载" Click="CreateMockMount"/></MenuFlyout></Button.Flyout>
+            <Button.Flyout><MenuFlyout><MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/></MenuFlyout></Button.Flyout>
         </Button>
         <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button Content="打开目录" Click="OpenFolder"/>
                 <Button Content="连接" Click="Connect"/>
+                <Button Content="更新凭据" Click="UpdateCredentials"/>
                 <Button Content="断开" Click="Disconnect"/>
                 <Button Content="刷新" Click="RefreshMount"/>
                 <Button Content="始终保留在设备上" Click="Keep"/>
@@ -25,7 +26,7 @@
                     <StackPanel Padding="8" Spacing="5">
                         <StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="{x:Bind Definition.Name}" FontWeight="SemiBold"/><TextBlock Text="{x:Bind Status}"/></StackPanel>
                         <TextBlock Text="{x:Bind Definition.LocalPath}" TextWrapping="Wrap"/>
-                        <TextBlock Text="内置模拟" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="{x:Bind SourceDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         <TextBlock Text="{x:Bind Detail}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </DataTemplate>

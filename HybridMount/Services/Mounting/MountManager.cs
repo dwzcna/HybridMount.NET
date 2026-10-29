@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using HybridMount.Models.Mounting;
+using HybridMount.Common;
 
 namespace HybridMount.Services.Mounting;
 
@@ -11,7 +12,7 @@ public sealed class MountManager : IAsyncDisposable
         public MountDefinition Definition=definition;
         public readonly SemaphoreSlim Gate=new(1,1);
         public CloudMountSession? Session;
-        public MockFileSource? Source;
+        public IFileSource? Source;
         public string Status=definition.RemovalPending?"移除未完成":"未连接";
         public string Detail=definition.RemovalPending?"请继续已选择的移除方式；不会自动重放删除操作。":"";
     }
@@ -24,14 +25,16 @@ public sealed class MountManager : IAsyncDisposable
     }
     private readonly MountRepository _repository;
     private readonly LoggerService _logger;
+    private readonly IFileSourceFactory _factory;
+    private Task? _maintenance;
     private readonly ConcurrentDictionary<Guid,Runtime> _roots=new();
     private readonly ConcurrentDictionary<string,Job> _jobs=new();
     private readonly CancellationTokenSource _stop=new();
     private Task? _dispose;
     public event Action? Changed;
-    public MountManager(MountRepository repository,LoggerService logger)
+    public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null)
     {
-        _repository=repository; _logger=logger;
+        _repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();
         foreach(var definition in repository.LoadDefinitions()) _roots[definition.Id]=new(definition);
     }
     public IReadOnlyList<MountSnapshot> Mounts => _roots.Values.Select(root=>new MountSnapshot(root.Definition,root.Status,root.Detail)).OrderBy(item=>item.Definition.Name).ToArray();
@@ -39,22 +42,44 @@ public sealed class MountManager : IAsyncDisposable
     private void Notify() { if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
     private Task? _startup;
-    public Task StartAsync()=>_startup??=Task.Run(InitializeAsync);
+    public Task StartAsync() { _maintenance??=Task.Run(CacheLoopAsync);return _startup??=Task.Run(InitializeAsync); }
     private async Task InitializeAsync()
     {
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending))
-            try { await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(Exception error) { _logger.Queue("恢复挂载","Error",error.Message); }
+            try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(Exception error) { _logger.Queue("恢复挂载","Error",error.Message); }
     }
-    public async Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default)
+    public async Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null)
     {
+        if(_factory is FileSourceFactory)
+        {
+            if(source is null || source.Kind is FileSourceKind.LegacyMock or FileSourceKind.Smb or FileSourceKind.Nfs)throw new NotSupportedException("请选择已实现的网络协议。");
+            FileSourceFactory.Endpoint(source);
+        }
         if(string.IsNullOrWhiteSpace(name))throw new ArgumentException("请输入挂载名称。");
         var root=MountPathGuard.NormalizeRoot(directory);
         if(MountPathGuard.IsUnder(root,_repository.DataDirectory) || MountPathGuard.IsUnder(_repository.DataDirectory,root) || MountPathGuard.IsUnder(root,AppContext.BaseDirectory) || MountPathGuard.IsUnder(AppContext.BaseDirectory,root))throw new IOException("不能将程序或自身数据目录用作挂载根。");
         if(Directory.EnumerateFileSystemEntries(root).Any())throw new IOException("新挂载必须选择空目录。");
         if(_roots.Values.Any(item=>MountPathGuard.IsUnder(item.Definition.LocalPath,root)||MountPathGuard.IsUnder(root,item.Definition.LocalPath)))throw new IOException("挂载根不能重叠。");
-        var definition=new MountDefinition(Guid.NewGuid(),name.Trim(),root,autoConnect,RootIdentity:MountPathGuard.FileIdentity(root));
-        _repository.SaveDefinition(definition); _roots[definition.Id]=new(definition); Notify();
+        var definition=new MountDefinition(Guid.NewGuid(),name.Trim(),root,autoConnect,RootIdentity:MountPathGuard.FileIdentity(root),Source:source);
+        var secretStore=new CredentialStore(_repository.DataDirectory);
+        if(credentials is not null)secretStore.Save(definition.Id,credentials);
+        try { _repository.SaveDefinition(definition); }
+        catch { secretStore.Delete(definition.Id);throw; }
+        _roots[definition.Id]=new(definition); Notify();
         await ConnectAsync(definition.Id,token).ConfigureAwait(false); return definition;
+    }
+    public SourceCredentials GetCredentials(Guid id) { Root(id);return new CredentialStore(_repository.DataDirectory).Load(id); }
+    /// <summary>只更换凭据，不能将已有占位悄悄重绑定到另一数据源。</summary>
+    public async Task UpdateCredentialsAsync(Guid id,SourceCredentials credentials,CancellationToken token=default)
+    {
+        var root=Root(id);await root.Gate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if(root.Definition.RemovalPending)throw new IOException("移除过程中不能更换凭据。");
+            new CredentialStore(_repository.DataDirectory).Save(id,credentials);
+            await DisconnectCoreAsync(root).ConfigureAwait(false);await ConnectCoreAsync(root,token).ConfigureAwait(false);
+        }
+        finally { root.Gate.Release(); }
     }
     private Runtime Root(Guid id)=>_roots.TryGetValue(id,out var root)?root:throw new IOException("挂载不存在。");
     public async Task ConnectAsync(Guid id,CancellationToken token=default)
@@ -72,8 +97,7 @@ public sealed class MountManager : IAsyncDisposable
         {
             if(root.Definition.RootIdentity!=MountPathGuard.FileIdentity(root.Definition.LocalPath))throw new IOException("挂载根身份发生变化，拒绝自动接管。");
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.Entries(root.Definition.Id).Any(entry=>entry.Materialized))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
-            root.Source=new MockFileSource(Path.Combine(_repository.DataDirectory,"MockSources",root.Definition.Id.ToString("N")));
-            await root.Source.SeedAsync(token).ConfigureAwait(false);
+            root.Source=await _factory.CreateAsync(root.Definition,_repository,false,token).ConfigureAwait(false);
             await CloudRootRegistration.EnsureAsync(root.Definition,token).ConfigureAwait(false);
             root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger); root.Session.Connect();
             Reconcile(root);
@@ -82,26 +106,51 @@ public sealed class MountManager : IAsyncDisposable
         catch(Exception error)
         {
             if(root.Session is not null){await root.Session.DisposeAsync().ConfigureAwait(false);root.Session=null;}
-            root.Source?.Dispose();root.Source=null; Status(root,"异常",error.Message);throw;
+            if(root.Source is not null)await root.Source.DisposeAsync().ConfigureAwait(false);root.Source=null; Status(root,"异常",error.Message);throw;
         }
     }
+    /// <summary>完整收集再映射；枚举失败或大小写冲突时不应用半个远端快照。</summary>
     private async Task PopulateAsync(Runtime root,string sourcePath,CancellationToken token)
     {
-        await foreach(var metadata in root.Source!.ListAsync(sourcePath,token).ConfigureAwait(false))
+        var snapshot=new Dictionary<string,SourceEntry>(StringComparer.OrdinalIgnoreCase);
+        async Task Collect(string parent)
         {
+            await foreach(var metadata in root.Source!.ListAsync(parent,token).ConfigureAwait(false))
+            {
+                RelativePaths.Normalize(metadata.Path);
+                if(metadata.Path.Length==0 || RelativePaths.Parent(metadata.Path)!=parent || metadata.Size<0 || metadata.ModifiedUtc<DateTimeOffset.FromFileTime(0) || !snapshot.TryAdd(metadata.Path,metadata))
+                    throw new IOException("远端枚举包含越界、重复、大小写冲突或无效元数据；未应用快照。");
+                if(snapshot.Count>1000000)throw new IOException("快照超过首版百万条安全限制，请缩小远端根。");
+                if(metadata.IsDirectory)await Collect(metadata.Path).ConfigureAwait(false);
+            }
+        }
+        await Collect(sourcePath).ConfigureAwait(false);
+        foreach(var metadata in snapshot.Values.OrderBy(item=>item.Path.Count(c=>c=='/')).ThenBy(item=>item.Path,StringComparer.Ordinal))
+        {
+            token.ThrowIfCancellationRequested();
             var entries=_repository.Entries(root.Definition.Id);
             var entry=entries.FirstOrDefault(item=>item.SourcePath.Equals(metadata.Path,StringComparison.OrdinalIgnoreCase));
             var parent=entries.FirstOrDefault(item=>item.SourcePath.Equals(RelativePaths.Parent(metadata.Path),StringComparison.OrdinalIgnoreCase));
-            if(parent?.Deleted==true)continue;
+            if(parent?.Deleted==true || parent?.Protected==true)continue;
+            if(entry?.Deleted==true)continue;
             var local=parent is null?metadata.Path:parent.LocalPath+"/"+Path.GetFileName(metadata.Path);
             entry??=new(Guid.NewGuid().ToString("N"),metadata.Path,local,metadata.Version,metadata.IsDirectory);
-            if(entry.Deleted)continue;
+            if(entry.IsDirectory!=metadata.IsDirectory)throw new SourceConflictException("远端文件与目录类型变化，保留本地内容，请处理冲突。");
             _repository.SaveEntry(root.Definition.Id,entry);
             var full=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
-            if(!File.Exists(full)&&!Directory.Exists(full)) root.Session!.CreatePlaceholder(entry,metadata);
-            else if(!entry.Materialized) _repository.SaveEntry(root.Definition.Id,entry with{Protected=true,Materialized=true});
-            if(metadata.IsDirectory && Directory.Exists(full)) await PopulateAsync(root,metadata.Path,token).ConfigureAwait(false);
+            if(!File.Exists(full)&&!Directory.Exists(full))root.Session!.CreatePlaceholder(entry,metadata);
+            else if(!entry.Materialized)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true,Materialized=true});
+            else if(entry.Version!=metadata.Version && !entry.IsDirectory)
+            {
+                if(entry.Protected || !root.Session!.RefreshPlaceholder(entry,metadata))
+                    throw new SourceConflictException("远端内容变化，但本地已修改、固定或正在使用；已保留旧内容，请处理后刷新。");
+                _repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});
+            }
+            else if(entry.IsDirectory && entry.Version!=metadata.Version)_repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});
         }
+        // 远端删除不立即删除本地缓存；保留可恢复内容并显示冲突，等待后续双向同步。
+        if(_repository.Entries(root.Definition.Id).Any(entry=>!entry.Deleted&&!snapshot.ContainsKey(entry.SourcePath)))
+            Status(root,"已连接","部分远端条目已消失；本地内容保留，不自动传播删除。");
     }
     /// <summary>只遍历本根内普通目录和本产品云目录，不穿越符号链接、联接或其他提供程序。</summary>
     private IEnumerable<string> Walk(MountDefinition mount,string directory)
@@ -145,7 +194,7 @@ public sealed class MountManager : IAsyncDisposable
     private static async Task DisconnectCoreAsync(Runtime root)
     {
         if(root.Session is not null){await root.Session.DisposeAsync().ConfigureAwait(false);root.Session=null;}
-        root.Source?.Dispose();root.Source=null;
+        if(root.Source is not null)await root.Source.DisposeAsync().ConfigureAwait(false);root.Source=null;
     }
     public Guid FindMount(IEnumerable<string> paths)
     {
@@ -234,7 +283,7 @@ public sealed class MountManager : IAsyncDisposable
     { root.Definition=root.Definition with{RemovalStage=MountRemovalStage.Unregistering};_repository.SaveDefinition(root.Definition); }
     private void Forget(Runtime root)
     {
-        _repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
+        new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
         _roots.TryRemove(root.Definition.Id,out _);Notify();
     }
     /// <summary>清空本地目录；保留 CFAPI 删除确认，不读取或删除源内容。失败／取消保留意图供显式重试。</summary>
@@ -279,7 +328,7 @@ public sealed class MountManager : IAsyncDisposable
         MountPathGuard.ValidateOperation(root.Definition,mount.LocalPath);
         if(root.Session is null)
         {
-            root.Source=new MockFileSource(Path.Combine(_repository.DataDirectory,"MockSources",mount.Id.ToString("N")));
+            root.Source=await _factory.CreateAsync(mount,_repository,true,job.Cancel.Token).ConfigureAwait(false);
             root.Session=new CloudMountSession(mount,root.Source,_repository,_logger);root.Session.Connect();
         }
         Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
@@ -320,10 +369,68 @@ public sealed class MountManager : IAsyncDisposable
         if(!_jobs.TryGetValue(id,out var job) || job.Snapshot.State is not("Queued" or "Running"))return false;
         try { job.Cancel.Cancel();return true; }catch(ObjectDisposedException){return false;}
     }
+    /// <summary>缓存是软限制，0 表示关闭自动回收；固定、修改和活动内容可使实际值超限。</summary>
+    public long CacheLimitBytes { get=>_repository.CacheLimitBytes; set { if(value<0)throw new ArgumentOutOfRangeException(nameof(value));_repository.CacheLimitBytes=value; } }
+    public long CacheUsageBytes
+    {
+        get
+        {
+            long bytes=0;
+            var cache=Path.Combine(_repository.DataDirectory,"RangeCache");
+            if(Directory.Exists(cache))foreach(var file in new DirectoryInfo(cache).EnumerateFiles("*",SearchOption.AllDirectories))try{bytes+=file.Length;}catch(IOException){}
+            foreach(var root in _roots.Values)
+                foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>entry.Materialized&&!entry.Deleted&&!entry.IsDirectory))
+                    try { bytes+=CloudFilesNative.Inspect(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath))?.Info.OnDiskSize??0; }catch(IOException){}catch(System.ComponentModel.Win32Exception){}
+            return bytes;
+        }
+    }
+    private async Task CacheLoopAsync()
+    {
+        using var timer=new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try { while(await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))try{await EnforceCacheLimitAsync(_stop.Token).ConfigureAwait(false);}catch(Exception error)when(error is not OperationCanceledException){_logger.Queue("缓存回收","Warning",error.Message);} }
+        catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
+    }
+    /// <summary>尽力回收整文件临时缓存及未固定的干净占位；不为了达标而解除固定。</summary>
+    public async Task<long> EnforceCacheLimitAsync(CancellationToken token=default)
+    {
+        var limit=CacheLimitBytes;if(limit==0)return 0;
+        var needed=CacheUsageBytes-limit;if(needed<=0)return 0;
+        long freed=WholeFileCache.Trim(Path.Combine(_repository.DataDirectory,"RangeCache"),needed);
+        foreach(var root in _roots.Values)
+        {
+            if(freed>=needed)break;
+            if(!await root.Gate.WaitAsync(0,token).ConfigureAwait(false))continue;
+            try
+            {
+                if(root.Session is null || root.Definition.RemovalPending)continue;
+                Reconcile(root);
+                foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>!entry.Deleted&&!entry.Protected&&!entry.IsDirectory).OrderBy(entry=>root.Session.LastRead(entry.Id)))
+                {
+                    token.ThrowIfCancellationRequested();if(freed>=needed)break;
+                    var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
+                    try
+                    {
+                        MountPathGuard.ValidateOperation(root.Definition,path);
+                        var info=CloudFilesNative.Inspect(path);
+                        if(info is null || info.Value.Info.PinState is not(0 or 2) || info.Value.Info.InSyncState!=1 || info.Value.Info.ModifiedSize!=0 || root.Session.IsActive(entry.Id))continue;
+                        var marker=MountPathGuard.ReadEntry(info.Value.Identity);if(marker?.MountId!=root.Definition.Id||marker.EntryId!=entry.Id)continue;
+                        using var handle=CloudFilesNative.Open(path,true);
+                        var current=CloudFilesNative.Inspect(path);
+                        if(current?.Info.InSyncState!=1 || current?.Info.ModifiedSize!=0 || current?.Info.PinState is not(0 or 2))continue;
+                        CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,0,-1,1,0));freed+=info.Value.Info.OnDiskSize;
+                    }
+                    catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){}
+                }
+            }
+            finally { root.Gate.Release(); }
+        }
+        return freed;
+    }
     public ValueTask DisposeAsync()=>new(_dispose??=StopAsync());
     private async Task StopAsync()
     {
         await _stop.CancelAsync().ConfigureAwait(false);if(_startup is not null)await _startup.ConfigureAwait(false);await Task.WhenAll(_jobs.Values.Select(job=>job.Work)).ConfigureAwait(false);
+        if(_maintenance is not null)await _maintenance.ConfigureAwait(false);
         foreach(var root in _roots.Values){await root.Gate.WaitAsync().ConfigureAwait(false);try{await DisconnectCoreAsync(root).ConfigureAwait(false);}finally{root.Gate.Release();}}
         foreach(var job in _jobs.Values)job.Cancel.Dispose();_stop.Dispose();
     }

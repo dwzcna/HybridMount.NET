@@ -18,7 +18,7 @@ public partial class App:Application
     private DispatcherQueue? _dispatcher;
     private bool _exiting,_allowClose;
     public new static App Current=>(App)Application.Current;
-    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??"0.0.2.1";
+    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??"0.0.3";
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
     public AppearanceSettingsService Appearance{get;private set;}=null!;
@@ -66,11 +66,11 @@ public partial class App:Application
             if(request.Operation=="getOperation")
             {
                 var job=Mounts.GetOperation(request.JobId!);
-                return new(2,request.RequestId,job is null?"notFound":"ok","任务结果见挂载页。",request.JobId,job is null?null:job with{Results=job.Results.Take(3).ToArray()});
+                return new(2,request.RequestId,job is null?"notFound":"ok","任务结果见任务页。",request.JobId,job is null?null:job with{Results=job.Results.Take(3).ToArray()});
             }
             if(request.Operation=="cancelOperation")return new(2,request.RequestId,Mounts.Cancel(request.JobId!)?"accepted":"notFound","已请求取消，已完成步骤保留。",request.JobId);
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);
-            return new(2,request.RequestId,"accepted","操作已提交，可在挂载页查看逐项结果。",id);
+            return new(2,request.RequestId,"accepted","操作已提交，可在任务页查看逐项结果。",id);
         }
         catch(Exception error){Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",error.Message);}
     }

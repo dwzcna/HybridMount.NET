@@ -122,6 +122,8 @@ public static class CloudFilesNative
     [DllImport("CldApi.dll")] public static extern uint CfGetPlaceholderStateFromAttributeTag(uint attributes,uint tag);
     [DllImport("CldApi.dll")] public static extern int CfHydratePlaceholder(ProtectedHandle handle,long offset,long length,uint flags,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfDehydratePlaceholder(ProtectedHandle handle,long offset,long length,uint flags,nint overlap);
+    [StructLayout(LayoutKind.Sequential)] public struct FileRange { public long Offset,Length; }
+    [DllImport("CldApi.dll")] public static extern int CfUpdatePlaceholder(ProtectedHandle handle,in FsMetadata metadata,nint identity,uint identityLength,[In] FileRange[] ranges,uint count,uint flags,nint usn,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfRevertPlaceholder(ProtectedHandle handle,uint flags,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfSetPinState(ProtectedHandle handle,uint state,uint flags,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfGetPlaceholderRangeInfo(SafeHandle handle,uint infoClass,long offset,long length,nint buffer,uint size,out int returned);

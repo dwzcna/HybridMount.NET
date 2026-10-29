@@ -19,6 +19,13 @@
       <Button Content="打开 Windows 启动设置" Click="OpenStartupSettings" Style="{StaticResource PageActionButtonStyle}" />
       <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap" />
     </StackPanel></Border>
+    <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="16">
+      <TextBlock Text="离线缓存" FontSize="20" FontWeight="SemiBold"/>
+      <NumberBox x:Name="CacheLimitField" Header="缓存软上限（GiB，0 关闭自动回收）" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" Width="320" HorizontalAlignment="Left"/>
+      <TextBlock Text="自动回收只处理未固定、未修改、未使用的内容。固定文件和本地修改可能使缓存超过上限。" TextWrapping="Wrap"/>
+      <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="保存上限" Click="SaveCache"/><Button Content="立即检查回收" Click="TrimCache"/></StackPanel>
+      <TextBlock x:Name="CacheStatus" TextWrapping="Wrap"/>
+    </StackPanel></Border>
     <TextBlock x:Name="VersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
   </StackPanel></ScrollViewer>
 </Page>
