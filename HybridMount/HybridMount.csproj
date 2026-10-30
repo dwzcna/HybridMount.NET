@@ -60,4 +60,14 @@
     <Manifest Include="$(ApplicationManifest)"/>
     <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(NativeConfiguration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
   </ItemGroup>
+  <!-- 真实 EXE Shell 路径及其他类型回归通过前，正式包默认不接管云缩略图。 -->
+  <PropertyGroup><HybridMountEnableCloudThumbnails Condition="'$(HybridMountEnableCloudThumbnails)'==''">false</HybridMountEnableCloudThumbnails></PropertyGroup>
+  <Target Name="PrepareCloudThumbnailManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountEnableCloudThumbnails)'=='true' and '$(HybridMountDeployment)'=='Packaged'">
+    <PropertyGroup>
+      <_PreviewManifest>$(IntermediateOutputPath)CloudThumbnail.appxmanifest</_PreviewManifest>
+      <_PreviewManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest').Replace('&lt;!-- HYBRIDMOUNT_CLOUD_THUMBNAIL --&gt;', '&lt;desktop3:CustomStateHandler /&gt;&lt;desktop3:ThumbnailProviderHandler Clsid=&quot;A65802EB-4D1C-4C7E-A519-34C76B9BB281&quot; /&gt;&lt;desktop3:ExtendedPropertyHandler /&gt;&lt;desktop3:BannersHandler /&gt;&lt;desktop3:CloudFilesContextMenus /&gt;'))</_PreviewManifestContent>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_PreviewManifest)" Lines="$(_PreviewManifestContent)" Overwrite="true" Encoding="UTF-8" WriteOnlyWhenDifferent="true" />
+    <ItemGroup><AppxManifest Remove="@(AppxManifest)"/><AppxManifest Include="$(_PreviewManifest)"/><FileWrites Include="$(_PreviewManifest)"/></ItemGroup>
+  </Target>
 </Project>

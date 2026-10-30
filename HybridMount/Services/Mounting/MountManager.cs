@@ -27,6 +27,7 @@ public sealed class MountManager : IAsyncDisposable
         public MountOperationSnapshot Snapshot=new(id,operation,"Queued",0,0,[],null);
         public Task Work=Task.CompletedTask;
     }
+    private readonly ExePreviewCache _previews;
     private readonly MountRepository _repository;
     private readonly LoggerService _logger;
     private readonly IFileSourceFactory _factory;
@@ -38,13 +39,28 @@ public sealed class MountManager : IAsyncDisposable
     public event Action? Changed;
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null)
     {
-        _repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();
+        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationProcess.DiagnosticsEnabled)logger.Queue("预览诊断","Information",value);});_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();
         foreach(var definition in repository.LoadDefinitions())
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
             try { InspectRegistration(root); }
             catch(Exception error) { root.Status="需要恢复";root.Detail=error.Message; }
         }
+    }
+    private sealed class PreviewLease(SemaphoreSlim gate) : IDisposable
+    {
+        private SemaphoreSlim? _gate=gate;
+        public void Dispose()=>Interlocked.Exchange(ref _gate,null)?.Release();
+    }
+    /// <summary>图标提取与脱水、刷新、移除共用根锁；排队期间版本已变化则丢弃旧请求。</summary>
+    private async Task<IDisposable?> EnterPreviewAsync(MountDefinition mount,MountEntry entry,CancellationToken token)
+    {
+        if(!_roots.TryGetValue(mount.Id,out var root)||_stop.IsCancellationRequested)return null;
+        await root.Gate.WaitAsync(token).ConfigureAwait(false);
+        if(_stop.IsCancellationRequested||root.RemovalRequested||root.Definition.RemovalPending||!_roots.ContainsKey(mount.Id)||
+            !_repository.Entries(mount.Id).Any(current=>current.Id==entry.Id&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&!current.Protected))
+        {root.Gate.Release();return null;}
+        return new PreviewLease(root.Gate);
     }
     public IReadOnlyList<MountSnapshot> Mounts => _roots.Values.Select(root=>new MountSnapshot(root.Definition,root.Status,root.Detail)).OrderBy(item=>item.Definition.Name).ToArray();
     public IReadOnlyList<MountOperationSnapshot> Operations => _repository.LoadOperations().Select(item=>_jobs.TryGetValue(item.Id,out var job)?job.Snapshot:item).ToArray();
@@ -181,9 +197,10 @@ public sealed class MountManager : IAsyncDisposable
             await CloudRootRegistration.EnsureAsync(root.Definition,token).ConfigureAwait(false);
             SetRegistration(root,MountRegistrationStage.Registered);
             token.ThrowIfCancellationRequested();
-            root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger); root.Session.Connect();
+            root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry)); root.Session.Connect();
             Reconcile(root);
             await PopulateAsync(root,"",token).ConfigureAwait(false); Status(root,"已连接");
+            foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);
             if(root.Source is S3FileSource s3)
             {
                 try { await s3.RecoverKnownUploadsAsync(token).ConfigureAwait(false); }
@@ -296,6 +313,17 @@ public sealed class MountManager : IAsyncDisposable
         }
         return id??throw new IOException("未选择文件。");
     }
+    /// <summary>单个本产品 EXE 的缓存查询；只读索引和本地身份，不查询远端、不提交任务。</summary>
+    public byte[]? GetPreview(string path,int size)
+    {
+        if(size is <16 or >256)return null;
+        var id=FindMount([path]);var root=Root(id);
+        if(root.RemovalRequested||root.Definition.RemovalPending)return null;
+        var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+        var entry=_repository.Entries(id).FirstOrDefault(entry=>entry.Id==marker?.EntryId&&entry.Materialized&&!entry.Deleted);
+        if(marker?.MountId!=id||entry is null||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1)return null;
+        return _previews.Get(root.Definition,entry,size);
+    }
     public string Queue(Guid id,string operation,string[]? paths=null)
     {
         _stop.Token.ThrowIfCancellationRequested(); var root=Root(id);
@@ -337,11 +365,15 @@ public sealed class MountManager : IAsyncDisposable
                         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
                         if(info is null || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
-                        using var handle=CloudFilesNative.Open(path,operation=="freeSpace");
+                        using var priority=operation=="keepOnDevice"?root.Session.PrioritizeDownload(entry.Id):null;
+                        using(var handle=CloudFilesNative.Open(path,operation=="freeSpace"))
+                        {
                         if(operation=="keepOnDevice")
                         {CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,1,0,0));if(!entry.IsDirectory)await CloudFilesNative.HydrateAsync(handle,job.Cancel.Token).ConfigureAwait(false);}
                         else
                         {CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,2,0,0));if(!entry.IsDirectory)CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,0,-1,0,0));}
+                        }
+                        if(operation=="keepOnDevice")_previews.Queue(root.Definition,entry);
                         Result(job,path,"Completed","操作已完成。");
                     }
                     catch(OperationCanceledException){throw;}
@@ -417,7 +449,7 @@ public sealed class MountManager : IAsyncDisposable
         if(root.Session is null)
         {
             root.Source=await _factory.CreateAsync(mount,_repository,true,job.Cancel.Token).ConfigureAwait(false);
-            root.Session=new CloudMountSession(mount,root.Source,_repository,_logger);root.Session.Connect();
+            root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry));root.Session.Connect();
         }
         Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
         var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
@@ -427,6 +459,7 @@ public sealed class MountManager : IAsyncDisposable
         {
             job.Cancel.Token.ThrowIfCancellationRequested();var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);
             if(CloudFilesNative.Inspect(path) is null)continue;
+            using(var priority=root.Session!.PrioritizeDownload(entry.Id))
             using(var handle=CloudFilesNative.Open(path))await CloudFilesNative.HydrateAsync(handle,job.Cancel.Token).ConfigureAwait(false);
             if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new IOException("文件尚未完整水合，停止移除。");
         }
@@ -463,7 +496,7 @@ public sealed class MountManager : IAsyncDisposable
     {
         get
         {
-            long bytes=0;
+            long bytes=_previews.UsageBytes;
             var cache=Path.Combine(_repository.DataDirectory,"RangeCache");
             if(Directory.Exists(cache))foreach(var file in new DirectoryInfo(cache).EnumerateFiles("*",SearchOption.AllDirectories))try{bytes+=file.Length;}catch(IOException){}
             foreach(var root in _roots.Values)
@@ -483,7 +516,8 @@ public sealed class MountManager : IAsyncDisposable
     {
         var limit=CacheLimitBytes;if(limit==0)return 0;
         var needed=CacheUsageBytes-limit;if(needed<=0)return 0;
-        long freed=WholeFileCache.Trim(Path.Combine(_repository.DataDirectory,"RangeCache"),needed);
+        long freed=_previews.Trim(needed);
+        if(freed<needed)freed+=WholeFileCache.Trim(Path.Combine(_repository.DataDirectory,"RangeCache"),needed-freed);
         foreach(var root in _roots.Values)
         {
             if(freed>=needed)break;
@@ -520,6 +554,6 @@ public sealed class MountManager : IAsyncDisposable
         await _stop.CancelAsync().ConfigureAwait(false);if(_startup is not null)await _startup.ConfigureAwait(false);await Task.WhenAll(_jobs.Values.Select(job=>job.Work)).ConfigureAwait(false);
         if(_maintenance is not null)await _maintenance.ConfigureAwait(false);
         foreach(var root in _roots.Values){await root.Gate.WaitAsync().ConfigureAwait(false);try{await DisconnectCoreAsync(root).ConfigureAwait(false);}finally{root.Gate.Release();}}
-        foreach(var job in _jobs.Values)job.Cancel.Dispose();_stop.Dispose();
+        await _previews.DisposeAsync().ConfigureAwait(false);foreach(var job in _jobs.Values)job.Cancel.Dispose();_stop.Dispose();
     }
 }

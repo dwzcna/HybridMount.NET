@@ -26,6 +26,8 @@ public static class IpcProtocol
         if (request.Version != Version || !Guid.TryParse(request.RequestId, out _) || request.Paths is null) return false;
         if (request.Operation is "getOperation" or "cancelOperation") return request.Paths.Length == 0 && Guid.TryParse(request.JobId,out _);
         if (request.Operation is "ping" or "showWindow") return request.Paths.Length == 0;
+        if(request.Operation=="getPreview")return request.Paths.Length==1 && request.PreviewSize is >=16 and <=256 &&
+            !string.IsNullOrWhiteSpace(request.Paths[0])&&request.Paths[0].Length<=32767&&!request.Paths[0].Contains('\0')&&Path.IsPathFullyQualified(request.Paths[0]);
         if (request.Operation is not ("freeSpace" or "keepOnDevice") || request.Paths.Length is < 1 or > MaximumPaths) return false;
         return request.Paths.All(path => !string.IsNullOrWhiteSpace(path) && path.Length <= 32767 && !path.Contains('\0') && Path.IsPathFullyQualified(path));
     }

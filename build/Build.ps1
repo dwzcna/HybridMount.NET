@@ -30,6 +30,10 @@ try {
     Invoke-BuildStep $msbuild $managedArguments "managed-$Platform-$Configuration-$Deployment"
     if ($Test) {
         if ($Platform -eq 'ARM64' -and [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -ne 'Arm64') { throw 'ARM64 测试必须在 ARM64 主机执行；请仅交叉构建。' }
+        # 原生端到端测试使用独立 DLL／管道，不占用用户正在运行的产品管道。
+        $testNative=Join-Path $repoRoot "artifacts\native-tests\$Platform\$Configuration\"
+        $testNativeObjects=Join-Path $testNative 'obj\'
+        Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountIsolatedTests=true',"/p:OutDir=$testNative","/p:IntDir=$testNativeObjects",'/v:minimal','/nologo') "native-tests-$Platform-$Configuration"
         Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'-v:minimal') "tests-$Platform-$Configuration"
     }
     if ($Package) {

@@ -11,12 +11,14 @@
   <PropertyGroup Label="Configuration"><ConfigurationType>DynamicLibrary</ConfigurationType><PlatformToolset>v145</PlatformToolset><CharacterSet>Unicode</CharacterSet><UseDebugLibraries Condition="'$(Configuration)'=='Debug'">true</UseDebugLibraries></PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
   <PropertyGroup><OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir><IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir><TargetName>HybridMount.Ext</TargetName></PropertyGroup>
+  <!-- 测试 DLL 单独输出且仅在测试进程使用隔离管道；发布 DLL 不定义此宏。 -->
+  <ItemDefinitionGroup Condition="'$(HybridMountIsolatedTests)'=='true'"><ClCompile><PreprocessorDefinitions>HYBRIDMOUNT_ISOLATED_TEST_PIPE;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile></ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <ClCompile><WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><LanguageStandard>stdcpp20</LanguageStandard><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions><PreprocessorDefinitions>NTDDI_VERSION=0x0A000003;WIN32_LEAN_AND_MEAN;NOMINMAX;UNICODE;_UNICODE;_WIN32_WINNT=0x0A00;%(PreprocessorDefinitions)</PreprocessorDefinitions><RuntimeLibrary>MultiThreaded</RuntimeLibrary><ExceptionHandling>Sync</ExceptionHandling><ConformanceMode>true</ConformanceMode><SDLCheck>true</SDLCheck></ClCompile>
-    <Link><ModuleDefinitionFile>Exports.def</ModuleDefinitionFile><AdditionalDependencies>CldApi.lib;shell32.lib;shlwapi.lib;ole32.lib;advapi32.lib;runtimeobject.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies><SubSystem>Windows</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation></Link>
+    <Link><ModuleDefinitionFile>Exports.def</ModuleDefinitionFile><AdditionalDependencies>CldApi.lib;shell32.lib;shlwapi.lib;ole32.lib;advapi32.lib;runtimeobject.lib;user32.lib;windowscodecs.lib;gdi32.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies><SubSystem>Windows</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation></Link>
     <ResourceCompile><AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ResourceCompile>
   </ItemDefinitionGroup>
-  <ItemGroup><ClCompile Include="ShellMenu.cpp"/><ClCompile Include="PipeClient.cpp"/><ClInclude Include="Extension.h"/><ResourceCompile Include="HybridMount.Ext.rc"/><None Include="Exports.def"/></ItemGroup>
+  <ItemGroup><ClCompile Include="ShellMenu.cpp"/><ClCompile Include="PipeClient.cpp"/><ClCompile Include="ThumbnailProvider.cpp"/><ClInclude Include="Extension.h"/><ResourceCompile Include="HybridMount.Ext.rc"/><None Include="Exports.def"/></ItemGroup>
   <Target Name="GenerateVersionHeader" BeforeTargets="ResourceCompile">
     <WriteLinesToFile File="$(IntDir)Version.h" Lines="#define HYBRIDMOUNT_VERSION $(BinaryVersion.Replace('.', ','))%0A#define HYBRIDMOUNT_VERSION_TEXT &quot;$(BinaryVersion)&quot;" Overwrite="true" WriteOnlyWhenDifferent="true"/>
   </Target>

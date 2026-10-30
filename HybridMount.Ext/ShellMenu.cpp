@@ -227,11 +227,14 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 	}
 	/// <summary>仅创建本产品根命令，拒绝聚合；服务锁与对象计数共同控制 DLL 卸载。</summary>
 	class Factory final : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IClassFactory>, private ModuleLifetime {
+        bool _thumbnail;
 	public:
+        explicit Factory(bool thumbnail):_thumbnail(thumbnail){}
 		IFACEMETHODIMP CreateInstance(IUnknown* outer, REFIID iid, void** result) override {
 			if (!result) return E_POINTER;
 			*result = nullptr;
 			if (outer) return CLASS_E_NOAGGREGATION;
+            if(_thumbnail)return CreateThumbnailHandler(iid,result);
 			auto command = Make<Command>(Operation::Root);
 			return command ? command.CopyTo(iid, result) : E_OUTOFMEMORY;
 		}
@@ -246,7 +249,11 @@ STDAPI DllCanUnloadNow() { return g_objects.load() == 0 ? S_OK : S_FALSE; }
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** result) {
 	if (!result) return E_POINTER;
 	*result = nullptr;
-	if (clsid != HybridMountCommandId) return CLASS_E_CLASSNOTAVAILABLE;
-	auto factory = Make<Factory>();
+	if (clsid != HybridMountCommandId && clsid != HybridMountThumbnailId) return CLASS_E_CLASSNOTAVAILABLE;
+	auto factory = Make<Factory>(clsid==HybridMountThumbnailId);
 	return factory ? factory.CopyTo(iid, result) : E_OUTOFMEMORY;
+}
+
+bool IsOwnedMountPath(const std::wstring& path,GUID& mount) noexcept {
+    try{return OwnedRoot(path,mount);}catch(...){return false;}
 }

@@ -36,6 +36,9 @@ public static class CloudFilesNative
     public static void Check(int result) { if (result < 0) Marshal.ThrowExceptionForHR(result); }
     public static ProtectedHandle Open(string path, bool exclusive = false)
     { Check(CfOpenFileWithOplock(path, (uint)(exclusive ? 3 : 10), out var handle)); return handle; }
+    /// <summary>后台资源读取只请求读权限和排他 oplock；调用方引用句柄后再核对完整性。</summary>
+    public static ProtectedHandle OpenRead(string path)
+    { Check(CfOpenFileWithOplock(path,1,out var handle));return handle; }
     public static (PlaceholderInfo Info, byte[] Identity)? Inspect(string path)
     {
         using var handle = CreateFile(path, 0x80, 7, 0, 3, 0x02200000, 0);
@@ -70,6 +73,9 @@ public static class CloudFilesNative
         }
         finally { Marshal.FreeHGlobal(buffer); }
     }
+    [DllImport("shell32.dll",EntryPoint="SHChangeNotify",CharSet=CharSet.Unicode)] private static extern void ShellChangeNotify(uint change,uint flags,string path,nint second);
+    /// <summary>Unicode 路径通知采用不等待 Shell 的刷新模式；调用前必须释放资源句柄。</summary>
+    public static void NotifyItemUpdated(string path)=>ShellChangeNotify(0x2000,0x3005,path,0);
     public static bool IsCloudTag(uint tag) => (tag & 0xffff0fff) == 0x9000001a;
     public static bool IsCloudPath(string path)
     {
@@ -113,7 +119,9 @@ public static class CloudFilesNative
         }
         finally { Marshal.FreeHGlobal(memory); }
     }
-    [DllImport("CldApi.dll")] private static extern nint CfGetWin32HandleFromProtectedHandle(ProtectedHandle handle);
+    [DllImport("CldApi.dll")][return:MarshalAs(UnmanagedType.U1)] public static extern bool CfReferenceProtectedHandle(ProtectedHandle handle);
+    [DllImport("CldApi.dll")] public static extern void CfReleaseProtectedHandle(ProtectedHandle handle);
+    [DllImport("CldApi.dll")] public static extern nint CfGetWin32HandleFromProtectedHandle(ProtectedHandle handle);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool CancelIoEx(nint handle,nint overlap);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool GetOverlappedResult(nint handle,nint overlap,out uint count,bool wait);
     [DllImport("CldApi.dll",CharSet=CharSet.Unicode)] public static extern int CfConnectSyncRoot(string path,[In] CallbackRegistration[] callbacks,nint context,uint flags,out long key);

@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.4.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.4.2**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。挂载使用 MapDrive 图标；品牌资源继续使用本项目的骡子图形。
 
@@ -15,9 +15,11 @@
 
 常规缓存操作会保护本地修改、新建、删除和重命名；明确选择清空时按上述范围删除。**本版本不自动上传或双向同步**。WebDAV 使用独立 HTTP 客户端与 Depth 1 枚举；S3 使用 AWS SDK v4、SigV4 签名及分页，路径寻址默认开启。默认 HTTPS，原子替换等未验证的能力保持未知。WebDAV 的可选空／非标准 ETag 不阻断枚举；缺少可靠标签时使用整文件快照缓存，可靠强标签仍严格验证版本。系统状态为本地（实心绿勾）、仅远端（云）及待脱水（空心绿勾，允许回收）。设置页可调整默认 10 GiB 的缓存软上限，0 关闭自动回收；固定、修改和活动内容不会为了达标而被回收。
 
+读取会合并同时发生的整文件快照和元数据查询，取消一个请求不影响其他等待者，明确提交的下载优先并保留普通读取机会。首次打开大文件仍受服务速度及完整快照要求影响。完整下载的 EXE 可在后台生成图标缓存；候选云缩略图处理器按构建开关门控，正式 MSIX 暂不自动接管，Explorer 各显示路径仍待验收。
+
 关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出仅断开 CFAPI，保留同步根注册，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
 
-配置位于 `HKCU\Software\HybridMount.NET`，挂载定义在其 Mounts/Packaged 或 Mounts/Unpackaged 子键。运行索引和任务使用 SQLite，凭据按当前 Windows 用户 DPAPI 加密保存在 Mounting/Credentials，整文件退化缓存位于 Mounting/RangeCache。旧模拟源保留在 Mounting/MockSources，仅供旧挂载迁出；不自动改绑 WebDAV。打包数据位于本包 LocalState，非打包数据位于 `%LOCALAPPDATA%\HybridMount.NET`；调试使用独立挂载目录，不接管另一模式缺少配置的根。
+配置位于 `HKCU\Software\HybridMount.NET`，挂载定义在其 Mounts/Packaged 或 Mounts/Unpackaged 子键。运行索引和任务使用 SQLite，凭据按当前 Windows 用户 DPAPI 加密保存在 Mounting/Credentials，整文件退化缓存位于 Mounting/RangeCache，图标缓存在 Mounting/PreviewCache，二者均计入缓存软上限。旧模拟源保留在 Mounting/MockSources，仅供旧挂载迁出；不自动改绑 WebDAV。打包数据位于本包 LocalState，非打包数据位于 `%LOCALAPPDATA%\HybridMount.NET`；调试使用独立挂载目录，不接管另一模式缺少配置的根。
 
 日志页提供筛选、复制、导出与清除，最近显示 100 条，保留最多 30 天／10,000 条。主题、窗口背景和关闭行为可以在设置中调整。
 
@@ -28,7 +30,7 @@
 | 工程 | 职责 |
 | --- | --- |
 | HybridMount | 界面、配置、生命周期和 NamedPipe 服务；输出 HybridMount.NET.exe |
-| HybridMount.Ext | 原生 IExplorerCommand 资源管理器扩展 |
+| HybridMount.Ext | 原生资源管理器菜单与候选云缩略图处理器 |
 | HybridMount.Tests | 生产服务契约及真实原生 DLL 集成测试 |
 
 Visual Studio 调试选择：
@@ -61,4 +63,4 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-验证细节及待测项目见 [docs/Validation-0.0.4.1.md](docs/Validation-0.0.4.1.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
+验证细节及待测项目见 [docs/Validation-0.0.4.2.md](docs/Validation-0.0.4.2.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。

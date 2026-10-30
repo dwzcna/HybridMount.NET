@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>SigV4 S3 通用桶驱动；版本读取、分页、条件写与复制后删除分别处理。</summary>
-public sealed class S3FileSource : IFileSource
+public sealed class S3FileSource : IFileSource, IReadDiagnosticsSource
 {
     private readonly IAmazonS3 _client;
     private readonly string _diagnosticContext;
@@ -24,6 +24,7 @@ public sealed class S3FileSource : IFileSource
     private bool _writesVerified, _copyVerified, _multipartVerified;
     private sealed record ObjectVersion(string? ETag, string? VersionId, bool Virtual = false);
     private sealed record UploadRecord(string Bucket, string Key, string UploadId);
+    public event Action<SourceReadDiagnostic>? ReadDiagnostic;
     public FileSourceCapabilities Capabilities { get; private set; } = new(CapabilitySupport.Unknown, CapabilitySupport.Unknown,
         CapabilitySupport.Unknown, CapabilitySupport.Unsupported, CapabilitySupport.Unsupported, SourceCaseSensitivity.Sensitive);
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
@@ -232,9 +233,14 @@ public sealed class S3FileSource : IFileSource
             range.Unit != "bytes" || range.From != offset || range.To != offset + count - 1 || range.Length != entry.Size || response.ContentLength != count ||
             response.ETag != etag || (version.VersionId is not null && response.VersionId != version.VersionId))
             throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
-        await response.ResponseStream.ReadExactlyAsync(buffer[..count], token).ConfigureAwait(false);
-        if (await response.ResponseStream.ReadAsync(new byte[1], token).ConfigureAwait(false) != 0) throw new IOException("S3 范围响应包含多余字节。");
-        Capabilities = Capabilities with { RangeRead = CapabilitySupport.Supported }; return count;
+        var received=0;var completed=false;
+        try
+        {
+            while(received<count){var read=await response.ResponseStream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
+            var extra=await response.ResponseStream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("S3 范围响应包含多余字节。");
+            Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return count;
+        }
+        finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
     }
     private Task<PutObjectResponse> PutAsync(string key, Stream stream, string? etag, CancellationToken token)
         => Call(() => _client.PutObjectAsync(new() { BucketName = _bucket, Key = key, InputStream = new BorrowedStream(stream),

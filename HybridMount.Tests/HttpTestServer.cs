@@ -9,7 +9,7 @@ namespace HybridMount.Tests;
 internal sealed class HttpTestServer : IAsyncDisposable
 {
     internal sealed record Request(string Method, string Target, Dictionary<string,string> Headers, byte[] Body);
-    internal sealed record Response(int Status, byte[] Body, Dictionary<string,string>? Headers=null)
+    internal sealed record Response(int Status, byte[] Body, Dictionary<string,string>? Headers=null,Task? BeforeBody=null,TaskCompletionSource? HeadersSent=null)
     {
         public static Response Text(int status,string body,Dictionary<string,string>? headers=null)=>new(status,Encoding.UTF8.GetBytes(body),headers);
     }
@@ -58,6 +58,8 @@ internal sealed class HttpTestServer : IAsyncDisposable
             fields.TryAdd("Content-Length",response.Body.Length.ToString());fields["Connection"]="close";
             var head=$"HTTP/1.1 {response.Status} Result\r\n"+string.Join("",fields.Select(pair=>$"{pair.Key}: {pair.Value}\r\n"))+"\r\n";
             await stream.WriteAsync(Encoding.ASCII.GetBytes(head),_stop.Token);
+            response.HeadersSent?.TrySetResult();
+            if(response.BeforeBody is not null)await response.BeforeBody.WaitAsync(_stop.Token);
             if(request.Method!="HEAD")await stream.WriteAsync(response.Body,_stop.Token);
         }
         catch(Exception error)when(error is IOException or OperationCanceledException or SocketException){}

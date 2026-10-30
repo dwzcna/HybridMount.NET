@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 namespace HybridMount.Tests;
 
 /// <summary>加载真实扩展 DLL 验证 COM 枚举、模块释放和原生到托管端的消息往返。</summary>
+[Collection("Native IPC")]
 public sealed class NativeExtensionTests
 {
     private sealed unsafe class NativeExtension : IDisposable
@@ -12,16 +13,7 @@ public sealed class NativeExtensionTests
         private static readonly Guid CommandId = new("F4A8FD0B-4055-4F23-8CC0-91B736B3E491");
         internal NativeExtension()
         {
-            var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Build.props"))) directory = directory.Parent;
-            Assert.NotNull(directory);
-#if DEBUG
-            const string configuration = "Debug";
-#else
-            const string configuration = "Release";
-#endif
-            var platform = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "ARM64" : "x64";
-            _library = NativeLibrary.Load(Path.Combine(directory.FullName, "HybridMount.Ext", "bin", platform, configuration, "HybridMount.Ext.dll"));
+            _library = NativeLibrary.Load(NativePreviewInterop.LibraryPath);
             var create = (delegate* unmanaged[Stdcall]<Guid*, Guid*, nint*, int>)NativeLibrary.GetExport(_library, "DllGetClassObject");
             var id = CommandId; var factoryId = new Guid("00000001-0000-0000-C000-000000000046");
             nint factory = 0;
@@ -102,7 +94,7 @@ public sealed class NativeExtensionTests
         try
         {
             await using var logger = new LoggerService(Path.Combine(directory,"log.db"));
-            await using var server = new IpcServerService(logger);
+            await using var server = new IpcServerService(logger,NativePreviewInterop.PipeName);
             var received = System.Threading.Channels.Channel.CreateUnbounded<IpcRequest>();
             server.RequestReceived += request => received.Writer.TryWrite(request);
             server.Start();

@@ -18,7 +18,7 @@ public partial class App:Application
     private DispatcherQueue? _dispatcher;
     private bool _exiting,_allowClose;
     public new static App Current=>(App)Application.Current;
-    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??"0.0.4.1";
+    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??"0.0.4.2";
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
     public AppearanceSettingsService Appearance{get;private set;}=null!;
@@ -63,6 +63,11 @@ public partial class App:Application
         if(legacy)return new(1,request.RequestId,"notImplemented","旧版菜单未执行文件操作，请更新扩展后重试。");
         try
         {
+            if(request.Operation=="getPreview")
+            {
+                var png=Mounts.GetPreview(request.Paths[0],request.PreviewSize!.Value);
+                return new(2,request.RequestId,png is null?"notFound":"ok","",PreviewPng:png);
+            }
             if(request.Operation=="getOperation")
             {
                 var job=Mounts.GetOperation(request.JobId!);
@@ -72,7 +77,7 @@ public partial class App:Application
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);
             return new(2,request.RequestId,"accepted","操作已提交，可在任务页查看逐项结果。",id);
         }
-        catch(Exception error){Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",error.Message);}
+        catch(Exception error){if(request.Operation!="getPreview")Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",request.Operation=="getPreview"?"":error.Message);}
     }
     private void OnAppearanceChanged(object? sender,EventArgs args)=>MainWindow?.ApplyAppearance();
     private void OnNotification(object? sender,LogNotificationEventArgs args)=>MainWindow?.ShowNotification(args);

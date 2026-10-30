@@ -1,6 +1,6 @@
 # 检查实际交付包，不把成功编译当作打包内容正确的证据。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform)
+param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
@@ -44,5 +44,10 @@ try {
     foreach ($registration in @('windows.cloudFiles','CloudFiles','windows.startupTask','windows.comServer','windows.fileExplorerContextMenus','HybridMountStartup','HybridMount.Ext.dll')) {
         if (-not $text.Contains($registration)) { throw "清单缺少 $registration" }
     }
+    # 正式包保持缩略图启用门槛，实验包须明确声明预期，防止增量构建遗留注册。
+    $thumbnail=$manifest.SelectSingleNode("//*[local-name()='CloudFiles']/*[local-name()='ThumbnailProviderHandler']")
+    if([bool]$thumbnail -ne $ExpectCloudThumbnails.IsPresent){throw '云缩略图注册与本次构建的启用门槛不一致。'}
+    if($thumbnail -and $thumbnail.Clsid -ne 'A65802EB-4D1C-4C7E-A519-34C76B9BB281'){throw '云缩略图 CLSID 不正确。'}
+    if(!$text.Contains('A65802EB-4D1C-4C7E-A519-34C76B9BB281')){throw '包缺少候选缩略图 COM 类。'}
     Write-Host "包验证通过：$Platform / $version / 自包含 / 原生扩展 / 全新资源 / CloudFiles、启动与菜单声明。"
 } finally { $archive.Dispose() }
