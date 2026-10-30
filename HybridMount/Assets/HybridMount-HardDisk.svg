@@ -1,0 +1,298 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="536.8" height="452.7"
+     viewBox="-12.4 68 536.8 452.7"
+     role="img" aria-labelledby="title description">
+  <title id="title">HybridMount</title>
+  <desc id="description">银灰色硬盘前方，灰蓝色骡子从银灰色洞口中探头。</desc>
+
+  <defs>
+    <!-- 硬盘与洞口共用银灰色材质 -->
+    <linearGradient id="diskTop" x1="0" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#E3E3E3"/>
+      <stop offset=".35" stop-color="#D7D7D7"/>
+      <stop offset=".75" stop-color="#C4C4C4"/>
+      <stop offset="1" stop-color="#AFAFAF"/>
+    </linearGradient>
+
+    <linearGradient id="diskBevel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D7D7D7"/>
+      <stop offset=".5" stop-color="#AFAFAF"/>
+      <stop offset="1" stop-color="#CBCBCB"/>
+    </linearGradient>
+
+    <linearGradient id="diskFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B6B6B6"/>
+      <stop offset=".35" stop-color="#929292"/>
+      <stop offset=".8" stop-color="#A4A4A4"/>
+      <stop offset="1" stop-color="#BDBDBD"/>
+    </linearGradient>
+
+    <linearGradient id="frontInset" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#858585"/>
+      <stop offset=".5" stop-color="#A2A2A2"/>
+      <stop offset="1" stop-color="#B5B5B5"/>
+    </linearGradient>
+
+    <radialGradient id="hole" cx=".5" cy=".35" r=".7">
+      <stop offset="0" stop-color="#151719"/>
+      <stop offset="1" stop-color="#454A50"/>
+    </radialGradient>
+
+    <linearGradient id="coat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#DCE5EE"/>
+      <stop offset=".5" stop-color="#D7E0EA"/>
+      <stop offset="1" stop-color="#BFCEDD"/>
+    </linearGradient>
+
+    <linearGradient id="earCoat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D7E0EA"/>
+      <stop offset="1" stop-color="#B9C8DA"/>
+    </linearGradient>
+
+    <linearGradient id="muzzle" x1=".2" y1="0" x2=".7" y2="1">
+      <stop offset="0" stop-color="#F8EDD9"/>
+      <stop offset=".5" stop-color="#EFDDC0"/>
+      <stop offset="1" stop-color="#D8C4A9"/>
+    </linearGradient>
+
+    <linearGradient id="eye" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F8FAFC"/>
+    </linearGradient>
+
+    <clipPath id="aboveHole" clipPathUnits="userSpaceOnUse">
+      <path d="M0 0 H512 V330 H445
+               A189 43 0 0 1 67 330
+               H0 Z"/>
+    </clipPath>
+  </defs>
+
+  <g transform="translate(0 18)">
+    <!-- 第一层：硬盘，以自身中心放大 1.2 倍 -->
+    <g id="hard-drive"
+       transform="translate(256 378.5) scale(1.2) translate(-256 -378.5)">
+      <ellipse cx="256" cy="470" rx="218" ry="12"
+               fill="#000000" opacity=".13"/>
+
+      <!-- 前侧外壳 -->
+      <path d="M36 403 H476
+               V450 Q476 465 461 465
+               H51 Q36 465 36 450 Z"
+            fill="url(#diskBevel)"
+            stroke="#585858" stroke-width="6"
+            stroke-linejoin="round"/>
+
+      <!-- 透视上盖 -->
+      <path d="M100 292 H412
+               Q424 292 429 305
+               L475 400 Q481 414 465 414
+               H47 Q31 414 37 400
+               L83 305 Q88 292 100 292 Z"
+            fill="url(#diskTop)"
+            stroke="#585858" stroke-width="6"
+            stroke-linejoin="round"/>
+
+      <!-- 银灰色内侧压边 -->
+      <path d="M103 302 H409
+               Q416 302 419 310
+               L462 399 Q465 404 457 404
+               H55 Q47 404 50 399
+               L93 310 Q96 302 103 302 Z"
+            fill="none"
+            stroke="#BDBDBD" stroke-width="3"
+            stroke-linejoin="round"/>
+
+      <!-- 上盖柔和反光 -->
+      <path d="M103 343
+               C119 379 174 393 256 393
+               C338 393 393 379 409 343"
+            fill="none"
+            stroke="#DADADA" stroke-width="6"
+            stroke-linecap="round" opacity=".5"/>
+
+      <!-- 深灰前面板 -->
+      <path d="M47 420 H465
+               V447 Q465 455 457 455
+               H55 Q47 455 47 447 Z"
+            fill="url(#diskFront)"/>
+
+      <rect x="70" y="427" width="174" height="23" rx="3"
+            fill="url(#frontInset)"/>
+      <path d="M75 429 H238"
+            fill="none" stroke="#737373"
+            stroke-width="2" opacity=".55"/>
+      <path d="M76 448 H238"
+            fill="none" stroke="#BBBBBB"
+            stroke-width="2" opacity=".65"/>
+
+      <!-- 右侧竖向槽 -->
+      <g stroke="#777777" stroke-width="6" stroke-linecap="round">
+        <path d="M326 428 V448"/>
+        <path d="M340 428 V448"/>
+        <path d="M354 428 V448"/>
+        <path d="M368 428 V448"/>
+        <path d="M382 428 V448"/>
+        <path d="M396 428 V448"/>
+        <path d="M410 428 V448"/>
+        <path d="M424 428 V448"/>
+      </g>
+      <g stroke="#C9C9C9" stroke-width="3" stroke-linecap="round">
+        <path d="M328 428 V448"/>
+        <path d="M342 428 V448"/>
+        <path d="M356 428 V448"/>
+        <path d="M370 428 V448"/>
+        <path d="M384 428 V448"/>
+        <path d="M398 428 V448"/>
+        <path d="M412 428 V448"/>
+        <path d="M426 428 V448"/>
+      </g>
+
+      <path d="M49 414 H463"
+            fill="none" stroke="#C8C8C8"
+            stroke-width="3" stroke-linecap="round"/>
+      <path d="M55 458 H457"
+            fill="none" stroke="#B9B9B9"
+            stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- 前景：洞口与骡子 -->
+    <g id="mule-and-hole" transform="translate(15.36 27) scale(.94)">
+      <!-- 第二层：银灰色洞口后缘 -->
+      <g id="hole-back">
+        <ellipse cx="256" cy="354" rx="207" ry="51"
+                 fill="#22272D" opacity=".13"/>
+        <ellipse cx="256" cy="330" rx="211" ry="64"
+                 fill="url(#diskTop)"
+                 stroke="#585858" stroke-width="5"/>
+        <ellipse cx="256" cy="330" rx="189" ry="43"
+                 fill="url(#hole)"/>
+        <path d="M75 309 C142 268 365 268 437 309"
+              fill="none"
+              stroke="#BDBDBD" stroke-width="6"
+              stroke-linecap="round"/>
+      </g>
+
+      <!-- 第三层：骡子 -->
+      <g id="mule" clip-path="url(#aboveHole)">
+        <g stroke="#8297AC" stroke-width="5" stroke-linejoin="round">
+          <path d="M233 220
+                   C207 173 151 108 95 53
+                   C169 58 242 114 265 185 Z"
+                fill="url(#earCoat)"/>
+          <path d="M235 197
+                   C204 146 152 101 120 72
+                   C184 90 231 137 249 187 Z"
+                fill="#BE9F9A" stroke="none"/>
+
+          <path d="M270 196
+                   C255 129 277 57 320 27
+                   C339 90 329 158 304 216 Z"
+                fill="url(#earCoat)"/>
+          <path d="M284 185
+                   C278 131 292 77 314 50
+                   C322 104 313 155 297 194 Z"
+                fill="#BE9F9A" stroke="none"/>
+        </g>
+
+        <path d="M232 179
+                 C259 157 305 164 326 199
+                 C345 230 335 268 353 300
+                 C378 342 366 396 329 428
+                 C304 451 250 452 218 428
+                 C183 402 172 349 184 294
+                 C194 248 209 207 232 179 Z"
+              fill="url(#coat)"
+              stroke="#8297AC" stroke-width="5"
+              stroke-linejoin="round"/>
+
+        <!-- 鬃毛 -->
+        <path d="M264 173
+                 L276 151 L285 166 L300 150 L302 170
+                 L319 163 L315 186
+                 C301 176 282 173 264 183 Z"
+              fill="#293F5C"
+              stroke="#293F5C" stroke-width="3"
+              stroke-linejoin="round"/>
+
+        <path d="M339 244 C341 286 359 305 357 339"
+              fill="none" stroke="#E2EAF1"
+              stroke-width="8" stroke-linecap="round" opacity=".35"/>
+
+        <!-- 额纹 -->
+        <path d="M258 190
+                 C264 183 274 184 279 192
+                 L283 283 L254 283 Z"
+              fill="#F8FAFC"/>
+
+        <!-- 眼睛 -->
+        <g stroke="#293F5C" stroke-width="7">
+          <ellipse cx="240" cy="229" rx="27" ry="47"
+                   transform="rotate(9 240 229)" fill="url(#eye)"/>
+          <ellipse cx="292" cy="225" rx="32" ry="52"
+                   transform="rotate(-6 292 225)" fill="url(#eye)"/>
+        </g>
+
+        <ellipse cx="242" cy="250" rx="10" ry="13" fill="#243A55"/>
+        <ellipse cx="288" cy="249" rx="11" ry="14" fill="#243A55"/>
+        <circle cx="245" cy="245" r="4" fill="#FFFFFF"/>
+        <circle cx="291" cy="244" r="4.5" fill="#FFFFFF"/>
+
+        <!-- 鼻部 -->
+        <path d="M177 255
+                 C138 252 106 275 103 310
+                 C100 332 115 351 121 370
+                 C128 397 153 414 190 417
+                 C235 423 290 403 321 374
+                 C346 351 347 324 325 301
+                 C293 270 232 252 177 255 Z"
+              fill="url(#muzzle)"
+              stroke="#B6A38D" stroke-width="5"
+              stroke-linejoin="round"/>
+
+        <path d="M120 292
+                 C151 256 221 264 264 281
+                 C216 275 164 281 133 306 Z"
+              fill="#F8EDD9" opacity=".5"/>
+
+        <!-- 鼻孔 -->
+        <path d="M122 307
+                 C131 300 145 314 148 329
+                 C151 344 143 349 137 339
+                 C132 330 130 318 122 307 Z"
+              fill="#776E70"/>
+        <path d="M218 337
+                 C226 318 250 307 267 314
+                 C274 317 271 321 264 324
+                 C247 332 234 344 224 355
+                 C216 362 211 352 218 337 Z"
+              fill="#776E70"/>
+      </g>
+
+      <!-- 第四层：与硬盘同色的洞口前缘 -->
+      <g id="hole-front">
+        <path d="M45 330
+                 A211 64 0 0 0 467 330
+                 L445 330
+                 A189 43 0 0 1 67 330 Z"
+              fill="url(#diskTop)"
+              stroke="#585858" stroke-width="5"
+              stroke-linejoin="round"/>
+
+        <path d="M69 336 C128 383 385 383 443 336"
+              fill="none"
+              stroke="#B6B6B6" stroke-width="5"
+              stroke-linecap="round"/>
+
+        <g fill="#777777" opacity=".4">
+          <ellipse cx="134" cy="372" rx="9" ry="3"
+                   transform="rotate(12 134 372)"/>
+          <ellipse cx="216" cy="385" rx="6" ry="2.5"/>
+          <ellipse cx="326" cy="382" rx="8" ry="3"
+                   transform="rotate(-8 326 382)"/>
+          <ellipse cx="394" cy="367" rx="5" ry="2.5"
+                   transform="rotate(-18 394 367)"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

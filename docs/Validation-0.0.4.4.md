@@ -90,3 +90,13 @@
 | ARM64 | artifacts/packages/ARM64/HybridMount_0.0.4.4_arm64_Test/HybridMount_0.0.4.4_arm64.msix | 86AE7D4838792D5D39962112AC3C74944A809155D21EBBF3AE67D255E9BCC6E5 |
 
 使用已有 CN=dwzcn 开发证书，签名及内容验证通过，未加时间戳。x64 最终包已安装；本轮启动的测试实例已结束，保留同步根供后续正常启动。ARM64 仅完成交叉构建与包检查，没有实机通过记录。
+
+## 硬盘图形资源补充（2026-10-30）
+
+本次资源维护沿用 0.0.4.4。使用用户提供的 `HybridMount/Assets/HybridMount-HardDisk.svg` 更新固定母版 `HybridMount.svg`，保持现有应用、托盘、扩展和 MSIX 文件引用；硬盘版源文件及 `HybridMount-hy.svg` 均原样保留并提交，两个输入文件的 SHA-256 前后一致。现有 WPF 导出器可直接处理新图，无需新增绘图依赖或修改导出逻辑。
+
+实际执行 `build/Update-Assets.ps1` 以及 `build/Build.ps1 -Platform x64 -Configuration Debug -Deployment Unpackaged`：37 张 PNG 尺寸正确且全部不同于上一提交，全部非空并含透明背景、四角透明；ICO 的 11 帧均有效。浅／深背景的 16／44／256px 预览已检查，硬盘轮廓及骡子图形无明显裁剪。最小 x64 构建通过，输出的 37 张 PNG 和 ICO 与源资源逐字节一致，主程序 EXE 与原生扩展 DLL 均包含全部新 ICO 图帧。
+
+证据：`0044-harddisk-export.log`、`0044-harddisk-inputs.json`、`0044-harddisk-assets.json`、`0044-harddisk-alpha.json`、`0044-harddisk-preview.png`、`0044-harddisk-build.json` 和 `0044-harddisk-*-x64-Debug*.log`，均位于 `artifacts/validation/`。
+
+本次为资源替换，没有复跑协议自动化或重新生成／安装 MSIX；上文的 154 项测试、签名包及安装哈希属于资源替换前的验收，不作为新硬盘图形包的交付记录。真实托盘／Explorer 展示、高 DPI 和 ARM64 实机继续待测试。
