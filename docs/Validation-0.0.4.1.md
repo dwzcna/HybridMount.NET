@@ -9,6 +9,7 @@
 - WebDAV 可选 ETag 容错、XML／HTTP 统一归一化、强弱区分、完整快照降级，以及默认严格／WebDAV 等价格式版本比较。
 - S3 安全结构化错误、服务端区域提示、证书／网络区分及伪成功响应拒绝；保持 HTTPS、Path-Style、SigV4 与未验证默认区域提示。
 - 只读测试当前表单，支持超时、取消及防重复；不持久化、不注册根、不做写入探测或分片恢复。已知分片恢复独立，失败不阻断读取。
+- 固定测试按钮修正：WebDAV／S3 新增和编辑使用底部内置次按钮；测试／取消测试／取消中状态切换，点击保持对话框打开，关闭取消在途请求。表单与固定结果分区，总高度上限 640、结果区上限 160。
 - 四阶段注册持久化、旧配置分类、从未注册条目的远端配置编辑，以及非法输入保留原有效配置。
 - 注册前失败挂载的离线保留／清空移除、清空二次确认、连接／任务取消和串行锁、迟到连接与根替换保护、链接不跟随及移除后清理。
 - 模式固定和中断后显式重试保持有效；配置、凭据及索引清理后保留任务历史。三工程、IPC v2、x64／ARM64 和 0.0.4.1 版本保持统一。
@@ -21,13 +22,13 @@
 
 - CSTCloud 当前已保存配置与凭据：HTTPS、Path-Style、SigV4、us-east-1（未确认），只读请求仍为 401 / Unauthorized；无服务错误细分、请求 ID 或区域建议。需确认服务端签名上下文、凭据来源及桶／前缀授权后重新完成真实 S3 枚举、占位及读取闭环。
 - 其他 WebDAV 和 AWS／MinIO 端点兼容；坚果云写入、条件修改能力及大目录／大文件压力。本轮真实服务仅执行读取。
-- GUI 中测试按钮、取消／超时／防重复、编辑限制、失败提示和移除二次确认；Explorer 角标／菜单、安装升级及 ARM64 实机。
+- GUI 中固定测试按钮的新增／编辑、长表单及结果可见性、取消恢复、超时／防重复；编辑限制、移除二次确认、Explorer、安装升级及 ARM64 实机。
 - 注册丢失且实际残留云占位的系统故障注入。本机主动注销后系统解除云标记，未复现该残留条件；代码在实际检测到残留或物化索引证据不足时保留配置并拒绝操作。
 - 更多权限／ACL、恶意并发替换、长路径及网络高压力场景。
 
 ## 已测试
 
-证据位于忽略目录 artifacts/validation，以下均为本版本最终结果：
+证据位于忽略目录 artifacts/validation。下表为 0.0.4.1 初始交付（00cdaba）的结果；后续固定按钮修正单独记录。
 
 | 范围 | 实际结果 | 证据 |
 | --- | --- | --- |
@@ -45,12 +46,20 @@
 | 二进制版本 | Debug／Release 主程序、双架构扩展和测试统一 0.0.4.1 | 0041-binary-versions.json |
 | 桌面工具尝试 | node_repl 初始化遇到 Windows sandbox setup refresh 错误，重置重试仍为 trusted Node process exited unexpectedly；未执行 GUI 输入 | 0041-gui-attempt.txt |
 
-签名安装包：
+### 固定测试按钮修正（2026-10-30）
+
+- x64 Debug／Unpackaged WinUI 和原生扩展编译通过：0041-dialog-fixed-build-x64-Debug.log。
+- ConnectionTests 12/12 通过：0041-dialog-fixed-connections.trx、0041-dialog-fixed-connections.log。覆盖既有真实 HTTP／SDK 只读探测、错误诊断、超时／取消及恢复隔离。
+- 新增和编辑入口静态核对均使用同一 NetworkMountDialog；次按钮同步取消默认关闭行为，网络等待期间不持有按钮 deferral，保留取消测试入口。
+- 桌面工具首次初始化出现 Windows sandbox setup refresh 错误，重置后仍为 trusted Node process exited unexpectedly；本轮没有 GUI 点击、布局或 Explorer 通过记录。证据：0041-dialog-fixed-gui-attempt.txt。
+- 本次修正的已验证输出：HybridMount/bin/x64/Debug/Unpackaged/net10.0-windows10.0.26100.0/win-x64/HybridMount.NET.exe。当前运行的旧实例需重新生成并启动后使用新界面；本批未重新生成 Release 安装包。
+
+### 初始交付签名安装包（00cdaba）
 
 - artifacts/packages/x64/HybridMount_0.0.4.1_x64_Test/HybridMount_0.0.4.1_x64.msix
 - artifacts/packages/ARM64/HybridMount_0.0.4.1_arm64_Test/HybridMount_0.0.4.1_arm64.msix
 
-主程序运行检查保留新版 x64 非打包实例，供手工验收。独立真实验证根已离线清空、注销并清除临时内容；本轮早期回归遗留的五个隔离 CFAPI 根已按身份及绝对路径核对后清理。用户失败 S3 挂载未被自动删除。
+初始交付的非打包运行检查结果见上表。独立真实验证根已离线清空、注销并清除临时内容；本轮早期回归遗留的五个隔离 CFAPI 根已按身份及绝对路径核对后清理。用户失败 S3 挂载未被自动删除。
 
 已知边界：
 

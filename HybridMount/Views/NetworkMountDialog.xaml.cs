@@ -46,7 +46,7 @@ public sealed partial class NetworkMountDialog : ContentDialog
     private async void ChooseFolder(object sender,RoutedEventArgs args)
     {
         if(_submitting || _picking || _testing is not null)return;
-        _picking=true;IsPrimaryButtonEnabled=false;TestButton.IsEnabled=false;
+        _picking=true;IsPrimaryButtonEnabled=false;IsSecondaryButtonEnabled=false;
         try
         {
             var picker=new FolderPicker();picker.FileTypeFilter.Add("*");
@@ -54,17 +54,24 @@ public sealed partial class NetworkMountDialog : ContentDialog
             var folder=await picker.PickSingleFolderAsync();if(folder is not null)PathField.Text=folder.Path;
         }
         catch(Exception error) { ErrorBar.Message=error.Message;ErrorBar.IsOpen=true; }
-        finally { _picking=false;IsPrimaryButtonEnabled=true;TestButton.IsEnabled=true; }
+        finally { _picking=false;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true; }
     }
     private FileSourceConfiguration Settings()=>new(_kind,EndpointField.Text.Trim(),BucketField.Text.Trim(),PrefixField.Text.Trim().Trim('/'),RegionField.Text.Trim(),PathStyleField.IsChecked==true,HttpField.IsChecked==true,DefaultCredentialsField.IsChecked==true);
     private SourceCredentials Credentials()=>_kind==FileSourceKind.WebDav?new(UserField.Text.Trim(),PasswordField.Password):new(AccessKey:AccessKeyField.Text.Trim(),SecretKey:SecretKeyField.Password,SessionToken:SessionTokenField.Password);
-    /// <summary>测试当前输入，期间锁定表单；关闭或取消时结束请求，不保存配置。</summary>
-    private async void TestConnection(object sender,RoutedEventArgs args)
+    /// <summary>UI 线程处理固定次按钮；保持对话框打开，测试中再次点击则取消请求。</summary>
+    /// <remarks>网络等待不持有按钮 deferral，以便继续使用取消测试和关闭按钮。</remarks>
+    private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
-        if(_submitting||_picking||_testing is not null)return;
+        args.Cancel=true;
+        if(_testing is {} testing)
+        {
+            SecondaryButtonText="取消中…";IsSecondaryButtonEnabled=false;
+            testing.Cancel();return;
+        }
+        if(_submitting||_picking)return;
         using var cancel=new CancellationTokenSource();_testing=cancel;
         var settings=Settings();var credentials=Credentials();
-        Form.IsEnabled=false;IsPrimaryButtonEnabled=false;TestButton.IsEnabled=false;CancelTestButton.Visibility=Visibility.Visible;
+        Form.IsEnabled=false;IsPrimaryButtonEnabled=false;IsSecondaryButtonEnabled=true;SecondaryButtonText="取消测试";ErrorBar.IsOpen=false;
         ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="正在执行只读探测…";ProbeBar.IsOpen=true;
         try
         {
@@ -74,14 +81,13 @@ public sealed partial class NetworkMountDialog : ContentDialog
         catch(OperationCanceledException) { ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="连接测试已取消。"; }
         catch(Exception) { ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message="连接测试失败，请检查配置、网络和凭据来源。"; }
         finally
-        { _testing=null;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;TestButton.IsEnabled=true;CancelTestButton.Visibility=Visibility.Collapsed; }
+        { _testing=null;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true;SecondaryButtonText="测试连接"; }
     }
-    private void CancelTest(object sender,RoutedEventArgs args)=>_testing?.Cancel();
     private async void CreateMount(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
         args.Cancel=true;
         if(_submitting || _picking || _testing is not null)return;
-        var deferral=args.GetDeferral();_submitting=true;Form.IsEnabled=false;IsPrimaryButtonEnabled=false;TestButton.IsEnabled=false;ErrorBar.IsOpen=false;
+        var deferral=args.GetDeferral();_submitting=true;Form.IsEnabled=false;IsPrimaryButtonEnabled=false;IsSecondaryButtonEnabled=false;ErrorBar.IsOpen=false;
         var before=App.Current.Mounts.Mounts.Select(mount=>mount.Definition.Id).ToHashSet();
         try
         {
@@ -100,6 +106,6 @@ public sealed partial class NetworkMountDialog : ContentDialog
             else { ErrorBar.Message=error.Message;ErrorBar.IsOpen=true; }
             App.Current.Logger.Queue("新增挂载","Error",error.Message);
         }
-        finally { _submitting=false;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;TestButton.IsEnabled=true;deferral.Complete(); }
+        finally { _submitting=false;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true;deferral.Complete(); }
     }
 }
