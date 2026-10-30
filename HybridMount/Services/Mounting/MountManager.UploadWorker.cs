@@ -44,7 +44,7 @@ public sealed partial class MountManager
     private async Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
     {
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
-        lock(runtime.Sync){runtime.CurrentId=selected.Id;runtime.Request=request;}
+        lock(runtime.Sync){runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         var token=request.Token;LocalUpload? prepared=selected;var preparing=true;
         try
         {
@@ -96,7 +96,11 @@ public sealed partial class MountManager
                 else ChangeUpload(selected.Id,x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
             }
         }
-        finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
+        finally
+        {
+            Task canceled;lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;canceled=runtime.RequestCancellation;}
+            await canceled.ConfigureAwait(false);
+        }
     }
     /// <summary>未知结果只能用远端内容核对；读取失败保留快照，绝不直接重复发送。</summary>
     private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)

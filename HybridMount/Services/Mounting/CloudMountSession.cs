@@ -26,6 +26,8 @@ public sealed class CloudMountSession : IAsyncDisposable
     private sealed record FetchRequest(long Transfer,long Request,long Offset,long Length,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<long,FetchRequest> _fetches=new();
     private long _nextFetch;
+    private Task? _dispose,_cancellation;
+    private readonly HashSet<Task> _notifications=[];
     private readonly ConcurrentDictionary<string,int> _open = new(StringComparer.Ordinal);
     private long _connection;
     private readonly ConcurrentDictionary<string,int> _explicitDownloads=new();
@@ -75,8 +77,8 @@ public sealed class CloudMountSession : IAsyncDisposable
             {
                 lock(_fetchGate)
                 {
-                if(_clearing) { Complete(info,0,0,unchecked((int)0xc000cf00));return; }
                 var offset=Marshal.ReadInt64(parameters,16); var length=Marshal.ReadInt64(parameters,24);
+                if(_clearing){Complete(info,offset,length,unchecked((int)0xc000cf16),token:new CancellationToken(true));return;}
                 var explicitHydration=(Marshal.ReadInt32(parameters,8)&2)!=0||_explicitDownloads.GetValueOrDefault(marker.EntryId)>0;
                 var process=HydrationProcess.Copy(info.ProcessInfo);var queued=Stopwatch.GetTimestamp();
                 if(_diagnostics)_logger.Queue("水合诊断","Information",$"begin entry={marker.EntryId}; transfer={info.TransferKey}; request={info.RequestKey}; offset={offset}; length={length}; pid={process.Id}; image={process.Image}");
@@ -106,7 +108,7 @@ public sealed class CloudMountSession : IAsyncDisposable
                     _open.AddOrUpdate(marker.EntryId,0,(_,value)=>Math.Max(0,value-1));
                     _localChanged?.Invoke();
                     // 仅捕获托管身份，回调返回后在后台查询预览索引。
-                    var closedId=marker.EntryId;_ = Task.Run(()=>{var closed=_repository.Entries(_mount.Id).FirstOrDefault(entry=>entry.Id==closedId);if(closed is not null)_localContentReady?.Invoke(closed);});
+                    QueueContentNotification(marker.EntryId);
                 }
                 return;
             }
@@ -155,12 +157,15 @@ public sealed class CloudMountSession : IAsyncDisposable
         var parameters=new CloudFilesNative.OperationParameters{ParamSize=16,Status=status};
         CloudFilesNative.Check(CloudFilesNative.CfExecute(info,ref parameters));
     }
-    private static void Complete(CloudFilesNative.CallbackInfo callback,long offset,long length,int status,nint buffer=0)
+    private static void Complete(CloudFilesNative.CallbackInfo callback,long offset,long length,int status,nint buffer=0,CancellationToken token=default)
     {
         var info=new CloudFilesNative.OperationInfo{StructSize=(uint)Marshal.SizeOf<CloudFilesNative.OperationInfo>(),ConnectionKey=callback.ConnectionKey,TransferKey=callback.TransferKey,RequestKey=callback.RequestKey};
         var parameters=new CloudFilesNative.OperationParameters{ParamSize=40,Status=status,Offset=offset,Length=length,Buffer=buffer};
-        CloudFilesNative.Check(CloudFilesNative.CfExecute(info,ref parameters));
+        var result=CloudFilesNative.CfExecute(info,ref parameters);
+        // 系统可能先于提供程序终结取消的请求；只在本请求令牌确已取消时接受这三个终态。
+        if(token.IsCancellationRequested&&IsCanceledCompletion(result))return;CloudFilesNative.Check(result);
     }
+    internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3);
     private async Task FetchAsync(CloudFilesNative.CallbackInfo info,string id,long offset,long length,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {
         IDisposable? lease=null;long bytesTransferred=0;double queueMs=0,firstBlockMs=-1;var outcome="ok";_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;
@@ -180,7 +185,7 @@ public sealed class CloudMountSession : IAsyncDisposable
                 {
                     token.ThrowIfCancellationRequested(); var count=(int)Math.Min(bytes.Length,end-start); var read=0;
                     while(read<count) { var n=await source.ReadRangeAsync(metadata,start+read,bytes.AsMemory(read,count-read),token).ConfigureAwait(false); if(n==0) throw new EndOfStreamException(); read+=n; }
-                    token.ThrowIfCancellationRequested(); Complete(info,start,count,0,pin.AddrOfPinnedObject());start+=count;bytesTransferred+=count;
+                    token.ThrowIfCancellationRequested(); Complete(info,start,count,0,pin.AddrOfPinnedObject(),token);start+=count;bytesTransferred+=count;
                     if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
                 }
             }
@@ -189,9 +194,9 @@ public sealed class CloudMountSession : IAsyncDisposable
         }
         catch(Exception error)
         {
-            outcome=error is OperationCanceledException?"canceled":"failed";
-            try { Complete(info,offset,length,error is OperationCanceledException?unchecked((int)0xc0000120):unchecked((int)0xc000cf00)); } catch(Exception completion) { _logger.Queue("CFAPI","Warning",$"请求结束：{completion.GetType().Name}"); }
-            if(error is not OperationCanceledException) _logger.Queue("按需读取","Error",error.Message);
+            var canceled=error is OperationCanceledException&&token.IsCancellationRequested;outcome=canceled?"canceled":"failed";
+            try { Complete(info,offset,length,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00),token:token); } catch(Exception completion) { _logger.Queue("CFAPI","Warning",$"请求结束：{completion.GetType().Name}"); }
+            if(!canceled)_logger.Queue("按需读取","Error",error.Message);
         }
         finally
         {
@@ -239,12 +244,25 @@ public sealed class CloudMountSession : IAsyncDisposable
         }
         finally { pin.Free(); }
     }
-    public async ValueTask DisposeAsync()
+    private void QueueContentNotification(string id)
     {
-        await _stop.CancelAsync().ConfigureAwait(false);
-        if(_connection!=0) { CloudFilesNative.Check(CloudFilesNative.CfDisconnectSyncRoot(_connection)); _connection=0; }
-        await Task.WhenAll(_fetches.Values.Select(item=>item.Work)).ConfigureAwait(false);
-        await _metadata.DisposeAsync().ConfigureAwait(false);
+        lock(_fetchGate)
+        {
+            if(_clearing||_stop.IsCancellationRequested)return;
+            var work=Task.Run(()=>{try{var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id);if(entry is not null)_localContentReady?.Invoke(entry);}catch(Exception error){_logger.Queue("内容通知","Warning",error.GetType().Name);}});
+            _notifications.Add(work);_ = work.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
+        }
+    }
+    /// <summary>同步禁止新水合，异步取消读取；不在根锁或回调内等待网络结束。</summary>
+    public Task RequestStop(){lock(_fetchGate){_clearing=true;return _cancellation??=_stop.CancelAsync();}}
+    public ValueTask DisposeAsync(){lock(_fetchGate)return new(_dispose??=StopAsync());}
+    private async Task StopAsync()
+    {
+        await RequestStop().ConfigureAwait(false);
+        Task[] pending;lock(_fetchGate)pending=_fetches.Values.Select(item=>item.Work).Concat(_notifications).ToArray();
+        await Task.WhenAll(pending).ConfigureAwait(false);await _metadata.DisposeAsync().ConfigureAwait(false);
+        // 回调已结束才断开 CFAPI；常规停止不注销持久同步根。
+        if(_connection!=0){CloudFilesNative.Check(CloudFilesNative.CfDisconnectSyncRoot(_connection));_connection=0;}
         if(_source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic-=OnReadDiagnostic;
         _callbacks.Clear();_stop.Dispose();
     }

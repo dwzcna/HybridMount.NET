@@ -4,7 +4,8 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     /// <summary>设置只改变指定挂载；关闭先持久化再取消工作，开启只预热完整本地内容。</summary>
-    public async Task SetThumbnailsEnabledAsync(Guid id,bool enabled,CancellationToken token=default)
+    public Task SetThumbnailsEnabledAsync(Guid id,bool enabled,CancellationToken token=default)=>OwnAsync(cancel=>SetThumbnailsCoreAsync(id,enabled,cancel),token);
+    private async Task SetThumbnailsCoreAsync(Guid id,bool enabled,CancellationToken token)
     {
         var root=Root(id);await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try{if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("移除过程中不能更改缩略图。");var updated=root.Definition with{ThumbnailsEnabled=enabled};_repository.SaveDefinition(updated);root.Definition=updated;}
@@ -15,7 +16,7 @@ public sealed partial class MountManager
     }
     private (Runtime Root,MountEntry Entry)? PreviewTarget(string path)
     {
-        var id=FindMount([path]);var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)return null;
+        if(IsStopping)return null;var id=FindMount([path]);var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)return null;
         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
         var entry=_repository.Entries(id).FirstOrDefault(entry=>entry.Id==marker?.EntryId&&entry.Materialized&&!entry.Deleted&&!entry.Protected&&entry.RemotePresence!=RemotePresence.Deleted);
         if(marker?.MountId!=id||entry is null||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||entry.IsDirectory||!PreviewWorker.Supports(entry.LocalPath))return null;

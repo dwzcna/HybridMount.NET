@@ -52,7 +52,8 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException)
         {
             if (mutation) throw new SourceOutcomeUnknownException(request.Method.Method, new IOException("网络请求未确认完成。"));
-            if (error is OperationCanceledException) throw;
+            if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
+            if(error is OperationCanceledException)throw new IOException("WebDAV 请求超时，请检查网络及服务响应。");
             throw new IOException("WebDAV 连接失败，请检查网络、地址及证书。");
         }
     }

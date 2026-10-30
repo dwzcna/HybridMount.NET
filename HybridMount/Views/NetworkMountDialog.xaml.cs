@@ -20,7 +20,7 @@ public sealed partial class NetworkMountDialog : ContentDialog
     private readonly FileSourceKind _kind;
     public NetworkMountDialog(FileSourceKind kind=FileSourceKind.WebDav,MountDefinition? existing=null)
     {
-        InitializeComponent();_existing=existing;_kind=kind;AutoUploadField.Visibility=existing is null?Visibility.Visible:Visibility.Collapsed;
+        InitializeComponent();_existing=existing;_kind=kind;
         if(kind is not(FileSourceKind.WebDav or FileSourceKind.S3))throw new NotSupportedException("此协议暂未提供创建入口。");
         var s3=kind==FileSourceKind.S3;Title=s3?"S3 对象存储挂载":"WebDAV 挂载";NameField.Text=s3?"S3 挂载":"WebDAV 挂载";
         DavFields.Visibility=s3?Visibility.Collapsed:Visibility.Visible;S3Fields.Visibility=s3?Visibility.Visible:Visibility.Collapsed;
@@ -75,13 +75,13 @@ public sealed partial class NetworkMountDialog : ContentDialog
         ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="正在执行只读探测…";ProbeBar.IsOpen=true;
         try
         {
-            var result=await new FileSourceFactory().TestConnectionAsync(settings,credentials,cancel.Token);
-            ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;
+            var result=await App.Current.Mounts.TestConnectionAsync(settings,credentials,cancel.Token);
+            if(!App.Current.IsExiting){ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;}
         }
-        catch(OperationCanceledException) { ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="连接测试已取消。"; }
-        catch(Exception) { ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message="连接测试失败，请检查配置、网络和凭据来源。"; }
+        catch(OperationCanceledException) { if(!App.Current.IsExiting){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="连接测试已取消。";} }
+        catch(Exception) { if(!App.Current.IsExiting){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message="连接测试失败，请检查配置、网络和凭据来源。";} }
         finally
-        { _testing=null;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true;SecondaryButtonText="测试连接"; }
+        { _testing=null;if(!App.Current.IsExiting){Form.IsEnabled=true;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true;SecondaryButtonText="测试连接";} }
     }
     private async void CreateMount(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
@@ -92,10 +92,11 @@ public sealed partial class NetworkMountDialog : ContentDialog
         try
         {
             var settings=Settings();var credentials=Credentials();
-            if(_existing is null)CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn,source:settings,credentials:credentials,autoUpload:AutoUploadField.IsOn);
+            if(_existing is null)CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn,source:settings,credentials:credentials);
             else { await App.Current.Mounts.UpdateCredentialsAsync(_existing.Id,credentials,settings:settings);CreatedMount=_existing; }
             ResultMessage=$"已连接 {CreatedMount.Name}。";args.Cancel=false;
         }
+        catch(OperationCanceledException)when(App.Current.Mounts.IsStopping){args.Cancel=false;}
         catch(Exception error)
         {
             var created=_existing is null?App.Current.Mounts.Mounts.FirstOrDefault(mount=>!before.Contains(mount.Definition.Id)&&mount.Definition.LocalPath.Equals(PathField.Text,StringComparison.OrdinalIgnoreCase)):App.Current.Mounts.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_existing.Id);
@@ -106,6 +107,6 @@ public sealed partial class NetworkMountDialog : ContentDialog
             else { ErrorBar.Message=error.Message;ErrorBar.IsOpen=true; }
             App.Current.Logger.Queue("新增挂载","Error",error.Message);
         }
-        finally { _submitting=false;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true;deferral.Complete(); }
+        finally { _submitting=false;if(!App.Current.IsExiting){Form.IsEnabled=true;IsPrimaryButtonEnabled=true;IsSecondaryButtonEnabled=true;}deferral.Complete(); }
     }
 }

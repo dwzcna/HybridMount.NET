@@ -11,7 +11,9 @@ public sealed class IpcServerService : IAsyncDisposable
     public Func<IpcRequest,IpcResponse>? Handler { get; set; }
     private readonly CancellationTokenSource _stop = new();
     private Task[]? _workers;
-    private Task? _dispose;
+    private Task? _dispose,_cancellation;
+    private readonly object _lifetime=new();
+    private bool _stopping;
     /// <summary>请求已经验证，订阅方负责切换到 UI 线程；不得据此修改文件。</summary>
     public event Action<IpcRequest>? RequestReceived;
     /// <summary>创建服务；测试可指定独立管道，不接触产品实例。</summary>
@@ -23,6 +25,8 @@ public sealed class IpcServerService : IAsyncDisposable
     /// <summary>启动四个有界连接处理器，初始化失败同步返回。</summary>
     public void Start()
     {
+        lock(_lifetime){
+        ObjectDisposedException.ThrowIf(_stopping,this);
         if (_workers is not null) throw new InvalidOperationException("管道服务已启动。");
         var servers = new List<NamedPipeServerStream>();
         try
@@ -31,6 +35,7 @@ public sealed class IpcServerService : IAsyncDisposable
             _workers = servers.Select(server => Task.Run(() => ServeAsync(server))).ToArray();
         }
         catch { foreach (var server in servers) server.Dispose(); throw; }
+        }
     }
     private NamedPipeServerStream CreateServer() => new(_pipeName, PipeDirection.InOut, 4, PipeTransmissionMode.Byte,
         PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly, 65536, 65536);
@@ -77,10 +82,12 @@ public sealed class IpcServerService : IAsyncDisposable
         };
     }
     /// <summary>重复释放共用同一任务，结束管道后由宿主排空日志。</summary>
-    public ValueTask DisposeAsync() => new(_dispose ??= StopAsync());
+    /// <summary>只禁止新请求并发出取消，不等待；宿主可先停止所有服务后再收取完成。</summary>
+    public Task RequestStop(){lock(_lifetime){_stopping=true;return _cancellation??=_stop.CancelAsync();}}
+    public ValueTask DisposeAsync(){lock(_lifetime)return new(_dispose??=StopAsync());}
     private async Task StopAsync()
     {
-        await _stop.CancelAsync();
+        await RequestStop();
         if (_workers is not null) await Task.WhenAll(_workers);
         _stop.Dispose();
     }

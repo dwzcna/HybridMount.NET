@@ -34,7 +34,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private readonly CancellationTokenSource _stop=new();
     private readonly Task _worker;
     private readonly Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? _render;
-    private Task? _dispose;
+    private Task? _dispose,_cancellation;
     public ExePreviewCache(string directory,Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? enter=null,Action<string>? diagnostic=null,
         Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? render=null)
     {_directory=directory;_enter=enter;_diagnostic=diagnostic;_render=render;_worker=Task.Run(ProcessAsync);}
@@ -76,7 +76,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
             var path=PathFor(mount,entry,size);
             try
             {
-                var length=new FileInfo(path).Length;if(length is <8 or >MaximumPngBytes)return null;
+                var metadata=LocalFileMetadata.TryRead(path);if(metadata is null||metadata.Value.Length is <8 or >MaximumPngBytes)return null;
                 var bytes=File.ReadAllBytes(path);File.SetLastWriteTimeUtc(path,DateTime.UtcNow);return bytes;
             }
             catch(IOException){return null;}catch(UnauthorizedAccessException){return null;}
@@ -167,6 +167,8 @@ public sealed class ExePreviewCache : IAsyncDisposable
             return freed;
         }
     }
-    public ValueTask DisposeAsync()=>new(_dispose??=StopAsync());
-    private async Task StopAsync(){lock(_schedule)_queue.Writer.TryComplete();await _stop.CancelAsync().ConfigureAwait(false);await _worker.ConfigureAwait(false);_slots.Dispose();foreach(var gate in _mounts.Values)gate.Dispose();_stop.Dispose();}
+    /// <summary>只发信号；宿主同时取消其他工作之后再等待本队列结束。</summary>
+    public Task RequestStop(){lock(_schedule){_queue.Writer.TryComplete();return _cancellation??=_stop.CancelAsync();}}
+    public ValueTask DisposeAsync(){lock(_schedule)return new(_dispose??=StopAsync());}
+    private async Task StopAsync(){await RequestStop().ConfigureAwait(false);await _worker.ConfigureAwait(false);_slots.Dispose();foreach(var gate in _mounts.Values)gate.Dispose();_stop.Dispose();}
 }

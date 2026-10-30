@@ -124,7 +124,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         {
             if (mutation && (error is not AmazonS3Exception service || (int)service.StatusCode >= 500 || (int)service.StatusCode == 0))
                 throw new SourceOutcomeUnknownException("S3 修改", new SourceConnectionException(Diagnose(error,stage,hints)));
-            if (error is OperationCanceledException) throw;
+            if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
             throw new SourceConnectionException(Diagnose(error,stage,hints));
         }
         finally { Hints.Value=previousHints; }
@@ -158,7 +158,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             for(Exception? nested=error;nested is not null;nested=nested.InnerException)
                 if(nested is System.Security.Authentication.AuthenticationException || nested is HttpRequestException { HttpRequestError:HttpRequestError.SecureConnectionError })certificate=true;
             kind=certificate?ConnectionFailureKind.Certificate:ConnectionFailureKind.Network;
-            explanation=certificate?"TLS 或证书验证失败，请核对主机名与证书链。":"请求未获得 HTTP 响应，请核对网络、DNS、代理及凭据来源。";
+            explanation=certificate?"TLS 或证书验证失败，请核对主机名与证书链。":error is OperationCanceledException?"HTTP 请求超时，请检查网络和服务响应。":"请求未获得 HTTP 响应，请核对网络、DNS、代理及凭据来源。";
         }
         return new(stage,kind,status==0?null:status,code,Field(service?.RequestId)??Field(hints.RequestId),Field(hints.Region,64),explanation+"；"+_diagnosticContext);
     }

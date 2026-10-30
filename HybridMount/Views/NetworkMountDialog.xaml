@@ -29,7 +29,6 @@
                 </StackPanel>
                 <CheckBox x:Name="HttpField" Content="允许明文 HTTP（仅可信测试环境）"/>
                 <ToggleSwitch x:Name="AutoConnectField" Header="随程序启动连接" IsOn="True"/>
-                <ToggleSwitch x:Name="AutoUploadField" Header="自动上传新增与修改" IsOn="True"/>
                 <TextBlock Text="自动上传不传播删除；改名上传到新路径并保留远端旧项。不支持安全覆盖的服务会提示冲突，可另存副本。" TextWrapping="Wrap"/>
             </StackPanel></UserControl>
         </ScrollViewer>

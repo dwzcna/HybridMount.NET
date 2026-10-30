@@ -16,7 +16,11 @@ public partial class App:Application
     private TrayIconService? _tray;
     private IpcServerService? _ipc,_legacyIpc;
     private DispatcherQueue? _dispatcher;
-    private bool _exiting,_allowClose;
+    private volatile bool _exiting;
+    private bool _allowClose;
+    private readonly object _exitSync=new();
+    private Task? _exitTask;
+    public bool IsExiting=>_exiting;
     private LifecycleDiagnostics? _lifecycle;
     public new static App Current=>(App)Application.Current;
     public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??"未知版本";
@@ -47,7 +51,7 @@ public partial class App:Application
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
             Appearance=new AppearanceSettingsService(new AppearancePreferenceStoreService());
             Settings=new SettingsViewModel(new AppearanceSettingsViewModel(Appearance),new StartupService(Logger),Logger);
-            Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger);
+            Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger){StopObserver=RecordMountStop};
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}
             catch(Exception error){Logger.Queue("托盘","Error",error.Message);}
@@ -60,6 +64,11 @@ public partial class App:Application
         }
         catch(Exception error){_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,$"HybridMount.NET 启动失败：\n{error.Message}","HybridMount.NET",0x10);await ExitAsync();}
     }
+    private void RecordMountStop(string phase,Exception? error)
+    {
+        var reason=phase.StartsWith("ConnectionCanceled.",StringComparison.Ordinal)?phase["ConnectionCanceled.".Length..]:_exiting?"Shutdown":null;
+        _lifecycle?.Record("Mounts."+phase,error,cancellationReason:reason);
+    }
     /// <summary>只记录未处理异常的安全堆栈，不将其标记为已处理。</summary>
     private void OnUiUnhandled(object sender,Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)=>_lifecycle?.Record("UiUnhandled",args.Exception,true);
     private void OnDomainUnhandled(object sender,System.UnhandledExceptionEventArgs args)=>_lifecycle?.Record(args.IsTerminating?"DomainTerminating":"DomainUnhandled",args.ExceptionObject as Exception,args.IsTerminating);
@@ -67,6 +76,7 @@ public partial class App:Application
     private IpcResponse HandleRequest(IpcRequest request,bool legacy)
     {
         var version=legacy?1:2;
+        if(_exiting)return new(version,request.RequestId??"","stopping","程序正在退出，不再接收新任务。");
         if((legacy&&request.Version!=1)||!IpcProtocol.IsValid(request with{Version=legacy?2:request.Version}))return new(version,request.RequestId??"","invalidRequest","请求无效。");
         if(request.Operation=="ping")return new(version,request.RequestId,"ready","HybridMount.NET 已运行。");
         if(request.Operation=="showWindow") {_dispatcher?.TryEnqueue(RestoreWindow);return new(version,request.RequestId,"accepted","已请求显示窗口。");}
@@ -103,25 +113,47 @@ public partial class App:Application
         if(_allowClose)return;args.Cancel=true;
         if(!_exiting&&Settings.CloseToTray&&_tray?.IsRegistered==true)sender.Hide();else RequestExit();
     }
-    private async void RequestExit()=>await ExitAsync();
-    private async Task ExitAsync()
+    /// <summary>原生托盘事件边界不允许异常穿出；重复点击等待同一次收尾。</summary>
+    private async void RequestExit()
     {
-        if(_exiting)return;_exiting=true;_lifecycle?.Record("ExitRequested");
-        try
+        try{await ExitAsync();}
+        catch(Exception error){_lifecycle?.Record("ExitBoundaryFailure",error,true);Environment.ExitCode=1;}
+    }
+    private Task ExitAsync()
+    {
+        lock(_exitSync)
         {
-            if(_ipc is not null)await _ipc.DisposeAsync();if(_legacyIpc is not null)await _legacyIpc.DisposeAsync();
-            if(Mounts is not null)await Mounts.DisposeAsync();
-            _lifecycle?.Record("MountsStopped");
+            if(_exitTask is not null)return _exitTask;
+            _exiting=true;_lifecycle?.Record("ExitRequested",cancellationReason:"Shutdown");return _exitTask=ExitCoreAsync();
         }
-        catch(Exception error){_lifecycle?.Record("ExitFailure",error);Logger?.Queue("退出","Error",error.Message);}
-        finally
+    }
+    private async Task ExitCoreAsync()
+    {
+        var stages=new ShutdownSequence((phase,error)=>
         {
-            if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;
-            if(Settings is not null)Settings.Appearance.Dispose();MainWindow?.ReleaseResources();_tray?.Dispose();
-            if(Logger is not null){Logger.NotificationRequested-=OnNotification;Logger.Queue("应用","Information","HybridMount.NET 正在退出。");await Logger.DisposeAsync();}
-            _legacyInstance?.Dispose();_instance?.Dispose();_allowClose=true;MainWindow?.Close();MainWindow=null;
-            _lifecycle?.Record("ExitCompleted",completed:true);UnhandledException-=OnUiUnhandled;AppDomain.CurrentDomain.UnhandledException-=OnDomainUnhandled;TaskScheduler.UnobservedTaskException-=OnTaskUnobserved;Exit();
-        }
+            _lifecycle?.Record(phase,error,cancellationReason:"Shutdown");
+            if(error is not null)Logger?.Queue("退出","Error",phase+"："+error.GetType().Name);
+        });
+        // 先向所有生产者发信号；一个服务的取消回调不能阻挡另一个服务收到停止通知。
+        stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
+        stages.Run("SignalLegacyIpc",()=>{_ = _legacyIpc?.RequestStop();});
+        stages.Run("SignalMounts",()=>Mounts?.RequestStop());
+        await stages.RunAsync("IpcStop",()=>_ipc?.DisposeAsync().AsTask()??Task.CompletedTask);
+        await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);
+        await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
+        stages.Run("UiSubscriptions",()=>{if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;if(Logger is not null)Logger.NotificationRequested-=OnNotification;});
+        stages.Run("SettingsRelease",()=>{if(Settings is not null)Settings.Appearance.Dispose();});
+        stages.Run("WindowResources",()=>MainWindow?.ReleaseResources());
+        // 所有日志生产者已结束，再排空日志；后续阶段证据直接进入生命周期文件。
+        await stages.RunAsync("LoggerStop",async()=>{if(Logger is not null){Logger.Queue("应用","Information","HybridMount.NET 正在退出。");await Logger.DisposeAsync();}});
+        stages.Run("TrayRelease",()=>{if(_tray is not null){_tray.RestoreRequested-=RestoreWindow;_tray.ExitRequested-=RequestExit;_tray.Dispose();_tray=null;}});
+        stages.Run("WindowRelease",()=>{_allowClose=true;MainWindow?.Close();MainWindow=null;});
+        stages.Run("LegacyInstanceRelease",()=>{_legacyInstance?.Dispose();_legacyInstance=null;});
+        stages.Run("InstanceRelease",()=>{_instance?.Dispose();_instance=null;});
+        Environment.ExitCode=stages.Failures==0?0:1;
+        _lifecycle?.Record(stages.Failures==0?"ExitCompleted":"ExitCompletedWithErrors",completed:stages.Failures==0,cancellationReason:"Shutdown");
+        UnhandledException-=OnUiUnhandled;AppDomain.CurrentDomain.UnhandledException-=OnDomainUnhandled;TaskScheduler.UnobservedTaskException-=OnTaskUnobserved;
+        try{Exit();}catch(Exception error){_lifecycle?.Record("ExitApplicationFailed",error,true);Environment.ExitCode=1;}
     }
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern int MessageBox(nint owner,string text,string caption,uint type);
     [DllImport("user32.dll")]private static extern bool ShowWindow(nint window,int command);

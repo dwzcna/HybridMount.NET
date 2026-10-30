@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.5.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.5.2**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -22,13 +22,13 @@ WebDAV 不创建辅助目录，必要的探测及安全上传临时文件保存�
 
 读取会合并同时发生的整文件快照和元数据查询，取消一个请求不影响其他等待者，明确提交的下载优先并保留普通读取机会。首次打开大文件仍受服务速度及完整快照要求影响。每个挂载有默认关闭的“缩略图（实验性）”开关，支持 JPEG／PNG／BMP／GIF 首帧、MP4/H.264 视频帧和 EXE 内嵌图标。优先缓存和完整本地内容；远端只进行严格版本及范围校验的有界预览（8 MiB／32 次／10 秒），不水合原占位，也不退化到整文件缓存。不满足能力或预算时显示普通图标；坚果云当前需先显式下载完整内容。关闭会停止本挂载预览，已有缓存保留。正式 MSIX 暂不自动注册处理器；使用 -ExperimentalThumbnails 生成的实验包可注册，实际 Explorer 各显示路径仍待验收。
 
-关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出仅断开 CFAPI，保留同步根注册，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
+关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出先停止接纳和取消全部在途工作，等待启动恢复及手动连接完成，再断开 CFAPI；重复退出共用一次收尾。同步根注册保留，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
 
 配置位于 `HKCU\Software\HybridMount.NET`，挂载定义在其 Mounts/Packaged 或 Mounts/Unpackaged 子键。运行索引和任务使用 SQLite，凭据按当前 Windows 用户 DPAPI 加密保存在 Mounting/Credentials，整文件退化缓存位于 Mounting/RangeCache，图标缓存在 Mounting/PreviewCache，上传快照位于 Mounting/UploadStaging，这些缓存均计入软上限；待上传、冲突或结果不明的内容及其快照受到保护，可能暂时超过软上限。旧模拟源保留在 Mounting/MockSources，仅供旧挂载迁出；不自动改绑 WebDAV。打包数据位于本包 LocalState，非打包数据位于 `%LOCALAPPDATA%\HybridMount.NET`；调试使用独立挂载目录，不接管另一模式缺少配置的根。
 
 日志页提供筛选、复制、导出与清除，最近显示 100 条，保留最多 30 天／10,000 条。主题、窗口背景和关闭行为可以在设置中调整。
 
-生命周期诊断位于数据目录的 `Logs/lifecycle-*.jsonl` 和 `Logs/last-session.json`，保留最近 32 个会话；记录启动、退出阶段及未处理异常的类型、HRESULT 和安全堆栈，不保存异常原始消息或服务响应。缺少退出完成记录仅表示原因待定位，不能单凭 Visual Studio 的 `0xffffffff` 输出认定崩溃。通知合并和普通存在性查询不再通过重复抛出自有异常完成；SDK 自身已捕获的首次异常仍可能出现在调试输出中。
+生命周期诊断位于数据目录的 `Logs/lifecycle-*.jsonl` 和 `Logs/last-session.json`，保留最近 32 个会话；记录实际包身份、调试器状态、启动／退出阶段、取消原因及异常的类型、HRESULT 和安全堆栈，不保存异常原始消息或服务响应。正常退出记录 ExitCompleted；清理失败继续释放其他资源，并记录 ExitCompletedWithErrors。关联令牌已取消的读取按正常停止，HTTP 超时仍报告故障；已发送写入被取消保留结果待核对。缺少退出完成记录仅表示原因待定位，不能单凭 Visual Studio 的 `0xffffffff` 输出认定崩溃。通知合并和普通存在性查询不再通过重复抛出自有异常完成；SDK 自身已捕获的首次异常仍可能出现在调试输出中。
 
 ## 构建
 
@@ -73,4 +73,4 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-验证细节及待测项目见 [docs/Validation-0.0.5.1.md](docs/Validation-0.0.5.1.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
+验证细节及待测项目见 [docs/Validation-0.0.5.2.md](docs/Validation-0.0.5.2.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。

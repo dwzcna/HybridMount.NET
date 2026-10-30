@@ -77,7 +77,9 @@ public sealed class SharedAsyncWork<TKey,TValue> : IAsyncDisposable where TKey :
     }
     private static async Task StopAsync(Job[] jobs)
     {
-        foreach(var job in jobs)try{await job.Cancel.CancelAsync().ConfigureAwait(false);}catch(ObjectDisposedException){}
+        // 先对全部工作发取消，再统一等候，避免首个取消处理阻挡其余请求收到停止。
+        var cancellations=jobs.Select(async job=>{try{await job.Cancel.CancelAsync().ConfigureAwait(false);}catch(ObjectDisposedException){}}).ToArray();
+        await Task.WhenAll(cancellations).ConfigureAwait(false);
         try{await Task.WhenAll(jobs.Select(job=>job.Work)).ConfigureAwait(false);}catch(Exception){/* 失败由调用者报告，停止只负责资源归还。 */}
     }
 }

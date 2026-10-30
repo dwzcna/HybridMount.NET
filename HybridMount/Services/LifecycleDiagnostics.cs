@@ -1,4 +1,6 @@
 using System.Text;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 namespace HybridMount.Services;
 
@@ -9,6 +11,7 @@ public sealed class LifecycleDiagnostics
     private sealed record SafeException(string Type,int HResult,string? Stack);
     private readonly object _gate=new();
     private readonly string _directory,_marker;
+    private readonly string? _packageIdentity=ActualPackageIdentity();
     private SessionMarker _session;
     private static readonly JsonSerializerOptions Json=new(){PropertyNamingPolicy=JsonNamingPolicy.CamelCase,MaxDepth=16};
     public string EventFilePath {get;}
@@ -35,7 +38,7 @@ public sealed class LifecycleDiagnostics
         catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Security.SecurityException){LastWriteError=error.GetType().Name;}
     }
     /// <summary>同步写出有限安全证据，返回失败而不覆盖正在处理的原始异常；不设置异常已处理标志。</summary>
-    public bool Record(string phase,Exception? error=null,bool fatal=false,bool completed=false)
+    public bool Record(string phase,Exception? error=null,bool fatal=false,bool completed=false,string? cancellationReason=null)
     {
         lock(_gate)
         {
@@ -43,7 +46,7 @@ public sealed class LifecycleDiagnostics
             {
                 var chain=new List<SafeException>();for(var current=error;current is not null&&chain.Count<8;current=current.InnerException)
                     chain.Add(new(current.GetType().FullName??current.GetType().Name,current.HResult,current.StackTrace is {Length:>16384} stack?stack[..16384]:current.StackTrace));
-                var item=new{utc=DateTimeOffset.UtcNow,session=_session.Id,processId=_session.ProcessId,version=_session.Version,mode=_session.Mode,phase,fatal,exceptions=chain};
+                var item=new{utc=DateTimeOffset.UtcNow,session=_session.Id,processId=_session.ProcessId,version=_session.Version,mode=_session.Mode,phase,fatal,debuggerAttached=Debugger.IsAttached,packageIdentity=_packageIdentity,cancellationReason=cancellationReason is "Shutdown" or "Disconnect" or "Removal" or "Caller"?cancellationReason:null,exceptions=chain};
                 var bytes=Encoding.UTF8.GetBytes(JsonSerializer.Serialize(item,Json)+"\n");
                 using(var stream=new FileStream(EventFilePath,FileMode.Append,FileAccess.Write,FileShare.ReadWrite,4096,FileOptions.WriteThrough)){stream.Write(bytes);stream.Flush(true);}
                 _session=_session with{Phase=phase,Completed=completed};var temporary=_marker+"."+_session.Id+".tmp";
@@ -52,4 +55,13 @@ public sealed class LifecycleDiagnostics
             catch(Exception failure)when(failure is IOException or UnauthorizedAccessException or System.Security.SecurityException){LastWriteError=failure.GetType().Name;return false;}
         }
     }
+    /// <summary>读取操作系统实际包身份；无包返回空，不能以调用方模式字符串代替实际身份。</summary>
+    private static string? ActualPackageIdentity()
+    {
+        uint length=0;var status=GetCurrentPackageFullName(ref length,null);
+        if(status!=122||length is 0 or >65536)return null;
+        var name=new StringBuilder((int)length);return GetCurrentPackageFullName(ref length,name)==0?name.ToString():null;
+    }
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]private static extern int GetCurrentPackageFullName(ref uint length,StringBuilder? name);
+
 }

@@ -49,6 +49,8 @@ public sealed partial class MountsPage : Page, IDisposable
     {
         if(_busy)return;_busy=true;
         try { await work(); }
+        catch(OperationCanceledException)when(App.Current.Mounts.IsStopping){ }
+        catch(HybridMount.Services.Mounting.MountManager.ConnectionStoppedException){ViewModel.Status="连接已停止。";}
         catch(Exception error) { ViewModel.Status=error.Message;App.Current.Logger.Queue("挂载","Error",error.Message); }
         finally { _busy=false; }
     }

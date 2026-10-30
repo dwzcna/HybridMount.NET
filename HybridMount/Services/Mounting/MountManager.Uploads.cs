@@ -17,13 +17,14 @@ public sealed partial class MountManager
         public string? CurrentId;
         public Task Work=Task.CompletedTask;
         public int Dirty=1;private int _stopping,_disposed;
+        public Task Cancellation=Task.CompletedTask,RequestCancellation=Task.CompletedTask;
         private readonly object _signalSync=new();
         public UploadRuntime(CancellationToken token)=>Stop=CancellationTokenSource.CreateLinkedTokenSource(token);
         /// <summary>生产者在短锁内合并通知；消费者只递减计数，正常事件风暴不产生异常。</summary>
         public void Wake(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
-        public void CancelRequest(string? id=null){lock(Sync)if(id is null||CurrentId==id)try{Request?.Cancel();}catch(ObjectDisposedException){}}
-        public void RequestStop(){if(Interlocked.Exchange(ref _stopping,1)!=0)return;Watcher?.Dispose();Stop.Cancel();CancelRequest();Wake();}
-        public void Dispose(){lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Watcher?.Dispose();Stop.Dispose();Signal.Dispose();}}
+        public void CancelRequest(string? id=null){lock(Sync)if((id is null||CurrentId==id)&&Request is {IsCancellationRequested:false} request)RequestCancellation=request.CancelAsync();}
+        public void RequestStop(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;_stopping=1;Cancellation=Stop.CancelAsync();}CancelRequest();}
+        public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
     }
     private void StartUploads(Runtime root)
     {
@@ -40,7 +41,7 @@ public sealed partial class MountManager
     private static async Task StopUploadsAsync(Runtime root)
     {
         UploadRuntime? runtime;lock(root.ConnectionSync){runtime=root.Uploads;if(runtime is null)return;runtime.RequestStop();}
-        await runtime.Work.ConfigureAwait(false);
+        await Task.WhenAll(runtime.Cancellation,runtime.Work).ConfigureAwait(false);
         lock(root.ConnectionSync)if(ReferenceEquals(root.Uploads,runtime))root.Uploads=null;runtime.Dispose();
     }
     private void ObserveUploadSource(Runtime root)
@@ -62,7 +63,8 @@ public sealed partial class MountManager
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
     private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change){var item=_repository.UpdateUpload(id,change);PublishUpload(item);return item;}
     /// <summary>首次启用仅扫描本地元数据；不读取干净占位的正文，也不提交远端写入。</summary>
-    public async Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesAsync(Guid id,CancellationToken token=default)
+    public Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>ScanUploadChangesCoreAsync(id,cancel),token);
+    private async Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesCoreAsync(Guid id,CancellationToken token)
     {
         var root=Root(id);await ScanLocalUploadsAsync(root,token,true).ConfigureAwait(false);
         return _repository.Uploads(id).Where(x=>x.State=="AwaitingConfirmation").OrderBy(x=>x.LocalPath,StringComparer.Ordinal).Select(x=>new UploadCandidate(x.LocalPath,x.IsDirectory,x.ExpectedVersion is null?"本地新增或改名":"现有文件本地修改")).ToArray();
@@ -85,16 +87,18 @@ public sealed partial class MountManager
         root.Uploads?.Wake();
     }
     /// <summary>显式重试保持原始基线；结果不明的请求仍先执行只读核对。</summary>
-    public bool RetryUpload(string id)
+    public bool RetryUpload(string id){lock(_lifetime){if(IsStopping)return false;return RetryUploadCore(id);}}
+    private bool RetryUploadCore(string id)
     {
-        var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
+        if(IsStopping)return false;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(item.State is not("Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation"))return false;
         ChangeUpload(id,x=>x with{State=x.State=="OutcomeUnknown"?x.State:x.Receipt is not null?"RemoteCommitted":"Queued",CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null});root.Uploads?.Wake();return true;
     }
     /// <summary>冲突文件上传到新的相对路径；创建保护保证不覆盖目标，原始冲突和索引不变。</summary>
-    public string UploadAsCopy(string id,string destination)
+    public string UploadAsCopy(string id,string destination){lock(_lifetime){ThrowIfStopping();return UploadAsCopyCore(id,destination);}}
+    private string UploadAsCopyCore(string id,string destination)
     {
-        var original=_repository.Upload(id)??throw new IOException("上传记录不存在。");var root=Root(original.MountId);
+        ThrowIfStopping();var original=_repository.Upload(id)??throw new IOException("上传记录不存在。");var root=Root(original.MountId);
         if(original.IsDirectory||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前条目不能另存副本。");
         destination=RelativePaths.Normalize(destination);if(destination.Length==0||destination.Equals(original.SourcePath,StringComparison.OrdinalIgnoreCase))throw new ArgumentException("请填写不同的新文件相对路径。");
         var copy=new LocalUpload(Guid.NewGuid().ToString("N"),original.MountId,original.LocalPath,destination,false,original.ObservedStamp,1,"Queued",DateTimeOffset.UtcNow,ExplicitRequest:true,IsCopy:true);
@@ -117,7 +121,7 @@ public sealed partial class MountManager
     /// <summary>只有明确不存在才视为删除；访问拒绝、占用或临时 oplock 竞争不能取消仍存在的上传。</summary>
     private static bool LocalMissing(string path)
     {
-        try{File.GetAttributes(path);return false;}catch(FileNotFoundException){return true;}catch(DirectoryNotFoundException){return true;}
+        try{return LocalFileMetadata.TryRead(path) is null;}
         catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){return false;}
     }
     /// <summary>扫描不跟随外部链接；仅自己的云占位可递归，已同步占位不打开正文。</summary>
