@@ -60,13 +60,21 @@ public sealed partial class MountsPage : Page, IDisposable
     private async void Remove(object sender,RoutedEventArgs args)=>await Run(async()=>
     {
         var mount=Selected().Definition;
+        var unregistered=mount.RegistrationStage==MountRegistrationStage.NotRegistered;
         var message=mount.LocalPath+"\n\n下载并移除：完整下载后保留为普通本地目录。\n\n清空并移除：永久删除目录内全部内容，包括本地修改和新建文件，保留空根目录；不删除文件源内容。";
+        if(unregistered)message=mount.LocalPath+"\n\n移除挂载：保留本地文件，不连接远端。\n\n清空并移除：永久删除根目录内全部本地内容，保留空根目录及远端数据。";
         if(mount.RemovalPending)message+="\n\n上次移除尚未完成，请继续相同的移除方式。";
-        var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="移除挂载",Content=message,PrimaryButtonText="下载并移除",SecondaryButtonText="清空并移除",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close,
+        var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="移除挂载",Content=message,PrimaryButtonText=unregistered?"移除挂载（保留本地文件）":"下载并移除",SecondaryButtonText="清空并移除",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close,
             IsPrimaryButtonEnabled=!mount.RemovalPending||mount.RemovalMode==MountRemovalMode.PreserveFiles,
             IsSecondaryButtonEnabled=!mount.RemovalPending||mount.RemovalMode==MountRemovalMode.ClearContents};
         var result=await dialog.ShowAsync();
         if(result==ContentDialogResult.None)return;
+        if(result==ContentDialogResult.Secondary)
+        {
+            var confirm=new ContentDialog{XamlRoot=XamlRoot,Title="确认清空并移除",Content=mount.LocalPath+"\n\n目录内全部本地内容（包括修改和新建文件）将被永久删除。保留空根目录及远端数据，已删除内容不会回滚。",
+                PrimaryButtonText="清空并移除",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            if(await confirm.ShowAsync()!=ContentDialogResult.Primary)return;
+        }
         App.Current.Mounts.Queue(mount.Id,result==ContentDialogResult.Primary?"remove":"clearAndRemove");
         ViewModel.Status="移除任务已提交，可在任务页查看进度和逐项结果。";
     });

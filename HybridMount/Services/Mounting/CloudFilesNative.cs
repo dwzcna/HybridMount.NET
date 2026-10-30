@@ -52,13 +52,18 @@ public static class CloudFilesNative
         }
         finally { Marshal.FreeHGlobal(buffer); }
     }
-    public static byte[]? RootIdentity(string path)
+    public static byte[]? RootIdentity(string path, bool strict = false)
     {
         var buffer = Marshal.AllocHGlobal(8192);
         try
         {
             var result = CfGetSyncRootInfoByPath(path, 1, buffer, 8192, out _);
-            if (result < 0) return null;
+            // 只有明确的“未位于同步根”可用于安全删除判定，其他原生错误必须保留。
+            if (result < 0)
+            {
+                if (strict && result is not (unchecked((int)0x80070186) or unchecked((int)0x80070195))) Check(result);
+                return null;
+            }
             // SDK CF_SYNC_ROOT_STANDARD_INFO：IdentityLength 位于 1052，字节数据位于 1056。
             var length = Marshal.ReadInt32(buffer,1052); if (length is < 1 or > 4096) return [];
             var bytes = new byte[length]; Marshal.Copy(buffer+1056,bytes,0,length); return bytes;

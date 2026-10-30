@@ -105,7 +105,11 @@ public sealed class S3Tests
             Assert.Single(fixture.Uploads);Assert.Single(Directory.EnumerateFiles(Path.Combine(fixture.Area,"work"),"*.multipart.json"));
         }
         fixture.Uploads["foreign-upload"]=new("remote/foreign.bin",new());fixture.AbortFailKey=null;fixture.OnPart=null;
-        await using(var resumed=fixture.Source())await resumed.ProbeAsync();
+        await using(var resumed=fixture.Source())
+        {
+            await resumed.ProbeAsync();Assert.Equal(2,fixture.Uploads.Count);
+            await resumed.RecoverKnownUploadsAsync();
+        }
         Assert.Single(fixture.Uploads);Assert.True(fixture.Uploads.ContainsKey("foreign-upload"));
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(fixture.Area,"work"),"*.multipart.json"));Assert.False(fixture.Objects.ContainsKey("remote/interrupted.bin"));
     }

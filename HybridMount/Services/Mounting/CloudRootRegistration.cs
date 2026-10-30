@@ -9,9 +9,31 @@ namespace HybridMount.Services.Mounting;
 public static class CloudRootRegistration
 {
     public static string Id(MountDefinition mount) => $"HybridMount.NET!{System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value}!{mount.Id:N}";
+    /// <summary>核对根身份、原生注册和 WinRT 注册。归属冲突或查询失败一律拒绝破坏性操作。</summary>
+    /// <returns>属于当前用户和挂载时为真；确认无注册时为假。</returns>
+    public static bool IsOwnedRoot(MountDefinition mount)
+    {
+        if (mount.RootIdentity != MountPathGuard.FileIdentity(mount.LocalPath)) throw new IOException("挂载根身份变化，保留配置待恢复。");
+        var native = CloudFilesNative.RootIdentity(mount.LocalPath, strict: true);
+        var marker = native is null ? null : MountPathGuard.ReadRoot(mount.LocalPath);
+        if (native is not null && (marker?.MountId != mount.Id || marker.Owner != System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value))
+            throw new IOException("同步根属于其他提供程序或用户，拒绝操作。");
+        var listed = false;
+        foreach (var registration in StorageProviderSyncRootManager.GetCurrentSyncRoots())
+        {
+            var path = registration.Path?.Path;
+            if (string.IsNullOrEmpty(path) || !(MountPathGuard.IsUnder(path,mount.LocalPath) || MountPathGuard.IsUnder(mount.LocalPath,path))) continue;
+            if (registration.Id != Id(mount) || !Path.TrimEndingDirectorySeparator(path).Equals(mount.LocalPath,StringComparison.OrdinalIgnoreCase))
+                throw new IOException("目标与其他同步根重叠，拒绝操作。");
+            listed = true;
+        }
+        if (listed && native is null) throw new IOException("系统注册记录不一致，保留配置待恢复。");
+        return native is not null;
+    }
     public static async Task EnsureAsync(MountDefinition mount, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("注册前根身份发生变化，保留配置。");
         var current = MountPathGuard.ReadRoot(mount.LocalPath);
         if (current is not null)
         { if (current.MountId != mount.Id) throw new IOException("同步根属于其他挂载。"); return; }
@@ -32,8 +54,10 @@ public static class CloudRootRegistration
             HardlinkPolicy = StorageProviderHardlinkPolicy.None, Version = typeof(MountManager).Assembly.GetName().Version!.ToString(), ShowSiblingsAsGroup = false,
             Context = CryptographicBuffer.CreateFromByteArray(MountPathGuard.RootBytes(mount.Id))
         };
-        token.ThrowIfCancellationRequested(); StorageProviderSyncRootManager.Register(info);
-        if (MountPathGuard.ReadRoot(mount.LocalPath)?.MountId != mount.Id) throw new IOException("同步根注册结果未通过身份核对。");
+        token.ThrowIfCancellationRequested();
+        if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("注册前根身份发生变化，保留配置。");
+        StorageProviderSyncRootManager.Register(info);
+        MountPathGuard.ValidateOperation(mount,mount.LocalPath);
     }
     public static void Unregister(MountDefinition mount)
     {

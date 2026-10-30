@@ -141,7 +141,7 @@ public sealed class ClearRemovalTests
         manager.Cancel(id);throw new TimeoutException("清空任务未在期限内结束。");
     }
     /// <summary>建立无需管理员权限的 NTFS 目录联接；数据与目标均由本测试创建。</summary>
-    private static void CreateJunction(string link,string target)
+    internal static void CreateJunction(string link,string target)
     {
         Directory.CreateDirectory(link);
         using var handle=CloudFilesNative.CreateFile(link,0x40000000,0,0,3,0x02200000,0);

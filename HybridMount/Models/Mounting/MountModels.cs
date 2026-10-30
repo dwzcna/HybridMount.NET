@@ -12,8 +12,10 @@ public sealed class SourceConflictException(string message) : IOException(messag
 public enum MountRemovalMode { PreserveFiles, ClearContents }
 /// <summary>Working 表示处理内容；Unregistering 表示内容已处理、正在解除注册。</summary>
 public enum MountRemovalStage { Working, Unregistering }
+/// <summary>旧配置默认未知，按实际注册及索引核对；注册中断不可冒充从未注册。</summary>
+public enum MountRegistrationStage { Unknown, NotRegistered, Registering, Registered }
 /// <summary>根位置不可原地修改；未完成的移除必须按已保存的模式恢复。</summary>
-public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null);
+public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown);
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false);
 public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail)

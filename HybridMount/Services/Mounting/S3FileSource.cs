@@ -15,6 +15,9 @@ namespace HybridMount.Services.Mounting;
 public sealed class S3FileSource : IFileSource
 {
     private readonly IAmazonS3 _client;
+    private readonly string _diagnosticContext;
+    private sealed class ResponseHints { internal string? Region,RequestId; internal bool Certificate; }
+    private static readonly AsyncLocal<ResponseHints?> Hints=new();
     private readonly string _bucket, _prefix, _work;
     private readonly long _multipartThreshold;
     private readonly SemaphoreSlim _probeGate = new(1, 1);
@@ -26,6 +29,8 @@ public sealed class S3FileSource : IFileSource
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
     {
         var endpoint = ValidateOptions(options);
+        _diagnosticContext=$"SigV4；签名区域 {options.Region}"+(options.Region=="us-east-1"?"（默认值，尚待服务确认）":"（配置值）")+
+            $"；寻址 {(options.PathStyle?"Path-Style":"Virtual-Host")}；凭据来源 {(options.UseDefaultCredentials?"SDK 默认凭据链":"表单／DPAPI 访问密钥")}";
 
         _bucket = options.Bucket; _prefix = options.Prefix.Trim('/').Length == 0 ? "" : RelativePaths.Normalize(options.Prefix.Trim('/')) + "/";
         _work = workDirectory; _multipartThreshold = Math.Max(5L * 1024 * 1024, multipartThreshold);
@@ -55,8 +60,41 @@ public sealed class S3FileSource : IFileSource
     }
     private sealed class NoRedirectHttpFactory : Amazon.Runtime.HttpClientFactory
     {
-        public override HttpClient CreateHttpClient(IClientConfig config) => new(new SocketsHttpHandler { AllowAutoRedirect = false,
-            MaxConnectionsPerServer = 4, ConnectTimeout = TimeSpan.FromSeconds(20) }) { Timeout = TimeSpan.FromMinutes(2) };
+        public override HttpClient CreateHttpClient(IClientConfig config) => new(new DiagnosticHandler(new SocketsHttpHandler { AllowAutoRedirect = false,
+            MaxConnectionsPerServer = 4, ConnectTimeout = TimeSpan.FromSeconds(20) })) { Timeout = TimeSpan.FromMinutes(2) };
+    }
+    /// <summary>仅保留有限的错误字段；区域不通过 SDK 私有字段读取，也不自动改写配置。</summary>
+    private sealed class DiagnosticHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
+        {
+            HttpResponseMessage response;
+            try { response=await base.SendAsync(request,token).ConfigureAwait(false); }
+            catch(HttpRequestException error)
+            {
+                if(Hints.Value is {} failed && (error.HttpRequestError==HttpRequestError.SecureConnectionError || error.InnerException is System.Security.Authentication.AuthenticationException))failed.Certificate=true;
+                throw;
+            }
+            if(Hints.Value is {} hints)
+            {
+                if(response.Headers.TryGetValues("x-amz-bucket-region",out var regions))hints.Region=regions.FirstOrDefault();
+                if(response.Headers.TryGetValues("x-amz-request-id",out var requests))hints.RequestId=requests.FirstOrDefault();
+                if(!response.IsSuccessStatusCode && response.Content.Headers.ContentLength is >0 and <=65536)
+                {
+                    try
+                    {
+                        await response.Content.LoadIntoBufferAsync(65536,token).ConfigureAwait(false);
+                        var bytes=await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+                        using var reader=System.Xml.XmlReader.Create(new MemoryStream(bytes),new System.Xml.XmlReaderSettings
+                        {DtdProcessing=System.Xml.DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=65536});
+                        var xml=System.Xml.Linq.XDocument.Load(reader);
+                        hints.Region??=xml.Root?.Elements().FirstOrDefault(e=>e.Name.LocalName=="Region")?.Value;
+                    }
+                    catch(System.Xml.XmlException) { }
+                }
+            }
+            return response;
+        }
     }
     private string Key(string path) => _prefix + RelativePaths.Normalize(path);
     private static string NonRoot(string path) => RelativePaths.Normalize(path) is { Length: > 0 } result ? result : throw new ArgumentException("不能修改源根。");
@@ -66,26 +104,56 @@ public sealed class S3FileSource : IFileSource
         ? version.ETag! : throw new NotSupportedException("S3 对象缺少有效 ETag，拒绝条件修改。");
     private static string? ImmutableVersion(string? value) => string.IsNullOrEmpty(value) || value == "null" ? null : value;
     /// <summary>不输出 SDK 原始异常、服务端 XML 或 URL；修改请求不自动重试。</summary>
-    private static async Task<T> Call<T>(Func<Task<T>> action, CancellationToken token, bool mutation = false)
+    private async Task<T> Call<T>(Func<Task<T>> action, CancellationToken token, bool mutation = false, [CallerMemberName] string stage = "")
     {
         token.ThrowIfCancellationRequested();
+        var previousHints=Hints.Value;var hints=new ResponseHints();Hints.Value=hints;
         try { return await action().ConfigureAwait(false); }
         catch (AmazonS3Exception error) when (error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
         { throw new SourceConflictException("S3 对象版本或目标创建条件不满足。"); }
-        catch (AmazonS3Exception error) when (error.StatusCode == HttpStatusCode.NotFound)
+        catch (AmazonS3Exception error) when (error.StatusCode == HttpStatusCode.NotFound && error.ErrorCode != "NoSuchBucket" && stage != nameof(ProbeAsync))
         { throw new FileNotFoundException("S3 对象或桶不存在。"); }
         catch (Exception error) when (error is AmazonServiceException or AmazonClientException or HttpRequestException or IOException or OperationCanceledException)
         {
             if (mutation && (error is not AmazonS3Exception service || (int)service.StatusCode >= 500 || (int)service.StatusCode == 0))
-                throw new SourceOutcomeUnknownException("S3 修改", new IOException("请求未得到确定的成功响应。"));
+                throw new SourceOutcomeUnknownException("S3 修改", new SourceConnectionException(Diagnose(error,stage,hints)));
             if (error is OperationCanceledException) throw;
-            throw new IOException(error is AmazonS3Exception s3 ? $"S3 返回 HTTP {(int)s3.StatusCode}，请检查区域、认证、权限与服务能力。" : "S3 请求失败，请检查网络、证书及凭据来源。");
+            throw new SourceConnectionException(Diagnose(error,stage,hints));
         }
+        finally { Hints.Value=previousHints; }
     }
     public async Task ProbeAsync(CancellationToken token = default)
     {
-        await Call(() => _client.ListObjectsV2Async(new() { BucketName = _bucket, Prefix = _prefix, Delimiter = "/", MaxKeys = 1 }, token), token).ConfigureAwait(false);
-        await RecoverUploadsAsync(token).ConfigureAwait(false);
+        var page=await Call(() => _client.ListObjectsV2Async(new() { BucketName = _bucket, Prefix = _prefix, Delimiter = "/", MaxKeys = 1 }, token), token).ConfigureAwait(false);
+        if(page.HttpStatusCode!=HttpStatusCode.OK || page.IsTruncated is null)
+            throw new SourceConnectionException(new(nameof(ProbeAsync),ConnectionFailureKind.Service,(int)page.HttpStatusCode,null,null,null,"服务未返回完整的 S3 ListObjectsV2 响应；"+_diagnosticContext));
+
+    }
+    /// <summary>将 SDK 错误转换为有限字段；不读取 ResponseBody、Message 或授权信息。</summary>
+    private ConnectionDiagnostic Diagnose(Exception error,string stage,ResponseHints hints)
+    {
+        static string? Field(string? value,int max=160) => !string.IsNullOrEmpty(value) && value.Length<=max &&
+            value.All(c=>char.IsAsciiLetterOrDigit(c)||c is '-' or '_' or '/' or '+' or '=' or '.')?value:null;
+        var service=error as AmazonS3Exception;var status=service is null?0:(int)service.StatusCode;
+        var code=Field(service?.ErrorCode);var kind=ConnectionFailureKind.Service;
+        var explanation="S3 服务返回非预期响应，请依据服务码与请求 ID 排查。";
+        if(code is "SignatureDoesNotMatch" or "AuthorizationHeaderMalformed" or "InvalidRegion" || status is 301 or 307)
+        {kind=ConnectionFailureKind.Signature;explanation="签名或签名上下文不匹配，请核对区域、Path-Style、路径及系统时间。";}
+        else if(status==401 || code is "InvalidAccessKeyId" or "ExpiredToken" or "InvalidToken" or "TokenRefreshRequired")
+        {kind=ConnectionFailureKind.Authentication;explanation="认证未通过；请核对凭据来源与有效期，当前响应不能单独确定密钥或区域是否正确。";}
+        else if(status==403)
+        {kind=ConnectionFailureKind.Permission;explanation="访问被拒绝，请核对桶及前缀权限、策略或服务端认证约束。";}
+        else if(status==404 || code=="NoSuchBucket")
+        {kind=ConnectionFailureKind.NotFound;explanation="桶或请求资源不存在，请核对接入点与桶名。";}
+        else if(status==0)
+        {
+            var certificate=hints.Certificate;
+            for(Exception? nested=error;nested is not null;nested=nested.InnerException)
+                if(nested is System.Security.Authentication.AuthenticationException || nested is HttpRequestException { HttpRequestError:HttpRequestError.SecureConnectionError })certificate=true;
+            kind=certificate?ConnectionFailureKind.Certificate:ConnectionFailureKind.Network;
+            explanation=certificate?"TLS 或证书验证失败，请核对主机名与证书链。":"请求未获得 HTTP 响应，请核对网络、DNS、代理及凭据来源。";
+        }
+        return new(stage,kind,status==0?null:status,code,Field(service?.RequestId)??Field(hints.RequestId),Field(hints.Region,64),explanation+"；"+_diagnosticContext);
     }
     private static SourceEntry VirtualDirectory(string path) => new("", path, true, 0, DateTimeOffset.UnixEpoch, JsonSerializer.Serialize(new ObjectVersion(null, null, true)));
     private static SourceEntry Metadata(string path, GetObjectMetadataResponse head, bool directory)
@@ -336,7 +404,8 @@ public sealed class S3FileSource : IFileSource
             }
         }
     }
-    private async Task RecoverUploadsAsync(CancellationToken token)
+    /// <summary>单独恢复本程序已知分片；读取连接可在恢复失败时继续，探测绝不调用此方法。</summary>
+    public async Task RecoverKnownUploadsAsync(CancellationToken token=default)
     {
         if (!Directory.Exists(_work)) return;
         foreach (var path in Directory.EnumerateFiles(_work, "*.multipart.json"))

@@ -5,6 +5,8 @@ namespace HybridMount.Common;
 public interface IFileSource : IAsyncDisposable
 {
     FileSourceCapabilities Capabilities { get; }
+    /// <summary>不透明版本默认严格相等；协议只能归一化可证明等价的表示。</summary>
+    bool IsSameVersion(string left, string right) => string.Equals(left, right, StringComparison.Ordinal);
     /// <summary>只读连接探测；不得在此自动创建或删除用户的远端内容。</summary>
     Task ProbeAsync(CancellationToken token = default) => Task.CompletedTask;
     /// <summary>会话停止后释放连接；兼容测试源的同步释放。</summary>

@@ -17,6 +17,7 @@
                     <TextBox x:Name="BucketField" Header="桶名 / Bucket"/>
                     <TextBox x:Name="PrefixField" Header="目录前缀（可选）"/>
                     <TextBox x:Name="RegionField" Header="签名区域 / Region" Text="us-east-1"/>
+                    <TextBlock Text="us-east-1 是未验证默认值，请按服务商说明或服务端区域提示确认。" TextWrapping="Wrap"/>
                     <CheckBox x:Name="PathStyleField" Content="路径寻址 / Path-Style" IsChecked="True"/>
                     <CheckBox x:Name="DefaultCredentialsField" Content="使用 AWS SDK 默认凭据链" Checked="CredentialsModeChanged" Unchecked="CredentialsModeChanged"/>
                     <StackPanel x:Name="S3Secrets" Spacing="12">
@@ -29,6 +30,11 @@
                 <ToggleSwitch x:Name="AutoConnectField" Header="随程序启动连接" IsOn="True"/>
                 <TextBlock Text="本地修改会受到保护，当前版本不会自动上传。" TextWrapping="Wrap"/>
             </StackPanel></UserControl>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="TestButton" Content="测试连接" Click="TestConnection"/>
+                <Button x:Name="CancelTestButton" Content="取消测试" Click="CancelTest" Visibility="Collapsed"/>
+            </StackPanel>
+            <InfoBar x:Name="ProbeBar" IsOpen="False" IsClosable="False" Severity="Informational" Title="只读连接测试"/>
             <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="False" Severity="Error" Title="无法连接挂载"/>
         </StackPanel>
     </ScrollViewer>

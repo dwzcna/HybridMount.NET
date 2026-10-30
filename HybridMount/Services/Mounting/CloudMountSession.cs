@@ -124,7 +124,7 @@ public sealed class CloudMountSession : IAsyncDisposable
             var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id && !item.Deleted) ?? throw new FileNotFoundException("占位身份不存在。");
             var source=_source??throw new IOException("清空期间不提供内容读取。");
             var metadata=await source.GetMetadataAsync(entry.SourcePath,token).ConfigureAwait(false);
-            if(metadata.Version!=entry.Version) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
+            if(!source.IsSameVersion(metadata.Version,entry.Version)) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0 || length<=0 || offset>metadata.Size || length>metadata.Size-offset) throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096; var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));
             var bytes=new byte[256*1024]; var pin=GCHandle.Alloc(bytes,GCHandleType.Pinned);

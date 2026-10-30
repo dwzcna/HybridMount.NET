@@ -34,6 +34,27 @@ public sealed class FileSourceFactory : IFileSourceFactory
         try { await source.ProbeAsync(token).ConfigureAwait(false); return source; }
         catch { await source.DisposeAsync().ConfigureAwait(false); throw; }
     }
+    /// <summary>按当前表单执行只读探测；不接触仓库、凭据密文、注册根或分片恢复。</summary>
+    /// <param name="timeout">默认三十秒；调用者可取消，重复提交由界面防护。</param>
+    public async Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,
+        CancellationToken token=default,TimeSpan? timeout=null)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(timeout??TimeSpan.FromSeconds(30));
+        var temporary=Path.Combine(Path.GetTempPath(),"HybridMount.ReadOnlyProbe",Guid.NewGuid().ToString("N"));
+        try
+        {
+            if(!_adapters.TryGetValue(settings.Kind,out var adapter))throw new NotSupportedException("此协议尚未提供连接测试。");
+            await using var source=adapter(settings,credentials,temporary);
+            await source.ProbeAsync(deadline.Token).ConfigureAwait(false);
+            return new(true,"只读连接测试成功；未保存挂载，也未验证远端写入权限。");
+        }
+        catch(OperationCanceledException)when(!token.IsCancellationRequested)
+        { return new(false,"连接测试超时，请检查网络及服务响应。"); }
+        catch(SourceConnectionException error) { return new(false,error.Message,error.Diagnostic); }
+        catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException)
+        { return new(false,error.Message); }
+    }
     /// <summary>禁止 URL 账户、查询和片段，HTTP 必须由用户显式启用；不接受重定向后的身份转发。</summary>
     public static Uri Endpoint(FileSourceConfiguration options)
     {

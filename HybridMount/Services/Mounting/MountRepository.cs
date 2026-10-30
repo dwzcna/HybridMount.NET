@@ -36,7 +36,7 @@ public sealed class MountRepository
                 using var child = key.OpenSubKey(name);
                 if (child?.GetValue("Definition") is not string json) continue;
                 var definition = JsonSerializer.Deserialize<MountDefinition>(json) ?? throw new IOException("挂载配置为空。");
-                if (!Enum.IsDefined(definition.RemovalMode) || !Enum.IsDefined(definition.RemovalStage) || definition.Id == Guid.Empty || definition.Id.ToString("N") != name || !Path.IsPathFullyQualified(definition.LocalPath)) throw new IOException("挂载配置无效。");
+                if (!Enum.IsDefined(definition.RegistrationStage) || !Enum.IsDefined(definition.RemovalMode) || !Enum.IsDefined(definition.RemovalStage) || definition.Id == Guid.Empty || definition.Id.ToString("N") != name || !Path.IsPathFullyQualified(definition.LocalPath)) throw new IOException("挂载配置无效。");
                 result.Add(definition);
             }
             return result;
@@ -44,7 +44,7 @@ public sealed class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 3, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 4, RegistryValueKind.DWord); }
     }
     /// <summary>此仓库的全局缓存软上限；旧配置默认 10 GiB，0 为关闭。</summary>
     public long CacheLimitBytes

@@ -53,7 +53,7 @@ internal static class MountContentCleaner
     {
         using var lease=new PathLease(mount);
         if(registered)MountPathGuard.ValidateOperation(mount,mount.LocalPath);
-        else if(CloudFilesNative.RootIdentity(mount.LocalPath) is not null)throw new IOException("路径重新属于同步根，停止清空。");
+        else if(CloudFilesNative.RootIdentity(mount.LocalPath,strict:true) is not null)throw new IOException("路径重新属于同步根，停止清空。");
         return ClearDirectory(mount.LocalPath);
 
         int ClearDirectory(string directory)

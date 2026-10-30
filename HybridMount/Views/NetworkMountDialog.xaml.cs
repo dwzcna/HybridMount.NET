@@ -1,4 +1,5 @@
 using HybridMount.Models.Mounting;
+using HybridMount.Services.Mounting;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
@@ -9,6 +10,7 @@ namespace HybridMount.Views;
 public sealed partial class NetworkMountDialog : ContentDialog
 {
     private bool _submitting,_picking;
+    private CancellationTokenSource? _testing;
     /// <summary>已持久创建的挂载；取消或校验失败时为空。</summary>
     public MountDefinition? CreatedMount { get; private set; }
     /// <summary>返回挂载页显示的创建或连接结果。</summary>
@@ -27,22 +29,24 @@ public sealed partial class NetworkMountDialog : ContentDialog
         {
             Title="更新连接凭据";PrimaryButtonText="保存并重连";
             NameField.Text=existing.Name;NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
-            EndpointField.Text=existing.Source!.Endpoint;EndpointField.IsReadOnly=true;HttpField.IsChecked=existing.Source.AllowHttp;HttpField.IsEnabled=false;
+            var editable=App.Current.Mounts.CanEditRemoteRoot(existing.Id);
+            Title=editable?"编辑连接配置":"更新连接凭据";
+            EndpointField.Text=existing.Source!.Endpoint;EndpointField.IsReadOnly=!editable;HttpField.IsChecked=existing.Source.AllowHttp;HttpField.IsEnabled=editable;
             AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;
             var saved=App.Current.Mounts.GetCredentials(existing.Id);UserField.Text=saved.UserName;
             PasswordField.Password=saved.Password;
-            BucketField.Text=existing.Source.Bucket;BucketField.IsReadOnly=true;PrefixField.Text=existing.Source.Prefix;PrefixField.IsReadOnly=true;
+            BucketField.Text=existing.Source.Bucket;BucketField.IsReadOnly=!editable;PrefixField.Text=existing.Source.Prefix;PrefixField.IsReadOnly=!editable;
             RegionField.Text=existing.Source.Region;PathStyleField.IsChecked=existing.Source.PathStyle;
             DefaultCredentialsField.IsChecked=existing.Source.UseDefaultCredentials;AccessKeyField.Text=saved.AccessKey;
             SecretKeyField.Password=saved.SecretKey;SessionTokenField.Password=saved.SessionToken;
         }
     }
     private void CredentialsModeChanged(object sender,RoutedEventArgs args) { if(AccessKeyField is null)return;var enabled=DefaultCredentialsField.IsChecked!=true;AccessKeyField.IsEnabled=enabled;SecretKeyField.IsEnabled=enabled;SessionTokenField.IsEnabled=enabled; }
-    private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args) { if(_submitting || _picking)args.Cancel=true; }
+    private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args) { if(_testing is not null)_testing.Cancel();if(_submitting || _picking)args.Cancel=true; }
     private async void ChooseFolder(object sender,RoutedEventArgs args)
     {
-        if(_submitting || _picking)return;
-        _picking=true;IsPrimaryButtonEnabled=false;
+        if(_submitting || _picking || _testing is not null)return;
+        _picking=true;IsPrimaryButtonEnabled=false;TestButton.IsEnabled=false;
         try
         {
             var picker=new FolderPicker();picker.FileTypeFilter.Add("*");
@@ -50,18 +54,38 @@ public sealed partial class NetworkMountDialog : ContentDialog
             var folder=await picker.PickSingleFolderAsync();if(folder is not null)PathField.Text=folder.Path;
         }
         catch(Exception error) { ErrorBar.Message=error.Message;ErrorBar.IsOpen=true; }
-        finally { _picking=false;IsPrimaryButtonEnabled=true; }
+        finally { _picking=false;IsPrimaryButtonEnabled=true;TestButton.IsEnabled=true; }
     }
+    private FileSourceConfiguration Settings()=>new(_kind,EndpointField.Text.Trim(),BucketField.Text.Trim(),PrefixField.Text.Trim().Trim('/'),RegionField.Text.Trim(),PathStyleField.IsChecked==true,HttpField.IsChecked==true,DefaultCredentialsField.IsChecked==true);
+    private SourceCredentials Credentials()=>_kind==FileSourceKind.WebDav?new(UserField.Text.Trim(),PasswordField.Password):new(AccessKey:AccessKeyField.Text.Trim(),SecretKey:SecretKeyField.Password,SessionToken:SessionTokenField.Password);
+    /// <summary>测试当前输入，期间锁定表单；关闭或取消时结束请求，不保存配置。</summary>
+    private async void TestConnection(object sender,RoutedEventArgs args)
+    {
+        if(_submitting||_picking||_testing is not null)return;
+        using var cancel=new CancellationTokenSource();_testing=cancel;
+        var settings=Settings();var credentials=Credentials();
+        Form.IsEnabled=false;IsPrimaryButtonEnabled=false;TestButton.IsEnabled=false;CancelTestButton.Visibility=Visibility.Visible;
+        ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="正在执行只读探测…";ProbeBar.IsOpen=true;
+        try
+        {
+            var result=await new FileSourceFactory().TestConnectionAsync(settings,credentials,cancel.Token);
+            ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;
+        }
+        catch(OperationCanceledException) { ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="连接测试已取消。"; }
+        catch(Exception) { ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message="连接测试失败，请检查配置、网络和凭据来源。"; }
+        finally
+        { _testing=null;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;TestButton.IsEnabled=true;CancelTestButton.Visibility=Visibility.Collapsed; }
+    }
+    private void CancelTest(object sender,RoutedEventArgs args)=>_testing?.Cancel();
     private async void CreateMount(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
         args.Cancel=true;
-        if(_submitting || _picking)return;
-        var deferral=args.GetDeferral();_submitting=true;Form.IsEnabled=false;IsPrimaryButtonEnabled=false;ErrorBar.IsOpen=false;
+        if(_submitting || _picking || _testing is not null)return;
+        var deferral=args.GetDeferral();_submitting=true;Form.IsEnabled=false;IsPrimaryButtonEnabled=false;TestButton.IsEnabled=false;ErrorBar.IsOpen=false;
         var before=App.Current.Mounts.Mounts.Select(mount=>mount.Definition.Id).ToHashSet();
         try
         {
-            var settings=new FileSourceConfiguration(_kind,EndpointField.Text.Trim(),BucketField.Text.Trim(),PrefixField.Text.Trim().Trim('/'),RegionField.Text.Trim(),PathStyleField.IsChecked==true,HttpField.IsChecked==true,DefaultCredentialsField.IsChecked==true);
-            var credentials=_kind==FileSourceKind.WebDav?new SourceCredentials(UserField.Text.Trim(),PasswordField.Password):new SourceCredentials(AccessKey:AccessKeyField.Text.Trim(),SecretKey:SecretKeyField.Password,SessionToken:SessionTokenField.Password);
+            var settings=Settings();var credentials=Credentials();
             if(_existing is null)CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn,source:settings,credentials:credentials);
             else { await App.Current.Mounts.UpdateCredentialsAsync(_existing.Id,credentials,settings:settings);CreatedMount=_existing; }
             ResultMessage=$"已连接 {CreatedMount.Name}。";args.Cancel=false;
@@ -69,13 +93,13 @@ public sealed partial class NetworkMountDialog : ContentDialog
         catch(Exception error)
         {
             var created=_existing is null?App.Current.Mounts.Mounts.FirstOrDefault(mount=>!before.Contains(mount.Definition.Id)&&mount.Definition.LocalPath.Equals(PathField.Text,StringComparison.OrdinalIgnoreCase)):App.Current.Mounts.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_existing.Id);
-            if(created is not null)
+            if(created is not null && error is not (ArgumentException or NotSupportedException))
             {
-                CreatedMount=created.Definition;ResultMessage=$"挂载已创建，但连接失败：{error.Message}；请选择该挂载后点击连接重试。";args.Cancel=false;
+                CreatedMount=created.Definition;ResultMessage=$"连接未完成：{error.Message}；已保存的配置保留，可编辑连接配置或重试。";args.Cancel=false;
             }
             else { ErrorBar.Message=error.Message;ErrorBar.IsOpen=true; }
             App.Current.Logger.Queue("新增挂载","Error",error.Message);
         }
-        finally { _submitting=false;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;deferral.Complete(); }
+        finally { _submitting=false;Form.IsEnabled=true;IsPrimaryButtonEnabled=true;TestButton.IsEnabled=true;deferral.Complete(); }
     }
 }

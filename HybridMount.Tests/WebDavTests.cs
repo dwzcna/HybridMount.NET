@@ -9,6 +9,50 @@ namespace HybridMount.Tests;
 /// <summary>真实 HTTP 协议回归与真实 CFAPI 网络源集成；不将本地服务当真实提供商验收。</summary>
 public sealed class WebDavTests
 {
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("bare-value")]
+    [InlineData("W/\"weak\"")]
+    [InlineData("  \"strong\"  ")]
+    public async Task OptionalDirectoryTagsNeverBlockAndLegacyWhitespaceIsEquivalent(string tag)
+    {
+        await using var fixture=new DavFixture();
+        fixture.XmlTag=item=>item.Directory?tag:item.ETag;
+        await using var source=fixture.Source();await source.ProbeAsync();
+        Assert.Equal(2,(await All(source.ListAsync(""))).Count);
+        var entry=await source.GetMetadataAsync("文件.bin");
+        var legacy=entry.Version.Replace("\\u0022v1\\u0022","  \\u0022v1\\u0022  ");
+        Assert.NotEqual(entry.Version,legacy);
+        Assert.True(source.IsSameVersion(entry.Version,legacy));
+        Assert.False(source.IsSameVersion(entry.Version,entry.Version.Replace("v1","v2")));
+    }
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("bare")]
+    [InlineData("W/\"weak\"")]
+    public async Task UnreliableFileTagsUseReadOnlyFullSnapshot(string tag)
+    {
+        await using var fixture=new DavFixture();
+        fixture.XmlTag=_=>tag;fixture.HttpTag=_=>null;
+        await using var source=fixture.Source();
+        var entry=await source.GetMetadataAsync("文件.bin");var data=new byte[17];
+        await source.ReadRangeAsync(entry,6,data);
+        Assert.Equal(fixture.Bytes[6..23],data);
+        Assert.Equal(CapabilitySupport.Unsupported,source.Capabilities.RangeRead);
+        Assert.DoesNotContain(fixture.Server.Requests,r=>r.Headers.ContainsKey("Range")||r.Headers.ContainsKey("If-Match")||r.Method=="PUT");
+    }
+    [Fact]
+    public async Task StrongResponseDifferenceStillRejectsAndOuterWhitespaceNormalizes()
+    {
+        await using var fixture=new DavFixture();
+        fixture.XmlTag=item=>"  "+item.ETag+"  ";
+        await using var source=fixture.Source();var entry=await source.GetMetadataAsync("文件.bin");
+        await source.ReadRangeAsync(entry,0,new byte[4]);
+        fixture.HttpTag=_=>"\"changed\"";
+        await Assert.ThrowsAsync<SourceConflictException>(async()=>await source.ReadRangeAsync(entry,0,new byte[4]));
+    }
     [Fact]
     public async Task DepthOneAuthenticationAndVersionPinnedRanges()
     {
@@ -135,6 +179,7 @@ internal sealed class DavFixture : IAsyncDisposable
     public byte[] Bytes { get; }=Enumerable.Range(0,16397).Select(index=>(byte)(index*17)).ToArray();
     public bool IgnoreRange,WeakEtag,BadRange,IgnoreConditions;
     public string? XmlOverride;
+    public Func<Item,string?>? XmlTag,HttpTag;
     private int _version;
     public FileSourceConfiguration Options=>new(FileSourceKind.WebDav,new Uri(Server.Address,"dav/").AbsoluteUri,AllowHttp:true);
     public DavFixture(){Directory.CreateDirectory(Area);Objects[""]=new([],"\"root\"",true);Objects["空目录"]=new([],"\"dir\"",true);Put("文件.bin",Bytes);Server.Handler=Handle;}
@@ -154,14 +199,15 @@ internal sealed class DavFixture : IAsyncDisposable
             var selected=Objects.Where(pair=>pair.Key==path||(request.Headers["Depth"]=="1"&&pair.Key.Length!=0&&RelativePaths.Parent(pair.Key)==path));
             var xml=new XElement(d+"multistatus",selected.Select(pair=>new XElement(d+"response",new XElement(d+"href","/dav/"+string.Join('/',pair.Key.Split('/').Select(Uri.EscapeDataString))+(pair.Value.Directory&&pair.Key!=""?"/":"")),
                 new XElement(d+"propstat",new XElement(d+"status","HTTP/1.1 200 OK"),new XElement(d+"prop",new XElement(d+"resourcetype",pair.Value.Directory?new XElement(d+"collection"):null),
-                    new XElement(d+"getcontentlength",pair.Value.Bytes.Length),new XElement(d+"getlastmodified","Thu, 29 Oct 2026 12:00:00 GMT"),new XElement(d+"getetag",Tag(pair.Value)))))));
+                    new XElement(d+"getcontentlength",pair.Value.Bytes.Length),new XElement(d+"getlastmodified","Thu, 29 Oct 2026 12:00:00 GMT"),new XElement(d+"getetag",XmlTag is null?Tag(pair.Value):XmlTag(pair.Value)))))));
             response=HttpTestServer.Response.Text(207,XmlOverride??xml.ToString());
         }
         else if(request.Method=="GET")
         {
             if(item is null)return Task.FromResult(new HttpTestServer.Response(404,[]));
             if(request.Headers.TryGetValue("If-Match",out var match)&&match!=Tag(item))return Task.FromResult(new HttpTestServer.Response(412,[]));
-            var headers=new Dictionary<string,string>{["ETag"]=Tag(item),["Last-Modified"]="Thu, 29 Oct 2026 12:00:00 GMT"};
+            var headers=new Dictionary<string,string>{["Last-Modified"]="Thu, 29 Oct 2026 12:00:00 GMT"};
+            var responseTag=HttpTag is null?Tag(item):HttpTag(item);if(responseTag is not null)headers["ETag"]=responseTag;
             if(!IgnoreRange&&request.Headers.TryGetValue("Range",out var range))
             {var limits=range[6..].Split('-').Select(int.Parse).ToArray();headers["Content-Range"]=$"bytes {limits[0]+(BadRange?1:0)}-{limits[1]}/{item.Bytes.Length}";response=new(206,item.Bytes[limits[0]..(limits[1]+1)],headers);}
             else response=new(200,item.Bytes,headers);

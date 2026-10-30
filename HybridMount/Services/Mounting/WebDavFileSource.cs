@@ -119,8 +119,7 @@ public sealed class WebDavFileSource : IFileSource
                 throw new IOException("DAV 文件缺少有效长度。");
             var modified = DateTimeOffset.TryParse(props.Element(Dav + "getlastmodified")?.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
                 ? parsed.ToUniversalTime() : DateTimeOffset.UnixEpoch;
-            var tag = props.Element(Dav + "getetag")?.Value;
-            if (tag is not null && !EntityTagHeaderValue.TryParse(tag, out _)) throw new IOException("DAV ETag 格式无效。");
+            var tag = NormalizeTag(props.Element(Dav + "getetag")?.Value);
             result.Add(new("", relative, directory, size, modified, JsonSerializer.Serialize(new VersionInfo(tag, size, modified.UtcTicks))));
         }
         if (!names.Contains(path)) throw new IOException("DAV 响应缺少请求目录自身，拒绝不完整快照。");
@@ -135,13 +134,43 @@ public sealed class WebDavFileSource : IFileSource
     public async Task<SourceEntry> GetMetadataAsync(string path, CancellationToken token = default)
         => (await PropFindAsync(path, 0, token).ConfigureAwait(false)).Single(entry => entry.Path == path);
     private static VersionInfo Version(SourceEntry entry) => JsonSerializer.Deserialize<VersionInfo>(entry.Version) ?? throw new IOException("DAV 版本标记无效。");
-    private static bool Strong(string? tag) => tag is not null && EntityTagHeaderValue.TryParse(tag, out var parsed) && !parsed.IsWeak;
+    /// <summary>空值保留为缺失；裸值不加引号、不获得强验证能力。</summary>
+    private static string? NormalizeTag(string? value)
+    {
+        value = value?.Trim();
+        if (string.IsNullOrEmpty(value)) return null;
+        return EntityTagHeaderValue.TryParse(value, out var parsed) && parsed.Tag != "*" ? parsed.ToString() : value;
+    }
+    private static bool ValidTag(string? value) => EntityTagHeaderValue.TryParse(NormalizeTag(value), out var parsed) && parsed.Tag != "*";
+    private static bool Strong(string? tag) => ValidTag(tag) && EntityTagHeaderValue.TryParse(NormalizeTag(tag), out var parsed) && !parsed.IsWeak;
+    /// <summary>兼容旧令牌的外围空白；保留强弱、标签值、大小和时间差异。</summary>
+    public bool IsSameVersion(string left, string right)
+    {
+        if (left == right) return true;
+        try
+        {
+            var a = JsonSerializer.Deserialize<VersionInfo>(left);
+            var b = JsonSerializer.Deserialize<VersionInfo>(right);
+            return a is not null && b is not null && a.Size == b.Size && a.ModifiedTicks == b.ModifiedTicks &&
+                NormalizeTag(a.ETag) == NormalizeTag(b.ETag);
+        }
+        catch (JsonException) { return false; }
+    }
     private static void MatchResponse(SourceEntry entry, HttpResponseMessage response)
     {
         var version = Version(entry);
-        if (version.ETag is not null && response.Headers.ETag?.ToString() != version.ETag) throw new SourceConflictException("读取响应 ETag 与枚举版本不匹配。");
-        if (version.ETag is null && response.Content.Headers.LastModified?.UtcTicks != version.ModifiedTicks)
-            throw new SourceConflictException("读取响应时间与枚举快照不匹配，无法验证内容。");
+        var expected = NormalizeTag(version.ETag);
+        var actual = NormalizeTag(response.Headers.TryGetValues("ETag", out var values) ? values.SingleOrDefault() : null);
+        if (Strong(expected) && expected != actual)
+            throw new SourceConflictException("读取响应 ETag 与枚举强版本不匹配。");
+        if (!Strong(expected))
+        {
+            if (ValidTag(expected) && ValidTag(actual) && expected != actual)
+                throw new SourceConflictException("读取响应 ETag 与枚举版本不匹配。");
+            if (version.ModifiedTicks != DateTimeOffset.UnixEpoch.UtcTicks &&
+                response.Content.Headers.LastModified is { } modified && modified.UtcTicks != version.ModifiedTicks)
+                throw new SourceConflictException("读取响应时间与枚举快照不匹配。");
+        }
         if (response.Content.Headers.ContentEncoding.Count != 0) throw new IOException("读取响应采用内容编码，拒绝混淆范围。");
     }
     public async ValueTask<int> ReadRangeAsync(SourceEntry entry, long offset, Memory<byte> buffer, CancellationToken token = default)
@@ -154,7 +183,7 @@ public sealed class WebDavFileSource : IFileSource
             return await CachedReadAsync(entry, offset, buffer[..count], null, token).ConfigureAwait(false);
         using var request = new HttpRequestMessage(HttpMethod.Get, Address(entry.Path));
         request.Headers.Range = new RangeHeaderValue(offset, offset + count - 1);
-        request.Headers.IfMatch.ParseAdd(version.ETag!);
+        request.Headers.IfMatch.ParseAdd(NormalizeTag(version.ETag)!);
         using var response = await SendAsync(request, token).ConfigureAwait(false); Success(response); MatchResponse(entry, response);
         if (response.StatusCode == HttpStatusCode.OK)
         {
@@ -179,7 +208,7 @@ public sealed class WebDavFileSource : IFileSource
                 if (response is null)
                 {
                     using var request = new HttpRequestMessage(HttpMethod.Get, Address(entry.Path));
-                    var version = Version(entry); if (Strong(version.ETag)) request.Headers.IfMatch.ParseAdd(version.ETag!);
+                    var version = Version(entry); if (Strong(version.ETag)) request.Headers.IfMatch.ParseAdd(NormalizeTag(version.ETag)!);
                     response = owned = await SendAsync(request, cancel).ConfigureAwait(false);
                 }
                 Success(response); MatchResponse(entry, response);
@@ -193,6 +222,12 @@ public sealed class WebDavFileSource : IFileSource
                     await output.WriteAsync(bytes.AsMemory(0, read), cancel).ConfigureAwait(false); remaining -= read;
                 }
                 if (await stream.ReadAsync(new byte[1], cancel).ConfigureAwait(false) != 0) throw new IOException("整文件响应过长。");
+                if (!Strong(Version(entry).ETag))
+                {
+                    var after = await GetMetadataAsync(entry.Path, cancel).ConfigureAwait(false);
+                    if (!IsSameVersion(entry.Version, after.Version))
+                        throw new SourceConflictException("整文件快照下载期间远端元数据变化，请刷新后重试。");
+                }
                 Capabilities = Capabilities with { RangeRead = CapabilitySupport.Unsupported };
             }
             finally { owned?.Dispose(); }
@@ -204,7 +239,7 @@ public sealed class WebDavFileSource : IFileSource
         {
             var version = JsonSerializer.Deserialize<VersionInfo>(expectedVersion);
             if (!Strong(version?.ETag)) throw new NotSupportedException("此条目无强 ETag，拒绝条件修改。");
-            request.Headers.IfMatch.ParseAdd(version!.ETag!);
+            request.Headers.IfMatch.ParseAdd(NormalizeTag(version!.ETag)!);
         }
     }
     /// <summary>首次写入前用独立随机文件验证创建/更新冲突；连接探测本身只读。</summary>
@@ -261,9 +296,10 @@ public sealed class WebDavFileSource : IFileSource
     }
     public async Task<SourceEntry> UploadAsync(string path, Stream content, string? expectedVersion, CancellationToken token = default)
     {
-        path = NonRoot(path); await VerifyWritesAsync(token).ConfigureAwait(false);
+        path = NonRoot(path);
         using var request = new HttpRequestMessage(HttpMethod.Put, Address(path)) { Content = new StreamContent(new BorrowedStream(content)) };
         Condition(request, expectedVersion);
+        await VerifyWritesAsync(token).ConfigureAwait(false);
         using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response);
         try { return await GetMetadataAsync(path, token).ConfigureAwait(false); }
         catch(Exception error)when(error is IOException or OperationCanceledException){throw new SourceOutcomeUnknownException("写入后核对",new IOException("远端成功响应后未能读取元数据。"));}
