@@ -12,3 +12,9 @@ public sealed record SourceCredentials(string UserName = "", string Password = "
 /// <summary>请求可能已在服务器完成，调用者必须核对结果，不可盲目重试。</summary>
 public sealed class SourceOutcomeUnknownException(string operation, Exception inner)
     : IOException($"{operation}结果不确定，请刷新远端并核对后再操作。", inner);
+
+/// <summary>服务明确拒绝请求，区别于写入可能已提交但响应丢失；不触发盲目重试。</summary>
+public sealed class SourceRequestRejectedException(int status,string message) : IOException(message)
+{
+    public int HttpStatus { get; }=status;
+}

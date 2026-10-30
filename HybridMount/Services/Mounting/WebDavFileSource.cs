@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>独立 HTTP WebDAV；不依赖 WebClient。枚举、范围和写入条件均按响应验证。</summary>
-public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
+public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource
 {
     private static readonly XNamespace Dav = "DAV:";
     private readonly Uri _endpoint;
@@ -58,6 +58,7 @@ public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
         if (response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
             throw new SourceConflictException("远端版本或目标创建条件不满足。");
         if (response.StatusCode == HttpStatusCode.NotFound) throw new FileNotFoundException("远端条目不存在。");
+        if ((int)response.StatusCode is >=400 and <500)throw new SourceRequestRejectedException((int)response.StatusCode,response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden?"WebDAV 认证或权限不足，请检查账号与应用密码。":$"WebDAV 拒绝请求（HTTP {(int)response.StatusCode}）。");
         if (!response.IsSuccessStatusCode)
             throw new IOException(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
                 ? "WebDAV 认证或权限不足，请检查账号与应用密码。" : $"WebDAV 返回 HTTP {(int)response.StatusCode}；未跟随重定向。");
@@ -255,11 +256,12 @@ public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
                 if (response.StatusCode != HttpStatusCode.OK || response.Content.Headers.ContentLength != entry.Size) throw new IOException("整文件响应状态或长度不一致。");
                 await using var stream = await response.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
                 var bytes = new byte[65536]; long remaining = entry.Size;
+                using var baselineHash=System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
                 while (remaining > 0)
                 {
                     var read = await stream.ReadAsync(bytes.AsMemory(0, (int)Math.Min(bytes.Length, remaining)), cancel).ConfigureAwait(false);
                     if (read == 0) throw new EndOfStreamException();
-                    received+=read;await output.WriteAsync(bytes.AsMemory(0, read), cancel).ConfigureAwait(false); remaining -= read;
+                    received+=read;baselineHash.AppendData(bytes,0,read);await output.WriteAsync(bytes.AsMemory(0, read), cancel).ConfigureAwait(false); remaining -= read;
                 }
                 if (await stream.ReadAsync(new byte[1], cancel).ConfigureAwait(false) != 0) throw new IOException("整文件响应过长。");
                 if (!Strong(Version(entry).ETag))
@@ -268,6 +270,7 @@ public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
                     if (!IsSameVersion(entry.Version, after.Version))
                         throw new SourceConflictException("整文件快照下载期间远端元数据变化，请刷新后重试。");
                 }
+                try{ContentBaseline?.Invoke(new(entry.Path,entry.Version,Convert.ToHexString(baselineHash.GetHashAndReset())));}catch{ /* 基线通知不改变读取结果。 */ }
                 Capabilities = Capabilities with { RangeRead = CapabilitySupport.Unsupported };
                 completed=true;
             }
@@ -284,73 +287,13 @@ public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
             request.Headers.IfMatch.ParseAdd(NormalizeTag(version!.ETag)!);
         }
     }
-    /// <summary>首次写入前用独立随机文件验证创建/更新冲突；连接探测本身只读。</summary>
-    private async Task VerifyWritesAsync(CancellationToken token)
-    {
-        if (_writesVerified) return; await _writeProbe.WaitAsync(token).ConfigureAwait(false);
-        try
-        {
-            if (_writesVerified) return;
-            if (Capabilities.ConditionalWrite == CapabilitySupport.Unsupported) throw new NotSupportedException("服务器未通过条件写验证。");
-            var path = ".hybridmount-probe-" + Guid.NewGuid().ToString("N"); var created = false;
-            try
-            {
-                using (var request = new HttpRequestMessage(HttpMethod.Put, Address(path)) { Content = new ByteArrayContent([17, 31]) })
-                {
-                    request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
-                    using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response); created = true;
-                }
-                foreach (var createOnly in new[] { true, false })
-                {
-                    using var request = new HttpRequestMessage(HttpMethod.Put, Address(path)) { Content = new ByteArrayContent([99]) };
-                    if (createOnly) request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
-                    else request.Headers.IfMatch.ParseAdd("\"hybridmount-never-match-" + Guid.NewGuid().ToString("N") + "\"");
-                    using var response = await SendAsync(request, token, true).ConfigureAwait(false);
-                    if (response.StatusCode != HttpStatusCode.PreconditionFailed)
-                    { Capabilities = Capabilities with { ConditionalWrite = CapabilitySupport.Unsupported }; throw new NotSupportedException("服务器忽略条件写，已拒绝修改用户内容。"); }
-                }
-                foreach(var method in new[]{HttpMethod.Delete,new HttpMethod("MOVE")})
-                {
-                    using var request=new HttpRequestMessage(method,Address(path));
-                    request.Headers.IfMatch.ParseAdd("\"hybridmount-never-match-"+Guid.NewGuid().ToString("N")+"\"");
-                    if(method.Method=="MOVE"){request.Headers.Add("Destination",Address(path+"-destination").AbsoluteUri);request.Headers.Add("Overwrite","F");}
-                    using var response=await SendAsync(request,token,true).ConfigureAwait(false);
-                    if(response.StatusCode!=HttpStatusCode.PreconditionFailed)
-                    {Capabilities=Capabilities with{ConditionalWrite=CapabilitySupport.Unsupported};throw new NotSupportedException("服务器未通过条件删除或移动验证，已拒绝用户内容修改。");}
-                }
-                _writesVerified = true; Capabilities = Capabilities with { ConditionalWrite = CapabilitySupport.Supported };
-            }
-            finally
-            {
-                if (created)
-                {
-                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-                    foreach(var temporary in new[]{path,path+"-destination"})
-                    {
-                        using var request = new HttpRequestMessage(HttpMethod.Delete, Address(temporary));
-                        using var response = await SendAsync(request, cleanup.Token, true).ConfigureAwait(false);
-                        if(response.StatusCode!=HttpStatusCode.NotFound)Success(response);
-                    }
-                }
-            }
-        }
-        finally { _writeProbe.Release(); }
-    }
-    public async Task<SourceEntry> UploadAsync(string path, Stream content, string? expectedVersion, CancellationToken token = default)
-    {
-        path = NonRoot(path);
-        using var request = new HttpRequestMessage(HttpMethod.Put, Address(path)) { Content = new StreamContent(new BorrowedStream(content)) };
-        Condition(request, expectedVersion);
-        await VerifyWritesAsync(token).ConfigureAwait(false);
-        using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response);
-        try { return await GetMetadataAsync(path, token).ConfigureAwait(false); }
-        catch(Exception error)when(error is IOException or OperationCanceledException){throw new SourceOutcomeUnknownException("写入后核对",new IOException("远端成功响应后未能读取元数据。"));}
-    }
     public async Task<SourceEntry> CreateDirectoryAsync(string path, CancellationToken token = default)
     {
-        path = NonRoot(path); await VerifyWritesAsync(token).ConfigureAwait(false);
+        path = NonRoot(path);
         using var request = new HttpRequestMessage(new HttpMethod("MKCOL"), Address(path, true)); Condition(request, null);
-        using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response);
+        using var response = await SendAsync(request, token, true).ConfigureAwait(false);
+        if(response.StatusCode==HttpStatusCode.BadRequest)throw new SourceRequestRejectedException(400,"WebDAV 拒绝创建目录（HTTP 400）；请确认目标父目录允许写入，部分服务的账户根不能新建普通目录。");
+        Success(response);
         try { return await GetMetadataAsync(path, token).ConfigureAwait(false); }
         catch(Exception error)when(error is IOException or OperationCanceledException){throw new SourceOutcomeUnknownException("写入后核对",new IOException("远端成功响应后未能读取元数据。"));}
     }
@@ -358,7 +301,7 @@ public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
     {
         path = NonRoot(path); destination = NonRoot(destination);
         if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移入自身。");
-        await VerifyWritesAsync(token).ConfigureAwait(false);
+        await VerifyMutationAsync("MOVE",token).ConfigureAwait(false);
         using var request = new HttpRequestMessage(new HttpMethod("MOVE"), Address(path)); Condition(request, expectedVersion);
         request.Headers.Add("Destination", Address(destination).AbsoluteUri); request.Headers.Add("Overwrite", "F");
         using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response);
@@ -367,7 +310,7 @@ public sealed class WebDavFileSource : IFileSource, IReadDiagnosticsSource
     }
     public async Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default)
     {
-        path = NonRoot(path); await VerifyWritesAsync(token).ConfigureAwait(false);
+        path = NonRoot(path); await VerifyMutationAsync("DELETE",token).ConfigureAwait(false);
         var metadata = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (metadata.IsDirectory)
             await foreach (var _ in ListAsync(path, token).ConfigureAwait(false)) throw new NotSupportedException("首版仅允许删除空远端目录，避免递归条件覆盖不完整。");

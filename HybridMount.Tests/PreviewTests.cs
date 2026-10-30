@@ -11,6 +11,13 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class PreviewTests(ITestOutputHelper output)
 {
+    /// <summary>后台预览和元数据扫描也可短暂持有句柄；只对明确的 oplock 竞争进行有界等待。</summary>
+    private static async Task<CloudFilesNative.ProtectedHandle> OpenResourceReadAsync(string path)
+    {
+        var deadline=DateTime.UtcNow.AddSeconds(5);
+        while(true)try{return CloudFilesNative.OpenRead(path);}
+        catch(System.Runtime.InteropServices.COMException error)when(error.HResult==unchecked((int)0x80070322)&&DateTime.UtcNow<deadline){await Task.Delay(20);}
+    }
     internal static byte[] LargeExecutable()
     {
         var directory=new DirectoryInfo(AppContext.BaseDirectory);
@@ -81,7 +88,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 var attributes=File.GetAttributes(path);File.SetAttributes(path,attributes|FileAttributes.ReadOnly);
                 try
                 {
-                    using var readHandle=CloudFilesNative.OpenRead(path);Assert.True(CloudFilesNative.CfReferenceProtectedHandle(readHandle));
+                    using var readHandle=await OpenResourceReadAsync(path);Assert.True(CloudFilesNative.CfReferenceProtectedHandle(readHandle));
                     try{using var content=new ProtectedResourceStream(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(readHandle),new FileInfo(path).Length);Assert.NotNull(ExeIconExtractor.Extract(content,32));}
                     finally{CloudFilesNative.CfReleaseProtectedHandle(readHandle);}
                 }

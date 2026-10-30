@@ -12,7 +12,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     private readonly MountManager _manager;
     private readonly DispatcherQueue _dispatcher=DispatcherQueue.GetForCurrentThread();
     private int _pending; private bool _disposed;
-    private string _status="本地：实心绿勾；仅远端：云；待脱水：空心绿勾，表示允许回收。本地修改不会自动上传。";
+    private string _status="本地：实心绿勾；仅远端：云；待脱水：空心绿勾，表示允许回收。自动上传仅提交新增和修改；本地删除不删除远端。";
     public string Status { get=>_status; set=>SetProperty(ref _status,value); }
     public event Action? Refreshed;
     public ObservableCollection<MountSnapshot> Mounts { get; }=[];

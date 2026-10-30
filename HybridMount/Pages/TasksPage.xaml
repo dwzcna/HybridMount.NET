@@ -17,6 +17,8 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
             <Button Content="取消选中任务" Click="CancelJob"/>
             <Button Content="查看结果" Click="ShowResults"/>
+            <Button Content="重试上传" Click="RetryUpload"/>
+            <Button Content="另存副本" Click="SaveUploadCopy"/>
         </StackPanel>
         <ListView x:Name="JobList" Grid.Row="2" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" AutomationProperties.Name="挂载任务">
             <ListView.ItemTemplate>
@@ -27,6 +29,8 @@
                             <TextBlock Text="{x:Bind DisplayState}"/>
                             <TextBlock Text="{x:Bind ProgressText}"/>
                         </StackPanel>
+                        <TextBlock Text="{x:Bind ItemPath}" TextWrapping="Wrap"/>
+                        <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ProgressPercent}"/>
                         <TextBlock Text="{x:Bind Error}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </DataTemplate>

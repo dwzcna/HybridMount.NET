@@ -6,7 +6,7 @@ using Microsoft.Win32;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>挂载定义保存在隔离的 HKCU 子键，运行映射和任务写入 SQLite；调用由进程内锁串行化。</summary>
-public sealed class MountRepository
+public sealed partial class MountRepository
 {
     private readonly string _registry;
     private readonly object _gate = new();
@@ -21,7 +21,11 @@ public sealed class MountRepository
                 local TEXT NOT NULL COLLATE NOCASE,version TEXT NOT NULL,directory INTEGER NOT NULL,deleted INTEGER NOT NULL,
                 protected INTEGER NOT NULL,materialized INTEGER NOT NULL,PRIMARY KEY(mount,id));
             CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,json TEXT NOT NULL);
-            PRAGMA user_version=1;
+            CREATE TABLE IF NOT EXISTS uploads(id TEXT PRIMARY KEY,mount TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS uploads_mount ON uploads(mount);
+            CREATE TABLE IF NOT EXISTS content_baselines(mount TEXT NOT NULL,path TEXT NOT NULL,version TEXT NOT NULL,sha256 TEXT NOT NULL,
+                PRIMARY KEY(mount,path,version));
+            PRAGMA user_version=2;
             """; cmd.ExecuteNonQuery();
     }
     private SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }
@@ -44,7 +48,7 @@ public sealed class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 4, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 5, RegistryValueKind.DWord); }
     }
     /// <summary>此仓库的全局缓存软上限；旧配置默认 10 GiB，0 为关闭。</summary>
     public long CacheLimitBytes
@@ -59,7 +63,7 @@ public sealed class MountRepository
         lock(_gate)
         {
             using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="DELETE FROM entries WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
         }
     }
     public IReadOnlyList<MountEntry> Entries(Guid mount)

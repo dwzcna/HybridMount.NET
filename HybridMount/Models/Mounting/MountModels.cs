@@ -15,18 +15,20 @@ public enum MountRemovalStage { Working, Unregistering }
 /// <summary>旧配置默认未知，按实际注册及索引核对；注册中断不可冒充从未注册。</summary>
 public enum MountRegistrationStage { Unknown, NotRegistered, Registering, Registered }
 /// <summary>根位置不可原地修改；未完成的移除必须按已保存的模式恢复。</summary>
-public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown);
+public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown, bool AutoUploadEnabled = false, bool UploadInitialReviewCompleted = false);
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false);
 public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail)
 {
+    public string AutoUploadDisplay=>!Definition.UploadInitialReviewCompleted?"自动上传：等待首次确认":Definition.AutoUploadEnabled?"自动上传：开启":"自动上传：关闭";
     public string SourceDisplay => Definition.Source?.Kind switch { FileSourceKind.WebDav=>"WebDAV",FileSourceKind.S3=>"S3 对象存储",FileSourceKind.Smb=>"SMB（预留）",FileSourceKind.Nfs=>"NFS（预留）",_=>"旧版模拟源（仅迁出）" };
 }
 public sealed record MountItemResult(string Path, string Status, string Message);
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,
-    IReadOnlyList<MountItemResult> Results, string? Error)
+    IReadOnlyList<MountItemResult> Results, string? Error, Guid? MountId = null, string? ItemPath = null, long BytesTransferred = 0, long TotalBytes = 0)
 {
-    public string ProgressText=>$"{Completed} / {Total}";
-    public string DisplayOperation=>Operation switch{"keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
-    public string DisplayState=>State switch{"Queued"=>"排队中","Running"=>"执行中","Completed"=>"已完成","PartialFailure"=>"部分失败","Failed"=>"失败","Canceled"=>"已取消","Interrupted"=>"已中断",_=>State};
+    public double ProgressPercent=>Operation=="upload"?(TotalBytes>0?Math.Clamp(100.0*BytesTransferred/TotalBytes,0,100):State=="Completed"?100:0):Total>0?100.0*Completed/Total:0;
+    public string ProgressText=>Operation=="upload"?$"{BytesTransferred:N0} / {TotalBytes:N0} 字节":$"{Completed} / {Total}";
+    public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
+    public string DisplayState=>State switch{"AwaitingConfirmation"=>"等待首次确认","Ignored"=>"未纳入上传","Waiting"=>"等待文件可用","Prepared"=>"快照已就绪","Sending"=>"上传中","RemoteCommitted"=>"提交本地状态","Conflict"=>"冲突","OutcomeUnknown"=>"结果待核对","Queued"=>"排队中","Running"=>"执行中","Completed"=>"已完成","PartialFailure"=>"部分失败","Failed"=>"失败","Canceled"=>"已取消","Interrupted"=>"已中断",_=>State};
 }

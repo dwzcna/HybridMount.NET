@@ -1,0 +1,136 @@
+using System.Security.Cryptography;
+using HybridMount.Common;
+using HybridMount.Models.Mounting;
+
+namespace HybridMount.Services.Mounting;
+
+public sealed partial class MountManager
+{
+    /// <summary>每根串行上传、全局两路；网络传输期间不持有根锁，窗口和读取不被队列阻塞。</summary>
+    private async Task UploadLoopAsync(Runtime root,UploadRuntime runtime)
+    {
+        var token=runtime.Stop.Token;var scanned=DateTimeOffset.MinValue;
+        try
+        {
+            foreach(var item in _repository.Uploads(root.Definition.Id).Where(x=>x.State=="Sending"))ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="上次请求已发出，恢复后先核对远端。",LastCheckedUtc=null});
+            while(!token.IsCancellationRequested)
+            {
+                if(Interlocked.Exchange(ref runtime.Dirty,0)!=0||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
+                {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
+                var item=_repository.Uploads(root.Definition.Id).Where(x=>
+                    (x.State is "RemoteCommitted" or "OutcomeUnknown"||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.Definition.AutoUploadEnabled||x.ExplicitRequest)&&!x.CancelRequested))&&
+                    DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
+                    (x.LastCheckedUtc is null||DateTimeOffset.UtcNow-x.LastCheckedUtc>=TimeSpan.FromSeconds(x.State=="OutcomeUnknown"?60:3)))
+                    .OrderBy(x=>x.SourcePath.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?0:1).ThenBy(x=>x.ChangedUtc).FirstOrDefault();
+                if(item is null){await runtime.Signal.WaitAsync(500,token).ConfigureAwait(false);continue;}
+                await _uploadSlots.WaitAsync(token).ConfigureAwait(false);
+                try{await RunUploadAsync(root,runtime,item,token).ConfigureAwait(false);}
+                finally{_uploadSlots.Release();}
+            }
+        }
+        catch(OperationCanceledException)when(token.IsCancellationRequested){}
+        catch(Exception error){_logger.Queue("自动上传","Error",error.Message);Status(root,root.Status,"自动上传监控已停止，请重新连接。" );}
+    }
+    private sealed class UploadReporter(Action<UploadProgress> action) : IProgress<UploadProgress>
+    {public void Report(UploadProgress value)=>action(value);}
+    /// <summary>发送前持久化快照及阶段；返回成功后先保存回执，再修改本地占位和索引。</summary>
+    private async Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
+    {
+        using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
+        lock(runtime.Sync){runtime.CurrentId=selected.Id;runtime.Request=request;}
+        var token=request.Token;LocalUpload? prepared=selected;var preparing=true;
+        try
+        {
+            prepared=_repository.Upload(selected.Id);if(prepared is null)return;
+            if(prepared.State=="OutcomeUnknown"){await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
+            if(prepared.State=="RemoteCommitted"){await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
+            if(prepared.CancelRequested||(!root.Definition.AutoUploadEnabled&&!prepared.ExplicitRequest))return;
+            prepared=await PrepareUploadAsync(root,prepared,token).ConfigureAwait(false);
+            if(prepared is null)return;preparing=false;
+            await EnsureUploadParentsAsync(root.Source!,prepared.SourcePath,token).ConfigureAwait(false);
+            SourceEntry receipt;
+            if(prepared.IsDirectory)
+            {
+                prepared=ChangeUpload(prepared.Id,x=>x with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null})!;
+                try{receipt=await root.Source!.GetMetadataAsync(prepared.SourcePath,token).ConfigureAwait(false);if(!receipt.IsDirectory)throw new SourceConflictException("远端已有同名文件，目录不能覆盖它。");}
+                catch(FileNotFoundException){receipt=await root.Source!.CreateDirectoryAsync(prepared.SourcePath,token).ConfigureAwait(false);}
+            }
+            else
+            {
+                var last=Environment.TickCount64;
+                var progress=new UploadReporter(value=>{var now=Environment.TickCount64;if(now-last<200&&value.Bytes!=value.Total)return;last=now;
+                    ChangeUpload(prepared.Id,x=>x with{Bytes=value.Bytes,Total=value.Total});});
+                ValidateUploadSnapshot(prepared);
+                await using var content=new FileStream(prepared.SnapshotPath!,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
+                var digest=Convert.ToHexString(await SHA256.HashDataAsync(content,token).ConfigureAwait(false));
+                if(content.Length!=prepared.Total||digest!=prepared.SnapshotSha256)
+                {ChangeUpload(prepared.Id,x=>x with{SnapshotStamp=null});throw new SourceConflictException("持久上传快照已变化，未发送内容；请重试以重新生成快照。");}
+                content.Position=0;
+                prepared=ChangeUpload(prepared.Id,x=>x with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null})!;
+                receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,token).ConfigureAwait(false);
+            }
+            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=null,Bytes=prepared.Total})!;
+            await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);
+        }
+        catch(SourceRequestRejectedException error){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
+        catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
+        catch(SourceConflictException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
+        catch(NotSupportedException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
+        catch(Exception error)
+        {
+            var current=_repository.Upload(selected.Id);
+            if(current is not null)
+            {
+                if(current.State=="RemoteCommitted")ChangeUpload(selected.Id,x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+                else if(current.State=="Sending"||error is SourceOutcomeUnknownException)
+                    ChangeUpload(selected.Id,x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
+                else if(current.CancelRequested)ChangeUpload(selected.Id,x=>x with{State="Canceled",Error="本代上传已取消。"});
+                else if(error is OperationCanceledException&&stopping.IsCancellationRequested)ChangeUpload(selected.Id,x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
+                else ChangeUpload(selected.Id,x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+            }
+        }
+        finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
+    }
+    /// <summary>父目录创建可重复核对，只合并目录；不借此覆盖文件或传播本地删除。</summary>
+    private static async Task EnsureUploadParentsAsync(IFileSource source,string path,CancellationToken token)
+    {
+        var parts=RelativePaths.Parent(path).Split('/',StringSplitOptions.RemoveEmptyEntries);var parent="";
+        foreach(var part in parts)
+        {
+            parent=parent.Length==0?part:parent+"/"+part;
+            SourceEntry entry;try{entry=await source.GetMetadataAsync(parent,token).ConfigureAwait(false);}
+            catch(FileNotFoundException){entry=await source.CreateDirectoryAsync(parent,token).ConfigureAwait(false);}
+            if(!entry.IsDirectory)throw new SourceConflictException("远端父路径已是文件，无法创建目录。");
+        }
+    }
+    /// <summary>未知结果只能用远端内容核对；读取失败保留快照，绝不直接重复发送。</summary>
+    private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)
+    {
+        if(item.SnapshotPath is null&&!item.IsDirectory){ChangeUpload(item.Id,x=>x with{State="Conflict",Error="结果不明且缺少不可变快照，请保留本地文件并另存副本。"});return;}
+        try
+        {
+            var metadata=await root.Source!.GetMetadataAsync(item.SourcePath,token).ConfigureAwait(false);
+            if(item.IsDirectory&&metadata.IsDirectory||!item.IsDirectory&&!metadata.IsDirectory&&metadata.Size==item.Total&&await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.SnapshotSha256)
+            {
+                var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=null,LastCheckedUtc=null})!;
+                await CommitUploadAsync(root,saved,token).ConfigureAwait(false);return;
+            }
+            var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);
+            if(unchanged&&item.BaselineSha256 is not null)unchanged=await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.BaselineSha256;
+            ChangeUpload(item.Id,x=>x with{State=unchanged?(x.CancelRequested?"Canceled":"Prepared"):"Conflict",Error=unchanged?"远端仍为原始版本，可安全重试。":"远端内容与原始基线、发送快照均不一致，保留两端内容。",LastCheckedUtc=null});
+        }
+        catch(FileNotFoundException)
+        {
+            ChangeUpload(item.Id,x=>x with{State=x.ExpectedVersion is null?(x.CancelRequested?"Canceled":"Prepared"):"Conflict",Error=x.ExpectedVersion is null?"远端目标不存在，保留仅创建条件。":"原远端文件已移除，不能自动覆盖或重建。",LastCheckedUtc=null});
+        }
+        catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
+        catch(Exception error){ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="只读核对未完成："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});}
+    }
+    private static async Task<string> HashRemoteAsync(IFileSource source,SourceEntry metadata,CancellationToken token)
+    {
+        using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);var buffer=new byte[131072];long offset=0;
+        while(offset<metadata.Size){var count=await source.ReadRangeAsync(metadata,offset,buffer.AsMemory(0,(int)Math.Min(buffer.Length,metadata.Size-offset)),token).ConfigureAwait(false);if(count<=0)throw new IOException("远端核对提前结束。");hash.AppendData(buffer,0,count);offset+=count;}
+        var after=await source.GetMetadataAsync(metadata.Path,token).ConfigureAwait(false);if(!source.IsSameVersion(metadata.Version,after.Version))throw new SourceConflictException("远端核对期间版本发生变化。");
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+}

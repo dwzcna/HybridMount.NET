@@ -12,6 +12,7 @@ public sealed class CloudMountSession : IAsyncDisposable
 {
     private readonly MountDefinition _mount;
     private readonly Action<MountEntry>? _localContentReady;
+    private readonly Action? _localChanged;
     private readonly IFileSource? _source;
     private readonly object _fetchGate=new();
     private bool _clearing;
@@ -37,8 +38,8 @@ public sealed class CloudMountSession : IAsyncDisposable
     public IDisposable PrioritizeDownload(string id){_explicitDownloads.AddOrUpdate(id,1,(_,value)=>value+1);return new DownloadPriority(_explicitDownloads,id);}
     private readonly ConcurrentDictionary<string,int> _reading=new();
     private readonly ConcurrentDictionary<string,DateTimeOffset> _lastRead=new();
-    public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false,Action<MountEntry>? localContentReady=null)
-    { _localContentReady=localContentReady;_mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
+    public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false,Action<MountEntry>? localContentReady=null,Action? localChanged=null)
+    { _localChanged=localChanged;_localContentReady=localContentReady;_mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
     public void Connect()
     {
         var registrations=new List<CloudFilesNative.CallbackRegistration>();
@@ -103,8 +104,9 @@ public sealed class CloudMountSession : IAsyncDisposable
                 if(!self)
                 {
                     _open.AddOrUpdate(marker.EntryId,0,(_,value)=>Math.Max(0,value-1));
-                    var closed=_repository.Entries(_mount.Id).FirstOrDefault(entry=>entry.Id==marker.EntryId);
-                    if(closed is not null)_localContentReady?.Invoke(closed);
+                    _localChanged?.Invoke();
+                    // 仅捕获托管身份，回调返回后在后台查询预览索引。
+                    var closedId=marker.EntryId;_ = Task.Run(()=>{var closed=_repository.Entries(_mount.Id).FirstOrDefault(entry=>entry.Id==closedId);if(closed is not null)_localContentReady?.Invoke(closed);});
                 }
                 return;
             }

@@ -20,7 +20,7 @@ public sealed partial class NetworkMountDialog : ContentDialog
     private readonly FileSourceKind _kind;
     public NetworkMountDialog(FileSourceKind kind=FileSourceKind.WebDav,MountDefinition? existing=null)
     {
-        InitializeComponent();_existing=existing;_kind=kind;
+        InitializeComponent();_existing=existing;_kind=kind;AutoUploadField.Visibility=existing is null?Visibility.Visible:Visibility.Collapsed;
         if(kind is not(FileSourceKind.WebDav or FileSourceKind.S3))throw new NotSupportedException("此协议暂未提供创建入口。");
         var s3=kind==FileSourceKind.S3;Title=s3?"S3 对象存储挂载":"WebDAV 挂载";NameField.Text=s3?"S3 挂载":"WebDAV 挂载";
         DavFields.Visibility=s3?Visibility.Collapsed:Visibility.Visible;S3Fields.Visibility=s3?Visibility.Visible:Visibility.Collapsed;
@@ -92,7 +92,7 @@ public sealed partial class NetworkMountDialog : ContentDialog
         try
         {
             var settings=Settings();var credentials=Credentials();
-            if(_existing is null)CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn,source:settings,credentials:credentials);
+            if(_existing is null)CreatedMount=await App.Current.Mounts.AddAsync(NameField.Text,PathField.Text,AutoConnectField.IsOn,source:settings,credentials:credentials,autoUpload:AutoUploadField.IsOn);
             else { await App.Current.Mounts.UpdateCredentialsAsync(_existing.Id,credentials,settings:settings);CreatedMount=_existing; }
             ResultMessage=$"已连接 {CreatedMount.Name}。";args.Cancel=false;
         }

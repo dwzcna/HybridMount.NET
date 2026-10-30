@@ -105,7 +105,8 @@ public sealed class WebDavTests
         await source.DeleteAsync(moved.Path,moved.Version);Assert.False(fixture.Objects.ContainsKey("dir/moved.bin"));
         Assert.DoesNotContain(fixture.Objects.Keys,name=>name.StartsWith(".hybridmount-probe-"));
         await using var ignoring=new DavFixture{IgnoreConditions=true};await using var unsafeSource=ignoring.Source();
-        await Assert.ThrowsAsync<NotSupportedException>(()=>unsafeSource.UploadAsync("user-file.bin",Stream.Null,null));Assert.False(ignoring.Objects.ContainsKey("user-file.bin"));
+        await unsafeSource.UploadAsync("user-file.bin",Stream.Null,null);
+        await Assert.ThrowsAsync<SourceConflictException>(()=>unsafeSource.UploadAsync("user-file.bin",new MemoryStream([99]),null));Assert.Empty(ignoring.Objects["user-file.bin"].Bytes);
     }
     [Fact]
     public async Task CredentialCiphertextAndReservedProtocolsAndLegacyDefaults()
