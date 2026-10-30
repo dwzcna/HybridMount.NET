@@ -67,27 +67,22 @@ public sealed partial class MountManager
         var root=Root(id);await ScanLocalUploadsAsync(root,token,true).ConfigureAwait(false);
         return _repository.Uploads(id).Where(x=>x.State=="AwaitingConfirmation").OrderBy(x=>x.LocalPath,StringComparer.Ordinal).Select(x=>new UploadCandidate(x.LocalPath,x.IsDirectory,x.ExpectedVersion is null?"本地新增或改名":"现有文件本地修改")).ToArray();
     }
-    /// <summary>首次开关启用必须明确选择旧改动；未选择的相同代次保持本地保护。</summary>
-    public async Task SetAutoUploadAsync(Guid id,bool enabled,IReadOnlyCollection<string>? selectedExistingPaths=null,CancellationToken token=default)
+    /// <summary>连接持有根锁时迁移旧授权；本版本已获用户授权纳入所有旧改动，但取消、冲突和未知结果保持保护。</summary>
+    private void MigrateContinuousUploads(Runtime root)
+    {
+        if(root.Definition.ContinuousUploadMigrated)return;
+        var entries=_repository.Entries(root.Definition.Id);
+        foreach(var item in _repository.Uploads(root.Definition.Id).Where(item=>item.State is "AwaitingConfirmation" or "Ignored"&&!item.CancelRequested))
+            ChangeUpload(item.Id,current=>current with{State=DeletedSourceAncestor(entries,current.SourcePath) is null?"Queued":"Conflict",Error=DeletedSourceAncestor(entries,current.SourcePath) is null?null:RemoteDeletedMessage,LastCheckedUtc=null});
+        root.Definition=root.Definition with{AutoUploadEnabled=true,UploadInitialReviewCompleted=true,ContinuousUploadMigrated=true};
+        _repository.SaveDefinition(root.Definition);
+    }
+    /// <summary>仅供同程序集的确定性测试暂停发送；不持久化，也不向生产界面或 IPC 暴露。</summary>
+    internal async Task SetSchedulingForTestsAsync(Guid id,bool enabled,CancellationToken token=default)
     {
         var root=Root(id);await root.Gate.WaitAsync(token).ConfigureAwait(false);
-        try
-        {
-            if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("移除过程中不能更改自动上传。");
-            if(enabled&&!root.Definition.UploadInitialReviewCompleted)
-            {
-                if(selectedExistingPaths is null)throw new IOException("请先扫描并确认要纳入上传的现有更改。");
-                ScanLocalUploadsCore(root,token,true);
-                foreach(var item in _repository.Uploads(id).Where(x=>x.State=="AwaitingConfirmation"))
-                {
-                    var selected=selectedExistingPaths.Any(path=>RelativePaths.Contains(path,item.LocalPath));
-                    SaveUpload(item with{State=selected?"Queued":"Ignored",ExplicitRequest=selected,ChangedUtc=DateTimeOffset.UtcNow});
-                }
-            }
-            root.Definition=root.Definition with{AutoUploadEnabled=enabled,UploadInitialReviewCompleted=root.Definition.UploadInitialReviewCompleted||enabled};_repository.SaveDefinition(root.Definition);
-        }
-        finally{root.Gate.Release();}
-        root.Uploads?.Wake();Notify();
+        try{root.SchedulingEnabled=enabled;}finally{root.Gate.Release();}
+        root.Uploads?.Wake();
     }
     /// <summary>显式重试保持原始基线；结果不明的请求仍先执行只读核对。</summary>
     public bool RetryUpload(string id)
@@ -161,7 +156,7 @@ public sealed partial class MountManager
                         {
                             var sourcePath=relative;var samePath=entry is not null&&entry.LocalPath.Equals(relative,StringComparison.Ordinal)&&entry.SourcePath.Equals(relative,StringComparison.Ordinal);
                             var baseline=samePath?entry!.Version:null;
-                            var state=root.Definition.UploadInitialReviewCompleted?"Queued":"AwaitingConfirmation";
+                            var state="Queued";
                             if(prior is null)SaveUpload(new(Guid.NewGuid().ToString("N"),root.Definition.Id,relative,sourcePath,stamp.IsDirectory,stamp.Key,1,state,DateTimeOffset.UtcNow,entry?.Id,baseline,baseline is null?null:_repository.Baseline(root.Definition.Id,sourcePath,baseline)));
                             else ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key,Generation=x.Generation+1,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:state,ChangedUtc=DateTimeOffset.UtcNow,CancelRequested=false,Error=null});
                             if(entry is not null&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});

@@ -12,49 +12,21 @@ public sealed partial class MountsPage : Page, IDisposable
 {
     /// <summary>仅订阅挂载列表，不加载任务历史。</summary>
     public MountsViewModel ViewModel { get; }=new(App.Current.Mounts);
-    private bool _busy,_changingAuto,_updatingAuto;
+    private bool _busy;
     private Guid? _selectedMount;
     /// <summary>创建页面并保留刷新前选中的挂载 ID。</summary>
     public MountsPage()
     {
         InitializeComponent();
-        MountList.SelectionChanged+=(_,_)=>{if(MountList.SelectedItem is MountSnapshot mount)_selectedMount=mount.Definition.Id;UpdateAutoToggle();};
+        MountList.SelectionChanged+=(_,_)=>{if(MountList.SelectedItem is MountSnapshot mount)_selectedMount=mount.Definition.Id;};
         ViewModel.Refreshed+=RestoreSelection;
     }
-    private void RestoreSelection(){MountList.SelectedItem=ViewModel.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_selectedMount);UpdateAutoToggle();}
-    private void UpdateAutoToggle()
-    {
-        if(_changingAuto)return;_updatingAuto=true;
-        try{var mount=MountList.SelectedItem as MountSnapshot;AutoUploadToggle.IsEnabled=mount is not null&&!mount.Definition.RemovalPending;AutoUploadToggle.IsOn=mount?.Definition.AutoUploadEnabled==true;}
-        finally{_updatingAuto=false;}
-    }
-    /// <summary>首次启用显式确认现有改动，默认不勾选任何旧文件，避免批量提交用户内容。</summary>
-    private async Task<bool> ConfirmExistingUploadsAsync(MountDefinition mount)
-    {
-        var candidates=await App.Current.Mounts.ScanUploadChangesAsync(mount.Id);
-        var list=new ListView{ItemsSource=candidates,DisplayMemberPath="Path",SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MaxHeight=360,MinWidth=400};
-        var content=new StackPanel{Spacing=12};content.Children.Add(new TextBlock{Text="只上传本次勾选的旧改动；选择目录会包含其子项。未选条目保持本地保护，后续实际修改时可重新入队。",TextWrapping=TextWrapping.Wrap});
-        if(candidates.Count==0)content.Children.Add(new TextBlock{Text="没有待首次确认的本地改动。"});else content.Children.Add(list);
-        var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="确认自动上传的现有改动",Content=content,PrimaryButtonText="启用并上传所选",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
-        if(await dialog.ShowAsync()!=ContentDialogResult.Primary)return false;
-        await App.Current.Mounts.SetAutoUploadAsync(mount.Id,true,list.SelectedItems.Cast<UploadCandidate>().Select(x=>x.Path).ToArray());return true;
-    }
-    private async void AutoUploadChanged(object sender,RoutedEventArgs args)
-    {
-        if(_updatingAuto||_changingAuto)return;if(_busy){UpdateAutoToggle();return;}
-        _changingAuto=true;
-        try{await Run(async()=>{var mount=Selected().Definition;var enabled=AutoUploadToggle.IsOn;
-            if(enabled&&!mount.UploadInitialReviewCompleted){if(!await ConfirmExistingUploadsAsync(mount))return;}
-            else await App.Current.Mounts.SetAutoUploadAsync(mount.Id,enabled);
-            ViewModel.Status=enabled?"自动上传已开启，进度与冲突可在任务页查看。":"自动上传已关闭；在途请求仍会核对结果。";});}
-        finally{_changingAuto=false;UpdateAutoToggle();}
-    }
+    private void RestoreSelection(){MountList.SelectedItem=ViewModel.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_selectedMount);}
+    /// <summary>手动补扫不会关闭自动上传，也不重新发送用户取消或冲突的同一代内容。</summary>
     private async void ReviewUploadChanges(object sender,RoutedEventArgs args)=>await Run(async()=>
     {
-        var mount=Selected().Definition;
-        if(!mount.UploadInitialReviewCompleted)await ConfirmExistingUploadsAsync(mount);
-        else{await App.Current.Mounts.ScanUploadChangesAsync(mount.Id);ViewModel.Status="本地扫描完成，可在任务页查看等待、冲突和上传结果。";}
-        UpdateAutoToggle();
+        await App.Current.Mounts.ScanUploadChangesAsync(Selected().Definition.Id);
+        ViewModel.Status="本地扫描完成，新增和修改持续自动上传；进度与冲突可在任务页查看。";
     });
     private MountSnapshot Selected()=>MountList.SelectedItem as MountSnapshot??throw new InvalidOperationException("请先选择一个挂载。");
     private async Task Run(Func<Task> work)

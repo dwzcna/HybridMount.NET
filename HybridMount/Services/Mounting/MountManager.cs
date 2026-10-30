@@ -18,6 +18,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public CloudMountSession? Session;
         public IFileSource? Source;
         public UploadRuntime? Uploads;
+        public bool SchedulingEnabled=true;
         public Action<SourceContentBaseline>? BaselineObserver;
         public Action<string>? WriteObserver;
         public string Status=definition.RemovalPending?"移除未完成":"未连接";
@@ -103,7 +104,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(MountPathGuard.IsUnder(root,_repository.DataDirectory) || MountPathGuard.IsUnder(_repository.DataDirectory,root) || MountPathGuard.IsUnder(root,AppContext.BaseDirectory) || MountPathGuard.IsUnder(AppContext.BaseDirectory,root))throw new IOException("不能将程序或自身数据目录用作挂载根。");
         if(Directory.EnumerateFileSystemEntries(root).Any())throw new IOException("新挂载必须选择空目录。");
         if(_roots.Values.Any(item=>MountPathGuard.IsUnder(item.Definition.LocalPath,root)||MountPathGuard.IsUnder(root,item.Definition.LocalPath)))throw new IOException("挂载根不能重叠。");
-        var definition=new MountDefinition(Guid.NewGuid(),name.Trim(),root,autoConnect,RootIdentity:MountPathGuard.FileIdentity(root),Source:source,RegistrationStage:MountRegistrationStage.NotRegistered,AutoUploadEnabled:autoUpload,UploadInitialReviewCompleted:true);
+        var definition=new MountDefinition(Guid.NewGuid(),name.Trim(),root,autoConnect,RootIdentity:MountPathGuard.FileIdentity(root),Source:source,RegistrationStage:MountRegistrationStage.NotRegistered,AutoUploadEnabled:true,UploadInitialReviewCompleted:true,ContinuousUploadMigrated:true);
         var secretStore=new CredentialStore(_repository.DataDirectory);
         if(credentials is not null)secretStore.Save(definition.Id,credentials);
         try { _repository.SaveDefinition(definition); }
@@ -203,6 +204,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.Entries(root.Definition.Id).Any(entry=>entry.Materialized))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
             root.Source=await _factory.CreateAsync(root.Definition,_repository,false,token).ConfigureAwait(false);ObserveUploadSource(root);
+            if(root.Source is WebDavFileSource dav)await dav.RecoverTemporaryItemsAsync(token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             registered=InspectRegistration(root);
             if(!registered)SetRegistration(root,MountRegistrationStage.Registering);
@@ -210,7 +212,7 @@ public sealed partial class MountManager : IAsyncDisposable
             SetRegistration(root,MountRegistrationStage.Registered);
             token.ThrowIfCancellationRequested();
             root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.Wake()); root.Session.Connect();
-            Reconcile(root);ScanLocalUploadsCore(root,token);
+            Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             var refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false); Status(root,"已连接",RefreshSummary(refreshed));
             if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
             foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);

@@ -25,18 +25,18 @@ public sealed class UploadFlowTests
         Assert.True(test.Dav.Objects.ContainsKey("中文目录/零字节.txt"));File.Delete(renamed);await Task.Delay(2500);Assert.True(test.Dav.Objects.ContainsKey("中文目录/改名.txt"));
     }
     [Fact(Timeout=120000)]
-    public async Task LegacyFirstReviewProtectsUnselectedUntilNextModification()
+    public async Task LegacyDisabledMountUploadsOldIgnoredButPreservesCanceledGeneration()
     {
-        await using var test=await Fixture.Create(false);await test.Manager.DisposeAsync();
-        var definition=test.Repository.LoadDefinitions().Single() with{UploadInitialReviewCompleted=false,AutoUploadEnabled=false};test.Repository.SaveDefinition(definition);
-        await File.WriteAllTextAsync(Path.Combine(test.Local,"纳入.txt"),"selected");await File.WriteAllTextAsync(Path.Combine(test.Local,"保留.txt"),"protected");
-        test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(definition.Id);
-        var candidates=await test.Manager.ScanUploadChangesAsync(definition.Id);Assert.Contains(candidates,x=>x.Path=="保留.txt");
-        await test.Manager.SetAutoUploadAsync(definition.Id,true,["纳入.txt"]);await test.Wait("纳入.txt");await Task.Delay(2300);
-        Assert.False(test.Dav.Objects.ContainsKey("保留.txt"));Assert.Contains(test.Repository.Uploads(definition.Id),x=>x.LocalPath=="保留.txt"&&x.State=="Ignored");
-        var protectedPath=Path.Combine(test.Local,"保留.txt");var attributes=File.GetAttributes(protectedPath);File.SetAttributes(protectedPath,attributes|FileAttributes.ReadOnly);File.SetAttributes(protectedPath,attributes);
-        await test.Manager.ScanUploadChangesAsync(definition.Id);Assert.Contains(test.Repository.Uploads(definition.Id),x=>x.LocalPath=="保留.txt"&&x.State=="Ignored");Assert.False(test.Dav.Objects.ContainsKey("保留.txt"));
-        await File.WriteAllTextAsync(Path.Combine(test.Local,"保留.txt"),"modified again");await test.Wait("保留.txt");
+        await using var test=await Fixture.Create(false);
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"纳入.txt"),"old ignored");await File.WriteAllTextAsync(Path.Combine(test.Local,"取消.txt"),"old canceled");
+        await test.Manager.ScanUploadChangesAsync(test.Id);
+        foreach(var item in test.Repository.Uploads(test.Id))test.Repository.SaveUpload(item with{State=item.LocalPath=="纳入.txt"?"Ignored":"Canceled",CancelRequested=item.LocalPath=="取消.txt"});
+        await test.Manager.DisposeAsync();var definition=test.Repository.LoadDefinitions().Single() with{UploadInitialReviewCompleted=false,AutoUploadEnabled=false,ContinuousUploadMigrated=false};test.Repository.SaveDefinition(definition);
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"旧新增.txt"),"new while offline");
+        test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);await test.Wait("纳入.txt");await test.Wait("旧新增.txt");
+        Assert.False(test.Dav.Objects.ContainsKey("取消.txt"));Assert.Equal("Canceled",test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="取消.txt").State);
+        Assert.True(test.Repository.LoadDefinitions().Single().ContinuousUploadMigrated);Assert.True(test.Repository.LoadDefinitions().Single().AutoUploadEnabled);
+        await test.Manager.DisconnectAsync(test.Id);await test.Manager.ConnectAsync(test.Id);Assert.False(test.Dav.Objects.ContainsKey("取消.txt"));
     }
     [Fact(Timeout=120000)]
     public async Task RemoteConflictCopyAndCacheProtection()
@@ -56,8 +56,8 @@ public sealed class UploadFlowTests
         test.Dav.Server.Handler=async request=>{if(delay&&request.Method=="PUT"&&request.Target.Contains("concurrent.txt",StringComparison.Ordinal)){delay=false;entered.TrySetResult();await release.Task;}return await handler(request);};
         var path=Path.Combine(test.Local,"concurrent.txt");await File.WriteAllTextAsync(path,"generation one");await entered.Task.WaitAsync(TimeSpan.FromSeconds(25));
         await File.WriteAllTextAsync(path,"generation two");release.TrySetResult();await test.Wait("concurrent.txt",bytes:Encoding.UTF8.GetBytes("generation two"));
-        await test.Manager.SetAutoUploadAsync(test.Id,false);await File.WriteAllTextAsync(path,"canceled content");await test.Manager.ScanUploadChangesAsync(test.Id);
-        var item=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="concurrent.txt");Assert.True(test.Manager.Cancel(item.Id));await test.Manager.SetAutoUploadAsync(test.Id,true);await Task.Delay(2500);
+        await test.Manager.SetSchedulingForTestsAsync(test.Id,false);await File.WriteAllTextAsync(path,"canceled content");await test.Manager.ScanUploadChangesAsync(test.Id);
+        var item=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="concurrent.txt");Assert.True(test.Manager.Cancel(item.Id));await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await Task.Delay(2500);
         Assert.Equal("generation two",Encoding.UTF8.GetString(test.Dav.Objects["concurrent.txt"].Bytes));
         Assert.True(test.Manager.RetryUpload(item.Id));await test.Wait("concurrent.txt",bytes:Encoding.UTF8.GetBytes("canceled content"));
     }
@@ -93,7 +93,7 @@ public sealed class UploadFlowTests
     public async Task OfflineLocalCreateDoesNotAdoptFreshRemoteVersion()
     {
         await using var test=await Fixture.Create(false);await test.Manager.DisconnectAsync(test.Id);var path=Path.Combine(test.Local,"offline.txt");await File.WriteAllTextAsync(path,"local content");test.Dav.Put("offline.txt",Encoding.UTF8.GetBytes("another client"));
-        await test.Manager.ConnectAsync(test.Id);await test.Manager.SetAutoUploadAsync(test.Id,true);await test.Wait("offline.txt",state:"Conflict");
+        await test.Manager.ConnectAsync(test.Id);await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await test.Wait("offline.txt",state:"Conflict");
         Assert.Equal("another client",Encoding.UTF8.GetString(test.Dav.Objects["offline.txt"].Bytes));Assert.Equal("local content",await File.ReadAllTextAsync(path));
     }
     [Fact(Timeout=120000)]
@@ -107,16 +107,7 @@ public sealed class UploadFlowTests
     public async Task ConcurrentDisconnectStopsWorkerOnceAndReconnectRestoresPending()
     {
         await using var test=await Fixture.Create(false);await File.WriteAllTextAsync(Path.Combine(test.Local,"pending.txt"),"pending work");await test.Manager.ScanUploadChangesAsync(test.Id);
-        await Task.WhenAll(test.Manager.DisconnectAsync(test.Id),test.Manager.DisconnectAsync(test.Id));await test.Manager.ConnectAsync(test.Id);await test.Manager.SetAutoUploadAsync(test.Id,true);await test.Wait("pending.txt");
-    }
-    [Fact(Timeout=120000)]
-    public async Task FirstReviewCannotBeConfirmedWhileDisconnected()
-    {
-        await using var test=await Fixture.Create(false);await test.Manager.DisposeAsync();var definition=test.Repository.LoadDefinitions().Single() with{UploadInitialReviewCompleted=false};test.Repository.SaveDefinition(definition);
-        test.Manager=new(test.Repository,test.Logger);await File.WriteAllTextAsync(Path.Combine(test.Local,"待确认.txt"),"not approved");
-        await Assert.ThrowsAsync<IOException>(()=>test.Manager.ScanUploadChangesAsync(test.Id));await Assert.ThrowsAsync<IOException>(()=>test.Manager.SetAutoUploadAsync(test.Id,true,[]));
-        Assert.False(test.Repository.LoadDefinitions().Single().UploadInitialReviewCompleted);await test.Manager.ConnectAsync(test.Id);
-        Assert.Contains(await test.Manager.ScanUploadChangesAsync(test.Id),x=>x.Path=="待确认.txt");await test.Manager.SetAutoUploadAsync(test.Id,true,[]);await Task.Delay(2300);Assert.False(test.Dav.Objects.ContainsKey("待确认.txt"));
+        await Task.WhenAll(test.Manager.DisconnectAsync(test.Id),test.Manager.DisconnectAsync(test.Id));await test.Manager.ConnectAsync(test.Id);await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await test.Wait("pending.txt");
     }
     [Fact(Timeout=120000)]
     public async Task CorruptPreparedSnapshotNeverUploadsAndRetryRecreatesIt()
@@ -124,7 +115,7 @@ public sealed class UploadFlowTests
         await using var test=await Fixture.Create(false);var path=Path.Combine(test.Local,"snapshot.txt");var bytes=Encoding.UTF8.GetBytes("original local bytes");await File.WriteAllBytesAsync(path,bytes);await test.Manager.ScanUploadChangesAsync(test.Id);
         var item=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="snapshot.txt");var stamp=LocalFileState.Read(path);var directory=Path.Combine(test.Repository.DataDirectory,"UploadStaging",test.Id.ToString("N"));Directory.CreateDirectory(directory);var snapshot=Path.Combine(directory,"changed.snapshot");await File.WriteAllTextAsync(snapshot,"tampered data");
         test.Repository.SaveUpload(item with{State="Prepared",SnapshotPath=snapshot,SnapshotIdentity=stamp.Identity,SnapshotStamp=stamp.Key,SnapshotSha256=Convert.ToHexString(SHA256.HashData(bytes)),SnapshotGeneration=item.Generation,Total=bytes.Length});
-        await test.Manager.SetAutoUploadAsync(test.Id,true);await test.Wait("snapshot.txt",state:"Conflict");Assert.False(test.Dav.Objects.ContainsKey("snapshot.txt"));
+        await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await test.Wait("snapshot.txt",state:"Conflict");Assert.False(test.Dav.Objects.ContainsKey("snapshot.txt"));
         Assert.True(test.Manager.RetryUpload(item.Id));await test.Wait("snapshot.txt",bytes:bytes);Assert.Equal(bytes,test.Dav.Objects["snapshot.txt"].Bytes);
     }
     internal sealed class Fixture : IAsyncDisposable
@@ -134,7 +125,7 @@ public sealed class UploadFlowTests
         {
             var test=new Fixture();test.Local=Path.Combine(test.Dav.Area,"view");Directory.CreateDirectory(test.Local);test.Registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
             test.Repository=new(Path.Combine(test.Dav.Area,"data"),test.Registry);test.Logger=new(Path.Combine(test.Dav.Area,"logs.db"));test.Manager=new(test.Repository,test.Logger);
-            var mount=await test.Manager.AddAsync("自动上传回归",test.Local,true,source:test.Dav.Options,credentials:new("user","app-password"),autoUpload:auto);test.Id=mount.Id;return test;
+            var mount=await test.Manager.AddAsync("自动上传回归",test.Local,true,source:test.Dav.Options,credentials:new("user","app-password"),autoUpload:auto);test.Id=mount.Id;if(!auto)await test.Manager.SetSchedulingForTestsAsync(test.Id,false);return test;
         }
         public async Task<LocalUpload> Wait(string path,string state="Completed",byte[]? bytes=null)
         {

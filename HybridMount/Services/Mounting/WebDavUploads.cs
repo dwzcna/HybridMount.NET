@@ -13,20 +13,11 @@ public sealed partial class WebDavFileSource
     public event Action<SourceContentBaseline>? ContentBaseline;
     public event Action<string>? WriteWarning;
     private void Warn(string message) { try { WriteWarning?.Invoke(message); } catch { /* 通知不能改变已提交的网络结果。 */ } }
-    private string ProbePath(string parent = "") => (parent.Length==0?"":parent+"/")+".hybridmount-probe-"+Guid.NewGuid().ToString("N");
+    private string ProbePath(string parent = "") => TrackTemporary((parent.Length==0?"":parent+"/")+".hybridmount-probe-"+Guid.NewGuid().ToString("N"));
     private async Task CleanupProbesAsync(params string[] paths)
     {
         using var cleanup=new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        foreach(var path in paths)
-        {
-            try
-            {
-                using var request=new HttpRequestMessage(HttpMethod.Delete,Address(path));
-                using var response=await SendAsync(request,cleanup.Token,true).ConfigureAwait(false);
-                if(!response.IsSuccessStatusCode&&response.StatusCode!=HttpStatusCode.NotFound)Warn("DAV 探测临时项清理失败："+path);
-            }
-            catch(Exception error)when(error is IOException or OperationCanceledException){Warn("DAV 探测临时项清理未确认："+path);}
-        }
+        foreach(var path in paths)await CleanupTemporaryAsync(path,cleanup.Token).ConfigureAwait(false);
     }
     /// <summary>只验证 PUT 创建和更新，不要求 DELETE 或 MOVE 支持条件修改。</summary>
     private async Task VerifyPutCapabilitiesAsync(string parent,CancellationToken token)
@@ -34,13 +25,13 @@ public sealed partial class WebDavFileSource
         if(_writesVerified)return;await _writeProbe.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if(_writesVerified)return;var path=ProbePath(parent);var created=false;
+            if(_writesVerified)return;var path=ProbePath(parent);
             try
             {
                 using(var request=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})
                 {
                     request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
-                    using var response=await SendAsync(request,token,true).ConfigureAwait(false);Success(response);created=true;
+                    using var response=await SendAsync(request,token,true).ConfigureAwait(false);Success(response);
                 }
                 foreach(var create in new[]{true,false})
                 {
@@ -55,7 +46,7 @@ public sealed partial class WebDavFileSource
                 _writesVerified=true;
                 Capabilities=Capabilities with{ConditionalWrite=WriteCapabilities.CreateOnly==CapabilitySupport.Supported&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
             }
-            finally{if(created)await CleanupProbesAsync(path).ConfigureAwait(false);}
+            finally{await CleanupProbesAsync(path).ConfigureAwait(false);}
         }
         finally{_writeProbe.Release();}
     }
@@ -68,7 +59,7 @@ public sealed partial class WebDavFileSource
         try
         {
             if(method=="DELETE"?_deleteVerified:_moveVerified){if((method=="DELETE"?WriteCapabilities.ConditionalDelete:WriteCapabilities.ConditionalMove)!=CapabilitySupport.Supported)throw new NotSupportedException("服务器不支持此方法的可靠条件写。");return;}
-            var path=ProbePath();var destination=path+"-destination";
+            var path=ProbePath();var destination=TrackTemporary(path+"-destination");
             try
             {
                 using(var create=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})

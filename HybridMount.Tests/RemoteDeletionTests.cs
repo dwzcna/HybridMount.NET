@@ -24,7 +24,7 @@ public sealed class RemoteDeletionTests
             var entry=test.Repository.Entries(test.Id).Single(item=>item.SourcePath==name);Assert.Equal(RemotePresence.Deleted,entry.RemotePresence);Assert.False(entry.Deleted);Assert.False(entry.Materialized);
         }
         Assert.Equal(gets,test.Dav.Server.Requests.Count(request=>request.Method=="GET"));
-        await test.Manager.SetAutoUploadAsync(test.Id,true);await test.Manager.ScanUploadChangesAsync(test.Id);await Task.Delay(2400);
+        await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await test.Manager.ScanUploadChangesAsync(test.Id);await Task.Delay(2400);
         await test.Manager.DisconnectAsync(test.Id);await test.Manager.ConnectAsync(test.Id);await Task.Delay(2400);Assert.Equal(writes,Mutations(test.Dav));
     }
     /// <summary>远端目录删除时清理干净子项，保留修改及新文件，且不会自动重建父目录。</summary>
@@ -36,7 +36,7 @@ public sealed class RemoteDeletionTests
         foreach(var path in test.Dav.Objects.Keys.Where(path=>path=="folder"||path.StartsWith("folder/",StringComparison.Ordinal)).ToArray())test.Dav.Objects.TryRemove(path,out _);
         var writes=Mutations(test.Dav);var result=await Refresh(test);Assert.Equal("PartialFailure",result.State);
         Assert.False(File.Exists(Path.Combine(directory,"clean.bin")));Assert.Equal("local protected",await File.ReadAllTextAsync(dirty));Assert.True(File.Exists(Path.Combine(directory,"new.txt")));
-        await test.Manager.SetAutoUploadAsync(test.Id,true);await test.Manager.ScanUploadChangesAsync(test.Id);await Task.Delay(2600);
+        await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await test.Manager.ScanUploadChangesAsync(test.Id);await Task.Delay(2600);
         Assert.Equal(writes,Mutations(test.Dav));Assert.DoesNotContain(test.Dav.Objects.Keys,path=>path=="folder"||path.StartsWith("folder/",StringComparison.Ordinal));
         Assert.Contains(test.Repository.Uploads(test.Id),item=>item.LocalPath=="folder/new.txt"&&item.State=="Conflict");
         test.Manager.CacheLimitBytes=1;await test.Manager.EnforceCacheLimitAsync();Assert.Equal("local protected",await File.ReadAllTextAsync(dirty));

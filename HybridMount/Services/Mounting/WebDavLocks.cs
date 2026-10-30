@@ -107,7 +107,7 @@ public sealed partial class WebDavFileSource
         {
             if(_lockVerified)
             {if(WriteCapabilities.ExclusiveLock!=CapabilitySupport.Supported)throw new NotSupportedException("服务器没有通过独占锁验证。");return;}
-            var path=ProbePath(parent);var empty=path+"-new";DavLockLease? lease=null;
+            var path=ProbePath(parent);var empty=TrackTemporary(path+"-new");DavLockLease? lease=null;
             try
             {
                 using(var create=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})

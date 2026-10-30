@@ -18,7 +18,7 @@ public sealed partial class MountManager
                 if(Interlocked.Exchange(ref runtime.Dirty,0)!=0||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
                 {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
                 var item=_repository.Uploads(root.Definition.Id).Where(x=>
-                    (x.State is "RemoteCommitted" or "OutcomeUnknown"||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.Definition.AutoUploadEnabled||x.ExplicitRequest)&&!x.CancelRequested))&&
+                    (x.State is "RemoteCommitted" or "OutcomeUnknown"||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested))&&
                     DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
                     (x.LastCheckedUtc is null||DateTimeOffset.UtcNow-x.LastCheckedUtc>=TimeSpan.FromSeconds(x.State=="OutcomeUnknown"?60:3)))
                     .OrderBy(x=>x.SourcePath.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?0:1).ThenBy(x=>x.ChangedUtc).FirstOrDefault();
@@ -44,7 +44,7 @@ public sealed partial class MountManager
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
             if(prepared.State=="OutcomeUnknown"){await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
             if(prepared.State=="RemoteCommitted"){await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
-            if(prepared.CancelRequested||(!root.Definition.AutoUploadEnabled&&!prepared.ExplicitRequest))return;
+            if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest))return;
             prepared=await PrepareUploadAsync(root,prepared,token).ConfigureAwait(false);
             if(prepared is null)return;preparing=false;
             await PrepareUploadDestinationAsync(root,prepared,token).ConfigureAwait(false);

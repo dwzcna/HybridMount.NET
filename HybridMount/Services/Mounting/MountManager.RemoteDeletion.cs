@@ -123,7 +123,7 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
             if(DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(RemoteDeletedMessage);
-            if(current.CancelRequested||(!root.Definition.AutoUploadEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
+            if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
             if(current.Generation!=current.SnapshotGeneration)
             {ChangeUpload(current.Id,item=>item with{State="Queued",Error=null,LastCheckedUtc=null});return null;}
             return ChangeUpload(current.Id,item=>item with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null});

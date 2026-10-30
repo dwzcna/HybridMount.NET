@@ -19,7 +19,7 @@ public sealed partial class WebDavFileSource
         {
             if(_createMoveVerified)
             {if(WriteCapabilities.MoveCreate!=CapabilitySupport.Supported)throw new NotSupportedException("服务器没有可验证的防覆盖创建方式。");return;}
-            var first=ProbePath(parent);var second=first+"-destination";var third=first+"-new";
+            var first=ProbePath(parent);var second=TrackTemporary(first+"-destination");var third=TrackTemporary(first+"-new");
             try
             {
                 foreach(var item in new[]{(Path:first,Bytes:new byte[]{17,31}),(Path:second,Bytes:new byte[]{47})})
@@ -43,7 +43,10 @@ public sealed partial class WebDavFileSource
     private async Task<SourceEntry> UploadViaCreateMoveAsync(string path,Stream content,IProgress<UploadProgress>? progress,CancellationToken token)
     {
         await VerifyCreateMoveAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);
-        var temporary=(RelativePaths.Parent(path).Length==0?"":RelativePaths.Parent(path)+"/")+".hybridmount-upload-"+Guid.NewGuid().ToString("N");
+        await using var staged=content.CanSeek?null:new FileStream(Path.Combine(Path.GetTempPath(),"HybridMount-upload-"+Guid.NewGuid().ToString("N")),FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,131072,FileOptions.Asynchronous|FileOptions.DeleteOnClose);
+        if(staged is not null){await content.CopyToAsync(staged,token).ConfigureAwait(false);staged.Position=0;content=staged;}
+        var position=content.Position;var expected=Convert.ToHexString(await SHA256.HashDataAsync(content,token).ConfigureAwait(false));content.Position=position;
+        var temporary=TrackTemporary((RelativePaths.Parent(path).Length==0?"":RelativePaths.Parent(path)+"/")+".hybridmount-upload-"+Guid.NewGuid().ToString("N"),"upload",[expected]);
         try
         {
             using var input=new UploadProgressStream(content,progress);

@@ -29,6 +29,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     public WebDavFileSource(FileSourceConfiguration options, SourceCredentials credentials, WholeFileCache cache, HttpMessageHandler? handler = null)
     {
         _endpoint = FileSourceFactory.Endpoint(options); _cache = cache;
+        _temporaryScope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(_endpoint.AbsoluteUri+"\0"+credentials.UserName)));
         _http = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false, MaxConnectionsPerServer = 4,
             AutomaticDecompression = DecompressionMethods.None, ConnectTimeout = TimeSpan.FromSeconds(20) }) { Timeout = TimeSpan.FromMinutes(2) };
         if (credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 用户名不能包含冒号。");
@@ -45,7 +46,9 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token, bool mutation = false)
     {
         token.ThrowIfCancellationRequested();
-        try { return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false); }
+        if(mutation)await PrepareTemporaryRequestAsync(request,token).ConfigureAwait(false);
+        try { var response=await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+            if(mutation)ObserveTemporaryResponse(request,response);return response; }
         catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException)
         {
             if (mutation) throw new SourceOutcomeUnknownException(request.Method.Method, new IOException("网络请求未确认完成。"));
@@ -135,7 +138,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     public async IAsyncEnumerable<SourceEntry> ListAsync(string path, [EnumeratorCancellation] CancellationToken token = default)
     {
         var entries = await PropFindAsync(path, 1, token).ConfigureAwait(false);
-        foreach (var entry in entries) if (entry.Path != path) yield return entry;
+        foreach (var entry in entries) if (entry.Path != path&&(!_temporary.TryGetValue(entry.Path,out var temporary)||temporary.Stage=="Foreign")) yield return entry;
     }
     public async Task<SourceEntry> GetMetadataAsync(string path, CancellationToken token = default)
         => (await PropFindAsync(path, 0, token).ConfigureAwait(false)).Single(entry => entry.Path == path);

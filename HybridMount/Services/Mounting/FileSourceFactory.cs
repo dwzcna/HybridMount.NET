@@ -31,6 +31,7 @@ public sealed class FileSourceFactory : IFileSourceFactory
         var cacheDirectory=Path.Combine(repository.DataDirectory,"RangeCache",mount.Id.ToString("N"));
         WholeFileCache.CleanupAbandoned(cacheDirectory);
         var source = adapter(config, new CredentialStore(repository.DataDirectory).Load(mount.Id), cacheDirectory);
+        if(source is WebDavFileSource dav)dav.AttachTemporaryJournal(mount,repository);
         try { await source.ProbeAsync(token).ConfigureAwait(false); return source; }
         catch { await source.DisposeAsync().ConfigureAwait(false); throw; }
     }
