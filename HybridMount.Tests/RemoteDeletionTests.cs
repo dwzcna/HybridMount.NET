@@ -4,6 +4,7 @@ using HybridMount.Services.Mounting;
 namespace HybridMount.Tests;
 
 /// <summary>远端删除与本地占位、固定缓存及上传屏障的真实 CFAPI 回归。</summary>
+[Collection("Process exception diagnostics")]
 public sealed class RemoteDeletionTests
 {
     private static Task<MountOperationSnapshot> Refresh(UploadFlowTests.Fixture test)=>WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));
@@ -196,3 +197,7 @@ public sealed class RemoteDeletionTests
     }
 
 }
+
+/// <summary>进程级首次异常事件必须与其他测试隔离，防止把其他协议测试的预期冲突计入本轮。</summary>
+[CollectionDefinition("Process exception diagnostics",DisableParallelization=true)]
+public sealed class ProcessExceptionDiagnosticsCollection;

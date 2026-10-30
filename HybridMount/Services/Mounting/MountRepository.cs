@@ -50,7 +50,7 @@ public sealed partial class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 6, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 7, RegistryValueKind.DWord); }
     }
     /// <summary>此仓库的全局缓存软上限；旧配置默认 10 GiB，0 为关闭。</summary>
     public long CacheLimitBytes

@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.5**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.5.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -20,7 +20,7 @@
 
 WebDAV 不创建辅助目录，必要的探测及安全上传临时文件保存精确 SQLite 日志；完成后清理，失败时在协议日志提示，重连核对重试，外部修改受到保护。WebDAV 与 S3 分别验证创建、更新及其他写能力，“测试连接”仍只读。无可靠条件或已知基线时拒绝覆盖，保留本地修改和远端内容。当前坚果云实测可通过临时上传及 `MOVE Overwrite:F` 安全新增，但其独占锁约束未通过验证，**现有文件更新会提示冲突，请在任务页“另存副本”**；仅声明支持 LOCK 不足以允许覆盖。S3 保留 SigV4、条件 PUT、条件分片完成及回执核对，ETag 不作为 MD5。
 
-读取会合并同时发生的整文件快照和元数据查询，取消一个请求不影响其他等待者，明确提交的下载优先并保留普通读取机会。首次打开大文件仍受服务速度及完整快照要求影响。完整下载的 EXE 可在后台生成图标缓存；候选云缩略图处理器按构建开关门控，正式 MSIX 暂不自动接管，Explorer 各显示路径仍待验收。
+读取会合并同时发生的整文件快照和元数据查询，取消一个请求不影响其他等待者，明确提交的下载优先并保留普通读取机会。首次打开大文件仍受服务速度及完整快照要求影响。每个挂载有默认关闭的“缩略图（实验性）”开关，支持 JPEG／PNG／BMP／GIF 首帧、MP4/H.264 视频帧和 EXE 内嵌图标。优先缓存和完整本地内容；远端只进行严格版本及范围校验的有界预览（8 MiB／32 次／10 秒），不水合原占位，也不退化到整文件缓存。不满足能力或预算时显示普通图标；坚果云当前需先显式下载完整内容。关闭会停止本挂载预览，已有缓存保留。正式 MSIX 暂不自动注册处理器；使用 -ExperimentalThumbnails 生成的实验包可注册，实际 Explorer 各显示路径仍待验收。
 
 关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出仅断开 CFAPI，保留同步根注册，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
 
@@ -62,12 +62,15 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 # 使用当前用户证书存储中的匹配 Publisher 证书签名并验证
 .\build\Build.ps1 -Platform x64 -Configuration Release -Package -CertificateThumbprint '<证书指纹>'
 
+# 显式生成注册缩略图处理器的实验包；每挂载仍默认关闭
+.\build\Build.ps1 -Platform x64 -Configuration Release -Package -ExperimentalThumbnails -CertificateThumbprint '<证书指纹>'
+
 # 从本项目矢量母版重新导出 PNG / ICO
 .\build\Update-Assets.ps1
 ```
 
-产物位于 `artifacts\packages\<架构>`，构建日志、TRX 与包哈希位于 `artifacts\validation`。ARM64 可以交叉构建，测试运行必须在 ARM64 主机进行。直接构建主工程前，需要先构建同架构、同配置的扩展；推荐使用上述脚本或 slnx。
+正式产物位于 `artifacts\packages\<架构>`，实验缩略图包位于 `artifacts\packages-preview\<架构>`，构建日志、TRX 与包哈希位于 `artifacts\validation`。ARM64 可以交叉构建，测试运行必须在 ARM64 主机进行。直接构建主工程前，需要先构建同架构、同配置的扩展；推荐使用上述脚本或 slnx。
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-验证细节及待测项目见 [docs/Validation-0.0.5.md](docs/Validation-0.0.5.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
+验证细节及待测项目见 [docs/Validation-0.0.5.1.md](docs/Validation-0.0.5.1.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。

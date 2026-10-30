@@ -23,6 +23,8 @@ public interface IFileSource : IAsyncDisposable
     async Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)
     {try{return await GetMetadataAsync(path,token).ConfigureAwait(false);}catch(FileNotFoundException){return null;}}
     ValueTask<int> ReadRangeAsync(SourceEntry entry, long offset, Memory<byte> buffer, CancellationToken token = default);
+    /// <summary>严格预览范围读取；默认不支持，不允许整文件退化或触发 CFAPI 水合。</summary>
+    ValueTask<PreviewRangeResult> TryReadPreviewRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default) => ValueTask.FromResult(new PreviewRangeResult(false,0));
     /// <summary>expectedVersion 为空表示仅创建；更新必须匹配当前版本。</summary>
     Task<SourceEntry> UploadAsync(string path, Stream content, string? expectedVersion, CancellationToken token = default);
     /// <summary>上传不可变快照；失败或取消不代表远端回滚。旧驱动继续使用版本条件，不能忽略额外摘要。</summary>

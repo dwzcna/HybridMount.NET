@@ -14,6 +14,7 @@
                 <Button Content="连接" Click="Connect"/>
                 <Button Content="更新凭据" Click="UpdateCredentials"/>
                 <Button Content="扫描本地改动" Click="ReviewUploadChanges"/>
+                <ToggleSwitch x:Name="ThumbnailsToggle" Header="缩略图（实验性）" Toggled="ThumbnailsChanged" IsEnabled="False"/>
                 <Button Content="断开" Click="Disconnect"/>
                 <Button Content="刷新" Click="RefreshMount"/>
                 <Button Content="始终保留在设备上" Click="Keep"/>
@@ -28,6 +29,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="{x:Bind Definition.Name}" FontWeight="SemiBold"/><TextBlock Text="{x:Bind Status}"/></StackPanel>
                         <TextBlock Text="{x:Bind Definition.LocalPath}" TextWrapping="Wrap"/>
                         <TextBlock Text="{x:Bind AutoUploadDisplay}"/>
+                        <TextBlock Text="{x:Bind ThumbnailDisplay}" TextWrapping="Wrap"/>
                         <TextBlock Text="{x:Bind SourceDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         <TextBlock Text="{x:Bind Detail}" TextWrapping="Wrap"/>
                     </StackPanel>

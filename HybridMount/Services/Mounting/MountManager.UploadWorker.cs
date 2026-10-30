@@ -12,6 +12,13 @@ public sealed partial class MountManager
         var token=runtime.Stop.Token;var scanned=DateTimeOffset.MinValue;
         try
         {
+            // 旧版本可能遗留同路径的排队记录与已发送记录；先由已发送记录接管，防止恢复时旧队列绕过结果核对。
+            foreach(var group in _repository.Uploads(root.Definition.Id).Where(item=>!item.IsCopy).GroupBy(item=>item.SourcePath,StringComparer.Ordinal))
+            {
+                var sent=group.Where(item=>item.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown").ToArray();
+                if(sent.Length==1)foreach(var duplicate in group.Where(item=>item.Id!=sent[0].Id&&item.State is "Queued" or "Waiting" or "Prepared" or "AwaitingConfirmation" or "Ignored"))
+                    ChangeUpload(duplicate.Id,item=>item with{State="Canceled",CancelRequested=true,Error="同路径已有发送记录接管，本任务未重复发送。",LastCheckedUtc=null});
+            }
             foreach(var item in _repository.Uploads(root.Definition.Id).Where(x=>x.State=="Sending"))ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="上次请求已发出，恢复后先核对远端。",LastCheckedUtc=null});
             while(!token.IsCancellationRequested)
             {

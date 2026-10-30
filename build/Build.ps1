@@ -6,10 +6,12 @@ param(
     [ValidateSet('Packaged','Unpackaged')][string]$Deployment,
     [switch]$Package,
     [switch]$Test,
+    [switch]$ExperimentalThumbnails,
     [string]$CertificateThumbprint
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Deployment) { $Deployment = if ($Package) { 'Packaged' } else { 'Unpackaged' } }
+if ($ExperimentalThumbnails -and -not $Package) { throw '实验缩略图注册仅用于显式生成的 MSIX。' }
 if ($Package -and $Deployment -eq 'Unpackaged') { throw '非打包模式不能生成 MSIX；请使用 -Deployment Packaged。' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $validation = Join-Path $repoRoot 'artifacts\validation'
@@ -24,8 +26,9 @@ function Invoke-BuildStep([string]$executable, [string[]]$arguments, [string]$na
 Push-Location $repoRoot
 try {
     Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "native-$Platform-$Configuration"
-    $packageDirectory = Join-Path $repoRoot "artifacts\packages\$Platform\"
+    $packageDirectory = Join-Path $repoRoot $(if($ExperimentalThumbnails){"artifacts\packages-preview\$Platform\"}else{"artifacts\packages\$Platform\"})
     $managedArguments = @('HybridMount\HybridMount.csproj','/restore','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo',"/p:HybridMountDeployment=$Deployment","/p:GenerateAppxPackageOnBuild=$($Package.IsPresent)")
+    $managedArguments += "/p:HybridMountEnableCloudThumbnails=$($ExperimentalThumbnails.IsPresent)"
     if ($Package) { $managedArguments += @("/p:AppxPackageDir=$packageDirectory",'/p:UapAppxPackageBuildMode=SideloadOnly','/p:AppxBundle=Never','/p:AppxPackageSigningEnabled=false') }
     Invoke-BuildStep $msbuild $managedArguments "managed-$Platform-$Configuration-$Deployment"
     if ($Test) {
@@ -49,7 +52,7 @@ try {
                 Invoke-BuildStep (Join-Path $sdkBin 'signtool.exe') @('sign','/sha1',$CertificateThumbprint,'/fd','SHA256',$msix.FullName) "sign-$Platform"
                 Invoke-BuildStep (Join-Path $sdkBin 'signtool.exe') @('verify','/pa','/all','/v',$msix.FullName) "signature-$Platform"
             }
-            & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform
+            & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ExpectCloudThumbnails:$ExperimentalThumbnails.IsPresent
             Get-FileHash -LiteralPath $msix.FullName -Algorithm SHA256 | Format-List | Out-File (Join-Path $validation "package-$Platform.sha256.txt") -Encoding utf8
         }
     }

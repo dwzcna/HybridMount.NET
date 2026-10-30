@@ -43,7 +43,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public event Action? Changed;
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null)
     {
-        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationProcess.DiagnosticsEnabled)logger.Queue("预览诊断","Information",value);});_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();
+        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationProcess.DiagnosticsEnabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();
         foreach(var definition in repository.LoadDefinitions())
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
@@ -215,7 +215,7 @@ public sealed partial class MountManager : IAsyncDisposable
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             var refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false); Status(root,"已连接",RefreshSummary(refreshed));
             if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
-            foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);
+            _previews.ResumeMount(root.Definition.Id);foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);
             if(root.Source is S3FileSource s3)
             {
                 try { await s3.RecoverKnownUploadsAsync(token).ConfigureAwait(false); }
@@ -226,7 +226,7 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         catch(Exception error)
         {
-            await StopUploadsAsync(root).ConfigureAwait(false);UnobserveUploadSource(root);
+            await _previews.CancelMountAsync(root.Definition.Id).ConfigureAwait(false);await StopUploadsAsync(root).ConfigureAwait(false);UnobserveUploadSource(root);
             if(root.Session is not null){await root.Session.DisposeAsync().ConfigureAwait(false);root.Session=null;}
             if(root.Source is not null)await root.Source.DisposeAsync().ConfigureAwait(false);root.Source=null; Status(root,"异常",error.Message);throw;
         }
@@ -322,9 +322,9 @@ public sealed partial class MountManager : IAsyncDisposable
         try { await DisconnectCoreAsync(root).ConfigureAwait(false); Status(root,"未连接"); }
         finally { root.Gate.Release(); }
     }
-    private static async Task DisconnectCoreAsync(Runtime root)
+    private async Task DisconnectCoreAsync(Runtime root)
     {
-        await StopUploadsAsync(root).ConfigureAwait(false);UnobserveUploadSource(root);
+        await _previews.CancelMountAsync(root.Definition.Id).ConfigureAwait(false);await StopUploadsAsync(root).ConfigureAwait(false);UnobserveUploadSource(root);
         if(root.Session is not null){await root.Session.DisposeAsync().ConfigureAwait(false);root.Session=null;}
         if(root.Source is not null)await root.Source.DisposeAsync().ConfigureAwait(false);root.Source=null;
     }
@@ -339,16 +339,10 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         return id??throw new IOException("未选择文件。");
     }
-    /// <summary>单个本产品 EXE 的缓存查询；只读索引和本地身份，不查询远端、不提交任务。</summary>
+    /// <summary>单文件缓存只读查询；关闭或不属于本产品时回退，不打开内容、不查询远端。</summary>
     public byte[]? GetPreview(string path,int size)
     {
-        if(size is <16 or >256)return null;
-        var id=FindMount([path]);var root=Root(id);
-        if(root.RemovalRequested||root.Definition.RemovalPending)return null;
-        var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-        var entry=_repository.Entries(id).FirstOrDefault(entry=>entry.Id==marker?.EntryId&&entry.Materialized&&!entry.Deleted);
-        if(marker?.MountId!=id||entry is null||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1)return null;
-        return _previews.Get(root.Definition,entry,size);
+        if(size is <16 or >256)return null;var target=PreviewTarget(path);return target is null?null:_previews.Get(target.Value.Root.Definition,target.Value.Entry,size);
     }
     public string Queue(Guid id,string operation,string[]? paths=null)
     {

@@ -2,3 +2,4 @@ LIBRARY "HybridMount.Ext.dll"
 EXPORTS
     DllCanUnloadNow PRIVATE
     DllGetClassObject PRIVATE
+    HybridMountDecodePreview

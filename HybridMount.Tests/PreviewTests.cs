@@ -68,6 +68,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="GET");
                 Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
                 Assert.NotEmpty(requests);Assert.All(requests,request=>Assert.Equal("getPreview",request.Operation));
+                await manager.SetThumbnailsEnabledAsync(mount.Id,true);
                 var keep=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"keepOnDevice",[path]));Assert.Equal("Completed",keep.State);
                 var deadline=DateTime.UtcNow.AddSeconds(15);byte[]? png=null;
                 while(DateTime.UtcNow<deadline&&(png=manager.GetPreview(path,128)) is null)await Task.Delay(25);
