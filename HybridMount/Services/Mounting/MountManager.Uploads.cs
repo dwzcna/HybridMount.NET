@@ -17,11 +17,13 @@ public sealed partial class MountManager
         public string? CurrentId;
         public Task Work=Task.CompletedTask;
         public int Dirty=1;private int _stopping,_disposed;
+        private readonly object _signalSync=new();
         public UploadRuntime(CancellationToken token)=>Stop=CancellationTokenSource.CreateLinkedTokenSource(token);
-        public void Wake(){Interlocked.Exchange(ref Dirty,1);try{Signal.Release();}catch(SemaphoreFullException){}catch(ObjectDisposedException){}}
+        /// <summary>生产者在短锁内合并通知；消费者只递减计数，正常事件风暴不产生异常。</summary>
+        public void Wake(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
         public void CancelRequest(string? id=null){lock(Sync)if(id is null||CurrentId==id)try{Request?.Cancel();}catch(ObjectDisposedException){}}
         public void RequestStop(){if(Interlocked.Exchange(ref _stopping,1)!=0)return;Watcher?.Dispose();Stop.Cancel();CancelRequest();Wake();}
-        public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
+        public void Dispose(){lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Watcher?.Dispose();Stop.Dispose();Signal.Dispose();}}
     }
     private void StartUploads(Runtime root)
     {
@@ -54,8 +56,7 @@ public sealed partial class MountManager
         root.BaselineObserver=null;root.WriteObserver=null;
     }
     /// <summary>上传记录与普通任务共享任务页；持久阶段优先于旧任务历史的中断转换。</summary>
-    private MountOperationSnapshot UploadSnapshot(LocalUpload item)=>new(item.Id,"upload",item.State,item.State=="Completed"?1:0,1,
-        [new(item.LocalPath,item.State,item.Error??(item.IsCopy?$"另存到 {item.SourcePath}":"本地变更自动上传"))],item.Error,item.MountId,item.LocalPath,item.Bytes,item.Total);
+    private static MountOperationSnapshot UploadSnapshot(LocalUpload item)=>item.ToSnapshot();
     private void PublishUpload(LocalUpload? item)
     {if(item is null)return;_repository.SaveOperation(UploadSnapshot(item));Notify();}
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
@@ -93,7 +94,7 @@ public sealed partial class MountManager
     {
         var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(item.State is not("Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation"))return false;
-        ChangeUpload(id,x=>x with{State=x.State=="OutcomeUnknown"?x.State:x.Receipt is not null?"RemoteCommitted":"Queued",CancelRequested=false,ExplicitRequest=true,Error=null,ChangedUtc=DateTimeOffset.UtcNow,LastCheckedUtc=null});root.Uploads?.Wake();return true;
+        ChangeUpload(id,x=>x with{State=x.State=="OutcomeUnknown"?x.State:x.Receipt is not null?"RemoteCommitted":"Queued",CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null});root.Uploads?.Wake();return true;
     }
     /// <summary>冲突文件上传到新的相对路径；创建保护保证不覆盖目标，原始冲突和索引不变。</summary>
     public string UploadAsCopy(string id,string destination)
@@ -152,6 +153,8 @@ public sealed partial class MountManager
                         var entry=marker is null?entries.FirstOrDefault(x=>x.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase)&&!x.Deleted):entries.FirstOrDefault(x=>x.Id==marker.EntryId);
                         records.TryGetValue(relative,out var prior);
                         var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
+                        if(DeletedSourceAncestor(entries,relative) is not null)
+                        {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(stamp.IsDirectory)Scan(path);continue;}
                         if(prior is {State:"Ignored"}&&prior.ObservedStamp!=stamp.Key&&!ContentChanged(prior.ObservedStamp,stamp))
                         {ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key});}
                         else if(!clean&&(prior is null||prior.ObservedStamp!=stamp.Key))

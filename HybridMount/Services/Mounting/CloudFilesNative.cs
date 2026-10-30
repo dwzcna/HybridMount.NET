@@ -43,6 +43,11 @@ public static class CloudFilesNative
     {
         using var handle = CreateFile(path, 0x80, 7, 0, 3, 0x02200000, 0);
         if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+        return Inspect(handle);
+    }
+    /// <summary>读取已引用句柄的占位信息；用于删除前核对，不重新解析文件路径。</summary>
+    public static (PlaceholderInfo Info,byte[] Identity)? Inspect(SafeFileHandle handle)
+    {
         if (!GetFileInformationByHandleEx(handle, 9, out AttributeTag tag, 8)) throw new Win32Exception(Marshal.GetLastWin32Error());
         if ((CfGetPlaceholderStateFromAttributeTag(tag.Attributes, tag.Tag) & 1) == 0) return null;
         var buffer = Marshal.AllocHGlobal(8192);

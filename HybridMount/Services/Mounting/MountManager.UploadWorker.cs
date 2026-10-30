@@ -47,13 +47,13 @@ public sealed partial class MountManager
             if(prepared.CancelRequested||(!root.Definition.AutoUploadEnabled&&!prepared.ExplicitRequest))return;
             prepared=await PrepareUploadAsync(root,prepared,token).ConfigureAwait(false);
             if(prepared is null)return;preparing=false;
-            await EnsureUploadParentsAsync(root.Source!,prepared.SourcePath,token).ConfigureAwait(false);
+            await PrepareUploadDestinationAsync(root,prepared,token).ConfigureAwait(false);
             SourceEntry receipt;
             if(prepared.IsDirectory)
             {
-                prepared=ChangeUpload(prepared.Id,x=>x with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null})!;
-                try{receipt=await root.Source!.GetMetadataAsync(prepared.SourcePath,token).ConfigureAwait(false);if(!receipt.IsDirectory)throw new SourceConflictException("远端已有同名文件，目录不能覆盖它。");}
-                catch(FileNotFoundException){receipt=await root.Source!.CreateDirectoryAsync(prepared.SourcePath,token).ConfigureAwait(false);}
+                var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token).ConfigureAwait(false);if(sending is null)return;prepared=sending;
+                receipt=await root.Source!.TryGetMetadataAsync(prepared.SourcePath,token).ConfigureAwait(false)??await root.Source.CreateDirectoryAsync(prepared.SourcePath,token).ConfigureAwait(false);
+                if(!receipt.IsDirectory)throw new SourceConflictException("远端已有同名文件，目录不能覆盖它。");
             }
             else
             {
@@ -66,7 +66,7 @@ public sealed partial class MountManager
                 if(content.Length!=prepared.Total||digest!=prepared.SnapshotSha256)
                 {ChangeUpload(prepared.Id,x=>x with{SnapshotStamp=null});throw new SourceConflictException("持久上传快照已变化，未发送内容；请重试以重新生成快照。");}
                 content.Position=0;
-                prepared=ChangeUpload(prepared.Id,x=>x with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null})!;
+                var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token).ConfigureAwait(false);if(sending is null)return;prepared=sending;
                 receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,token).ConfigureAwait(false);
             }
             prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=null,Bytes=prepared.Total})!;
@@ -91,25 +91,15 @@ public sealed partial class MountManager
         }
         finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
     }
-    /// <summary>父目录创建可重复核对，只合并目录；不借此覆盖文件或传播本地删除。</summary>
-    private static async Task EnsureUploadParentsAsync(IFileSource source,string path,CancellationToken token)
-    {
-        var parts=RelativePaths.Parent(path).Split('/',StringSplitOptions.RemoveEmptyEntries);var parent="";
-        foreach(var part in parts)
-        {
-            parent=parent.Length==0?part:parent+"/"+part;
-            SourceEntry entry;try{entry=await source.GetMetadataAsync(parent,token).ConfigureAwait(false);}
-            catch(FileNotFoundException){entry=await source.CreateDirectoryAsync(parent,token).ConfigureAwait(false);}
-            if(!entry.IsDirectory)throw new SourceConflictException("远端父路径已是文件，无法创建目录。");
-        }
-    }
     /// <summary>未知结果只能用远端内容核对；读取失败保留快照，绝不直接重复发送。</summary>
     private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)
     {
         if(item.SnapshotPath is null&&!item.IsDirectory){ChangeUpload(item.Id,x=>x with{State="Conflict",Error="结果不明且缺少不可变快照，请保留本地文件并另存副本。"});return;}
         try
         {
-            var metadata=await root.Source!.GetMetadataAsync(item.SourcePath,token).ConfigureAwait(false);
+            var metadata=await root.Source!.TryGetMetadataAsync(item.SourcePath,token).ConfigureAwait(false);
+            if(metadata is null)
+            {ChangeUpload(item.Id,current=>current with{State="Conflict",Error="发送结果不明且远端目标不存在，无法区分未写入与写入后被删除；请显式重试或另存副本。",LastCheckedUtc=null});return;}
             if(item.IsDirectory&&metadata.IsDirectory||!item.IsDirectory&&!metadata.IsDirectory&&metadata.Size==item.Total&&await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.SnapshotSha256)
             {
                 var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=null,LastCheckedUtc=null})!;
@@ -118,10 +108,6 @@ public sealed partial class MountManager
             var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);
             if(unchanged&&item.BaselineSha256 is not null)unchanged=await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.BaselineSha256;
             ChangeUpload(item.Id,x=>x with{State=unchanged?(x.CancelRequested?"Canceled":"Prepared"):"Conflict",Error=unchanged?"远端仍为原始版本，可安全重试。":"远端内容与原始基线、发送快照均不一致，保留两端内容。",LastCheckedUtc=null});
-        }
-        catch(FileNotFoundException)
-        {
-            ChangeUpload(item.Id,x=>x with{State=x.ExpectedVersion is null?(x.CancelRequested?"Canceled":"Prepared"):"Conflict",Error=x.ExpectedVersion is null?"远端目标不存在，保留仅创建条件。":"原远端文件已移除，不能自动覆盖或重建。",LastCheckedUtc=null});
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
         catch(Exception error){ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="只读核对未完成："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});}

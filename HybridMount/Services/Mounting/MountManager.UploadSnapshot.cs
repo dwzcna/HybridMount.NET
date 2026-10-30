@@ -64,6 +64,8 @@ public sealed partial class MountManager
         {
             if(root.RemovalRequested||root.Definition.RemovalPending)throw new OperationCanceledException(token);
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
+            if(DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
+            {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=RemoteDeletedMessage,LastCheckedUtc=null});return;}
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path);bool clean=false;
             // 远端 StableId 可为空且不保证可用；占位身份始终由本产品维护。
             var mapped=_repository.Entries(prepared.MountId).FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);

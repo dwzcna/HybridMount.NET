@@ -39,7 +39,14 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             var current=Upload(id);if(current is null)return null;
-            var next=update(current);using var db=Open();WriteUpload(db,next);return next;
+            var next=update(current);using var db=Open();using var transaction=db.BeginTransaction();
+            if(current.State=="Completed"&&(next.State!="Completed"||next.Generation!=current.Generation))
+            {
+                // 新一代本地意图不能覆盖上一代已经成功的事实；历史 ID 保持合法 GUID，继续支持 IPC 查询。
+                var archived=current.ToSnapshot() with{Id=Guid.NewGuid().ToString("N")};using var history=db.CreateCommand();history.Transaction=transaction;
+                history.CommandText="INSERT INTO operations VALUES($id,$j)";history.Parameters.AddWithValue("$id",archived.Id);history.Parameters.AddWithValue("$j",JsonSerializer.Serialize(archived));history.ExecuteNonQuery();
+            }
+            WriteUpload(db,next,transaction);transaction.Commit();return next;
         }
     }
     /// <summary>同一不透明版本只能绑定第一份已验证摘要；后续差异不能悄悄覆盖基线。</summary>
@@ -85,6 +92,12 @@ public sealed partial class MountRepository
                 command.CommandText="INSERT INTO entries VALUES($m,$id,$s,$l,$v,$d,$x,$p,1) ON CONFLICT(mount,id) DO UPDATE SET source=$s,local=$l,version=$v,directory=$d,deleted=$x,protected=$p,materialized=1";
                 command.Parameters.AddWithValue("$m",prepared.MountId.ToString("N"));command.Parameters.AddWithValue("$id",entry.Id);command.Parameters.AddWithValue("$s",entry.SourcePath);command.Parameters.AddWithValue("$l",entry.LocalPath);
                 command.Parameters.AddWithValue("$v",receipt.Version);command.Parameters.AddWithValue("$d",entry.IsDirectory);command.Parameters.AddWithValue("$x",missing);command.Parameters.AddWithValue("$p",!clean||missing);command.ExecuteNonQuery();
+            }
+            if(!current.IsCopy)
+            {
+                using var presence=db.CreateCommand();presence.Transaction=transaction;
+                presence.CommandText="INSERT INTO remote_presence VALUES($m,$id,$p) ON CONFLICT(mount,id) DO UPDATE SET presence=$p";
+                presence.Parameters.AddWithValue("$m",prepared.MountId.ToString("N"));presence.Parameters.AddWithValue("$id",entry.Id);presence.Parameters.AddWithValue("$p",(int)RemotePresence.Present);presence.ExecuteNonQuery();
             }
             WriteUpload(db,next,transaction);
             if(prepared.SnapshotSha256 is not null)

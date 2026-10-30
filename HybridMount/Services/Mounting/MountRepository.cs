@@ -25,7 +25,8 @@ public sealed partial class MountRepository
             CREATE INDEX IF NOT EXISTS uploads_mount ON uploads(mount);
             CREATE TABLE IF NOT EXISTS content_baselines(mount TEXT NOT NULL,path TEXT NOT NULL,version TEXT NOT NULL,sha256 TEXT NOT NULL,
                 PRIMARY KEY(mount,path,version));
-            PRAGMA user_version=2;
+            CREATE TABLE IF NOT EXISTS remote_presence(mount TEXT NOT NULL,id TEXT NOT NULL,presence INTEGER NOT NULL,PRIMARY KEY(mount,id));
+            PRAGMA user_version=3;
             """; cmd.ExecuteNonQuery();
     }
     private SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }
@@ -63,16 +64,16 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
         }
     }
     public IReadOnlyList<MountEntry> Entries(Guid mount)
     {
         lock (_gate)
         {
-            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT id,source,local,version,directory,deleted,protected,materialized FROM entries WHERE mount=$m"; cmd.Parameters.AddWithValue("$m", mount.ToString("N"));
+            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT e.id,e.source,e.local,e.version,e.directory,e.deleted,e.protected,e.materialized,COALESCE(p.presence,0) FROM entries e LEFT JOIN remote_presence p ON e.mount=p.mount AND e.id=p.id WHERE e.mount=$m"; cmd.Parameters.AddWithValue("$m", mount.ToString("N"));
             using var row = cmd.ExecuteReader(); var result = new List<MountEntry>();
-            while (row.Read()) result.Add(new(row.GetString(0),row.GetString(1),row.GetString(2),row.GetString(3),row.GetInt64(4)!=0,row.GetInt64(5)!=0,row.GetInt64(6)!=0,row.GetInt64(7)!=0));
+            while (row.Read()) result.Add(new(row.GetString(0),row.GetString(1),row.GetString(2),row.GetString(3),row.GetInt64(4)!=0,row.GetInt64(5)!=0,row.GetInt64(6)!=0,row.GetInt64(7)!=0,(RemotePresence)row.GetInt64(8)));
             return result;
         }
     }

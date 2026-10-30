@@ -105,11 +105,17 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         ? version.ETag! : throw new NotSupportedException("S3 对象缺少有效 ETag，拒绝条件修改。");
     private static string? ImmutableVersion(string? value) => string.IsNullOrEmpty(value) || value == "null" ? null : value;
     /// <summary>不输出 SDK 原始异常、服务端 XML 或 URL；修改请求不自动重试。</summary>
-    private async Task<T> Call<T>(Func<Task<T>> action, CancellationToken token, bool mutation = false, [CallerMemberName] string stage = "")
+    private async Task<T> Call<T>(Func<Task<T>> action,CancellationToken token,bool mutation=false,[CallerMemberName]string stage="") where T:class
+        => await CallCore(action,token,mutation,ExpectedResult.None,stage).ConfigureAwait(false)??throw new IOException("S3 缺少响应。");
+    [Flags] private enum ExpectedResult { None=0,Missing=1,PreconditionRejected=2 }
+    /// <summary>仅内部探测可将预期的不存在或条件拒绝作为空结果；真实请求保持原异常契约。</summary>
+    private async Task<T?> CallCore<T>(Func<Task<T>> action,CancellationToken token,bool mutation,ExpectedResult expected,[CallerMemberName]string stage="") where T:class
     {
         token.ThrowIfCancellationRequested();
         var previousHints=Hints.Value;var hints=new ResponseHints();Hints.Value=hints;
         try { return await action().ConfigureAwait(false); }
+        catch(AmazonS3Exception error) when((expected&ExpectedResult.Missing)!=0&&error.StatusCode==HttpStatusCode.NotFound&&error.ErrorCode!="NoSuchBucket") {return null;}
+        catch(AmazonS3Exception error) when((expected&ExpectedResult.PreconditionRejected)!=0&&error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict) {return null;}
         catch (AmazonS3Exception error) when (error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
         { throw new SourceConflictException("S3 对象版本或目标创建条件不满足。"); }
         catch (AmazonS3Exception error) when (error.StatusCode == HttpStatusCode.NotFound && error.ErrorCode != "NoSuchBucket" && stage != nameof(ProbeAsync))
@@ -165,16 +171,19 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     }
     private Task<GetObjectMetadataResponse> HeadAsync(string key, CancellationToken token)
         => Call(() => _client.GetObjectMetadataAsync(new() { BucketName = _bucket, Key = key }, token), token);
-    public async Task<SourceEntry> GetMetadataAsync(string path, CancellationToken token = default)
+    public async Task<SourceEntry> GetMetadataAsync(string path,CancellationToken token=default)
+        => await TryGetMetadataAsync(path,token).ConfigureAwait(false)??throw new FileNotFoundException("S3 条目不存在。");
+    /// <summary>区分对象、目录标记及虚拟前缀；仅明确 404 返回空，不转译成多层异常。</summary>
+    public async Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)
     {
-        path = RelativePaths.Normalize(path); if (path.Length == 0) return VirtualDirectory("");
-        try { return Metadata(path, await HeadAsync(Key(path), token).ConfigureAwait(false), false); }
-        catch (FileNotFoundException) { }
-        try { return Metadata(path, await HeadAsync(Key(path) + "/", token).ConfigureAwait(false), true); }
-        catch (FileNotFoundException) { }
-        var list = await Call(() => _client.ListObjectsV2Async(new() { BucketName = _bucket, Prefix = Key(path) + "/", MaxKeys = 1 }, token), token).ConfigureAwait(false);
-        if (list.S3Objects?.Count > 0 || list.CommonPrefixes?.Count > 0) return VirtualDirectory(path);
-        throw new FileNotFoundException("S3 条目不存在。");
+        path=RelativePaths.Normalize(path);if(path.Length==0)return VirtualDirectory("");
+        async Task<GetObjectMetadataResponse?> Head(string key)=>await CallCore(()=>_client.GetObjectMetadataAsync(new(){BucketName=_bucket,Key=key},token),token,false,ExpectedResult.Missing,nameof(GetMetadataAsync)).ConfigureAwait(false);
+        var head=await Head(Key(path)).ConfigureAwait(false);if(head is not null)return Metadata(path,head,false);
+        head=await Head(Key(path)+"/").ConfigureAwait(false);if(head is not null)return Metadata(path,head,true);
+        var list=await Call(()=>_client.ListObjectsV2Async(new(){BucketName=_bucket,Prefix=Key(path)+"/",MaxKeys=1},token),token).ConfigureAwait(false);
+        if(list.IsTruncated is null||list.IsTruncated==true&&!(list.S3Objects?.Count>0||list.CommonPrefixes?.Count>0))
+            throw new IOException("S3 存在性查询不完整，不能确认远端删除。");
+        return list.S3Objects?.Count>0||list.CommonPrefixes?.Count>0?VirtualDirectory(path):null;
     }
     public async IAsyncEnumerable<SourceEntry> ListAsync(string path, [EnumeratorCancellation] CancellationToken token = default)
     {
@@ -245,6 +254,9 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     private Task<PutObjectResponse> PutAsync(string key, Stream stream, string? etag, CancellationToken token)
         => Call(() => _client.PutObjectAsync(new() { BucketName = _bucket, Key = key, InputStream = new BorrowedStream(stream),
             AutoCloseStream = false, AutoResetStreamPosition = false, UseChunkEncoding = false, IfMatch = etag, IfNoneMatch = etag is null ? "*" : null }, token), token, true);
+    private Task<PutObjectResponse?> ProbePutAsync(string key,Stream stream,string? etag,CancellationToken token)
+        =>CallCore(()=>_client.PutObjectAsync(new(){BucketName=_bucket,Key=key,InputStream=new BorrowedStream(stream),
+            AutoCloseStream=false,AutoResetStreamPosition=false,UseChunkEncoding=false,IfMatch=etag,IfNoneMatch=etag is null?"*":null},token),token,true,ExpectedResult.PreconditionRejected);
     private Task<DeleteObjectResponse> DeleteKeyAsync(string key, string? etag, CancellationToken token)
         => Call(() => _client.DeleteObjectAsync(new() { BucketName = _bucket, Key = key, IfMatch = etag }, token), token, true);
     /// <summary>在条件请求之外核对目录映射；对象键与同名前缀不能同时作为可写目标。</summary>
@@ -252,12 +264,9 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     {
         var parent=RelativePaths.Parent(path);
         if(parent.Length>0 && !(await GetMetadataAsync(parent,token).ConfigureAwait(false)).IsDirectory)throw new SourceConflictException("S3 父项是文件，不能创建子项。");
-        try
-        {
-            var current=await GetMetadataAsync(path,token).ConfigureAwait(false);
-            if(current.IsDirectory||expectedVersion is null||current.Version!=expectedVersion)throw new SourceConflictException("S3 目标已存在、是目录或版本不匹配。");
-        }
-        catch(FileNotFoundException){if(expectedVersion is not null)throw new SourceConflictException("S3 更新目标已不存在。");}
+        var current=await TryGetMetadataAsync(path,token).ConfigureAwait(false);
+        if(current is null){if(expectedVersion is not null)throw new SourceConflictException("S3 更新目标已不存在。");return;}
+        if(current.IsDirectory||expectedVersion is null||current.Version!=expectedVersion)throw new SourceConflictException("S3 目标已存在、是目录或版本不匹配。");
     }
     private async Task<SourceEntry> UploadCoreAsync(string path, Stream content, string? expectedVersion,IProgress<UploadProgress>? progress,CancellationToken token)
     {
@@ -325,12 +334,9 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
                     try
                     {
                         var part = await PartAsync(key, id, 1, [31], 1, token).ConfigureAwait(false);
-                        try
-                        {
-                            await Call(() => _client.CompleteMultipartUploadAsync(new() { BucketName = _bucket, Key = key, UploadId = id,
-                                PartETags = [new PartETag(1, part.ETag)], IfNoneMatch = createOnly ? "*" : null, IfMatch = createOnly ? null : "\"hybridmount-never-match\"" }, token), token, true).ConfigureAwait(false);
-                        }
-                        catch (SourceConflictException) { continue; }
+                        var probe=await CallCore(() => _client.CompleteMultipartUploadAsync(new() { BucketName = _bucket, Key = key, UploadId = id,
+                            PartETags = [new PartETag(1, part.ETag)], IfNoneMatch = createOnly ? "*" : null, IfMatch = createOnly ? null : "\"hybridmount-never-match\"" }, token), token, true,ExpectedResult.PreconditionRejected).ConfigureAwait(false);
+                        if(probe is null)continue;
                         throw new NotSupportedException("S3 分片完成接口未通过条件写验证。");
                     }
                     finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await AbortAsync(new(_bucket, key, id), cleanup.Token).ConfigureAwait(false); }
@@ -396,8 +402,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     public async Task<SourceEntry> CreateDirectoryAsync(string path, CancellationToken token = default)
     {
         path = NonRoot(path); await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);RequirePut(true);
-        try { await GetMetadataAsync(path, token).ConfigureAwait(false); throw new SourceConflictException("S3 名称或前缀已存在。"); }
-        catch (FileNotFoundException) { }
+        if(await TryGetMetadataAsync(path,token).ConfigureAwait(false) is not null)throw new SourceConflictException("S3 名称或前缀已存在。");
         await PutAsync(Key(path) + "/", Stream.Null, null, token).ConfigureAwait(false);
         return await GetMetadataAsync(path, token).ConfigureAwait(false);
     }

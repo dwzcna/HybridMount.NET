@@ -3,6 +3,8 @@ namespace HybridMount.Models.Mounting;
 /// <summary>只有经验证的能力才能声明支持。</summary>
 public enum CapabilitySupport { Unknown, Supported, Unsupported }
 public enum SourceCaseSensitivity { Unknown, Insensitive, Sensitive }
+/// <summary>远端存在性与用户本地删除独立；只有完整刷新及明确确认才能进入 Deleted。</summary>
+public enum RemotePresence { Unknown, Present, Deleted }
 public sealed record FileSourceCapabilities(CapabilitySupport RangeRead, CapabilitySupport ConditionalWrite,
     CapabilitySupport AtomicReplace, CapabilitySupport ChangeNotify, CapabilitySupport StableIds, SourceCaseSensitivity CaseSensitivity);
 /// <summary>StableId 与 Version 含义分离；路径使用斜杠相对路径。</summary>
@@ -17,7 +19,7 @@ public enum MountRegistrationStage { Unknown, NotRegistered, Registering, Regist
 /// <summary>根位置不可原地修改；未完成的移除必须按已保存的模式恢复。</summary>
 public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown, bool AutoUploadEnabled = false, bool UploadInitialReviewCompleted = false);
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
-public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false);
+public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false, RemotePresence RemotePresence = RemotePresence.Unknown);
 public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail)
 {
     public string AutoUploadDisplay=>!Definition.UploadInitialReviewCompleted?"自动上传：等待首次确认":Definition.AutoUploadEnabled?"自动上传：开启":"自动上传：关闭";
@@ -25,8 +27,11 @@ public sealed record MountSnapshot(MountDefinition Definition, string Status, st
 }
 public sealed record MountItemResult(string Path, string Status, string Message);
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,
-    IReadOnlyList<MountItemResult> Results, string? Error, Guid? MountId = null, string? ItemPath = null, long BytesTransferred = 0, long TotalBytes = 0)
+    IReadOnlyList<MountItemResult> Results, string? Error, Guid? MountId = null, string? ItemPath = null, long BytesTransferred = 0, long TotalBytes = 0, bool? IsDirectory = null, string? RemotePath = null)
 {
+    /// <summary>区分文件、目录和副本目标；旧历史缺少类型时显示条目，不猜测类型。</summary>
+    public string DisplayTarget=>Operation!="upload"?ItemPath??"":$"{(IsDirectory is true?"目录":IsDirectory is false?"文件":"条目")}：{ItemPath}"+
+        (RemotePath is not null&&RemotePath!=ItemPath?$" → 远端：{RemotePath}":"");
     public double ProgressPercent=>Operation=="upload"?(TotalBytes>0?Math.Clamp(100.0*BytesTransferred/TotalBytes,0,100):State=="Completed"?100:0):Total>0?100.0*Completed/Total:0;
     public string ProgressText=>Operation=="upload"?$"{BytesTransferred:N0} / {TotalBytes:N0} 字节":$"{Completed} / {Total}";
     public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};

@@ -19,6 +19,9 @@ public interface IFileSource : IAsyncDisposable
     }
     IAsyncEnumerable<SourceEntry> ListAsync(string path, CancellationToken token = default);
     Task<SourceEntry> GetMetadataAsync(string path, CancellationToken token = default);
+    /// <summary>仅明确不存在时返回空；认证、权限、网络及取消继续抛出。旧适配器保持兼容。</summary>
+    async Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)
+    {try{return await GetMetadataAsync(path,token).ConfigureAwait(false);}catch(FileNotFoundException){return null;}}
     ValueTask<int> ReadRangeAsync(SourceEntry entry, long offset, Memory<byte> buffer, CancellationToken token = default);
     /// <summary>expectedVersion 为空表示仅创建；更新必须匹配当前版本。</summary>
     Task<SourceEntry> UploadAsync(string path, Stream content, string? expectedVersion, CancellationToken token = default);

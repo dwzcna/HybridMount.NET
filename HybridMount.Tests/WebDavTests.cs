@@ -140,7 +140,7 @@ public sealed class WebDavTests
             Assert.Equal(replacement.Length,new FileInfo(path).Length);Assert.Equal(replacement,await Task.Run(()=>File.ReadAllBytes(path)).WaitAsync(TimeSpan.FromSeconds(20)));
             await manager.EnforceCacheLimitAsync();Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
             await File.WriteAllTextAsync(path,"本地修改保留");fixture.Put("文件.bin",[1,2,3,4]);
-            var conflict=await Finished(manager,manager.Queue(mount.Id,"refresh"));Assert.Equal("Failed",conflict.State);
+            var conflict=await Finished(manager,manager.Queue(mount.Id,"refresh"));Assert.Equal("PartialFailure",conflict.State);Assert.Contains(conflict.Results,item=>item.Status=="Conflict"&&item.Path=="文件.bin");
             await manager.EnforceCacheLimitAsync();Assert.Equal("本地修改保留",await File.ReadAllTextAsync(path));
         }
         finally

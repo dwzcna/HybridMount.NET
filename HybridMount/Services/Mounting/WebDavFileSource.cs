@@ -88,7 +88,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         if (parts.Any(part => part.Contains('/') || part.Contains('\\'))) throw new IOException("WebDAV href 含编码分隔符。");
         return RelativePaths.Normalize(string.Join('/', parts));
     }
-    private async Task<IReadOnlyList<SourceEntry>> PropFindAsync(string path, int depth, CancellationToken token)
+    private async Task<IReadOnlyList<SourceEntry>> PropFindAsync(string path, int depth, CancellationToken token, bool allowMissing=false)
     {
         path = RelativePaths.Normalize(path); var uri = Address(path, true);
         using var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), uri);
@@ -96,7 +96,9 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         request.Content = new StringContent("""
             <?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/></d:prop></d:propfind>
             """, Encoding.UTF8, "application/xml");
-        using var response = await SendAsync(request, token).ConfigureAwait(false); Success(response);
+        using var response = await SendAsync(request, token).ConfigureAwait(false);
+        if(allowMissing&&response.StatusCode==HttpStatusCode.NotFound)return [];
+        Success(response);
         if ((int)response.StatusCode != 207) throw new IOException("PROPFIND 未返回 DAV Multi-Status。");
         await using var body = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         using var reader = XmlReader.Create(body, new XmlReaderSettings { Async = true, DtdProcessing = DtdProcessing.Prohibit,
@@ -137,6 +139,9 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     }
     public async Task<SourceEntry> GetMetadataAsync(string path, CancellationToken token = default)
         => (await PropFindAsync(path, 0, token).ConfigureAwait(false)).Single(entry => entry.Path == path);
+    /// <summary>存在性判断不以 FileNotFoundException 作为正常分支；不掩盖不完整 Multi-Status。</summary>
+    public async Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)
+        => (await PropFindAsync(path,0,token,true).ConfigureAwait(false)).SingleOrDefault(entry=>entry.Path==path);
     private static VersionInfo Version(SourceEntry entry) => JsonSerializer.Deserialize<VersionInfo>(entry.Version) ?? throw new IOException("DAV 版本标记无效。");
     /// <summary>空值保留为缺失；裸值不加引号、不获得强验证能力。</summary>
     private static string? NormalizeTag(string? value)

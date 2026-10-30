@@ -124,7 +124,7 @@ public sealed class CloudMountSession : IAsyncDisposable
                 var entries=_repository.Entries(_mount.Id); var entry=entries.FirstOrDefault(entry=>entry.Id==marker.EntryId);
                 if(entry is null) return;
                 if(type==10)
-                    foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath))) _repository.SaveEntry(_mount.Id,child with{Deleted=true,Protected=true});
+                    foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)&&item.RemotePresence!=RemotePresence.Deleted)) _repository.SaveEntry(_mount.Id,child with{Deleted=true,Protected=true});
                 else
                 {
                     var target=NativePath(info,info.NormalizedPath);
@@ -167,7 +167,7 @@ public sealed class CloudMountSession : IAsyncDisposable
         try
         {
             lease=await _reads.EnterAsync(info.PriorityHint,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
-            var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id && !item.Deleted) ?? throw new FileNotFoundException("占位身份不存在。");
+            var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id && !item.Deleted&&item.RemotePresence!=RemotePresence.Deleted) ?? throw new FileNotFoundException("占位身份不存在。");
             var source=_source??throw new IOException("清空期间不提供内容读取。");
             var metadata=await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
             if(!source.IsSameVersion(metadata.Version,entry.Version)) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");

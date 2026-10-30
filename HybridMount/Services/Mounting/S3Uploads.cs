@@ -31,8 +31,7 @@ public sealed partial class S3FileSource
                 await PutAsync(key,new MemoryStream([17,31]),null,token).ConfigureAwait(false);created=true;
                 async Task<CapabilitySupport> Check(string? expected)
                 {
-                    try{await PutAsync(key,new MemoryStream([99]),expected,token).ConfigureAwait(false);return CapabilitySupport.Unsupported;}
-                    catch(SourceConflictException){return CapabilitySupport.Supported;}
+                    return await ProbePutAsync(key,new MemoryStream([99]),expected,token).ConfigureAwait(false) is null?CapabilitySupport.Supported:CapabilitySupport.Unsupported;
                 }
                 var create=await Check(null).ConfigureAwait(false);
                 var update=await Check("\"hybridmount-never-match-"+Guid.NewGuid().ToString("N")+"\"").ConfigureAwait(false);
@@ -60,9 +59,7 @@ public sealed partial class S3FileSource
                 try
                 {
                     await PutAsync(key,new MemoryStream([17,31]),null,token).ConfigureAwait(false);
-                    var supported=false;
-                    try{await DeleteKeyAsync(key,"\"hybridmount-never-match\"",token).ConfigureAwait(false);}
-                    catch(SourceConflictException){supported=true;}
+                    var supported=await CallCore(()=>_client.DeleteObjectAsync(new(){BucketName=_bucket,Key=key,IfMatch="\"hybridmount-never-match\""},token),token,true,ExpectedResult.PreconditionRejected).ConfigureAwait(false) is null;
                     WriteCapabilities=WriteCapabilities with{ConditionalDelete=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
                     _deleteVerified=true;
                 }
@@ -85,10 +82,9 @@ public sealed partial class S3FileSource
                 var head=await HeadAsync(first,token).ConfigureAwait(false);
                 try
                 {
-                    await Call(()=>_client.CopyObjectAsync(new(){SourceBucket=_bucket,SourceKey=first,DestinationBucket=_bucket,DestinationKey=second,
-                        ETagToMatch=head.ETag,IfNoneMatch="*"},token),token,true).ConfigureAwait(false);_copyVerified=false;
+                    _copyVerified=await CallCore(()=>_client.CopyObjectAsync(new(){SourceBucket=_bucket,SourceKey=first,DestinationBucket=_bucket,DestinationKey=second,
+                        ETagToMatch=head.ETag,IfNoneMatch="*"},token),token,true,ExpectedResult.PreconditionRejected).ConfigureAwait(false) is null;
                 }
-                catch(SourceConflictException){_copyVerified=true;}
                 catch(IOException){_copyVerified=false;}
                 _copyProbeVerified=true;
                 WriteCapabilities=WriteCapabilities with{ConditionalMove=_copyVerified?CapabilitySupport.Supported:CapabilitySupport.Unsupported};

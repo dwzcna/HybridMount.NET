@@ -61,7 +61,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(!_roots.TryGetValue(mount.Id,out var root)||_stop.IsCancellationRequested)return null;
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         if(_stop.IsCancellationRequested||root.RemovalRequested||root.Definition.RemovalPending||!_roots.ContainsKey(mount.Id)||
-            !_repository.Entries(mount.Id).Any(current=>current.Id==entry.Id&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&!current.Protected))
+            !_repository.Entries(mount.Id).Any(current=>current.Id==entry.Id&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&!current.Protected&&current.RemotePresence!=RemotePresence.Deleted))
         {root.Gate.Release();return null;}
         return new PreviewLease(root.Gate);
     }
@@ -211,7 +211,8 @@ public sealed partial class MountManager : IAsyncDisposable
             token.ThrowIfCancellationRequested();
             root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.Wake()); root.Session.Connect();
             Reconcile(root);ScanLocalUploadsCore(root,token);
-            await PopulateAsync(root,"",token).ConfigureAwait(false); Status(root,"已连接");
+            var refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false); Status(root,"已连接",RefreshSummary(refreshed));
+            if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
             foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);
             if(root.Source is S3FileSource s3)
             {
@@ -229,8 +230,8 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         finally { lock(root.ConnectionSync)if(ReferenceEquals(root.Connecting,connection))root.Connecting=null; }
     }
-    /// <summary>完整收集再映射；枚举失败或大小写冲突时不应用半个远端快照。</summary>
-    private async Task PopulateAsync(Runtime root,string sourcePath,CancellationToken token)
+    /// <summary>收齐远端快照并确认缺失之后才应用；局部冲突独立记录，不覆盖本地修改。</summary>
+    private async Task<IReadOnlyList<MountItemResult>> PopulateAsync(Runtime root,string sourcePath,CancellationToken token)
     {
         var snapshot=new Dictionary<string,SourceEntry>(StringComparer.OrdinalIgnoreCase);
         async Task Collect(string parent)
@@ -238,39 +239,47 @@ public sealed partial class MountManager : IAsyncDisposable
             await foreach(var metadata in root.Source!.ListAsync(parent,token).ConfigureAwait(false))
             {
                 RelativePaths.Normalize(metadata.Path);
-                if(metadata.Path.Length==0 || RelativePaths.Parent(metadata.Path)!=parent || metadata.Size<0 || metadata.ModifiedUtc<DateTimeOffset.FromFileTime(0) || !snapshot.TryAdd(metadata.Path,metadata))
+                if(metadata.Path.Length==0||RelativePaths.Parent(metadata.Path)!=parent||metadata.Size<0||metadata.ModifiedUtc<DateTimeOffset.FromFileTime(0)||!snapshot.TryAdd(metadata.Path,metadata))
                     throw new IOException("远端枚举包含越界、重复、大小写冲突或无效元数据；未应用快照。");
                 if(snapshot.Count>1000000)throw new IOException("快照超过首版百万条安全限制，请缩小远端根。");
                 if(metadata.IsDirectory)await Collect(metadata.Path).ConfigureAwait(false);
             }
         }
         await Collect(sourcePath).ConfigureAwait(false);
+        var missing=await ConfirmRemoteDeletionsAsync(root,snapshot,token).ConfigureAwait(false);var results=new List<MountItemResult>();
         foreach(var metadata in snapshot.Values.OrderBy(item=>item.Path.Count(c=>c=='/')).ThenBy(item=>item.Path,StringComparer.Ordinal))
         {
             token.ThrowIfCancellationRequested();
-            var entries=_repository.Entries(root.Definition.Id);
-            var entry=entries.FirstOrDefault(item=>item.SourcePath.Equals(metadata.Path,StringComparison.OrdinalIgnoreCase));
-            var parent=entries.FirstOrDefault(item=>item.SourcePath.Equals(RelativePaths.Parent(metadata.Path),StringComparison.OrdinalIgnoreCase));
-            if(parent?.Deleted==true || parent?.Protected==true)continue;
-            if(entry?.Deleted==true)continue;
-            var local=parent is null?metadata.Path:parent.LocalPath+"/"+Path.GetFileName(metadata.Path);
-            entry??=new(Guid.NewGuid().ToString("N"),metadata.Path,local,metadata.Version,metadata.IsDirectory);
-            if(entry.IsDirectory!=metadata.IsDirectory)throw new SourceConflictException("远端文件与目录类型变化，保留本地内容，请处理冲突。");
-            _repository.SaveEntry(root.Definition.Id,entry);
-            var full=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
-            if(!File.Exists(full)&&!Directory.Exists(full))root.Session!.CreatePlaceholder(entry,metadata);
-            else if(!entry.Materialized)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true,Materialized=true});
-            else if(!root.Source!.IsSameVersion(entry.Version,metadata.Version) && !entry.IsDirectory)
+            try
             {
-                if(entry.Protected || !root.Session!.RefreshPlaceholder(entry,metadata))
-                    throw new SourceConflictException("远端内容变化，但本地已修改、固定或正在使用；已保留旧内容，请处理后刷新。");
-                _repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});
+                var entries=_repository.Entries(root.Definition.Id);var entry=entries.FirstOrDefault(item=>item.SourcePath.Equals(metadata.Path,StringComparison.OrdinalIgnoreCase));
+                if(entry is not null)
+                {
+                    // 清理后的项重新出现在远端时，只恢复远端存在性，不解除用户本地删除／修改保护。
+                    if(entry.RemotePresence==RemotePresence.Deleted&&!entry.Deleted&&LocalMissing(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath)))
+                    {_repository.CompleteRemoteCleanup(root.Definition.Id,entry);entry=entry with{Materialized=false};}
+                    _repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
+                }
+                var parent=entries.FirstOrDefault(item=>item.SourcePath.Equals(RelativePaths.Parent(metadata.Path),StringComparison.OrdinalIgnoreCase));
+                if(parent?.Deleted==true||parent?.Protected==true||entry?.Deleted==true)continue;
+                var local=parent is null?metadata.Path:parent.LocalPath+"/"+Path.GetFileName(metadata.Path);
+                entry??=new(Guid.NewGuid().ToString("N"),metadata.Path,local,metadata.Version,metadata.IsDirectory);
+                if(entry.IsDirectory!=metadata.IsDirectory)throw new SourceConflictException("远端文件与目录类型变化，保留本地内容，请处理冲突。");
+                var full=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);var absent=LocalMissing(full);
+                if(absent&&!entry.Materialized)entry=entry with{Version=metadata.Version};
+                _repository.SaveEntry(root.Definition.Id,entry);_repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
+                if(absent)root.Session!.CreatePlaceholder(entry,metadata);
+                else if(!entry.Materialized)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true,Materialized=true});
+                else if(!root.Source!.IsSameVersion(entry.Version,metadata.Version)&&!entry.IsDirectory)
+                {
+                    if(entry.Protected||!root.Session!.RefreshPlaceholder(entry,metadata))throw new SourceConflictException("远端内容变化，但本地已修改、固定或正在使用；已保留旧内容，请处理后刷新。");
+                    _repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});
+                }
+                else if(entry.IsDirectory&&!root.Source!.IsSameVersion(entry.Version,metadata.Version))_repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});
             }
-            else if(entry.IsDirectory && !root.Source!.IsSameVersion(entry.Version,metadata.Version))_repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});
+            catch(SourceConflictException error){results.Add(new(metadata.Path,"Conflict",error.Message));}
         }
-        // 远端删除不立即删除本地缓存；保留可恢复内容并显示冲突，等待后续双向同步。
-        if(_repository.Entries(root.Definition.Id).Any(entry=>!entry.Deleted&&!snapshot.ContainsKey(entry.SourcePath)))
-            Status(root,"已连接","部分远端条目已消失；本地内容保留，不自动传播删除。");
+        results.AddRange(ApplyRemoteDeletions(root,missing,token));return results;
     }
     /// <summary>只遍历本根内普通目录和本产品云目录，不穿越符号链接、联接或其他提供程序。</summary>
     private IEnumerable<string> Walk(MountDefinition mount,string directory)
@@ -302,7 +311,7 @@ public sealed partial class MountManager : IAsyncDisposable
             seen.Add(entry.Id);
             _repository.SaveEntry(root.Definition.Id,entry with{LocalPath=relative,Materialized=true,Protected=entry.Protected||entry.LocalPath!=relative||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1});
         }
-        foreach(var entry in entries.Where(entry=>entry.Materialized&&!entry.Deleted&&!seen.Contains(entry.Id))) _repository.SaveEntry(root.Definition.Id,entry with{Deleted=true,Protected=true});
+        foreach(var entry in entries.Where(entry=>entry.Materialized&&!entry.Deleted&&entry.RemotePresence!=RemotePresence.Deleted&&!seen.Contains(entry.Id))) _repository.SaveEntry(root.Definition.Id,entry with{Deleted=true,Protected=true});
     }
     public async Task DisconnectAsync(Guid id,CancellationToken token=default)
     {
@@ -364,7 +373,12 @@ public sealed partial class MountManager : IAsyncDisposable
                 if(operation=="remove") { await RemoveAsync(root,job).ConfigureAwait(false);Update(job,"Completed");return; }
                 if(root.Session is null)throw new IOException("挂载尚未连接，请在挂载页连接后重试。");
                 Reconcile(root);
-                if(operation=="refresh"){ScanLocalUploadsCore(root,job.Cancel.Token);await PopulateAsync(root,"",job.Cancel.Token).ConfigureAwait(false);Update(job,"Completed");return;}
+                if(operation=="refresh")
+                {
+                    ScanLocalUploadsCore(root,job.Cancel.Token);var results=await PopulateAsync(root,"",job.Cancel.Token).ConfigureAwait(false);
+                    job.Snapshot=job.Snapshot with{Total=results.Count};foreach(var result in results)Result(job,result.Path,result.Status,result.Message);
+                    Status(root,"已连接",RefreshSummary(results));Update(job,results.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed");return;
+                }
                 var targets=paths??[root.Definition.LocalPath];
                 foreach(var target in targets)MountPathGuard.ValidateOperation(root.Definition,target);
                 var selected=_repository.Entries(id).Where(entry=>!entry.Deleted&&targets.Any(target=>MountPathGuard.IsUnder(target,RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath)))).ToArray();
@@ -379,7 +393,7 @@ public sealed partial class MountManager : IAsyncDisposable
                     {
                         MountPathGuard.ValidateOperation(root.Definition,path);
                         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-                        if(info is null || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
+                        if(info is null || entry.RemotePresence==RemotePresence.Deleted || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
                         using var priority=operation=="keepOnDevice"?root.Session.PrioritizeDownload(entry.Id):null;
                         using(var handle=CloudFilesNative.Open(path,operation=="freeSpace"))
@@ -469,13 +483,15 @@ public sealed partial class MountManager : IAsyncDisposable
             root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry));root.Session.Connect();
         }
         Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
-        var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
+        var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted&&!(entry.RemotePresence==RemotePresence.Deleted&&LocalMissing(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath)))).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
         job.Snapshot=job.Snapshot with{Total=entries.Length};Save(job);
         // 所有剩余文件完整下载成功后，才开始解除任何占位。
         foreach(var entry in entries.Where(entry=>!entry.IsDirectory))
         {
             job.Cancel.Token.ThrowIfCancellationRequested();var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);
             if(CloudFilesNative.Inspect(path) is null)continue;
+            if(entry.RemotePresence==RemotePresence.Deleted)
+            {if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new IOException("远端已删除且本地尚不完整，保留配置与现有内容。");continue;}
             using(var priority=root.Session!.PrioritizeDownload(entry.Id))
             using(var handle=CloudFilesNative.Open(path))await CloudFilesNative.HydrateAsync(handle,job.Cancel.Token).ConfigureAwait(false);
             if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new IOException("文件尚未完整水合，停止移除。");
@@ -547,7 +563,7 @@ public sealed partial class MountManager : IAsyncDisposable
             {
                 if(root.Session is null || root.Definition.RemovalPending)continue;
                 Reconcile(root);
-                foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>!entry.Deleted&&!entry.Protected&&!entry.IsDirectory).OrderBy(entry=>root.Session.LastRead(entry.Id)))
+                foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>!entry.Deleted&&!entry.Protected&&!entry.IsDirectory&&entry.RemotePresence!=RemotePresence.Deleted).OrderBy(entry=>root.Session.LastRead(entry.Id)))
                 {
                     token.ThrowIfCancellationRequested();if(freed>=needed)break;
                     var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
