@@ -63,14 +63,16 @@
   </ItemGroup>
   <!-- 真实 EXE Shell 路径及其他类型回归通过前，正式包默认不接管云缩略图。 -->
   <PropertyGroup><HybridMountEnableCloudThumbnails Condition="'$(HybridMountEnableCloudThumbnails)'==''">false</HybridMountEnableCloudThumbnails></PropertyGroup>
-  <!-- 以统一 BinaryVersion 生成清单；避免程序集已升版而 MSIX 静态清单仍停留在旧版本。 -->
+  <!-- 源清单供 VS 包向导读取，必须与集中版本一致；构建副本仅切换实验扩展。 -->
   <Target Name="PrepareProductManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountDeployment)'=='Packaged'">
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version">
       <Output TaskParameter="Result" PropertyName="_SourceManifestVersion"/>
     </XmlPeek>
+    <Error Condition="'$(_SourceManifestVersion)' != '$(BinaryVersion)'"
+           Text="Package.appxmanifest 版本 $(_SourceManifestVersion) 与集中版本 $(BinaryVersion) 不一致；请同步源清单，确保 Visual Studio 打包向导显示正确版本。" />
     <PropertyGroup>
       <_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
-      <_ProductManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest').Replace('Version=&quot;$(_SourceManifestVersion)&quot;', 'Version=&quot;$(BinaryVersion)&quot;'))</_ProductManifestContent>
+      <_ProductManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest'))</_ProductManifestContent>
       <_ProductManifestContent Condition="'$(HybridMountEnableCloudThumbnails)'=='true'">$(_ProductManifestContent.Replace('&lt;!-- HYBRIDMOUNT_CLOUD_THUMBNAIL --&gt;', '&lt;desktop3:CustomStateHandler /&gt;&lt;desktop3:ThumbnailProviderHandler Clsid=&quot;A65802EB-4D1C-4C7E-A519-34C76B9BB281&quot; /&gt;&lt;desktop3:ExtendedPropertyHandler /&gt;&lt;desktop3:BannersHandler /&gt;&lt;desktop3:CloudFilesContextMenus /&gt;'))</_ProductManifestContent>
     </PropertyGroup>
     <WriteLinesToFile File="$(_ProductManifest)" Lines="$(_ProductManifestContent)" Overwrite="true" Encoding="UTF-8" WriteOnlyWhenDifferent="true" />

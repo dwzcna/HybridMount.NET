@@ -20,6 +20,11 @@
   </Project>
   <Project Path="HybridMount/HybridMount.csproj">
     <BuildDependency Project="HybridMount.Ext/HybridMount.Ext.vcxproj" />
+    <!-- 包向导要求主程序同时参与生成和部署；非打包配置不部署。 -->
+    <Deploy Solution="Debug|*" Project="true" />
+    <Deploy Solution="Release|*" Project="true" />
+    <Deploy Solution="DebugUnpackaged|*" Project="false" />
+    <Deploy Solution="ReleaseUnpackaged|*" Project="false" />
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
   </Project>

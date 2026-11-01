@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.5.3**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.6**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -49,6 +49,8 @@ Visual Studio 调试选择：
 
 Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=None`，可直接运行 EXE；扩展、测试工程在 Unpackaged 配置中复用对应 Debug／Release 构建。输出按架构、配置、Packaged／Unpackaged 隔离。
 
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.6`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.6.0`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+
 在根目录使用 PowerShell 7：
 
 ```powershell
@@ -73,7 +75,7 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-验证细节及待测项目见 [docs/Validation-0.0.5.2.md](docs/Validation-0.0.5.2.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
+验证细节及待测项目见 [docs/Validation-0.0.6.md](docs/Validation-0.0.6.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
 
 
 真实 WebDAV 长时验证为显式操作，不随普通测试自动联网。`build/Test-WebDav.ps1` 使用独立工作目录和当前用户 DPAPI 凭据，默认运行 65 分钟；配置与实际服务边界见 [LAN 测试记录](docs/Validation-0.0.5.3-WebDAV-LAN.md)。
