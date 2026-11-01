@@ -154,9 +154,18 @@ public sealed partial class MountManager
                         var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
                         if(DeletedSourceAncestor(entries,relative) is not null)
                         {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(stamp.IsDirectory)Scan(path);continue;}
+                        if(prior is not null&&(prior.IsDirectory!=stamp.IsDirectory||prior.State=="Conflict"&&prior.Error==CloudUploadState.TypeConflictMessage))
+                        {
+                            // 已发出的请求继续核对结果；类型冲突不能被普通扫描重新改成创建请求。
+                            if(prior.ObservedStamp!=stamp.Key||prior.Error!=CloudUploadState.TypeConflictMessage||prior.State is not("Conflict" or "Sending" or "OutcomeUnknown"))
+                                ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key,Generation=x.Generation+(x.ObservedStamp==stamp.Key?0:1),
+                                    State=x.State is "Sending" or "OutcomeUnknown"?x.State:"Conflict",Error=CloudUploadState.TypeConflictMessage,LastCheckedUtc=null});
+                            if(entry is not null&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
+                            if(stamp.IsDirectory)Scan(path);continue;
+                        }
                         if(prior is {State:"Ignored"}&&prior.ObservedStamp!=stamp.Key&&!ContentChanged(prior.ObservedStamp,stamp))
                         {ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key});}
-                        else if(!clean&&(prior is null||prior.ObservedStamp!=stamp.Key))
+                        else if(!clean&&(prior is null||prior.ObservedStamp!=stamp.Key||prior.State=="Completed"))
                         {
                             var sourcePath=relative;var samePath=entry is not null&&entry.LocalPath.Equals(relative,StringComparison.Ordinal)&&entry.SourcePath.Equals(relative,StringComparison.Ordinal);
                             var baseline=samePath?entry!.Version:null;

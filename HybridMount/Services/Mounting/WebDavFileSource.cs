@@ -94,7 +94,8 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     }
     private async Task<IReadOnlyList<SourceEntry>> PropFindAsync(string path, int depth, CancellationToken token, bool allowMissing=false)
     {
-        path = RelativePaths.Normalize(path); var uri = Address(path, true);
+        // 文件元数据使用原始资源 URI；尾斜杠只用于深度 1 的集合枚举。
+        path = RelativePaths.Normalize(path); var uri = Address(path, depth != 0);
         using var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), uri);
         request.Headers.Add("Depth", depth.ToString(CultureInfo.InvariantCulture));
         request.Content = new StringContent("""

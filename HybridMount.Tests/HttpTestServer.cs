@@ -28,6 +28,7 @@ internal sealed class HttpTestServer : IAsyncDisposable
     {
         try { while(!_stop.IsCancellationRequested){var client=await _listener.AcceptTcpClientAsync(_stop.Token);_clients.Add(ServeAsync(client));} }
         catch(OperationCanceledException){}catch(SocketException)when(_stop.IsCancellationRequested){}
+        catch(ObjectDisposedException)when(_stop.IsCancellationRequested){}
     }
     private async Task ServeAsync(TcpClient client)
     {

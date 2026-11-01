@@ -5,6 +5,9 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
+    /// <summary>实例级确定性测试屏障；生产默认关闭，不经 UI/IPC 配置。提交阶段的回调不得获取根锁。</summary>
+    internal Func<string,LocalUpload,Task>? UploadCheckpointForTests { get; set; }
+    private Task UploadCheckpointAsync(string stage,LocalUpload item)=>UploadCheckpointForTests?.Invoke(stage,item)??Task.CompletedTask;
     /// <summary>网络发送前短暂打开只读共享的文件，复制到挂载根外并核对身份、USN 和摘要。</summary>
     private async Task<LocalUpload?> PrepareUploadAsync(Runtime root,LocalUpload queued,CancellationToken token)
     {
@@ -14,8 +17,9 @@ public sealed partial class MountManager
         {
             if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             var item=_repository.Upload(queued.Id);if(item is null||item.CancelRequested)return null;
+            if(item.State is not("Queued" or "Waiting" or "Prepared")||item.Error==CloudUploadState.TypeConflictMessage)return null;
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
-            var stamp=LocalFileState.Read(path);
+            var stamp=LocalFileState.Read(path);CloudUploadState.ValidateTypes(item,stamp);
             if(item.SnapshotPath is not null&&File.Exists(item.SnapshotPath)&&item.SnapshotStamp==stamp.Key&&item.SnapshotGeneration==item.Generation)
                 return ChangeUpload(item.Id,x=>x with{State="Prepared",LastCheckedUtc=null});
             var info=CloudFilesNative.Inspect(path);
@@ -28,7 +32,7 @@ public sealed partial class MountManager
                 using(var priority=root.Session.PrioritizeDownload(entry.Id))
                 using(var handle=CloudFilesNative.Open(path))await CloudFilesNative.HydrateAsync(handle,token).ConfigureAwait(false);
                 if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new SourceConflictException("修改过的占位尚未完整补齐，未开始上传。");
-                stamp=LocalFileState.Read(path);
+                stamp=LocalFileState.Read(path);CloudUploadState.ValidateTypes(item,stamp);
             }
             var directory=Path.Combine(_repository.DataDirectory,"UploadStaging",item.MountId.ToString("N"));Directory.CreateDirectory(directory);
             string? digest=null;
@@ -36,7 +40,7 @@ public sealed partial class MountManager
             {
                 created=Path.Combine(directory,Guid.NewGuid().ToString("N")+".snapshot");
                 await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
-                var before=LocalFileState.Read(input.SafeFileHandle);
+                var before=LocalFileState.Read(input.SafeFileHandle);CloudUploadState.ValidateTypes(item,before);
                 if(before.Identity!=stamp.Identity||before.Key!=stamp.Key)throw new IOException("文件在准备快照时变化，等待稳定后重试。");
                 using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 await using(var output=new FileStream(created,FileMode.CreateNew,FileAccess.Write,FileShare.None,131072,FileOptions.Asynchronous|FileOptions.SequentialScan))
@@ -66,23 +70,23 @@ public sealed partial class MountManager
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
             {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=RemoteDeletedMessage,LastCheckedUtc=null});return;}
-            var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path);bool clean=false;
+            var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path);LocalFileStamp? committedStamp=null;
+            CloudUploadState.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
+            if(_repository.Upload(prepared.Id)?.Error==CloudUploadState.TypeConflictMessage)throw new SourceConflictException(CloudUploadState.TypeConflictMessage);
             // 远端 StableId 可为空且不保证可用；占位身份始终由本产品维护。
             var mapped=_repository.Entries(prepared.MountId).FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);
             var entry=new MountEntry(mapped?.Id??prepared.Id,prepared.SourcePath,prepared.LocalPath,receipt.Version,receipt.IsDirectory,Materialized:true);
             if(exists&&!prepared.IsCopy)
             {
                 MountPathGuard.ValidateOperation(root.Definition,path);
+                CloudUploadState.ValidateTypes(prepared,LocalFileState.Read(path),receipt.IsDirectory);
                 var current=_repository.Upload(prepared.Id);
-                if(current?.Generation==prepared.SnapshotGeneration)clean=CloudUploadState.Commit(root.Definition,entry,prepared);
+                if(current?.Generation==prepared.SnapshotGeneration)committedStamp=CloudUploadState.Commit(root.Definition,entry,prepared);
             }
-            var completed=_repository.CommitUploadedEntry(prepared,entry,receipt,clean,!exists);
-            if(clean&&exists)
-            {
-                var stamp=LocalFileState.Read(path);
-                completed=_repository.UpdateUpload(prepared.Id,x=>x.Generation==prepared.SnapshotGeneration?x with{ObservedStamp=stamp.Key}:x)!;
-                _previews.Queue(root.Definition,entry);
-            }
+            if(committedStamp is not null)await UploadCheckpointAsync("CommitVerified",prepared).ConfigureAwait(false);
+            var completed=_repository.CommitUploadedEntry(prepared,entry,receipt,committedStamp,!exists);
+            await UploadCheckpointAsync("Committed",completed).ConfigureAwait(false);
+            if(committedStamp is not null&&exists)_previews.Queue(root.Definition,entry);
             PublishUpload(completed);DeleteUploadSnapshot(prepared.SnapshotPath);root.Uploads?.Wake();
         }
         finally{root.Gate.Release();}

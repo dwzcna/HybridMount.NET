@@ -101,7 +101,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     private static string NonRoot(string path) => RelativePaths.Normalize(path) is { Length: > 0 } result ? result : throw new ArgumentException("不能修改源根。");
     private static ObjectVersion Version(SourceEntry entry) => JsonSerializer.Deserialize<ObjectVersion>(entry.Version) ?? throw new IOException("S3 版本无效。");
     private static ObjectVersion Version(string expected) => JsonSerializer.Deserialize<ObjectVersion>(expected) ?? throw new IOException("S3 版本无效。");
-    private static string RequiredETag(ObjectVersion version) => EntityTagHeaderValue.TryParse(version.ETag, out var tag) && !tag.IsWeak
+    private static string RequiredETag(ObjectVersion version) => EntityTagHeaderValue.TryParse(version.ETag, out var tag) && !tag.IsWeak && tag.Tag!="*"
         ? version.ETag! : throw new NotSupportedException("S3 对象缺少有效 ETag，拒绝条件修改。");
     private static string? ImmutableVersion(string? value) => string.IsNullOrEmpty(value) || value == "null" ? null : value;
     /// <summary>不输出 SDK 原始异常、服务端 XML 或 URL；修改请求不自动重试。</summary>
@@ -419,34 +419,50 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         // 不传 VersionId：版本化桶创建删除标记，绝不永久清理历史版本。
         await DeleteKeyAsync(Key(path) + (entry.IsDirectory ? "/" : ""), RequiredETag(Version(entry)), token).ConfigureAwait(false);
     }
+    /// <summary>复制回执与目标版本一致才允许条件删源；多个请求不构成原子移动。</summary>
     private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token)
     {
         await CheckTargetAsync(destination,null,token).ConfigureAwait(false);
-        var version = Version(entry); var key = Key(destination);
-        if (_copyVerified && entry.Size <= 5L * 1024 * 1024 * 1024)
-            await Call(() => _client.CopyObjectAsync(new() { SourceBucket = _bucket, SourceKey = Key(entry.Path), SourceVersionId = version.VersionId,
-                ETagToMatch = RequiredETag(version), DestinationBucket = _bucket, DestinationKey = key, IfNoneMatch = "*" }, token), token, true).ConfigureAwait(false);
-        else
+        var version=Version(entry);var key=Key(destination);var acknowledged=false;
+        try
         {
-            Directory.CreateDirectory(_work); var path = Path.Combine(_work, Guid.NewGuid().ToString("N") + ".move.tmp");
-            try
+            ObjectVersion receipt;
+            if(_copyVerified&&entry.Size<=5L*1024*1024*1024)
             {
-                await using var spool = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 65536, FileOptions.Asynchronous);
-                var bytes = new byte[1024 * 1024]; long offset = 0;
-                while (offset < entry.Size) { var count = await ReadRangeAsync(entry, offset, bytes, token).ConfigureAwait(false); await spool.WriteAsync(bytes.AsMemory(0, count), token).ConfigureAwait(false); offset += count; }
-                spool.Position = 0; await UploadAsync(destination, spool, null, token).ConfigureAwait(false);
+                var copied=await Call(()=>_client.CopyObjectAsync(new(){SourceBucket=_bucket,SourceKey=Key(entry.Path),SourceVersionId=version.VersionId,
+                    ETagToMatch=RequiredETag(version),DestinationBucket=_bucket,DestinationKey=key,IfNoneMatch="*"},token),token,true).ConfigureAwait(false);
+                acknowledged=true;receipt=new(copied.ETag,ImmutableVersion(copied.VersionId));
             }
-            finally { File.Delete(path); }
+            else
+            {
+                Directory.CreateDirectory(_work);var path=Path.Combine(_work,Guid.NewGuid().ToString("N")+".move.tmp");
+                try
+                {
+                    await using var spool=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,65536,FileOptions.Asynchronous);
+                    var bytes=new byte[1024*1024];long offset=0;
+                    while(offset<entry.Size){var count=await ReadRangeAsync(entry,offset,bytes,token).ConfigureAwait(false);await spool.WriteAsync(bytes.AsMemory(0,count),token).ConfigureAwait(false);offset+=count;}
+                    spool.Position=0;var uploaded=await UploadAsync(destination,spool,null,token).ConfigureAwait(false);
+                    acknowledged=true;receipt=Version(uploaded);
+                }
+                finally{File.Delete(path);}
+            }
+            token.ThrowIfCancellationRequested();
+            var receiptTag=RequiredETag(receipt);
+            var copy=await GetMetadataAsync(destination,token).ConfigureAwait(false);var current=Version(copy);
+            if(copy.IsDirectory||copy.Size!=entry.Size||current.ETag!=receiptTag||
+                receipt.VersionId is not null&&current.VersionId is not null&&receipt.VersionId!=current.VersionId)
+                throw new SourcePartialMoveException([new(entry.Path,"Copied",$"目标 {destination} 与本次复制回执的类型、长度或版本不一致；源保留。")]);
+            token.ThrowIfCancellationRequested();
+            try{await DeleteAsync(entry.Path,entry.Version,token).ConfigureAwait(false);}
+            catch(NotSupportedException)
+            {throw new SourcePartialMoveException([new(entry.Path,"Copied",$"目标 {destination} 已核对；服务未通过可靠的条件删除验证，源保留。")]);}
+            catch(Exception error)when(error is IOException or OperationCanceledException)
+            {throw new SourcePartialMoveException([new(entry.Path,"Copied",$"目标 {destination} 已核对，但源删除未确认；请核对两端。")]);}
+            return copy;
         }
-        SourceEntry copy;
-        try { copy=await GetMetadataAsync(destination,token).ConfigureAwait(false); }
-        catch(Exception error)when(error is IOException or OperationCanceledException)
-        { throw new SourcePartialMoveException([new(entry.Path,"Copied","复制请求成功，但目标核对未完成；源保留。")]); }
-        if (copy.Size != entry.Size) throw new SourcePartialMoveException([new(entry.Path, "Copied", "目标大小未通过核对，源保留。")]);
-        try { await DeleteAsync(entry.Path, entry.Version, token).ConfigureAwait(false); }
-        catch (Exception error) when (error is IOException or OperationCanceledException)
-        { throw new SourcePartialMoveException([new(entry.Path, "Copied", "复制完成但源删除未确认；请核对两端。")]); }
-        return copy;
+        catch(SourcePartialMoveException){throw;}
+        catch(Exception error)when(error is IOException or OperationCanceledException or NotSupportedException)
+        {throw new SourcePartialMoveException([new(entry.Path,acknowledged?"Copied":"Unconfirmed",$"复制到 {destination} 或目标核对未确认；未执行后续源删除，请核对两端。")]);}
     }
     public async Task<SourceEntry> MoveAsync(string path, string destination, string expectedVersion, CancellationToken token = default)
     {

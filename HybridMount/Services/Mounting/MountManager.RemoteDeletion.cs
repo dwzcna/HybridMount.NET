@@ -91,6 +91,8 @@ public sealed partial class MountManager
         try
         {
             if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
+            var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
+            CloudUploadState.ValidateTypes(item,LocalFileState.Read(local));
             var entries=_repository.Entries(root.Definition.Id);
             if(DeletedSourceAncestor(entries,item.SourcePath) is not null)throw new SourceConflictException(RemoteDeletedMessage);
             var known=entries.FirstOrDefault(entry=>entry.SourcePath==item.SourcePath);
@@ -117,6 +119,7 @@ public sealed partial class MountManager
     /// <summary>快照校验完成后，在根锁内重新核对屏障和任务状态再进入发送阶段；刷新先完成时绝不覆盖其冲突状态。</summary>
     internal async Task<LocalUpload?> BeginUploadSendAsync(Guid mountId,LocalUpload prepared,CancellationToken token=default)
     {
+        await UploadCheckpointAsync("BeforeSend",prepared).ConfigureAwait(false);
         var root=Root(mountId);await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -126,6 +129,8 @@ public sealed partial class MountManager
             if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
             if(current.Generation!=current.SnapshotGeneration)
             {ChangeUpload(current.Id,item=>item with{State="Queued",Error=null,LastCheckedUtc=null});return null;}
+            var path=RelativePaths.ToLocal(root.Definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
+            CloudUploadState.ValidateTypes(current,LocalFileState.Read(path));
             return ChangeUpload(current.Id,item=>item with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null});
         }
         finally{root.Gate.Release();}

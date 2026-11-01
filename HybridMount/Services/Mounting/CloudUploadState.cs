@@ -9,8 +9,24 @@ namespace HybridMount.Services.Mounting;
 /// <summary>上传后只转换和标记已核对的当前文件；不删除重建、不脱水、不改变固定状态。</summary>
 internal static class CloudUploadState
 {
-    /// <summary>排他 oplock 下比较身份和代次；并发编辑时返回 false，保留本地脏状态。</summary>
-    public static bool Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)
+    /// <summary>持久冲突提示同时供扫描与显式重试识别；不自动改变已有上传意图的类型。</summary>
+    internal const string TypeConflictMessage="本地对象、上传意图、快照或远端回执的文件/目录类型不一致；请恢复原类型后重试，或改名后上传。";
+
+    /// <summary>校验当前对象、不可变快照与远端回执的类型；任何不一致均拒绝发送或提交。</summary>
+    public static void ValidateTypes(LocalUpload intent,LocalFileStamp? local=null,bool? remoteDirectory=null)
+    {
+        if(local is not null&&local.IsDirectory!=intent.IsDirectory||remoteDirectory is not null&&remoteDirectory!=intent.IsDirectory)
+            throw new SourceConflictException(TypeConflictMessage);
+        if(intent.SnapshotStamp is not null)
+        {
+            var parts=intent.SnapshotStamp.Split(':');
+            if(parts.Length!=6||!bool.TryParse(parts[5],out var directory)||directory!=intent.IsDirectory)
+                throw new SourceConflictException(TypeConflictMessage);
+        }
+    }
+
+    /// <summary>保护引用内核验内容并返回提交后稳定戳；并发编辑返回空值，类型冲突拒绝原生转换。</summary>
+    public static LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)
     {
         var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);
         using var handle=CloudFilesNative.Open(path,true);
@@ -19,15 +35,16 @@ internal static class CloudUploadState
         {
             var raw=CloudFilesNative.CfGetWin32HandleFromProtectedHandle(handle);
             using var borrowed=new SafeFileHandle(raw,false);var stamp=LocalFileState.Read(borrowed);
-            if(stamp.Identity!=prepared.SnapshotIdentity)return false;
+            ValidateTypes(prepared,stamp,entry.IsDirectory);
+            if(stamp.Identity!=prepared.SnapshotIdentity)return null;
             var info=CloudFilesNative.Inspect(path);
             var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
             var alreadyCommitted=marker?.MountId==mount.Id&&marker.EntryId==entry.Id&&info?.Info.InSyncState==1;
             if(!entry.IsDirectory&&stamp.Key!=prepared.SnapshotStamp)
             {
-                if(!alreadyCommitted)return false;
+                if(!alreadyCommitted)return null;
                 using var stream=new ProtectedResourceStream(raw,stamp.Length);
-                if(System.Convert.ToHexString(SHA256.HashData(stream))!=prepared.SnapshotSha256)return false;
+                if(System.Convert.ToHexString(SHA256.HashData(stream))!=prepared.SnapshotSha256)return null;
             }
             var identity=JsonSerializer.SerializeToUtf8Bytes(new MountPathGuard.EntryMarker(mount.Id,entry.Id));
             long usn=stamp.Usn;
@@ -42,7 +59,9 @@ internal static class CloudUploadState
                     if(update<0)throw new IOException($"上传占位身份提交失败：0x{update:X8}");
                 }
             }
-            usn=0;var sync=SetInSync(handle,1,0,ref usn);if(sync<0)throw new IOException($"上传同步状态提交失败：0x{sync:X8}");return true;
+            usn=0;var sync=SetInSync(handle,1,0,ref usn);if(sync<0)throw new IOException($"上传同步状态提交失败：0x{sync:X8}");
+            // 转换和同步标记会推进 USN；必须在保护引用释放前从同一对象取戳。
+            return LocalFileState.Read(borrowed);
         }
         finally{CloudFilesNative.CfReleaseProtectedHandle(handle);}
     }
