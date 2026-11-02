@@ -14,6 +14,7 @@ public sealed partial class MountsPage : Page, IDisposable
     public MountsViewModel ViewModel { get; }=new(App.Current.Mounts);
     private bool _busy,_updatingPreview,_changingPreview;
     private Guid? _selectedMount;
+    private MountBackupDialog? _backupDialog;
     /// <summary>创建页面并保留刷新前选中的挂载 ID。</summary>
     public MountsPage()
     {
@@ -64,6 +65,26 @@ public sealed partial class MountsPage : Page, IDisposable
         var dialog=new NetworkMountDialog(FileSourceKind.S3){XamlRoot=XamlRoot};await dialog.ShowAsync();
         if(dialog.CreatedMount is not null){_selectedMount=dialog.CreatedMount.Id;RestoreSelection();ViewModel.Status=dialog.ResultMessage;}
     });
+    /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与密文写入由应用服务执行。</summary>
+    private async void ExportConfigurations(object sender,RoutedEventArgs args)=>await Run(async()=>
+    {
+        try { _backupDialog=new MountBackupDialog{XamlRoot=XamlRoot};await _backupDialog.ShowAsync();if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage; }
+        finally { _backupDialog=null; }
+    });
+    /// <summary>文件选择只接受加密配置；解密通过后先预览，保存不会自动连接。</summary>
+    private async void ImportConfigurations(object sender,RoutedEventArgs args)=>await Run(async()=>
+    {
+        var picker=new Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hmconfig");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+        var file=await picker.PickSingleFileAsync();if(file is null||App.Current.IsExiting)return;
+        try
+        {
+            _backupDialog=new MountBackupDialog(file.Path){XamlRoot=XamlRoot};await _backupDialog.ShowAsync();
+            if(_backupDialog.ImportedIds.Count>0){_selectedMount=_backupDialog.ImportedIds[^1];RestoreSelection();}
+            if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage;
+        }
+        finally { _backupDialog=null; }
+    });
     private async void Connect(object sender,RoutedEventArgs args)=>await Run(()=>App.Current.Mounts.ConnectAsync(Selected().Definition.Id));
     private async void UpdateCredentials(object sender,RoutedEventArgs args)=>await Run(async()=>
     {
@@ -103,5 +124,5 @@ public sealed partial class MountsPage : Page, IDisposable
         ViewModel.Status="移除任务已提交，可在任务页查看进度和逐项结果。";
     });
     /// <summary>窗口释放时解除列表订阅，不断开挂载。</summary>
-    public void Dispose() { ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
+    public void Dispose() { _backupDialog?.CancelForShutdown();ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
 }

@@ -6,7 +6,7 @@ public enum FileSourceKind { LegacyMock, WebDav, S3, Smb, Nfs }
 public sealed record FileSourceConfiguration(FileSourceKind Kind, string Endpoint = "", string Bucket = "",
     string Prefix = "", string Region = "us-east-1", bool PathStyle = true, bool AllowHttp = false,
     bool UseDefaultCredentials = false);
-/// <summary>仅在当前用户 DPAPI 密文或内存中存在；禁止写入日志和普通配置。</summary>
+/// <summary>仅在内存、当前用户 DPAPI 密文或密码加密备份中存在；禁止写入日志和普通配置。</summary>
 public sealed record SourceCredentials(string UserName = "", string Password = "", string AccessKey = "",
     string SecretKey = "", string SessionToken = "");
 /// <summary>请求可能已在服务器完成，调用者必须核对结果，不可盲目重试。</summary>

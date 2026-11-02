@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.6**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.6.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -11,6 +11,8 @@
 3. 挂载页支持连接、断开、刷新、打开目录和扫描本地改动。连接期间持续上传本地新增和修改，自动上传开关已移除；升级前的旧改动也自动纳入。取消、冲突、结果不明和远端删除保护继续生效。独立任务页区分文件、目录及副本的远端目标，保留已完成上传的历史，显示字节进度、等待、冲突和结果待核对，支持取消、重试、另存远端副本及逐项结果；切换页面后任务继续。
 4. 在远端删除文件或目录后，点击“刷新”或重连挂载。确认删除后会清理本地未修改的已同步占位及缓存，**包括已固定文件**；本地修改、新建、占用及上传结果不明的内容保留并报告。已删除的路径和父目录不会因本地补扫或重启自动重新上传；这次不增加后台远端轮询。
 5. “移除挂载”提供“下载并移除”“清空并移除”和“取消”。已注册根的下载并移除保留全部剩余本地文件；从未注册成功的条目显示“移除挂载（保留本地文件）”，离线保留本地内容并移除配置。清空并移除永久删除根目录内全部内容，包括本地修改及新建文件，保留空根目录，不下载或删除文件源内容；提交前再次确认，默认取消。
+
+6. “导出配置”可以选择 WebDAV／S3 挂载，用至少 8 个字符的备份密码生成 `.hmconfig` 加密文件，包含连接参数、凭据、随启动连接和缩略图选项。密码中的空白也参与加密。“导入配置”先解密并预览，可逐项重选本地 NTFS 空目录；只新增、重复项跳过，现有挂载不会被覆盖。导入后仅保存、不立即连接，可手动连接，之后启动按恢复的自动连接设置执行。文件可用于跨机器及打包／非打包模式迁移；SDK 默认凭据链只备份模式，需在目标机器另行配置。
 
 移除失败或取消后会保留模式与状态，重启不会自动重放删除操作；再次选择相同方式重试。已经删除的内容不会因取消而恢复。
 
@@ -49,7 +51,7 @@ Visual Studio 调试选择：
 
 Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=None`，可直接运行 EXE；扩展、测试工程在 Unpackaged 配置中复用对应 Debug／Release 构建。输出按架构、配置、Packaged／Unpackaged 隔离。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.6`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.6.0`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.6.1`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.6.1`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -75,7 +77,7 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-验证细节及待测项目见 [docs/Validation-0.0.6.md](docs/Validation-0.0.6.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
+验证细节及待测项目见 [docs/Validation-0.0.6.1.md](docs/Validation-0.0.6.1.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt。
 
 
 真实 WebDAV 长时验证为显式操作，不随普通测试自动联网。`build/Test-WebDav.ps1` 使用独立工作目录和当前用户 DPAPI 凭据，默认运行 65 分钟；配置与实际服务边界见 [LAN 测试记录](docs/Validation-0.0.5.3-WebDAV-LAN.md)。

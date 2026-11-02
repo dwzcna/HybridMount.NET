@@ -21,6 +21,8 @@ public sealed partial class MountManager : IAsyncDisposable
         public IFileSource? Source;
         public UploadRuntime? Uploads;
         public bool SchedulingEnabled=true;
+        // 导入在本进程只保存；重启重新加载后恢复配置中的自动连接选择。
+        public bool SkipStartupConnection;
         public Action<SourceContentBaseline>? BaselineObserver;
         public Action<string>? WriteObserver;
         public string Status=definition.RemovalPending?"移除未完成":"未连接";
@@ -85,40 +87,18 @@ public sealed partial class MountManager : IAsyncDisposable
     public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
     private async Task InitializeAsync()
     {
-        foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending))
+        foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))
             try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.Queue("恢复挂载","Error",error.Message); }
     }
     public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true)
         =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload),token);
     private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload)
     {
-        if(_factory is FileSourceFactory)
-        {
-            if(source is null || source.Kind is FileSourceKind.LegacyMock or FileSourceKind.Smb or FileSourceKind.Nfs)throw new NotSupportedException("请选择已实现的网络协议。");
-            FileSourceFactory.Endpoint(source);
-            if(source.Kind==FileSourceKind.S3)
-            {
-                S3FileSource.ValidateOptions(source);
-                if(!source.UseDefaultCredentials&&(string.IsNullOrWhiteSpace(credentials?.AccessKey)||string.IsNullOrWhiteSpace(credentials?.SecretKey)))throw new ArgumentException("请填写 S3 访问密钥或选择默认凭据链。");
-            }
-            if(source.Kind==FileSourceKind.WebDav&&credentials?.UserName.Contains(':')==true)throw new ArgumentException("WebDAV 账号不能包含冒号。");
-        }
-        if(string.IsNullOrWhiteSpace(name))throw new ArgumentException("请输入挂载名称。");
-        var root=MountPathGuard.NormalizeRoot(directory);
-        if(MountPathGuard.IsUnder(root,_repository.DataDirectory) || MountPathGuard.IsUnder(_repository.DataDirectory,root) || MountPathGuard.IsUnder(root,AppContext.BaseDirectory) || MountPathGuard.IsUnder(AppContext.BaseDirectory,root))throw new IOException("不能将程序或自身数据目录用作挂载根。");
-        if(Directory.EnumerateFileSystemEntries(root).Any())throw new IOException("新挂载必须选择空目录。");
-        if(_roots.Values.Any(item=>MountPathGuard.IsUnder(item.Definition.LocalPath,root)||MountPathGuard.IsUnder(root,item.Definition.LocalPath)))throw new IOException("挂载根不能重叠。");
-        var definition=new MountDefinition(Guid.NewGuid(),name.Trim(),root,autoConnect,RootIdentity:MountPathGuard.FileIdentity(root),Source:source,RegistrationStage:MountRegistrationStage.NotRegistered,AutoUploadEnabled:true,UploadInitialReviewCompleted:true,ContinuousUploadMigrated:true);
-        var secretStore=new CredentialStore(_repository.DataDirectory);
-        lock(_lifetime)
-        {
-            ThrowIfStopping();token.ThrowIfCancellationRequested();
-            if(credentials is not null)secretStore.Save(definition.Id,credentials);
-            try { _repository.SaveDefinition(definition); }
-            catch { secretStore.Delete(definition.Id);throw; }
-            _roots[definition.Id]=new(definition);
-        }
-        Notify();await ConnectOwnedAsync(definition.Id,token).ConfigureAwait(false); return Root(definition.Id).Definition;
+        MountDefinition definition;
+        await _configurationGate.WaitAsync(token).ConfigureAwait(false);
+        try { definition = SaveNewMountCore(name, directory, autoConnect, source, credentials, false, token); }
+        finally { _configurationGate.Release(); }
+        Notify(); await ConnectOwnedAsync(definition.Id, token).ConfigureAwait(false); return Root(definition.Id).Definition;
     }
     public SourceCredentials GetCredentials(Guid id) { Root(id);return new CredentialStore(_repository.DataDirectory).Load(id); }
     /// <summary>只更换凭据，不能将已有占位悄悄重绑定到另一数据源。</summary>
