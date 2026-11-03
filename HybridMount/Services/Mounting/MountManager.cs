@@ -379,8 +379,10 @@ public sealed partial class MountManager : IAsyncDisposable
         var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
-            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
+            CancelConnection(root);
+            // 先取消任务所有者，再停止共享检测：关联读取可立即结束，不能在任务令牌尚有效的窗口被误记 Failed。
             foreach(var job in _jobs.Values.Where(job=>job.Root==id))job.Cancel.Cancel();
+            RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
             await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),previewStop,reads,root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync().ConfigureAwait(false);
             try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"未连接");}
