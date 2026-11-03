@@ -11,6 +11,8 @@ public interface IFileSource : IAsyncDisposable
     bool IsSameVersion(string left, string right) => string.Equals(left, right, StringComparison.Ordinal);
     /// <summary>只读连接探测；不得在此自动创建或删除用户的远端内容。</summary>
     Task ProbeAsync(CancellationToken token = default) => Task.CompletedTask;
+    /// <summary>只读服务器容量；无标准接口的适配器返回未知，不能以本地磁盘或对象合计代替。</summary>
+    Task<RemoteCapacity> GetRemoteCapacityAsync(CancellationToken token=default)=>Task.FromResult(RemoteCapacity.Unknown);
     /// <summary>会话停止后释放连接；兼容测试源的同步释放。</summary>
     ValueTask IAsyncDisposable.DisposeAsync()
     {

@@ -22,8 +22,9 @@ public enum MountRegistrationStage { Unknown, NotRegistered, Registering, Regist
 public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown, bool AutoUploadEnabled = false, bool UploadInitialReviewCompleted = false, bool ContinuousUploadMigrated = false, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, long CredentialRevision = 0, SqsConfiguration? Sqs = null);
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false, RemotePresence RemotePresence = RemotePresence.Unknown);
-public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail, RemoteDetectionStatus? Detection=null, bool IsConnected=false, bool IsConnecting=false, bool IsDisconnecting=false, string? ActiveOperation=null)
+public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail, RemoteDetectionStatus? Detection=null, bool IsConnected=false, bool IsConnecting=false, bool IsDisconnecting=false, string? ActiveOperation=null, RemoteCapacitySnapshot? Capacity=null)
 {
+    public string CapacityDisplay=>Capacity?.Display??"远端容量：尚未查询。";
     public string RemoteDetectionDisplay=>Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)?"":!Definition.RemoteAutoDetectEnabled?"远端自动检测：关闭":
          $"远端自动检测：{Detection?.Mode??"尚未检测"}；{(Definition.Source?.Kind==FileSourceKind.S3?"":$"增量 {Definition.RemoteIncrementalSeconds} 秒，")}完整 {Definition.RemoteFullSeconds} 秒；最近成功：{Detection?.LastSuccessUtc?.ToLocalTime().ToString("g")??"尚无"}"+(Detection?.Error is {} error?"；"+error:"");
     public string SqsDisplay=>Definition.Source?.Kind!=FileSourceKind.S3?"":Definition.Sqs?.Enabled!=true?"SQS 事件加速：关闭，定时完整对账仍保留":!Definition.RemoteAutoDetectEnabled?"SQS 事件加速：已暂停（远端自动检测关闭）":
@@ -36,6 +37,9 @@ public sealed record MountItemResult(string Path, string Status, string Message)
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,
     IReadOnlyList<MountItemResult> Results, string? Error, Guid? MountId = null, string? ItemPath = null, long BytesTransferred = 0, long TotalBytes = 0, bool? IsDirectory = null, string? RemotePath = null)
 {
+    /// <summary>SQLite 首次提交顺序，仅供展示排序，持久记录仍由原表行序决定。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public long SubmissionOrder {get;init;}
     /// <summary>区分文件、目录和副本目标；旧历史缺少类型时显示条目，不猜测类型。</summary>
     public string DisplayTarget=>Operation!="upload"?ItemPath??"":$"{(IsDirectory is true?"目录":IsDirectory is false?"文件":"条目")}：{ItemPath}"+
         (RemotePath is not null&&RemotePath!=ItemPath?$" → 远端：{RemotePath}":"");

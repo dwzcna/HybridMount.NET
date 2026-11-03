@@ -108,9 +108,9 @@ public sealed partial class MountRepository
     {
         lock (_gate)
         {
-            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT json FROM operations ORDER BY rowid DESC LIMIT 100";
+            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT rowid,json FROM operations WHERE json_extract(json,'$.State') NOT IN ('Completed','Canceled','Ignored','Superseded','Failed','PartialFailure','Interrupted') OR rowid IN (SELECT rowid FROM operations WHERE json_extract(json,'$.State') IN ('Completed','Canceled','Ignored','Superseded','Failed','PartialFailure','Interrupted') ORDER BY rowid DESC LIMIT 100) ORDER BY rowid DESC";
             using var row = cmd.ExecuteReader(); var result = new List<MountOperationSnapshot>();
-            while (row.Read()) { var item = JsonSerializer.Deserialize<MountOperationSnapshot>(row.GetString(0))!; result.Add(item.State is "Queued" or "Running" ? item with { State = "Interrupted", Error = "上次进程已结束；修改操作未被自动重放。" } : item); }
+            while (row.Read()) { var item = JsonSerializer.Deserialize<MountOperationSnapshot>(row.GetString(1))! with{SubmissionOrder=row.GetInt64(0)}; result.Add(item.State is "Queued" or "Running" ? item with { State = "Interrupted", Error = "上次进程已结束；修改操作未被自动重放。" } : item); }
             return result;
         }
     }

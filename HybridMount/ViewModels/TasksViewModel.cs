@@ -14,9 +14,10 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private int _pending;
     private bool _disposed;
     private string _status="切换页面或关闭到托盘后，后台任务会继续运行。";
-    /// <summary>按提交时间倒序显示最近的任务。</summary>
+    /// <summary>执行中、排队／等待和历史分组展示，同组使用稳定提交顺序。</summary>
     public ObservableCollection<MountOperationSnapshot> Operations { get; }=[];
     /// <summary>刷新后由页面按任务 ID 恢复选择。</summary>
+    public event Action? Refreshing;
     public event Action? Refreshed;
     /// <summary>当前操作提示。</summary>
     public string Status { get=>_status; set=>SetProperty(ref _status,value); }
@@ -29,7 +30,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     }
     private void Refresh()
     {
-        try { Operations.Clear();foreach(var operation in _manager.Operations)Operations.Add(operation);Refreshed?.Invoke(); }
+        try { var snapshots=OperationDisplayOrder.Sort(_manager.Operations);Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);Refreshed?.Invoke(); }
         catch(Exception error) { Status=error.Message; }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>

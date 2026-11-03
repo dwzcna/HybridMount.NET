@@ -32,7 +32,7 @@ public sealed partial class MountsPage : Page, IDisposable
         {
             if(_restoringSelection)return;
             _selectedMount=(MountList.SelectedItem as MountSnapshot)?.Definition.Id;
-            DetailsScroll.ChangeView(null,0,null,true);UpdateDetails();
+            DetailsScroll.ChangeView(null,0,null,true);UpdateDetails();_=ReadCapacityAsync(_selectedMount);
         };
         ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;UpdateDetails();
     }
@@ -66,6 +66,15 @@ public sealed partial class MountsPage : Page, IDisposable
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,()=>
         {if(!_disposed&&revision==_refreshVersion)_listScroll?.ChangeView(null,offset,null,true);});
     }
+    /// <summary>选择挂载时只读配额缓存；成功结果按原挂载发布，切换选择不写回设置或覆盖当前草稿。</summary>
+    private async Task ReadCapacityAsync(Guid? id)
+    {
+        if(id is null||_disposed||App.Current.Mounts.IsStopping)return;
+        try{await App.Current.Mounts.RefreshCapacityAsync(id.Value);}
+        catch(OperationCanceledException)when(App.Current.Mounts.IsStopping){ }
+        catch(IOException){ }
+        catch(Exception error){App.Current.Logger.Queue("配额查询","Warning",error.GetType().Name);}
+    }
     private MountSnapshot Selected()=>MountList.SelectedItem as MountSnapshot??throw new InvalidOperationException("请先选择一个挂载。");
     /// <summary>只更新显示；所有开关写回均由加载保护与捕获的挂载 ID 隔离。</summary>
     private void UpdateDetails()
@@ -87,6 +96,7 @@ public sealed partial class MountsPage : Page, IDisposable
         var definition=mount.Definition;var source=definition.Source;
         DetailName.Text=definition.Name;DetailStatus.Text=mount.Status+(definition.RemovalPending?" · 移除模式已固定":"");DetailPath.Text=definition.LocalPath;
         DetailSource.Text=mount.SourceDisplay+(source is null?"":"\n"+source.Endpoint)+(source?.Kind==FileSourceKind.S3?$"\n桶：{source.Bucket}\n前缀：{(source.Prefix.Length==0?"（根）":source.Prefix)}\n区域：{source.Region} · {(source.PathStyle?"路径寻址":"虚拟主机寻址")}":"");
+        CapacityDescription.Text=mount.CapacityDisplay;
         DetailSummary.Text=mount.Detail.Length>180?mount.Detail[..180]+"…":mount.Detail;
         DetailDiagnostic.Text=mount.Detail;DiagnosticExpander.Visibility=mount.Detail.Length>0?Visibility.Visible:Visibility.Collapsed;
         UploadDescription.Text=mount.AutoUploadDisplay;ThumbnailDescription.Text=mount.ThumbnailDisplay;

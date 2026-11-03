@@ -11,15 +11,30 @@ public sealed partial class TasksPage : Page, IDisposable
     /// <summary>UI 线程上的任务快照集合。</summary>
     public TasksViewModel ViewModel { get; }=new(App.Current.Mounts);
     private string? _selectedJob;
-    private bool _showingResults;
+    private bool _showingResults,_restoring,_disposed;
+    private ScrollViewer? _listScroll;
+    private double _offset;
+    private long _refreshVersion;
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
     public TasksPage()
     {
         InitializeComponent();
-        JobList.SelectionChanged+=(_,_)=>{if(JobList.SelectedItem is MountOperationSnapshot job)_selectedJob=job.Id;};
-        ViewModel.Refreshed+=RestoreSelection;
+        JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is MountOperationSnapshot job)_selectedJob=job.Id;};
+        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;
     }
-    private void RestoreSelection()=>JobList.SelectedItem=ViewModel.Operations.FirstOrDefault(job=>job.Id==_selectedJob);
+    private static ScrollViewer? FindScroll(DependencyObject parent)
+    {
+        for(var i=0;i<Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);i++)
+        {var child=Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent,i);if(child is ScrollViewer viewer)return viewer;if(FindScroll(child) is {} nested)return nested;}
+        return null;
+    }
+    private void CaptureScroll(){_restoring=true;_listScroll??=FindScroll(JobList);_offset=_listScroll?.VerticalOffset??0;}
+    private void RestoreSelection()
+    {
+        try{JobList.SelectedItem=ViewModel.Operations.FirstOrDefault(job=>job.Id==_selectedJob);}finally{_restoring=false;}
+        var revision=++_refreshVersion;var offset=_offset;
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,()=>{if(!_disposed&&revision==_refreshVersion)_listScroll?.ChangeView(null,offset,null,true);});
+    }
     private void CancelJob(object sender,RoutedEventArgs args)
     {
         if(JobList.SelectedItem is not MountOperationSnapshot job) { ViewModel.Status="请先选择任务。";return; }
@@ -63,5 +78,5 @@ public sealed partial class TasksPage : Page, IDisposable
         finally { _showingResults=false; }
     }
     /// <summary>窗口释放时解除订阅；页面离开导航时仍保留缓存。</summary>
-    public void Dispose() { ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
+    public void Dispose() { _disposed=true;ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
 }

@@ -33,6 +33,7 @@
                                 <TextBlock x:Name="DetailStatus" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <TextBlock x:Name="DetailPath" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
                                 <TextBlock x:Name="DetailSource" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
                                 <TextBlock x:Name="DetailSummary" TextWrapping="Wrap"/>
                                 <Expander x:Name="DiagnosticExpander" Header="完整诊断" HorizontalAlignment="Stretch" Visibility="Collapsed"><TextBlock x:Name="DetailDiagnostic" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></Expander>
                             </StackPanel>

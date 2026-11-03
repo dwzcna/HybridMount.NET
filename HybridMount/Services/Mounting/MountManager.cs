@@ -24,6 +24,9 @@ public sealed partial class MountManager : IAsyncDisposable
         public UploadRuntime? Uploads;
         public RemoteSyncRuntime? RemoteSync;
         public RemoteDetectionStatus Detection=new();
+        public RemoteCapacitySession? Capacity;
+        public RemoteCapacitySnapshot? CapacityStatus;
+        public string? CapacityScope;
         public bool SchedulingEnabled=true;
         // 导入在本进程只保存；重启重新加载后恢复配置中的自动连接选择。
         public bool SkipStartupConnection;
@@ -80,16 +83,20 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         lock(root.ConnectionSync)return new(root.Definition,root.Status,root.Detail,root.Detection,root.Session is not null,
             root.Connecting is not null,root.ConnectionStops>0,
-            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation);
+            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus);
     }
     public IReadOnlyList<MountOperationSnapshot> Operations
     {
         get
         {
-            var uploads=_repository.Uploads().ToDictionary(x=>x.Id);var history=_repository.LoadOperations();
-            return uploads.Values.Where(x=>x.State is not("Completed" or "Canceled" or "Ignored")).Select(UploadSnapshot)
-                .Concat(history.Where(x=>!uploads.TryGetValue(x.Id,out var current)||current.State is "Completed" or "Canceled" or "Ignored")
-                .Select(item=>uploads.TryGetValue(item.Id,out var upload)?UploadSnapshot(upload):_jobs.TryGetValue(item.Id,out var job)?job.Snapshot:item)).ToArray();
+            var history=_repository.LoadOperations().ToDictionary(x=>x.Id);
+            foreach(var upload in _repository.Uploads())
+                if(upload.State is not("Completed" or "Canceled" or "Ignored")||history.ContainsKey(upload.Id))
+                    history[upload.Id]=UploadSnapshot(upload) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
+            foreach(var job in _jobs.Values)
+                if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))
+                    history[job.Snapshot.Id]=job.Snapshot with{SubmissionOrder=history.GetValueOrDefault(job.Snapshot.Id)?.SubmissionOrder??0};
+            return history.Values.ToArray();
         }
     }
     private void Notify() { if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
@@ -120,8 +127,8 @@ public sealed partial class MountManager : IAsyncDisposable
         var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
-            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);
-            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);
+            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
@@ -256,7 +263,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 catch(Exception recoveryError)when(recoveryError is not OperationCanceledException)
                 { Status(root,"已连接","已知分片恢复失败，读取仍可用；请稍后重试连接。" );_logger.Queue("S3 分片恢复","Warning",recoveryError.Message); }
             }
-            StartUploads(root);StartRemoteSync(root);
+            StartUploads(root);StartRemoteSync(root);StartCapacity(root);
         }
         catch(Exception error)
         {
@@ -366,9 +373,9 @@ public sealed partial class MountManager : IAsyncDisposable
         var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
-            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
+            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
             foreach(var job in _jobs.Values.Where(job=>job.Root==id))job.Cancel.Cancel();
-            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),previewStop,reads,root.ConnectionFinished).ConfigureAwait(false);
+            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),previewStop,reads,root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync().ConfigureAwait(false);
             try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"未连接");}
             finally{root.Gate.Release();}
@@ -378,8 +385,8 @@ public sealed partial class MountManager : IAsyncDisposable
     private async Task DisconnectCoreAsync(Runtime root)
     {
         RequestUploadStop(root);var previewStop=_previews.CancelMountAsync(root.Definition.Id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
-        var errors=new List<Exception>();
-        try{await Task.WhenAll(previewStop,reads,StopUploadsAsync(root)).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
+        RequestCapacityStop(root);var errors=new List<Exception>();
+        try{await Task.WhenAll(previewStop,reads,StopUploadsAsync(root),StopCapacityAsync(root)).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         UnobserveUploadSource(root);var session=root.Session;var source=root.Source;root.Session=null;root.Source=null;
         try{if(session is not null)await session.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         try{if(source is not null)await source.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
@@ -407,10 +414,11 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         _stop.Token.ThrowIfCancellationRequested(); var root=Root(id);
         if(operation is not("keepOnDevice" or "freeSpace" or "refresh" or "remove" or "clearAndRemove"))throw new ArgumentException("未知挂载操作。");
+        if(operation=="refresh")RefreshCapacity(root);
         var removing=operation is "remove" or "clearAndRemove";
         var mode=operation=="clearAndRemove"?MountRemovalMode.ClearContents:MountRemovalMode.PreserveFiles;
         if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除未完成，不能改用其他模式或执行缓存任务。");
-        if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);}
+        if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);}
         if(removing)foreach(var current in _jobs.Values.Where(job=>job.Root==id && job.Snapshot.State is "Queued" or "Running"))current.Cancel.Cancel();
         var job=new Job(Guid.NewGuid().ToString("N"),id,operation,_stop.Token);
         _jobs[job.Snapshot.Id]=job;Save(job);
@@ -419,7 +427,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var held=false;
             try
             {
-                if(removing)await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+                if(removing)await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),root.ConnectionFinished).ConfigureAwait(false);
                 if(operation=="refresh"&&root.Source is IRemoteChangeSource)
                 {
                     Update(job,"Running");
