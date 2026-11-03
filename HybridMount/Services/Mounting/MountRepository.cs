@@ -16,6 +16,8 @@ public sealed partial class MountRepository
         DataDirectory = Path.GetFullPath(dataDirectory); Directory.CreateDirectory(DataDirectory);
         _registry = registryPath ?? ApplicationPaths.RegistryPath + @"\Mounts\" + (WinRegisterService.IsPackaged() ? "Packaged" : "Unpackaged");
         using var db = Open(); using var cmd = db.CreateCommand();
+        cmd.CommandText="PRAGMA user_version";
+        if(Convert.ToInt32(cmd.ExecuteScalar())>5)throw new IOException("挂载索引版本较新，请使用新版 HybridMount。");
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS entries(mount TEXT NOT NULL,id TEXT NOT NULL,source TEXT NOT NULL COLLATE NOCASE,
                 local TEXT NOT NULL COLLATE NOCASE,version TEXT NOT NULL,directory INTEGER NOT NULL,deleted INTEGER NOT NULL,
@@ -27,7 +29,11 @@ public sealed partial class MountRepository
                 PRIMARY KEY(mount,path,version));
             CREATE TABLE IF NOT EXISTS remote_presence(mount TEXT NOT NULL,id TEXT NOT NULL,presence INTEGER NOT NULL,PRIMARY KEY(mount,id));
             CREATE TABLE IF NOT EXISTS remote_temporary(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
-            PRAGMA user_version=4;
+            CREATE TABLE IF NOT EXISTS remote_collections(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
+            CREATE TABLE IF NOT EXISTS remote_shadow(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
+            CREATE TABLE IF NOT EXISTS remote_pending(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS remote_pending_mount ON remote_pending(mount,scope);
+            PRAGMA user_version=5;
             """; cmd.ExecuteNonQuery();
     }
     private SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }
@@ -42,7 +48,7 @@ public sealed partial class MountRepository
                 using var child = key.OpenSubKey(name);
                 if (child?.GetValue("Definition") is not string json) continue;
                 var definition = JsonSerializer.Deserialize<MountDefinition>(json) ?? throw new IOException("挂载配置为空。");
-                if (!Enum.IsDefined(definition.RegistrationStage) || !Enum.IsDefined(definition.RemovalMode) || !Enum.IsDefined(definition.RemovalStage) || definition.Id == Guid.Empty || definition.Id.ToString("N") != name || !Path.IsPathFullyQualified(definition.LocalPath)) throw new IOException("挂载配置无效。");
+                if (!Enum.IsDefined(definition.RegistrationStage) || !Enum.IsDefined(definition.RemovalMode) || !Enum.IsDefined(definition.RemovalStage) || definition.RemoteIncrementalSeconds is <10 or >86400 || definition.RemoteFullSeconds is <30 or >604800 || definition.CredentialRevision<0 || definition.Id == Guid.Empty || definition.Id.ToString("N") != name || !Path.IsPathFullyQualified(definition.LocalPath)) throw new IOException("挂载配置无效。");
                 result.Add(definition);
             }
             return result;
@@ -50,7 +56,7 @@ public sealed partial class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 7, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 8, RegistryValueKind.DWord); }
     }
     /// <summary>此仓库的全局缓存软上限；旧配置默认 10 GiB，0 为关闭。</summary>
     public long CacheLimitBytes
@@ -65,7 +71,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
         }
     }
     public IReadOnlyList<MountEntry> Entries(Guid mount)

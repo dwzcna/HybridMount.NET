@@ -3,7 +3,7 @@ namespace HybridMount.Models.Mounting;
 /// <summary>可迁移的挂载配置；只保存用户选项，不包含挂载 ID、同步根身份或运行索引。</summary>
 /// <remarks>凭据仅供加密编解码及重新保存到 DPAPI；不得记录整个对象。</remarks>
 public sealed record MountBackupItem(string Name, string LocalPath, FileSourceConfiguration Source,
-    SourceCredentials Credentials, bool AutoConnect = true, bool ThumbnailsEnabled = false)
+    SourceCredentials Credentials, bool AutoConnect = true, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300)
 {
     /// <summary>避免调试或日志展开记录中的凭据。</summary>
     public override string ToString() => "挂载配置备份条目";

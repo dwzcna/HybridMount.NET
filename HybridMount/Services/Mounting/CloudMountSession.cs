@@ -8,7 +8,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>一个同步根的 CFAPI 连接；复制回调参数后在线程池读取，退出先取消／断开再释放委托。</summary>
-public sealed class CloudMountSession : IAsyncDisposable
+public sealed partial class CloudMountSession : IAsyncDisposable
 {
     private readonly MountDefinition _mount;
     private readonly Action<MountEntry>? _localContentReady;
@@ -23,7 +23,7 @@ public sealed class CloudMountSession : IAsyncDisposable
     private readonly SharedAsyncWork<string,SourceEntry> _metadata=new();
     private readonly bool _diagnostics=HydrationProcess.DiagnosticsEnabled;
     private readonly List<CloudFilesNative.Callback> _callbacks = [];
-    private sealed record FetchRequest(long Transfer,long Request,long Offset,long Length,CancellationTokenSource Cancel,Task Work);
+    private sealed record FetchRequest(string EntryId,long Transfer,long Request,long Offset,long Length,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<long,FetchRequest> _fetches=new();
     private long _nextFetch;
     private Task? _dispose,_cancellation;
@@ -78,7 +78,7 @@ public sealed class CloudMountSession : IAsyncDisposable
                 lock(_fetchGate)
                 {
                 var offset=Marshal.ReadInt64(parameters,16); var length=Marshal.ReadInt64(parameters,24);
-                if(_clearing){Complete(info,offset,length,unchecked((int)0xc000cf16),token:new CancellationToken(true));return;}
+                if(_clearing||_metadataUpdating.Contains(marker.EntryId)){Complete(info,offset,length,unchecked((int)0xc000cf16),token:new CancellationToken(true));return;}
                 var explicitHydration=(Marshal.ReadInt32(parameters,8)&2)!=0||_explicitDownloads.GetValueOrDefault(marker.EntryId)>0;
                 var process=HydrationProcess.Copy(info.ProcessInfo);var queued=Stopwatch.GetTimestamp();
                 if(_diagnostics)_logger.Queue("水合诊断","Information",$"begin entry={marker.EntryId}; transfer={info.TransferKey}; request={info.RequestKey}; offset={offset}; length={length}; pid={process.Id}; image={process.Image}");
@@ -88,7 +88,7 @@ public sealed class CloudMountSession : IAsyncDisposable
                 var start=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work=Task.Run(async()=>{ if(!await start.Task.ConfigureAwait(false)){cancel.Dispose();return;} try { await FetchAsync(info,marker.EntryId,offset,length,process,explicitHydration,queued,cancel.Token).ConfigureAwait(false); } finally { _fetches.TryRemove(key,out _); cancel.Dispose(); } });
                 // RequestKey 可以为零，同一 transfer 下也可同时请求不同范围；绝不能据此丢弃回调。
-                _fetches[key]=new(info.TransferKey,info.RequestKey,offset,length,cancel,work);
+                _fetches[key]=new(marker.EntryId,info.TransferKey,info.RequestKey,offset,length,cancel,work);
                 start.SetResult(true); return;
                 }
             }
@@ -174,7 +174,10 @@ public sealed class CloudMountSession : IAsyncDisposable
             lease=await _reads.EnterAsync(info.PriorityHint,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
             var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id && !item.Deleted&&item.RemotePresence!=RemotePresence.Deleted) ?? throw new FileNotFoundException("占位身份不存在。");
             var source=_source??throw new IOException("清空期间不提供内容读取。");
-            var metadata=await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
+            _remoteSnapshots.TryGetValue(id,out var staged);
+            if(staged is null&&_repository.HasPendingRemote(_mount.Id,entry.SourcePath))throw new SourceConflictException("远端更新待提交，暂缓旧版本水合。");
+            var metadata=staged?.Metadata??await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
+            await using var snapshot=staged is null?null:new FileStream(staged.Path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete,262144,FileOptions.Asynchronous|FileOptions.RandomAccess);
             if(!source.IsSameVersion(metadata.Version,entry.Version)) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0 || length<=0 || offset>metadata.Size || length>metadata.Size-offset) throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096; var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));
@@ -184,7 +187,13 @@ public sealed class CloudMountSession : IAsyncDisposable
                 while(start<end)
                 {
                     token.ThrowIfCancellationRequested(); var count=(int)Math.Min(bytes.Length,end-start); var read=0;
-                    while(read<count) { var n=await source.ReadRangeAsync(metadata,start+read,bytes.AsMemory(read,count-read),token).ConfigureAwait(false); if(n==0) throw new EndOfStreamException(); read+=n; }
+                    while(read<count)
+                    {
+                        int n;
+                        if(snapshot is null)n=await source.ReadRangeAsync(metadata,start+read,bytes.AsMemory(read,count-read),token).ConfigureAwait(false);
+                        else{snapshot.Position=start+read;n=await snapshot.ReadAsync(bytes.AsMemory(read,count-read),token).ConfigureAwait(false);}
+                        if(n==0)throw new EndOfStreamException();read+=n;
+                    }
                     token.ThrowIfCancellationRequested(); Complete(info,start,count,0,pin.AddrOfPinnedObject(),token);start+=count;bytesTransferred+=count;
                     if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
                 }
@@ -212,20 +221,30 @@ public sealed class CloudMountSession : IAsyncDisposable
         foreach(var item in pending)try{item.Cancel.Cancel();}catch(ObjectDisposedException){}
         await Task.WhenAll(pending.Select(item=>item.Work)).ConfigureAwait(false);
     }
-    public bool IsActive(string id) => (_open.TryGetValue(id,out var count) && count>0)||(_reading.TryGetValue(id,out var reads)&&reads>0);
+    public bool IsActive(string id) => (_open.TryGetValue(id,out var count) && count>0)||(_reading.TryGetValue(id,out var reads)&&reads>0)||_fetches.Values.Any(x=>x.EntryId==id);
     public DateTimeOffset LastRead(string id)=>_lastRead.GetValueOrDefault(id,DateTimeOffset.MinValue);
     /// <summary>在排他 oplock 下验证干净状态并以 CFAPI 更新/脱水；失败保留旧索引版本。</summary>
     public bool RefreshPlaceholder(MountEntry entry,SourceEntry metadata)
     {
-        if(IsActive(entry.Id))return false;
         var path=RelativePaths.ToLocal(_mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(_mount,path);
-        using var handle=CloudFilesNative.Open(path,true);
-        var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-        if(info is null||marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||info.Value.Info.PinState is not(0 or 2))return false;
-        var time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc();
-        var fs=new CloudFilesNative.FsMetadata{Basic=new(){CreationTime=time,LastWriteTime=time,LastAccessTime=time,ChangeTime=time,FileAttributes=0x80},FileSize=metadata.Size};
-        CloudFilesNative.Check(CloudFilesNative.CfUpdatePlaceholder(handle,fs,0,0,[new(){Offset=0,Length=-1}],1,7,0,0));
-        return true;
+        if(!BeginMetadataUpdate(entry.Id))return false;
+        try
+        {
+        // 元数据刷新使用排他只读句柄，避免写权限打开冷占位时诱发旧版本水合。
+        using var handle=CloudFilesNative.OpenRead(path);
+        if(!CloudFilesNative.CfReferenceProtectedHandle(handle))return false;
+        try
+        {
+            using var borrowed=new Microsoft.Win32.SafeHandles.SafeFileHandle(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(handle),false);
+            var info=CloudFilesNative.Inspect(borrowed);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+            if(info is null||marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||info.Value.Info.PinState is not(0 or 2)||IsActive(entry.Id))
+                throw new IOException($"占位刷新保护未满足：Identity={marker?.MountId==_mount.Id&&marker.EntryId==entry.Id}，Modified={info?.Info.ModifiedSize}，InSync={info?.Info.InSyncState}，Pin={info?.Info.PinState}，Active={IsActive(entry.Id)}，Open={_open.GetValueOrDefault(entry.Id)}，Reads={_reading.GetValueOrDefault(entry.Id)}，Fetches={_fetches.Values.Count(x=>x.EntryId==entry.Id)}。");
+            if(_mount.RootIdentity!=MountPathGuard.FileIdentity(_mount.LocalPath))throw new SourceConflictException("占位更新前根身份变化。");
+            CloudRemoteUpdate.UpdateMetadata(handle,borrowed,metadata);return true;
+        }
+        finally{CloudFilesNative.CfReleaseProtectedHandle(handle);}
+        }
+        finally{EndMetadataUpdate(entry.Id);}
     }
     /// <summary>创建真实占位，不使用 File.WriteAllBytes 伪装；每个已创建条目单独记录。</summary>
     public void CreatePlaceholder(MountEntry entry,SourceEntry metadata)

@@ -11,31 +11,32 @@ using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
 
-/// <summary>独立 HTTP WebDAV；不依赖 WebClient。枚举、范围和写入条件均按响应验证。</summary>
-public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource
+/// <summary>基于 WebDAVClient DavClient 的 WebDAV 驱动；应用负责版本、缓存、写入条件和生命周期。</summary>
+public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource
 {
     private static readonly XNamespace Dav = "DAV:";
     private readonly Uri _endpoint;
     private readonly HttpClient _http;
+    private readonly WebDAVClient.DavClient _dav;
     private readonly WholeFileCache _cache;
     private readonly SemaphoreSlim _writeProbe = new(1, 1);
     private sealed record InitialRange(long Offset,byte[] Bytes);
     private readonly SharedAsyncWork<(string Path,string Version),InitialRange> _initialReads=new();
     private bool _writesVerified;
     public event Action<SourceReadDiagnostic>? ReadDiagnostic;
-    private sealed record VersionInfo(string? ETag, long Size, long ModifiedTicks);
+    private sealed record VersionInfo(string? ETag, long Size, long ModifiedTicks, long Observation=0);
     public FileSourceCapabilities Capabilities { get; private set; } = new(CapabilitySupport.Unknown,
         CapabilitySupport.Unknown, CapabilitySupport.Unknown, CapabilitySupport.Unsupported, CapabilitySupport.Unsupported, SourceCaseSensitivity.Unknown);
     public WebDavFileSource(FileSourceConfiguration options, SourceCredentials credentials, WholeFileCache cache, HttpMessageHandler? handler = null)
     {
         _endpoint = FileSourceFactory.Endpoint(options); _cache = cache;
         _temporaryScope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(_endpoint.AbsoluteUri+"\0"+credentials.UserName)));
-        _http = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false, MaxConnectionsPerServer = 4,
-            AutomaticDecompression = DecompressionMethods.None, ConnectTimeout = TimeSpan.FromSeconds(20) }) { Timeout = TimeSpan.FromMinutes(2) };
         if (credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 用户名不能包含冒号。");
-        if (credentials.UserName.Length != 0)
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials.UserName + ":" + credentials.Password)));
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("HybridMount/" + typeof(WebDavFileSource).Assembly.GetName().Version!.ToString(3));
+        _http = new HttpClient(new DavTransport(this, credentials, handler ?? new SocketsHttpHandler
+        { AllowAutoRedirect=false, UseCookies=false, MaxConnectionsPerServer=4,
+          AutomaticDecompression=DecompressionMethods.None, ConnectTimeout=TimeSpan.FromSeconds(20) }))
+          { Timeout=Timeout.InfiniteTimeSpan };
+        _dav = new WebDAVClient.DavClient(_endpoint, _http, new() { MetadataTimeout=TimeSpan.FromSeconds(120) });
     }
     private Uri Address(string path, bool directory = false)
     {
@@ -47,9 +48,18 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     {
         token.ThrowIfCancellationRequested();
         if(mutation)await PrepareTemporaryRequestAsync(request,token).ConfigureAwait(false);
-        try { var response=await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
-            if(mutation)ObserveTemporaryResponse(request,response);return response; }
-        catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException)
+        try
+        {
+            var response=await ExecuteDavAsync(request,token).ConfigureAwait(false);
+            if(mutation)ObserveTemporaryResponse(request,response);
+            return response;
+        }
+        catch (WebDAVClient.Helpers.WebDAVException)
+        {
+            if(mutation)throw new SourceOutcomeUnknownException(request.Method.Method,new IOException("DAV 响应无法确认写入结果。"));
+            throw new IOException("WebDAV 响应格式、范围或 XML 无效。");
+        }
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
         {
             if (mutation) throw new SourceOutcomeUnknownException(request.Method.Method, new IOException("网络请求未确认完成。"));
             if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
@@ -59,10 +69,13 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     }
     private static void Success(HttpResponseMessage response)
     {
+        var retry=response.Headers.RetryAfter?.Delta;
+        if(retry is null&&response.Headers.RetryAfter?.Date is {} date)retry=date>DateTimeOffset.UtcNow?date-DateTimeOffset.UtcNow:TimeSpan.Zero;
         if (response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
             throw new SourceConflictException("远端版本或目标创建条件不满足。");
         if (response.StatusCode == HttpStatusCode.NotFound) throw new FileNotFoundException("远端条目不存在。");
-        if ((int)response.StatusCode is >=400 and <500)throw new SourceRequestRejectedException((int)response.StatusCode,response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden?"WebDAV 认证或权限不足，请检查账号与应用密码。":$"WebDAV 拒绝请求（HTTP {(int)response.StatusCode}）。");
+        if ((int)response.StatusCode is >=400 and <500)throw new SourceRequestRejectedException((int)response.StatusCode,response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden?"WebDAV 认证或权限不足，请检查账号与应用密码。":$"WebDAV 拒绝请求（HTTP {(int)response.StatusCode}）。",retry);
+        if((int)response.StatusCode>=500)throw new RemoteSyncException((int)response.StatusCode,retryAfter:retry);
         if (!response.IsSuccessStatusCode)
             throw new IOException(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
                 ? "WebDAV 认证或权限不足，请检查账号与应用密码。" : $"WebDAV 返回 HTTP {(int)response.StatusCode}；未跟随重定向。");
@@ -131,7 +144,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
             var modified = DateTimeOffset.TryParse(props.Element(Dav + "getlastmodified")?.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
                 ? parsed.ToUniversalTime() : DateTimeOffset.UnixEpoch;
             var tag = NormalizeTag(props.Element(Dav + "getetag")?.Value);
-            result.Add(new("", relative, directory, size, modified, JsonSerializer.Serialize(new VersionInfo(tag, size, modified.UtcTicks))));
+            result.Add(ObserveMetadata(new("", relative, directory, size, modified, JsonSerializer.Serialize(new VersionInfo(tag, size, modified.UtcTicks)))));
         }
         if (!names.Contains(path)) throw new IOException("DAV 响应缺少请求目录自身，拒绝不完整快照。");
         return result;
@@ -165,7 +178,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         {
             var a = JsonSerializer.Deserialize<VersionInfo>(left);
             var b = JsonSerializer.Deserialize<VersionInfo>(right);
-            return a is not null && b is not null && a.Size == b.Size && a.ModifiedTicks == b.ModifiedTicks &&
+            return a is not null && b is not null && a.Size == b.Size && a.ModifiedTicks == b.ModifiedTicks && a.Observation==b.Observation &&
                 NormalizeTag(a.ETag) == NormalizeTag(b.ETag);
         }
         catch (JsonException) { return false; }
@@ -215,7 +228,14 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         {
             using var request=new HttpRequestMessage(HttpMethod.Get,Address(entry.Path));
             request.Headers.Range=new RangeHeaderValue(offset,offset+count-1);request.Headers.IfMatch.ParseAdd(NormalizeTag(version.ETag)!);
-            response=await SendAsync(request,token).ConfigureAwait(false);Success(response);MatchResponse(entry,response);
+            try { response=await SendAsync(request,token).ConfigureAwait(false); }
+            catch(DavMalformedRangeException){throw new IOException("DAV 206 范围响应无效，未转为整文件读取。");}
+            catch (DavRangeIgnoredException)
+            {
+                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+                return await CachedReadAsync(entry,offset,buffer,null,token).ConfigureAwait(false);
+            }
+            Success(response);MatchResponse(entry,response);
             if(response.StatusCode==HttpStatusCode.OK)
             {
                 var adopted=response;response=null;
@@ -328,7 +348,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response);
     }
     private static string NonRoot(string path) => RelativePaths.Normalize(path) is { Length: > 0 } normalized ? normalized : throw new ArgumentException("不能修改源根。");
-    public async ValueTask DisposeAsync() { await _initialReads.DisposeAsync().ConfigureAwait(false);await _cache.DisposeAsync().ConfigureAwait(false);_http.Dispose();_writeProbe.Dispose(); }
+    public async ValueTask DisposeAsync() { await _initialReads.DisposeAsync().ConfigureAwait(false);await _cache.DisposeAsync().ConfigureAwait(false);_dav.Dispose();_http.Dispose();_writeProbe.Dispose(); }
 }
 
 /// <summary>请求只借用调用者的流；HttpContent 释放不能关闭调用者数据源。</summary>

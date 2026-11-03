@@ -28,7 +28,7 @@ public sealed partial class TasksPage : Page, IDisposable
     /// <summary>显式重试保持原始覆盖基线；结果不明仍先只读核对。</summary>
     private void RetryUpload(object sender,RoutedEventArgs args)
     {
-        if(JobList.SelectedItem is not MountOperationSnapshot {Operation:"upload"} job){ViewModel.Status="请先选择上传任务。";return;}
+        if(JobList.SelectedItem is not MountOperationSnapshot {Operation:"upload" or "remoteUpdate"} job){ViewModel.Status="请先选择上传或远端更新任务。";return;}
         ViewModel.Status=App.Current.Mounts.RetryUpload(job.Id)?"已提交重试；如挂载未连接，请先在挂载页连接。":"当前上传任务不能重试。";
     }
     /// <summary>以新相对路径安全创建远端副本，不改变原始冲突文件或远端旧项。</summary>

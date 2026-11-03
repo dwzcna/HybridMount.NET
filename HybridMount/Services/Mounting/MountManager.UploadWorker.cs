@@ -25,7 +25,7 @@ public sealed partial class MountManager
                 if(Interlocked.Exchange(ref runtime.Dirty,0)!=0||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
                 {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
                 var item=_repository.Uploads(root.Definition.Id).Where(x=>
-                    (x.State is "RemoteCommitted" or "OutcomeUnknown"||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested))&&
+                    (x.State is "RemoteCommitted" or "OutcomeUnknown"||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath)))&&
                     DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
                     (x.LastCheckedUtc is null||DateTimeOffset.UtcNow-x.LastCheckedUtc>=TimeSpan.FromSeconds(x.State=="OutcomeUnknown"?60:3)))
                     .OrderBy(x=>x.SourcePath.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?0:1).ThenBy(x=>x.ChangedUtc).FirstOrDefault();

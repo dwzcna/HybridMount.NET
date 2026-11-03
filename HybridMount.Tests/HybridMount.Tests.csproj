@@ -9,7 +9,7 @@
     <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/>
-    <PackageReference Include="AWSSDK.S3"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
+    <PackageReference Include="AWSSDK.S3"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
   <ItemGroup><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\Models\AppearancePreferences.cs" Link="Production\AppearancePreferences.cs"/>
@@ -28,6 +28,7 @@
     <Compile Include="..\HybridMount\ViewModels\AppearanceSettingsViewModel.cs" Link="Production\AppearanceSettingsViewModel.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\*.cs" Link="Production\Mounting\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\Mounting\*.cs" Link="Production\Mounting\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Common\IRemoteChangeSource.cs" Link="Production\IRemoteChangeSource.cs"/>
     <Compile Include="..\HybridMount\Common\IFileSource.cs" Link="Production\IFileSource.cs"/>
     <Using Include="HybridMount.Models"/><Using Include="HybridMount.Common"/><Using Include="HybridMount.Services"/><Using Include="Xunit"/>
   </ItemGroup>

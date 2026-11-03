@@ -66,7 +66,7 @@ public sealed partial class MountManager
     private static string RefreshSummary(IReadOnlyList<MountItemResult> results)
     {
         if(results.Count==0)return "远端刷新完成。";
-        var retained=results.Count(item=>item.Status!="Completed");return $"远端删除处理：{results.Count-retained} 项已清理，{retained} 项保留；详情见刷新任务。";
+        var retained=results.Count(item=>item.Status!="Completed");return $"远端变化处理：{results.Count-retained} 项已应用，{retained} 项待处理或保留；详情见任务页。";
     }
     /// <summary>扫描不会把远端删除的旧内容当作新文件；新修改仍受保护并显示可处理的冲突。</summary>
     private void ObserveBlockedUpload(Runtime root,MountEntry? entry,LocalUpload? prior,string relative,LocalFileStamp stamp,bool clean)
@@ -125,6 +125,7 @@ public sealed partial class MountManager
         {
             token.ThrowIfCancellationRequested();if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
+            if(_repository.HasPendingRemote(mountId,current.SourcePath))throw new SourceConflictException("远端更改尚待核对，未发送旧基线上传。");
             if(DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(RemoteDeletedMessage);
             if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
             if(current.Generation!=current.SnapshotGeneration)

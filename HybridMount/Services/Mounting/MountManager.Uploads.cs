@@ -90,7 +90,7 @@ public sealed partial class MountManager
     public bool RetryUpload(string id){lock(_lifetime){if(IsStopping)return false;return RetryUploadCore(id);}}
     private bool RetryUploadCore(string id)
     {
-        if(IsStopping)return false;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
+        if(IsStopping)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(item.State is not("Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation"))return false;
         ChangeUpload(id,x=>x with{State=x.State=="OutcomeUnknown"?x.State:x.Receipt is not null?"RemoteCommitted":"Queued",CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null});root.Uploads?.Wake();return true;
     }

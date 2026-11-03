@@ -10,9 +10,10 @@ namespace HybridMount.Services.Mounting;
 /// <summary>独占写锁必须实际验证；锁令牌只在内存使用，不写入日志或配置。</summary>
 public sealed partial class WebDavFileSource
 {
-    private async Task<DavLockLease> AcquireLockAsync(string path,CancellationToken token)
+    private async Task<DavLockLease> AcquireLockAsync(string path,CancellationToken token,bool mustExist=false)
     {
         using var request=new HttpRequestMessage(new("LOCK"),Address(path));
+        if(mustExist)request.Headers.IfMatch.ParseAdd("*");
         request.Headers.Add("Depth","0");request.Headers.Add("Timeout","Second-300");
         request.Content=new StringContent("""
             <?xml version="1.0" encoding="utf-8"?><d:lockinfo xmlns:d="DAV:"><d:lockscope><d:exclusive/></d:lockscope><d:locktype><d:write/></d:locktype><d:owner><d:href>urn:hybridmount:upload</d:href></d:owner></d:lockinfo>
@@ -21,7 +22,25 @@ public sealed partial class WebDavFileSource
         if((int)response.StatusCode==423)throw new SourceConflictException("远端文件已被其他客户端锁定。");
         if(response.StatusCode is HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented)throw new NotSupportedException("服务器未实现 DAV 写锁。");
         Success(response);var info=await ParseLockAsync(response,token).ConfigureAwait(false);
-        return new(this,path,info.Token,info.Seconds,(int)response.StatusCode,token);
+        var lease=new DavLockLease(this,path,info.Token,info.Seconds,(int)response.StatusCode,token);
+        if(mustExist&&lease.Status!=200)
+        {
+            // 不可靠服务忽略已验证条件时，仅在本次 201、仍持锁且确为空文件时回滚。
+            try
+            {
+                var metadata=await GetMetadataAsync(path,token).ConfigureAwait(false);
+                if(lease.Status==201&&!metadata.IsDirectory&&metadata.Size==0&&await ReadContentHashAsync(path,lease.Token,token).ConfigureAwait(false)==Convert.ToHexString(System.Security.Cryptography.SHA256.HashData([])))
+                {
+                    using var rollback=new HttpRequestMessage(HttpMethod.Delete,Address(path));rollback.Headers.Add("If",lease.IfHeader);
+                    if(Strong(Version(metadata).ETag))rollback.Headers.IfMatch.ParseAdd(NormalizeTag(Version(metadata).ETag)!);
+                    using var removed=await SendAsync(rollback,token,true).ConfigureAwait(false);Success(removed);
+                }
+                else Warn("DAV 更新锁意外创建资源，身份或内容无法核对，保留现场。");
+            }
+            finally{await lease.DisposeAsync().ConfigureAwait(false);}
+            throw new NotSupportedException("更新锁的存在性条件未被执行，已停止覆盖。");
+        }
+        return lease;
     }
     private static async Task<(string Token,int Seconds)> ParseLockAsync(HttpResponseMessage response,CancellationToken token)
     {
@@ -112,7 +131,12 @@ public sealed partial class WebDavFileSource
             {
                 using(var create=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})
                 {create.Headers.IfNoneMatch.ParseAdd("*");using var response=await SendAsync(create,token,true).ConfigureAwait(false);Success(response);}
-                lease=await AcquireLockAsync(path,token).ConfigureAwait(false);
+                // 缺失目标的 If-Match:* 必须被拒绝，防止最终更新 LOCK 复活已删除路径。
+                var existence=false;
+                try{await using var unexpected=await AcquireLockAsync(empty,token,true).ConfigureAwait(false);}
+                catch(SourceConflictException){existence=await TryGetMetadataAsync(empty,token).ConfigureAwait(false) is null;}
+                if(!existence)throw new NotSupportedException("DAV LOCK 未验证可靠的存在性保护，拒绝弱版本覆盖。");
+                lease=await AcquireLockAsync(path,token,true).ConfigureAwait(false);
                 if(lease.Status!=200)throw new NotSupportedException("已有 DAV 资源的锁状态不可靠。");
                 var exclusive=false;
                 try{await using var duplicate=await AcquireLockAsync(path,token).ConfigureAwait(false);}

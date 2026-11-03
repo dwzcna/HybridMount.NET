@@ -12,17 +12,17 @@ public sealed partial class MountsPage : Page, IDisposable
 {
     /// <summary>仅订阅挂载列表，不加载任务历史。</summary>
     public MountsViewModel ViewModel { get; }=new(App.Current.Mounts);
-    private bool _busy,_updatingPreview,_changingPreview;
+    private bool _busy,_updatingPreview,_changingPreview,_updatingRemote,_savingRemote;
     private Guid? _selectedMount;
     private MountBackupDialog? _backupDialog;
     /// <summary>创建页面并保留刷新前选中的挂载 ID。</summary>
     public MountsPage()
     {
         InitializeComponent();
-        MountList.SelectionChanged+=(_,_)=>{if(MountList.SelectedItem is MountSnapshot mount)_selectedMount=mount.Definition.Id;UpdatePreviewToggle();};
+        MountList.SelectionChanged+=(_,_)=>{if(MountList.SelectedItem is MountSnapshot mount)_selectedMount=mount.Definition.Id;UpdatePreviewToggle();UpdateRemoteControls();};
         ViewModel.Refreshed+=RestoreSelection;
     }
-    private void RestoreSelection(){MountList.SelectedItem=ViewModel.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_selectedMount);UpdatePreviewToggle();}
+    private void RestoreSelection(){MountList.SelectedItem=ViewModel.Mounts.FirstOrDefault(mount=>mount.Definition.Id==_selectedMount);UpdatePreviewToggle();UpdateRemoteControls();}
     private void UpdatePreviewToggle()
     {
         if(_changingPreview)return;_updatingPreview=true;
@@ -38,6 +38,38 @@ public sealed partial class MountsPage : Page, IDisposable
         try{await App.Current.Mounts.SetThumbnailsEnabledAsync(mount.Id,enabled);ViewModel.Status=enabled?"缩略图已开启；按文件与服务能力生成，无法高效读取时显示普通图标。":"缩略图已关闭，后台预览已停止。";}
         catch(Exception error){ViewModel.Status=error.Message;}
         finally{_changingPreview=false;UpdatePreviewToggle();}
+    }
+    /// <summary>选择和列表刷新只加载选项；Toggled 由保护标记阻止写回。</summary>
+    private void UpdateRemoteControls()
+    {
+        if(_savingRemote)return;_updatingRemote=true;
+        try
+        {
+            var mount=(MountList.SelectedItem as MountSnapshot)?.Definition;
+            RemoteControls.Visibility=mount?.Source?.Kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
+            RemoteControls.IsEnabled=mount is not null&&!mount.RemovalPending;
+            RemoteAutoToggle.IsOn=mount?.RemoteAutoDetectEnabled??true;
+            IncrementalInterval.Value=mount?.RemoteIncrementalSeconds??60;FullInterval.Value=mount?.RemoteFullSeconds??300;
+        }
+        finally{_updatingRemote=false;}
+    }
+    private async void RemoteAutoChanged(object sender,RoutedEventArgs args)
+    {if(!_updatingRemote&&!_savingRemote)await SaveRemoteOptionsAsync();}
+    private async void SaveDetectionIntervals(object sender,RoutedEventArgs args)=>await SaveRemoteOptionsAsync();
+    /// <summary>一次保存捕获挂载 ID；失败从仓库快照恢复控件，不把迟到结果写入其他挂载。</summary>
+    private async Task SaveRemoteOptionsAsync()
+    {
+        if(_busy||_savingRemote||_updatingRemote)return;
+        var mount=(MountList.SelectedItem as MountSnapshot)?.Definition;if(mount?.Source?.Kind!=FileSourceKind.WebDav)return;
+        _savingRemote=true;RemoteControls.IsEnabled=false;
+        try
+        {
+            if(!double.IsFinite(IncrementalInterval.Value)||!double.IsFinite(FullInterval.Value))throw new ArgumentException("请输入有效的检测间隔。");
+            await App.Current.Mounts.SetRemoteDetectionAsync(mount.Id,RemoteAutoToggle.IsOn,checked((int)IncrementalInterval.Value),checked((int)FullInterval.Value));
+            ViewModel.Status="远端检测设置已保存；实际模式、最近成功时间和错误显示在挂载条目中。";
+        }
+        catch(Exception error){ViewModel.Status=error.Message;}
+        finally{_savingRemote=false;UpdateRemoteControls();}
     }
     /// <summary>手动补扫不会关闭自动上传，也不重新发送用户取消或冲突的同一代内容。</summary>
     private async void ReviewUploadChanges(object sender,RoutedEventArgs args)=>await Run(async()=>

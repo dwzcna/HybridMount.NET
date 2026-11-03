@@ -14,7 +14,8 @@ public sealed class SourceOutcomeUnknownException(string operation, Exception in
     : IOException($"{operation}结果不确定，请刷新远端并核对后再操作。", inner);
 
 /// <summary>服务明确拒绝请求，区别于写入可能已提交但响应丢失；不触发盲目重试。</summary>
-public sealed class SourceRequestRejectedException(int status,string message) : IOException(message)
+public sealed class SourceRequestRejectedException(int status,string message,TimeSpan? retryAfter=null) : IOException(message)
 {
     public int HttpStatus { get; }=status;
+    public TimeSpan? RetryAfter {get;}=retryAfter;
 }

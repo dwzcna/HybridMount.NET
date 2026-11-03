@@ -53,6 +53,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm"/>
     <PackageReference Include="Microsoft.Data.Sqlite"/>
     <PackageReference Include="AWSSDK.S3"/>
+    <PackageReference Include="WebDAVClient"/>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>

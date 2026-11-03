@@ -7,7 +7,7 @@ using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
 
-/// <summary>便携加密备份 v1；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
+/// <summary>便携加密备份 v2（兼容读取 v1）；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
 /// <remarks>文件为 44 字节认证头、16 字节 GCM 标签及密文。头依次为 HMCONFIG、LE 版本、盐、nonce、LE 密文长度。</remarks>
 public static class MountBackupCodec
 {
@@ -29,10 +29,12 @@ public static class MountBackupCodec
         byte[]? plain = null, passwordBytes = null, key = null;
         try
         {
-            plain = JsonSerializer.SerializeToUtf8Bytes(backup, Json);
+            plain = backup.SchemaVersion==1?
+                JsonSerializer.SerializeToUtf8Bytes(new LegacyBackup(1,backup.ExportedUtc,backup.Mounts.Select(x=>new LegacyItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled)).ToArray()),Json):
+                JsonSerializer.SerializeToUtf8Bytes(backup, Json);
             if (plain.Length > MaximumFileBytes - PayloadOffset) throw new InvalidDataException("配置备份超过 8 MiB 限制。");
             var output = new byte[PayloadOffset + plain.Length]; "HMCONFIG"u8.CopyTo(output);
-            BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(8, 4), 1);
+            BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(8, 4), backup.SchemaVersion);
             RandomNumberGenerator.Fill(output.AsSpan(12, 16)); RandomNumberGenerator.Fill(output.AsSpan(28, 12));
             BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(40, 4), plain.Length);
             passwordBytes = Encoding.UTF8.GetBytes(password);
@@ -51,7 +53,8 @@ public static class MountBackupCodec
         ValidatePassword(password); token.ThrowIfCancellationRequested();
         if (file.Length < PayloadOffset || file.Length > MaximumFileBytes || !file.AsSpan(0, 8).SequenceEqual("HMCONFIG"u8))
             throw new InvalidDataException("不是有效的 HybridMount 配置备份，或文件大小超限。");
-        if (BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(8, 4)) != 1) throw new InvalidDataException("不支持此配置备份版本。");
+        var format=BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(8,4));
+        if (format is not(1 or 2)) throw new InvalidDataException("不支持此配置备份版本。");
         if (BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(40, 4)) != file.Length - PayloadOffset)
             throw new InvalidDataException("配置备份长度无效。");
         byte[]? plain = null, passwordBytes = null, key = null;
@@ -63,6 +66,7 @@ public static class MountBackupCodec
             using var cipher = new AesGcm(key, TagBytes);
             cipher.Decrypt(file.AsSpan(28, 12), file.AsSpan(PayloadOffset), file.AsSpan(HeaderBytes, TagBytes), plain, file.AsSpan(0, HeaderBytes));
             var document = JsonSerializer.Deserialize<MountConfigurationBackup>(plain, Json) ?? throw new JsonException();
+            if(document.SchemaVersion!=format)throw new JsonException();
             ValidateDocument(document); token.ThrowIfCancellationRequested(); return document;
         }
         catch (CryptographicException) { throw new InvalidDataException("密码不正确或文件已损坏。"); }
@@ -101,16 +105,20 @@ public static class MountBackupCodec
     /// <summary>验证安全的结构边界；路径和已实现协议的校验留给逐项导入预览。</summary>
     private static void ValidateDocument(MountConfigurationBackup backup)
     {
-        if (backup.SchemaVersion != 1 || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
+        if (backup.SchemaVersion is not(1 or 2) || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
             throw new InvalidDataException("配置备份载荷版本或条目数量无效。");
         foreach (var item in backup.Mounts)
         {
+            if(item is not null&&(item.RemoteIncrementalSeconds is <10 or >86400||item.RemoteFullSeconds is <30 or >604800))throw new InvalidDataException("配置备份包含无效检测间隔。");
             if (item is null || item.Name is null || item.LocalPath is null || item.Source is not {} source || item.Credentials is not {} secrets ||
                 source.Endpoint is null || source.Bucket is null || source.Prefix is null || source.Region is null ||
                 secrets.UserName is null || secrets.Password is null || secrets.AccessKey is null || secrets.SecretKey is null || secrets.SessionToken is null)
                 throw new InvalidDataException("配置备份包含不完整条目。");
         }
     }
+    // v1 生成只供兼容回归使用，不能在 v1 容器中悄悄写入新版选项。
+    private sealed record LegacyItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled);
+    private sealed record LegacyBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<LegacyItem> Mounts);
     private static void ValidatePassword(string password)
     { if (password is null || password.Length < 8) throw new ArgumentException("备份密码至少需要 8 个字符。"); }
     private static void Clear(byte[]? bytes) { if (bytes is not null) CryptographicOperations.ZeroMemory(bytes); }

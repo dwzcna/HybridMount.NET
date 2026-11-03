@@ -14,6 +14,8 @@ public sealed partial class WebDavFileSource
     /// <summary>供恢复状态和验收读取的快照，不包含凭据或锁令牌。</summary>
     public IReadOnlyList<RemoteTemporaryItem> PendingTemporaryItems=>_temporary.Values.ToArray();
     private string _temporaryScope="";
+    internal string RemoteSyncIdentity=>_temporaryScope;
+    internal string RemoteScope(long revision)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(_temporaryScope+"\0"+revision)));
     private static readonly string[] ProbeHashes=[Digest([17,31]),Digest([47]),Digest([99]),Digest([])];
     private static string Digest(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes));
     /// <summary>工厂为真实挂载绑定持久日志；测试连接不调用此入口，不产生清理或写入副作用。</summary>

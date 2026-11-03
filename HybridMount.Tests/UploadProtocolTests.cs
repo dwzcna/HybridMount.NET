@@ -120,6 +120,7 @@ internal sealed class DavLockFixture : IAsyncDisposable
                 if(!Locks.TryGetValue(path,out var existing)||request.Headers.GetValueOrDefault("If")!="(<"+existing+">)")return Result(412);
                 return LockResponse(200,existing);
             }
+            if(request.Headers.GetValueOrDefault("If-Match")=="*"&&!Dav.Objects.ContainsKey(path))return Result(412);
             if(Locks.ContainsKey(path)&&!IgnoreExclusive)return Result(423);
             var created=!Dav.Objects.ContainsKey(path);if(created)Dav.Put(path,[]);
             var value="opaquelocktoken:"+Guid.NewGuid();Locks[path]=value;return LockResponse(created?201:200,value);
@@ -143,7 +144,7 @@ internal sealed class DavLockFixture : IAsyncDisposable
         XNamespace d="DAV:";
         var xml=new XElement(d+"prop",new XElement(d+"lockdiscovery",new XElement(d+"activelock",
             new XElement(d+"locktype",new XElement(d+"write")),new XElement(d+"lockscope",new XElement(d+"exclusive")),
-            new XElement(d+"timeout","Second-300"),new XElement(d+"locktoken",new XElement(d+"href",token)))));
+            new XElement(d+"depth","0"),new XElement(d+"lockroot",new XElement(d+"href",Dav.Server.Address.AbsoluteUri+"dav/")),new XElement(d+"timeout","Second-300"),new XElement(d+"locktoken",new XElement(d+"href",token)))));
         return Task.FromResult(HttpTestServer.Response.Text(status,xml.ToString(),new(){["Lock-Token"]=BareLockHeader?token:"<"+token+">"}));
     }
     public ValueTask DisposeAsync()=>Dav.DisposeAsync();

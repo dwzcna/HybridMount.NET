@@ -14,7 +14,7 @@ public sealed class LargeProtocolReadTests
         await using var source=fixture.Source();var entry=await source.GetMetadataAsync("large.exe");var header=new byte[256];var tail=new byte[256];
         await Task.WhenAll(source.ReadRangeAsync(entry,0,header).AsTask(),source.ReadRangeAsync(entry,bytes.Length-256,tail).AsTask());
         Assert.Equal(bytes[..256],header);Assert.Equal(bytes[^256..],tail);
-        Assert.Equal(ignoreRange||weak?1:2,fixture.Server.Requests.Count(request=>request.Method=="GET"));
+        Assert.Equal(weak?1:2,fixture.Server.Requests.Count(request=>request.Method=="GET"));
         Assert.Equal(ignoreRange||weak?CapabilitySupport.Unsupported:CapabilitySupport.Supported,source.Capabilities.RangeRead);
     }
     [Fact(Timeout=30000)]

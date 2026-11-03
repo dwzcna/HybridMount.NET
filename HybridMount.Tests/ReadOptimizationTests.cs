@@ -82,7 +82,7 @@ public sealed class ReadOptimizationTests
         Assert.Equal(fixture.Bytes[9..16],bytes);Assert.Single(fixture.Server.Requests,request=>request.Method=="GET");
     }
     [Fact(Timeout=20000)]
-    public async Task IgnoredRangeTransfersResponseOwnershipAndColdConcurrentReadersIssueOneGet()
+    public async Task IgnoredRangeStartsFreshGetAndColdConcurrentReadersShareWholeSnapshot()
     {
         await using var fixture=new DavFixture{IgnoreRange=true};var handler=fixture.Server.Handler;var headers=Signal();var release=Signal();
         fixture.Server.Handler=async request=>{var response=await handler(request);return request.Method=="GET"?response with{BeforeBody=release.Task,HeadersSent=headers}:response;};
@@ -92,7 +92,7 @@ public sealed class ReadOptimizationTests
         // 两位等待者已在探测前加入同一共享工作；取消第一位不依赖线程池交接时序。
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>first);release.SetResult();await second;
-        Assert.Equal(fixture.Bytes[9..16],secondBytes);Assert.Single(fixture.Server.Requests,request=>request.Method=="GET");
+        Assert.Equal(fixture.Bytes[9..16],secondBytes);Assert.Equal(2,fixture.Server.Requests.Count(request=>request.Method=="GET"));
     }
     [Theory(Timeout=20000)]
     [InlineData("W/\"weak\"")][InlineData("")]

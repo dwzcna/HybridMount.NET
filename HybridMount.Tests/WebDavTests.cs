@@ -73,7 +73,7 @@ public sealed class WebDavTests
         var metadata=await source.GetMetadataAsync("文件.bin");var bytes=new byte[71];
         Assert.Equal(71,await source.ReadRangeAsync(metadata,777,bytes));Assert.Equal(fixture.Bytes[777..848],bytes);
         Assert.Equal(71,await source.ReadRangeAsync(metadata,4093,bytes));Assert.Equal(fixture.Bytes[4093..4164],bytes);
-        Assert.Equal(1,fixture.Server.Requests.Count(request=>request.Method=="GET"));
+        Assert.Equal(2,fixture.Server.Requests.Count(request=>request.Method=="GET"));
         Assert.Equal(CapabilitySupport.Unsupported,source.Capabilities.RangeRead);
     }
     [Fact]

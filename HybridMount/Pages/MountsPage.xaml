@@ -19,6 +19,12 @@
                 <Button Content="更新凭据" Click="UpdateCredentials"/>
                 <Button Content="扫描本地改动" Click="ReviewUploadChanges"/>
                 <ToggleSwitch x:Name="ThumbnailsToggle" Header="缩略图（实验性）" Toggled="ThumbnailsChanged" IsEnabled="False"/>
+                <ContentControl x:Name="RemoteControls" Visibility="Collapsed"><StackPanel Orientation="Horizontal" Spacing="8">
+                    <ToggleSwitch x:Name="RemoteAutoToggle" Header="远端自动检测" Toggled="RemoteAutoChanged"/>
+                    <NumberBox x:Name="IncrementalInterval" Header="增量间隔（秒）" Minimum="10" Maximum="86400" Value="60" Width="145" SpinButtonPlacementMode="Compact"/>
+                    <NumberBox x:Name="FullInterval" Header="完整对账（秒）" Minimum="30" Maximum="604800" Value="300" Width="145" SpinButtonPlacementMode="Compact"/>
+                    <Button Content="保存检测间隔" Click="SaveDetectionIntervals" VerticalAlignment="Bottom"/>
+                </StackPanel></ContentControl>
                 <Button Content="断开" Click="Disconnect"/>
                 <Button Content="刷新" Click="RefreshMount"/>
                 <Button Content="始终保留在设备上" Click="Keep"/>
@@ -34,6 +40,7 @@
                         <TextBlock Text="{x:Bind Definition.LocalPath}" TextWrapping="Wrap"/>
                         <TextBlock Text="{x:Bind AutoUploadDisplay}"/>
                         <TextBlock Text="{x:Bind ThumbnailDisplay}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind RemoteDetectionDisplay}" TextWrapping="Wrap"/>
                         <TextBlock Text="{x:Bind SourceDisplay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         <TextBlock Text="{x:Bind Detail}" TextWrapping="Wrap"/>
                     </StackPanel>

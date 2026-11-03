@@ -85,6 +85,7 @@ public sealed partial class MountManager
             }
             if(committedStamp is not null)await UploadCheckpointAsync("CommitVerified",prepared).ConfigureAwait(false);
             var completed=_repository.CommitUploadedEntry(prepared,entry,receipt,committedStamp,!exists);
+            CompleteOwnUploadEcho(root,receipt);
             await UploadCheckpointAsync("Committed",completed).ConfigureAwait(false);
             if(committedStamp is not null&&exists)_previews.Queue(root.Definition,entry);
             PublishUpload(completed);DeleteUploadSnapshot(prepared.SnapshotPath);root.Uploads?.Wake();

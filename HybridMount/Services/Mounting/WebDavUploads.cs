@@ -103,7 +103,7 @@ public sealed partial class WebDavFileSource
                 {return await UploadViaCreateMoveAsync(path,content,progress,token).ConfigureAwait(false);}
                 if(condition.ExpectedVersion is null&&WriteCapabilities.LockCreate!=CapabilitySupport.Supported)
                     throw new NotSupportedException("服务器不能可靠地仅创建新文件。");
-                lease=await AcquireLockAsync(path,token).ConfigureAwait(false);
+                lease=await AcquireLockAsync(path,token,condition.ExpectedVersion is not null).ConfigureAwait(false);
                 if((condition.ExpectedVersion is null&&lease.Status!=201)||(condition.ExpectedVersion is not null&&lease.Status!=200))
                     throw new SourceConflictException("锁定目标的存在状态变化，已拒绝覆盖。");
                 lease.Start();
