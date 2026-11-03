@@ -26,10 +26,13 @@
     <Compile Include="..\HybridMount\Services\Ipc*.cs" Link="Production\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\SingleInstanceService.cs"/>
     <Compile Include="..\HybridMount\ViewModels\AppearanceSettingsViewModel.cs" Link="Production\AppearanceSettingsViewModel.cs"/>
-    <Compile Include="..\HybridMount\Models\Mounting\*.cs" Link="Production\Mounting\%(Filename)%(Extension)"/>
-    <Compile Include="..\HybridMount\Services\Mounting\*.cs" Link="Production\Mounting\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Models\Mounting\**\*.cs" Link="Production\Models\Mounting\%(RecursiveDir)%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Services\Mounting\**\*.cs" Link="Production\Services\Mounting\%(RecursiveDir)%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Common\IRemoteChangeSource.cs" Link="Production\IRemoteChangeSource.cs"/>
     <Compile Include="..\HybridMount\Common\IFileSource.cs" Link="Production\IFileSource.cs"/>
-    <Using Include="HybridMount.Models"/><Using Include="HybridMount.Common"/><Using Include="HybridMount.Services"/><Using Include="Xunit"/>
+    <Compile Include="..\HybridMount\Common\IMountDefinitionStore.cs" Link="Production\IMountDefinitionStore.cs"/>
+    <Compile Include="..\HybridMount\Common\ILocalUploadCommitter.cs" Link="Production\ILocalUploadCommitter.cs"/>
+    <Compile Include="..\HybridMount\Common\IReadDiagnosticsSource.cs" Link="Production\IReadDiagnosticsSource.cs"/>
+    <Using Include="HybridMount.Models"/><Using Include="HybridMount.Models.Mounting"/><Using Include="HybridMount.Common"/><Using Include="HybridMount.Services"/><Using Include="Xunit"/>
   </ItemGroup>
 </Project>

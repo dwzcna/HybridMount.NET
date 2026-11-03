@@ -105,18 +105,27 @@ public sealed class PreviewPipelineTests
     [Fact]
     public async Task FailedThumbnailSaveDoesNotChangeRuntimeSetting()
     {
-        await using var test=await UploadFlowTests.Fixture.Create();
-        var field=typeof(MountRepository).GetField("_registry",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
-        var original=(string)field.GetValue(test.Repository)!;
+        FailingDefinitionStore? store=null;
+        await using var test=await UploadFlowTests.Fixture.Create(definitionStore:registry=>store=new FailingDefinitionStore(new HybridMount.Services.Mounting.Persistence.RegistryMountDefinitionStore(registry)));
         try
         {
-            field.SetValue(test.Repository,original+"\\"+new string('x',256));
-            await Assert.ThrowsAsync<ArgumentException>(()=>test.Manager.SetThumbnailsEnabledAsync(test.Id,true));
+            store!.FailSave=true;
+            await Assert.ThrowsAsync<IOException>(()=>test.Manager.SetThumbnailsEnabledAsync(test.Id,true));
             Assert.False(test.Manager.Mounts.Single().Definition.ThumbnailsEnabled);
         }
-        finally{field.SetValue(test.Repository,original);}
+        finally{store!.FailSave=false;}
         Assert.False(test.Repository.LoadDefinitions().Single().ThumbnailsEnabled);
         await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);Assert.True(test.Manager.Mounts.Single().Definition.ThumbnailsEnabled);
+    }
+
+    /// <summary>只注入定义保存失败，实际读写仍使用测试专属注册表，不修改仓库内部字段。</summary>
+    private sealed class FailingDefinitionStore(IMountDefinitionStore inner):IMountDefinitionStore
+    {
+        public bool FailSave;
+        public IReadOnlyList<MountDefinition> LoadDefinitions()=>inner.LoadDefinitions();
+        public void SaveDefinition(MountDefinition definition){if(FailSave)throw new IOException("test definition save failure");inner.SaveDefinition(definition);}
+        public void DeleteDefinition(Guid id)=>inner.DeleteDefinition(id);
+        public long CacheLimitBytes{get=>inner.CacheLimitBytes;set=>inner.CacheLimitBytes=value;}
     }
 
 }

@@ -66,7 +66,7 @@ public sealed class ReadOptimizationTests
     {
         var text=Marshal.StringToHGlobalUni(@"C:\Windows\explorer.exe");var memory=Marshal.AllocHGlobal(32);
         HydrationProcess copy;
-        try{for(var i=0;i<32;i++)Marshal.WriteByte(memory,i,0);Marshal.WriteInt32(memory,32);Marshal.WriteInt32(memory,4,1234);Marshal.WriteIntPtr(memory,8,text);copy=HydrationProcess.Copy(memory);}
+        try{for(var i=0;i<32;i++)Marshal.WriteByte(memory,i,0);Marshal.WriteInt32(memory,32);Marshal.WriteInt32(memory,4,1234);Marshal.WriteIntPtr(memory,8,text);copy=HydrationDiagnostics.CopyProcess(memory);}
         finally{Marshal.FreeHGlobal(text);Marshal.FreeHGlobal(memory);}
         Assert.Equal(1234u,copy.Id);Assert.Equal("explorer.exe",copy.Image);
     }

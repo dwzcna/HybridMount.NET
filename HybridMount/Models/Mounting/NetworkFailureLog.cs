@@ -1,6 +1,4 @@
-using HybridMount.Models.Mounting;
-
-namespace HybridMount.Services.Mounting;
+namespace HybridMount.Models.Mounting;
 
 /// <summary>单个会话的同类网络错误五分钟合并；真实故障仍保留首条、窗口汇总与恢复记录。</summary>
 internal sealed class NetworkFailureLog(Func<DateTimeOffset>? clock=null)

@@ -44,6 +44,7 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     private readonly ExePreviewCache _previews;
     private readonly MountRepository _repository;
+    private readonly ILocalUploadCommitter _uploadCommitter;
     private readonly LoggerService _logger;
     private readonly IFileSourceFactory _factory;
     private Task? _maintenance;
@@ -52,9 +53,10 @@ public sealed partial class MountManager : IAsyncDisposable
     private readonly CancellationTokenSource _stop=new();
     private Task? _dispose;
     public event Action? Changed;
-    public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null)
+    public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null)
     {
-        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationProcess.DiagnosticsEnabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_sqsEvents=new(repository,CreateQueueClient);
+        _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
+        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_sqsEvents=new(repository,CreateQueueClient);
         foreach(var definition in repository.LoadDefinitions())
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;

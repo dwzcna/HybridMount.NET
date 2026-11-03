@@ -52,11 +52,11 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             var entries=_repository.Entries(root.Definition.Id);entry=entries.FirstOrDefault(x=>x.SourcePath.Equals(pending.Path,StringComparison.OrdinalIgnoreCase));
-            var uploads=_repository.Uploads(root.Definition.Id).Where(x=>SourceContains(pending.Path,x.SourcePath)&&Unfinished(x)).ToArray();
-            if(uploads.Any(InFlight))throw new IOException("同路径上传已发送，等待其回执或未知结果核对后再应用远端变化。");
+            var uploads=_repository.Uploads(root.Definition.Id).Where(x=>UploadRules.SourceContains(pending.Path,x.SourcePath)&&UploadRules.Unfinished(x)).ToArray();
+            if(uploads.Any(UploadRules.InFlight))throw new IOException("同路径上传已发送，等待其回执或未知结果核对后再应用远端变化。");
             if(pending.Entry is not {} metadata)
             {
-                var missing=entries.Where(x=>SourceContains(pending.Path,x.SourcePath)).ToArray();
+                var missing=entries.Where(x=>UploadRules.SourceContains(pending.Path,x.SourcePath)).ToArray();
                 var results=ApplyRemoteDeletions(root,missing,token);
                 if(results.Any(x=>x.Status!="Completed"))throw new SourceConflictException(string.Join("；",results.Where(x=>x.Status!="Completed").Select(x=>x.Message).Distinct()));
                 return SaveRemote(pending with{State="Completed",Error=null});
@@ -122,7 +122,7 @@ public sealed partial class MountManager
             if(current.State is "Superseded" or "Canceled")return current;
             entry=_repository.Entries(root.Definition.Id).Single(x=>x.Id==pending.EntryId);
             var generation=_repository.Uploads(root.Definition.Id).Where(x=>x.LocalPath==entry.LocalPath).Select(x=>x.Generation).DefaultIfEmpty().Max();
-            if(generation!=pending.UploadGeneration||_repository.Uploads(root.Definition.Id).Any(x=>x.LocalPath==entry.LocalPath&&Unfinished(x)))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
+            if(generation!=pending.UploadGeneration||_repository.Uploads(root.Definition.Id).Any(x=>x.LocalPath==entry.LocalPath&&UploadRules.Unfinished(x)))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
             ValidateRemoteSnapshot(pending);
             await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated)=>
             {
@@ -160,7 +160,7 @@ public sealed partial class MountManager
             if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
             original=_repository.Entries(root.Definition.Id).FirstOrDefault(x=>x.SourcePath==pending.Path&&!x.IsDirectory&&!x.Deleted);
             if(original is null||runtime.Source.IsSameVersion(original.Version,metadata.Version)||!changeSource.IsSameVersionHint(original.Version,metadata.Version)||
-                _repository.Uploads(root.Definition.Id).Any(x=>x.SourcePath==pending.Path&&InFlight(x)))return false;
+                _repository.Uploads(root.Definition.Id).Any(x=>x.SourcePath==pending.Path&&UploadRules.InFlight(x)))return false;
             baseline=_repository.Baseline(root.Definition.Id,pending.Path,original.Version);if(baseline is null)return false;
         }
         finally{root.Gate.Release();}
@@ -172,10 +172,10 @@ public sealed partial class MountManager
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             var current=_repository.Entries(root.Definition.Id).FirstOrDefault(x=>x.Id==original.Id);
             var active=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==pending.Id);
-            if(current is null||current.Version!=original.Version||active.State is "Canceled" or "Superseded"||_repository.Uploads(root.Definition.Id).Any(x=>x.SourcePath==pending.Path&&InFlight(x)))return false;
+            if(current is null||current.Version!=original.Version||active.State is "Canceled" or "Superseded"||_repository.Uploads(root.Definition.Id).Any(x=>x.SourcePath==pending.Path&&UploadRules.InFlight(x)))return false;
             _repository.SaveBaseline(root.Definition.Id,new(metadata.Path,metadata.Version,baseline));
             _repository.SaveEntry(root.Definition.Id,current with{Version=metadata.Version});
-            foreach(var upload in _repository.Uploads(root.Definition.Id).Where(x=>x.SourcePath==pending.Path&&x.ExpectedVersion==original.Version&&!InFlight(x)))
+            foreach(var upload in _repository.Uploads(root.Definition.Id).Where(x=>x.SourcePath==pending.Path&&x.ExpectedVersion==original.Version&&!UploadRules.InFlight(x)))
                 ChangeUpload(upload.Id,x=>x with{ExpectedVersion=metadata.Version,BaselineSha256=x.BaselineSha256??baseline});
             SaveRemote(pending with{State="Completed",Error=null});DeleteRemoteSnapshot(pending.SnapshotPath);return true;
         }

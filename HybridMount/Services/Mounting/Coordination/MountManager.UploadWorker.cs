@@ -78,7 +78,7 @@ public sealed partial class MountManager
                 var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token).ConfigureAwait(false);if(sending is null)return;prepared=sending;
                 receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,token).ConfigureAwait(false);
             }
-            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==CloudUploadState.TypeConflictMessage?x.Error:null,Bytes=prepared.Total})!;
+            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total})!;
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);
             await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);
         }
@@ -116,7 +116,7 @@ public sealed partial class MountManager
             {ChangeUpload(item.Id,current=>current with{State="Conflict",Error="发送结果不明且远端目标不存在，无法区分未写入与写入后被删除；请显式重试或另存副本。",LastCheckedUtc=null});return;}
             if(item.IsDirectory&&metadata.IsDirectory||!item.IsDirectory&&!metadata.IsDirectory&&metadata.Size==item.Total&&await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.SnapshotSha256)
             {
-                var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=x.Error==CloudUploadState.TypeConflictMessage?x.Error:null,LastCheckedUtc=null})!;
+                var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,LastCheckedUtc=null})!;
                 await CommitUploadAsync(root,saved,token).ConfigureAwait(false);return;
             }
             var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);

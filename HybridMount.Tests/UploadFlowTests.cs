@@ -123,10 +123,10 @@ public sealed class UploadFlowTests
     internal sealed class Fixture : IAsyncDisposable
     {
         public DavFixture Dav=new();public MountRepository Repository=null!;public LoggerService Logger=null!;public MountManager Manager=null!;public string Local="",Registry="";public Guid Id;
-        public static async Task<Fixture> Create(bool auto=true)
+        public static async Task<Fixture> Create(bool auto=true,Func<string,IMountDefinitionStore>? definitionStore=null)
         {
             var test=new Fixture();test.Local=Path.Combine(test.Dav.Area,"view");Directory.CreateDirectory(test.Local);test.Registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
-            test.Repository=new(Path.Combine(test.Dav.Area,"data"),test.Registry);test.Logger=new(Path.Combine(test.Dav.Area,"logs.db"));test.Manager=new(test.Repository,test.Logger);
+            test.Repository=new(Path.Combine(test.Dav.Area,"data"),test.Registry,definitionStore?.Invoke(test.Registry));test.Logger=new(Path.Combine(test.Dav.Area,"logs.db"));test.Manager=new(test.Repository,test.Logger);
             var mount=await test.Manager.AddAsync("自动上传回归",test.Local,true,source:test.Dav.Options,credentials:new("user","app-password"),autoUpload:auto);test.Id=mount.Id;if(!auto)await test.Manager.SetSchedulingForTestsAsync(test.Id,false);return test;
         }
         public async Task<LocalUpload> Wait(string path,string state="Completed",byte[]? bytes=null)

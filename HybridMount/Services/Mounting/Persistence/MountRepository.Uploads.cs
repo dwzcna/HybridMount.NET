@@ -74,8 +74,8 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             var current=Upload(prepared.Id)??throw new IOException("上传记录已经移除。");
-            CloudUploadState.ValidateTypes(prepared,committedStamp,receipt.IsDirectory);
-            if(current.IsDirectory!=prepared.IsDirectory||entry.IsDirectory!=receipt.IsDirectory)throw new SourceConflictException(CloudUploadState.TypeConflictMessage);
+            UploadRules.ValidateTypes(prepared,committedStamp,receipt.IsDirectory);
+            if(current.IsDirectory!=prepared.IsDirectory||entry.IsDirectory!=receipt.IsDirectory)throw new SourceConflictException(UploadRules.TypeConflictMessage);
             var clean=committedStamp is not null&&committedStamp.Identity==prepared.SnapshotIdentity&&current.Generation==prepared.SnapshotGeneration;
             var completed=clean||missing||current.IsCopy;
             var next=current with{EntryId=entry.Id,ExpectedVersion=receipt.Version,BaselineSha256=prepared.SnapshotSha256,

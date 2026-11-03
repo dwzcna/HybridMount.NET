@@ -1,7 +1,7 @@
-namespace HybridMount.Services.Mounting;
+namespace HybridMount.Models.Mounting;
 
 /// <summary>文件源与本地目录之间的受限映射，拒绝父级、设备名和无法无损表达的名称。</summary>
-public static class RelativePaths
+public static class RelativePathRules
 {
     public static string Normalize(string path)
     {

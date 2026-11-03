@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.8.6**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.8.7**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -39,6 +39,8 @@ WebDAV 连接、远端检测和读取失败时显示安全的阶段、TLS／证�
 生命周期诊断位于数据目录的 `Logs/lifecycle-*.jsonl` 和 `Logs/last-session.json`，保留最近 32 个会话；记录实际包身份、调试器状态、启动／退出阶段、取消原因及异常的类型、HRESULT 和安全堆栈，不保存异常原始消息或服务响应。正常退出记录 ExitCompleted；清理失败继续释放其他资源，并记录 ExitCompletedWithErrors。关联令牌已取消的读取按正常停止，HTTP 超时仍报告故障；已发送写入被取消保留结果待核对。缺少退出完成记录仅表示原因待定位，不能单凭 Visual Studio 的 `0xffffffff` 输出认定崩溃。通知合并和普通存在性查询不再通过重复抛出自有异常完成；SDK 自身已捕获的首次异常仍可能出现在调试输出中。
 
 ## 构建
+
+挂载公共职责与注入边界见 [结构说明](docs/Mounting-structure-0.0.8.7.md)，测试工程递归登记模型和服务源文件。
 
 安装 .NET SDK 10.0.401、Visual Studio 2026 的 C++ 桌面／ARM64 工具链、Windows SDK 10.0.26100.0 和 MSIX 工具。打开根目录的 **HybridMount.slnx**；解决方案仅包含以下三个工程：
 

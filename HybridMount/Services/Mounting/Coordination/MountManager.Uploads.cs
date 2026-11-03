@@ -75,7 +75,7 @@ public sealed partial class MountManager
         if(root.Definition.ContinuousUploadMigrated)return;
         var entries=_repository.Entries(root.Definition.Id);
         foreach(var item in _repository.Uploads(root.Definition.Id).Where(item=>item.State is "AwaitingConfirmation" or "Ignored"&&!item.CancelRequested))
-            ChangeUpload(item.Id,current=>current with{State=DeletedSourceAncestor(entries,current.SourcePath) is null?"Queued":"Conflict",Error=DeletedSourceAncestor(entries,current.SourcePath) is null?null:RemoteDeletedMessage,LastCheckedUtc=null});
+            ChangeUpload(item.Id,current=>current with{State=UploadRules.DeletedSourceAncestor(entries,current.SourcePath) is null?"Queued":"Conflict",Error=UploadRules.DeletedSourceAncestor(entries,current.SourcePath) is null?null:UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});
         root.Definition=root.Definition with{AutoUploadEnabled=true,UploadInitialReviewCompleted=true,ContinuousUploadMigrated=true};
         _repository.SaveDefinition(root.Definition);
     }
@@ -91,8 +91,8 @@ public sealed partial class MountManager
     private bool RetryUploadCore(string id)
     {
         if(IsStopping)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
-        if(item.State is not("Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation"))return false;
-        ChangeUpload(id,x=>x with{State=x.State=="OutcomeUnknown"?x.State:x.Receipt is not null?"RemoteCommitted":"Queued",CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null});root.Uploads?.Wake();return true;
+        if(!UploadRules.CanRetry(item))return false;
+        ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null});root.Uploads?.Wake();return true;
     }
     /// <summary>冲突文件上传到新的相对路径；创建保护保证不覆盖目标，原始冲突和索引不变。</summary>
     public string UploadAsCopy(string id,string destination){lock(_lifetime){ThrowIfStopping();return UploadAsCopyCore(id,destination);}}
@@ -109,14 +109,6 @@ public sealed partial class MountManager
         var item=_repository.Upload(id);if(item is null||item.State is "Completed" or "Canceled" or "Ignored" or "Conflict" or "Failed")return false;
         ChangeUpload(id,x=>x with{CancelRequested=true,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:"Canceled",Error="已取消本代内容；再次修改或显式重试后恢复。"});
         if(_roots.TryGetValue(item.MountId,out var root))root.Uploads?.CancelRequest(id);return true;
-    }
-    /// <summary>未纳入的旧改动不会因固定、属性或访问等元数据变化自动获得上传授权。</summary>
-    private static bool ContentChanged(string observed,LocalFileStamp current)
-    {
-        var parts=observed.Split(':');if(parts.Length!=6||parts[0]!=current.Identity)return true;
-        if(current.IsDirectory)return false;
-        if(!long.TryParse(parts[2],out var length)||length!=current.Length||!long.TryParse(parts[3],out var time)||time!=current.LastWriteTime)return true;
-        return long.TryParse(parts[1],out var usn)&&current.Usn!=usn&&(current.Reasons&0x77)!=0;
     }
     /// <summary>只有明确不存在才视为删除；访问拒绝、占用或临时 oplock 竞争不能取消仍存在的上传。</summary>
     private static bool LocalMissing(string path)
@@ -152,18 +144,18 @@ public sealed partial class MountManager
                         var entry=marker is null?entries.FirstOrDefault(x=>x.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase)&&!x.Deleted):entries.FirstOrDefault(x=>x.Id==marker.EntryId);
                         records.TryGetValue(relative,out var prior);
                         var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
-                        if(DeletedSourceAncestor(entries,relative) is not null)
+                        if(UploadRules.DeletedSourceAncestor(entries,relative) is not null)
                         {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(stamp.IsDirectory)Scan(path);continue;}
-                        if(prior is not null&&(prior.IsDirectory!=stamp.IsDirectory||prior.State=="Conflict"&&prior.Error==CloudUploadState.TypeConflictMessage))
+                        if(prior is not null&&(prior.IsDirectory!=stamp.IsDirectory||prior.State=="Conflict"&&prior.Error==UploadRules.TypeConflictMessage))
                         {
                             // 已发出的请求继续核对结果；类型冲突不能被普通扫描重新改成创建请求。
-                            if(prior.ObservedStamp!=stamp.Key||prior.Error!=CloudUploadState.TypeConflictMessage||prior.State is not("Conflict" or "Sending" or "OutcomeUnknown"))
+                            if(prior.ObservedStamp!=stamp.Key||prior.Error!=UploadRules.TypeConflictMessage||prior.State is not("Conflict" or "Sending" or "OutcomeUnknown"))
                                 ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key,Generation=x.Generation+(x.ObservedStamp==stamp.Key?0:1),
-                                    State=x.State is "Sending" or "OutcomeUnknown"?x.State:"Conflict",Error=CloudUploadState.TypeConflictMessage,LastCheckedUtc=null});
+                                    State=x.State is "Sending" or "OutcomeUnknown"?x.State:"Conflict",Error=UploadRules.TypeConflictMessage,LastCheckedUtc=null});
                             if(entry is not null&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
                             if(stamp.IsDirectory)Scan(path);continue;
                         }
-                        if(prior is {State:"Ignored"}&&prior.ObservedStamp!=stamp.Key&&!ContentChanged(prior.ObservedStamp,stamp))
+                        if(prior is {State:"Ignored"}&&prior.ObservedStamp!=stamp.Key&&!UploadRules.ContentChanged(prior.ObservedStamp,stamp))
                         {ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key});}
                         else if(!clean&&(prior is null||prior.ObservedStamp!=stamp.Key||prior.State=="Completed"))
                         {

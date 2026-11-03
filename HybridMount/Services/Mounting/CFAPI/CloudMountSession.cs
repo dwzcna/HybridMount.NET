@@ -22,7 +22,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly PriorityReadQueue _reads=new();
     private readonly SharedAsyncWork<string,SourceEntry> _metadata=new();
-    private readonly bool _diagnostics=HydrationProcess.DiagnosticsEnabled;
+    private readonly bool _diagnostics=HydrationDiagnostics.Enabled;
     private readonly List<CloudFilesNative.Callback> _callbacks = [];
     private sealed record FetchRequest(string EntryId,long Transfer,long Request,long Offset,long Length,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<long,FetchRequest> _fetches=new();
@@ -81,7 +81,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 var offset=Marshal.ReadInt64(parameters,16); var length=Marshal.ReadInt64(parameters,24);
                 if(_clearing||_metadataUpdating.Contains(marker.EntryId)){Complete(info,offset,length,unchecked((int)0xc000cf16),token:new CancellationToken(true));return;}
                 var explicitHydration=(Marshal.ReadInt32(parameters,8)&2)!=0||_explicitDownloads.GetValueOrDefault(marker.EntryId)>0;
-                var process=HydrationProcess.Copy(info.ProcessInfo);var queued=Stopwatch.GetTimestamp();
+                var process=HydrationDiagnostics.CopyProcess(info.ProcessInfo);var queued=Stopwatch.GetTimestamp();
                 if(_diagnostics)_logger.Queue("水合诊断","Information",$"begin entry={marker.EntryId}; transfer={info.TransferKey}; request={info.RequestKey}; offset={offset}; length={length}; pid={process.Id}; image={process.Image}");
                 // 异步闭包只保留原生标量，回调返回后不得使用任何原生指针。
                 info.Context=info.VolumeGuidName=info.VolumeDosName=info.RootIdentity=info.FileIdentity=info.NormalizedPath=info.CorrelationVector=info.ProcessInfo=0;

@@ -4,12 +4,6 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
-    private const string RemoteDeletedMessage="远端已删除此路径或父目录；保留本地内容，禁止自动重新创建。请刷新核对或另存到其他路径。";
-    private static bool SourceContains(string parent,string path)=>parent==path||path.StartsWith(parent+"/",StringComparison.Ordinal);
-    private static bool InFlight(LocalUpload item)=>item.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown";
-    private static bool Unfinished(LocalUpload item)=>item.State is not("Completed" or "Canceled" or "Ignored");
-    private static MountEntry? DeletedSourceAncestor(IEnumerable<MountEntry> entries,string path)
-        =>entries.FirstOrDefault(entry=>entry.RemotePresence==RemotePresence.Deleted&&SourceContains(entry.SourcePath,path));
     /// <summary>完整枚举之后逐项确认缺失；确认阶段不修改索引或本地文件，任一请求失败不会应用半份删除结果。</summary>
     private async Task<IReadOnlyList<MountEntry>> ConfirmRemoteDeletionsAsync(Runtime root,IReadOnlyDictionary<string,SourceEntry> snapshot,CancellationToken token)
     {
@@ -17,7 +11,7 @@ public sealed partial class MountManager
         foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>entry.SourcePath.Length!=0&&!snapshot.ContainsKey(entry.SourcePath)).OrderBy(entry=>entry.SourcePath.Count(c=>c=='/')))
         {
             token.ThrowIfCancellationRequested();
-            if(missing.Any(parent=>parent.IsDirectory&&SourceContains(parent.SourcePath,entry.SourcePath))) {missing.Add(entry);continue;}
+            if(missing.Any(parent=>parent.IsDirectory&&UploadRules.SourceContains(parent.SourcePath,entry.SourcePath))) {missing.Add(entry);continue;}
             if(await root.Source!.TryGetMetadataAsync(entry.SourcePath,token).ConfigureAwait(false) is null)missing.Add(entry);
         }
         return missing;
@@ -31,10 +25,10 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();
             if(!_repository.SetRemotePresence(mount.Id,entry,RemotePresence.Deleted))throw new IOException("确认删除期间映射发生变化，请重试刷新。");
         }
-        foreach(var upload in _repository.Uploads(mount.Id).Where(item=>missing.Any(entry=>SourceContains(entry.SourcePath,item.SourcePath))&&Unfinished(item)))
+        foreach(var upload in _repository.Uploads(mount.Id).Where(item=>missing.Any(entry=>UploadRules.SourceContains(entry.SourcePath,item.SourcePath))&&UploadRules.Unfinished(item)))
         {
-            if(InFlight(upload)){root.Uploads?.CancelRequest(upload.Id);continue;}
-            if(upload.State!="Conflict"||upload.Error!=RemoteDeletedMessage)ChangeUpload(upload.Id,item=>item with{State="Conflict",Error=RemoteDeletedMessage,LastCheckedUtc=null});
+            if(UploadRules.InFlight(upload)){root.Uploads?.CancelRequest(upload.Id);continue;}
+            if(upload.State!="Conflict"||upload.Error!=UploadRules.RemoteDeletedMessage)ChangeUpload(upload.Id,item=>item with{State="Conflict",Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});
         }
         foreach(var old in missing.OrderByDescending(entry=>entry.LocalPath.Count(c=>c=='/')).ThenBy(entry=>entry.IsDirectory?1:0))
         {
@@ -49,8 +43,8 @@ public sealed partial class MountManager
                     continue;
                 }
                 MountPathGuard.ValidateOperation(mount,path);
-                var active=_repository.Uploads(mount.Id).Any(item=>Unfinished(item)&&
-                    (SourceContains(entry.SourcePath,item.SourcePath)||SourceContains(entry.LocalPath,item.LocalPath)));
+                var active=_repository.Uploads(mount.Id).Any(item=>UploadRules.Unfinished(item)&&
+                    (UploadRules.SourceContains(entry.SourcePath,item.SourcePath)||UploadRules.SourceContains(entry.LocalPath,item.LocalPath)));
                 if(active)throw new IOException("条目存在待上传、冲突或结果不明的内容，已保留本地文件。");
                 if(!entry.Materialized||entry.Protected||entry.Deleted)throw new IOException("条目含本地新增、修改或删除意图，已保留。");
                 if(root.Session!.IsActive(entry.Id))throw new IOException("条目正在使用，暂缓清理；关闭后再次刷新。");
@@ -71,19 +65,18 @@ public sealed partial class MountManager
     /// <summary>扫描不会把远端删除的旧内容当作新文件；新修改仍受保护并显示可处理的冲突。</summary>
     private void ObserveBlockedUpload(Runtime root,MountEntry? entry,LocalUpload? prior,string relative,LocalFileStamp stamp,bool clean)
     {
-        if(InFlightOrCompleted(prior)&&clean)return;
+        if(UploadRules.InFlightOrCompleted(prior)&&clean)return;
         if(prior is null)
         {
-            if(!clean)SaveUpload(new(Guid.NewGuid().ToString("N"),root.Definition.Id,relative,relative,stamp.IsDirectory,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,entry?.Id,entry?.Version,Error:RemoteDeletedMessage));
+            if(!clean)SaveUpload(new(Guid.NewGuid().ToString("N"),root.Definition.Id,relative,relative,stamp.IsDirectory,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,entry?.Id,entry?.Version,Error:UploadRules.RemoteDeletedMessage));
         }
-        else if(!InFlight(prior)&&(!clean||Unfinished(prior)))
+        else if(!UploadRules.InFlight(prior)&&(!clean||UploadRules.Unfinished(prior)))
         {
-            if(prior.State!="Conflict"||prior.Error!=RemoteDeletedMessage||prior.ObservedStamp!=stamp.Key)
-                ChangeUpload(prior.Id,item=>item with{State="Conflict",ObservedStamp=stamp.Key,Generation=item.Generation+(item.ObservedStamp==stamp.Key?0:1),Error=RemoteDeletedMessage,LastCheckedUtc=null});
+            if(prior.State!="Conflict"||prior.Error!=UploadRules.RemoteDeletedMessage||prior.ObservedStamp!=stamp.Key)
+                ChangeUpload(prior.Id,item=>item with{State="Conflict",ObservedStamp=stamp.Key,Generation=item.Generation+(item.ObservedStamp==stamp.Key?0:1),Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});
         }
         if(entry is not null&&!clean&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
     }
-    private static bool InFlightOrCompleted(LocalUpload? item)=>item is not null&&(InFlight(item)||item.State is "Completed" or "Canceled" or "Ignored");
     /// <summary>在根锁内校验目标及已知父目录；不会为更新任务或远端删除记录自动 MKCOL。</summary>
     private async Task PrepareUploadDestinationAsync(Runtime root,LocalUpload item,CancellationToken token)
     {
@@ -92,9 +85,9 @@ public sealed partial class MountManager
         {
             if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
-            CloudUploadState.ValidateTypes(item,LocalFileState.Read(local));
+            UploadRules.ValidateTypes(item,LocalFileState.Read(local));
             var entries=_repository.Entries(root.Definition.Id);
-            if(DeletedSourceAncestor(entries,item.SourcePath) is not null)throw new SourceConflictException(RemoteDeletedMessage);
+            if(UploadRules.DeletedSourceAncestor(entries,item.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
             var known=entries.FirstOrDefault(entry=>entry.SourcePath==item.SourcePath);
             if(item.ExpectedVersion is not null)
             {
@@ -126,12 +119,12 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
             if(_repository.HasPendingRemote(mountId,current.SourcePath))throw new SourceConflictException("远端更改尚待核对，未发送旧基线上传。");
-            if(DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(RemoteDeletedMessage);
+            if(UploadRules.DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
             if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
             if(current.Generation!=current.SnapshotGeneration)
             {ChangeUpload(current.Id,item=>item with{State="Queued",Error=null,LastCheckedUtc=null});return null;}
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
-            CloudUploadState.ValidateTypes(current,LocalFileState.Read(path));
+            UploadRules.ValidateTypes(current,LocalFileState.Read(path));
             return ChangeUpload(current.Id,item=>item with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null});
         }
         finally{root.Gate.Release();}
