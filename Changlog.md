@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.8.10 — URI 与 Frame.Navigate 统一导航（2026-11-04）
+
+- INavigationService 提供 bool Navigate(Uri target)，只接受五个固定内部路由，拒绝外部、未知、编码别名、查询／片段及相对目标。生产适配器实际执行 Frame.Navigate(pageType,parameter)，删除 new Page 分支及 Frame.Content 赋值。
+- 成功事件同步侧栏并防重入；重复当前页不再导航，一级历史及时清空。五页 Required 缓存与滚动书签协调，隐藏页面不覆盖保存位置，退出抑制排队恢复；首页 VM 通过应用导航入口调用服务。
+- 所有已访问缓存页统一停止／释放，重复释放共用任务；单页失败继续处理其余页并保留错误，异步收尾期间的迟到页面也停止。41/41 针对性、Debug／Release 各 452/452、双架构签名 MSIX 及 ARM64 测试交叉编译通过。首轮 SQS 状态观察时序失败、测试修正及实际 GUI 边界见 docs/Validation-0.0.8.10.md，未修改协议生产代码。
+
 ## 0.0.8.9 — 页面与 ViewModel 一一对应（2026-11-04）
 
 - Home／Mounts／Tasks／Logs／Settings 各由同名唯一 ViewModel 提供状态。挂载草稿、选择、按挂载忙碌、校验与命令、任务取消／重试／单次副本、日志筛选／清除均归 VM；Page 只保留布局、控件适配、滚动、选择器／剪贴板及对话框展示。

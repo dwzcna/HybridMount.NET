@@ -1,3 +1,5 @@
+using HybridMount.Helpers;
+using Microsoft.UI.Xaml.Navigation;
 using HybridMount.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -7,8 +9,11 @@ namespace HybridMount.Pages;
 public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
 {
     public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.Mounts,App.Current.Logger);
-    public SettingsPage(){InitializeComponent();Loaded+=PageLoaded;}
-    private async void PageLoaded(object sender,RoutedEventArgs args){ViewModel.ReloadAppearance();await ViewModel.RefreshStartupAsync();}
+    private readonly PageScrollBookmark _viewport=new();
+    public SettingsPage(){try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(SettingsScroll);}
+    protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(SettingsScroll);base.OnNavigatedFrom(args);}
+    private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(SettingsScroll);ViewModel.ReloadAppearance();await ViewModel.RefreshStartupAsync();}
     private void SaveCache(object sender,RoutedEventArgs args)=>ViewModel.SaveCacheLimit();
     private async void TrimCache(object sender,RoutedEventArgs args)=>await ViewModel.TrimCacheAsync();
     private async void OpenStartupSettings(object sender,RoutedEventArgs args)
@@ -16,6 +21,6 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
         try{await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"));}
         catch(Exception error){App.Current.Logger.Log("启动",error.Message,InfoBarSeverity.Error);}
     }
-    public void Dispose(){Loaded-=PageLoaded;ViewModel.Dispose();}
+    public void Dispose(){Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
     public async ValueTask DisposeAsync(){Dispose();await ViewModel.DisposeAsync();}
 }

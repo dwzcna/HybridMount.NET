@@ -1,3 +1,5 @@
+using HybridMount.Helpers;
+using Microsoft.UI.Xaml.Navigation;
 using HybridMount.Models.Mounting;
 using HybridMount.ViewModels;
 using Microsoft.UI.Xaml;
@@ -11,29 +13,23 @@ public sealed partial class TasksPage : Page, IDisposable
     /// <summary>UI 线程上的任务快照集合。</summary>
     public TasksViewModel ViewModel { get; }=new(App.Current.Mounts,App.Current.UiDispatcher);
     private bool _restoring,_disposed;
-    private ScrollViewer? _listScroll;
-    private double _offset;
-    private long _refreshVersion;
+    private readonly PageScrollBookmark _viewport=new();
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
     public TasksPage()
     {
-        InitializeComponent();
+        try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
         JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is MountOperationSnapshot job)ViewModel.SelectedJobId=job.Id;};
-        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;
+        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;Loaded+=PageLoaded;
     }
-    private static ScrollViewer? FindScroll(DependencyObject parent)
-    {
-        for(var i=0;i<Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);i++)
-        {var child=Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent,i);if(child is ScrollViewer viewer)return viewer;if(FindScroll(child) is {} nested)return nested;}
-        return null;
-    }
-    private void CaptureScroll(){_restoring=true;_listScroll??=FindScroll(JobList);_offset=_listScroll?.VerticalOffset??0;}
+    private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(JobList);
+    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(JobList);RestoreSelection();}
+    protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(JobList);base.OnNavigatedFrom(args);}
+    private void CaptureScroll(){_restoring=true;_viewport.Capture(JobList);}
     private void RestoreSelection()
     {
-        if(_disposed)return;
-        try{JobList.SelectedItem=ViewModel.Operations.FirstOrDefault(job=>job.Id==ViewModel.SelectedJobId);}finally{_restoring=false;}
-        var revision=++_refreshVersion;var offset=_offset;
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,()=>{if(!_disposed&&revision==_refreshVersion)_listScroll?.ChangeView(null,offset,null,true);});
+        if(_disposed)return;_restoring=true;
+        try{JobList.SelectedItem=ViewModel.Selected;}finally{_restoring=false;}
+        _viewport.Restore(JobList);
     }
     private void CancelJob(object sender,RoutedEventArgs args)=>ViewModel.CancelSelected();
     private void RetryUpload(object sender,RoutedEventArgs args)=>ViewModel.RetrySelected();
@@ -66,5 +62,5 @@ public sealed partial class TasksPage : Page, IDisposable
         finally { ViewModel.EndDialog(); }
     }
     /// <summary>窗口释放时解除订阅；页面离开导航时仍保留缓存。</summary>
-    public void Dispose() { if(_disposed)return;_disposed=true;ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
+    public void Dispose() { if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
 }

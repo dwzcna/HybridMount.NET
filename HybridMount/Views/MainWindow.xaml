@@ -10,12 +10,12 @@
     </TitleBar>
     <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" AutomationProperties.Name="主导航">
       <NavigationView.MenuItems>
-        <NavigationViewItem Content="首页" Tag="Home" AutomationProperties.Name="首页"><NavigationViewItem.Icon><SymbolIcon Symbol="Home" /></NavigationViewItem.Icon></NavigationViewItem>
-        <NavigationViewItem Content="挂载" Tag="Mounts" AutomationProperties.Name="挂载"><NavigationViewItem.Icon><SymbolIcon Symbol="MapDrive" /></NavigationViewItem.Icon></NavigationViewItem>
-        <NavigationViewItem Content="任务" Tag="Tasks" AutomationProperties.Name="任务"><NavigationViewItem.Icon><FontIcon Glyph="&#xE7C4;" /></NavigationViewItem.Icon></NavigationViewItem>
-        <NavigationViewItem Content="日志" Tag="Logs" AutomationProperties.Name="日志"><NavigationViewItem.Icon><FontIcon Glyph="&#xF120;" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="首页" Tag="hybridmount:///home" AutomationProperties.Name="首页"><NavigationViewItem.Icon><SymbolIcon Symbol="Home" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="挂载" Tag="hybridmount:///mounts" AutomationProperties.Name="挂载"><NavigationViewItem.Icon><SymbolIcon Symbol="MapDrive" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="任务" Tag="hybridmount:///tasks" AutomationProperties.Name="任务"><NavigationViewItem.Icon><FontIcon Glyph="&#xE7C4;" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="日志" Tag="hybridmount:///logs" AutomationProperties.Name="日志"><NavigationViewItem.Icon><FontIcon Glyph="&#xF120;" /></NavigationViewItem.Icon></NavigationViewItem>
       </NavigationView.MenuItems>
-      <NavigationView.FooterMenuItems><NavigationViewItem Content="设置" Tag="Settings" AutomationProperties.Name="设置"><NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon></NavigationViewItem></NavigationView.FooterMenuItems>
+      <NavigationView.FooterMenuItems><NavigationViewItem Content="设置" Tag="hybridmount:///settings" AutomationProperties.Name="设置"><NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon></NavigationViewItem></NavigationView.FooterMenuItems>
       <Frame x:Name="ContentFrame" />
     </NavigationView>
     <InfoBar x:Name="NotificationBar" Grid.Row="1" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsClosable="True" />

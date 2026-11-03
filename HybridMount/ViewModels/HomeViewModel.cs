@@ -1,7 +1,10 @@
 namespace HybridMount.ViewModels;
 
-/// <summary>首页唯一展示状态，不持有窗口；导航事件由页面适配，下一版统一导航入口。</summary>
-public sealed class HomeViewModel(string version)
+/// <summary>首页唯一展示和导航命令状态；通过接口请求内部路由，不访问窗口或创建页面。</summary>
+public sealed class HomeViewModel(string version,INavigationService navigation)
 {
     public string VersionText=>"版本 "+version;
+    public bool OpenMounts()=>navigation.Navigate(ApplicationRoutes.Mounts);
+    public bool OpenSettings()=>navigation.Navigate(ApplicationRoutes.Settings);
+    public bool OpenLogs()=>navigation.Navigate(ApplicationRoutes.Logs);
 }

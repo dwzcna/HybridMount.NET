@@ -1,3 +1,5 @@
+using HybridMount.Helpers;
+using Microsoft.UI.Xaml.Navigation;
 using HybridMount.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,8 +15,11 @@ public sealed partial class LogsPage : Page, IDisposable
     /// <summary>仅该页面拥有日志展示订阅。</summary>
     public LogsViewModel ViewModel { get; } = new(App.Current.Logger,App.Current.UiDispatcher);
     /// <summary>页面出现时重新读取 SQLite 快照。</summary>
-    public LogsPage() { InitializeComponent(); Loaded += PageLoaded; }
-    private async void PageLoaded(object sender,RoutedEventArgs args)=>await ViewModel.RefreshAsync();
+    private readonly PageScrollBookmark _viewport=new();
+    public LogsPage(){try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(LogList);}
+    protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(LogList);base.OnNavigatedFrom(args);}
+    private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(LogList);await ViewModel.RefreshAsync();}
     private void SeverityChanged(object sender, SelectionChangedEventArgs args)
     { if (SeverityBox?.SelectedItem is ComboBoxItem item && item.Tag is string tag) ViewModel.Severity = tag; }
     private async void RefreshClicked(object sender, RoutedEventArgs args) => await ViewModel.RefreshAsync();
@@ -49,5 +54,5 @@ public sealed partial class LogsPage : Page, IDisposable
         finally {ViewModel.EndDialog();}
     }
     /// <summary>真正退出时解除日志订阅。</summary>
-    public void Dispose() {Loaded-=PageLoaded;ViewModel.Dispose();}
+    public void Dispose(){Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
 }

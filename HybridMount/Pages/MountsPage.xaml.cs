@@ -1,3 +1,5 @@
+using HybridMount.Helpers;
+using Microsoft.UI.Xaml.Navigation;
 using HybridMount.Models.Mounting;
 using HybridMount.ViewModels;
 using HybridMount.Views;
@@ -15,21 +17,19 @@ public sealed partial class MountsPage : Page, IDisposable
     private bool _loadingControls,_restoringSelection,_disposed;
     private MountBackupDialog? _backupDialog;
     private SqsSettingsDialog? _sqsDialog;
-    private ScrollViewer? _listScroll;
-    private double _listOffset;
-    private long _refreshVersion;
+    private readonly PageScrollBookmark _viewport=new(),_detailsViewport=new();
 
     /// <summary>UI 线程创建；选择按挂载 ID 保留，后台快照不覆盖尚未保存的检测间隔。</summary>
     public MountsPage()
     {
-        InitializeComponent();
+        try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
         MountList.SelectionChanged+=(_,_)=>
         {
             if(_restoringSelection)return;
-            ViewModel.SelectedMountId=(MountList.SelectedItem as MountSnapshot)?.Definition.Id;
+            _detailsViewport.Reset();ViewModel.SelectedMountId=(MountList.SelectedItem as MountSnapshot)?.Definition.Id;
             DetailsScroll.ChangeView(null,0,null,true);UpdateDetails();_=ViewModel.ReadCapacityAsync(ViewModel.SelectedMountId);
         };
-        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.StateChanged+=UpdateDetails;UpdateDetails();
+        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.StateChanged+=UpdateDetails;Loaded+=PageLoaded;UpdateDetails();
     }
     /// <summary>窄窗口上下排列，宽窗口并排；按钮和文字在详情内纵向排列，无横向操作条。</summary>
     private void WorkspaceSizeChanged(object sender,SizeChangedEventArgs args)
@@ -41,26 +41,15 @@ public sealed partial class MountsPage : Page, IDisposable
         DetailRow.Height=narrow?new(3,GridUnitType.Star):new(0);
         Grid.SetColumn(DetailsPanel,narrow?0:1);Grid.SetRow(DetailsPanel,narrow?1:0);
     }
-    private static T? FindVisual<T>(DependencyObject parent) where T:DependencyObject
-    {
-        for(var i=0;i<Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);i++)
-        {
-            var child=Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent,i);
-            if(child is T result)return result;
-            if(FindVisual<T>(child) is {} nested)return nested;
-        }
-        return null;
-    }
-    private void CaptureScroll(){_restoringSelection=true;_listScroll??=FindVisual<ScrollViewer>(MountList);_listOffset=_listScroll?.VerticalOffset??0;}
+    private void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(MountList);_detailsViewport.Restore(DetailsScroll);}
+    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(MountList);_detailsViewport.Enter(DetailsScroll);RestoreSelection();}
+    protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(MountList);_detailsViewport.Leave(DetailsScroll);base.OnNavigatedFrom(args);}
+    private void CaptureScroll(){_restoringSelection=true;_viewport.Capture(MountList);_detailsViewport.Capture(DetailsScroll);}
     private void RestoreSelection()
     {
-        if(_disposed)return;
-        _restoringSelection=true;
-        try{MountList.SelectedItem=ViewModel.Mounts.FirstOrDefault(mount=>mount.Definition.Id==ViewModel.SelectedMountId);}
-        finally{_restoringSelection=false;}
-        UpdateDetails();var revision=++_refreshVersion;var offset=_listOffset;
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,()=>
-        {if(!_disposed&&revision==_refreshVersion)_listScroll?.ChangeView(null,offset,null,true);});
+        if(_disposed)return;_restoringSelection=true;
+        try{MountList.SelectedItem=ViewModel.Selected;}finally{_restoringSelection=false;}
+        UpdateDetails();_viewport.Restore(MountList);_detailsViewport.Restore(DetailsScroll);
     }
     /// <summary>只更新显示；所有开关写回均由加载保护与捕获的挂载 ID 隔离。</summary>
     private void UpdateDetails()
@@ -178,5 +167,5 @@ public sealed partial class MountsPage : Page, IDisposable
         ViewModel.QueueRemoval(mount.Id,result==ContentDialogResult.Secondary);
     }));
     /// <summary>窗口释放时解除列表订阅，不断开挂载。</summary>
-    public void Dispose() { if(_disposed)return;_disposed=true;_sqsDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.StateChanged-=UpdateDetails;ViewModel.Dispose(); }
+    public void Dispose() { if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();_detailsViewport.Stop();_sqsDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.StateChanged-=UpdateDetails;ViewModel.Dispose(); }
 }

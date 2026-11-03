@@ -2,7 +2,7 @@
   <Grid Padding="28" RowSpacing="16">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <TextBlock Text="设置" Style="{ThemeResource TitleTextBlockStyle}"/>
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
+    <ScrollViewer x:Name="SettingsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
       <!-- 视口始终拉伸，单列将宽屏余量留在右侧；避免受限宽度内容被默认居中后偏移。 -->
       <Grid Padding="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Top">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="1040"/></Grid.ColumnDefinitions>

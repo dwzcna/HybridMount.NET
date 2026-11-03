@@ -24,6 +24,7 @@ public partial class App:Application
     private LifecycleDiagnostics? _lifecycle;
     public new static App Current=>(App)Application.Current;
     public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??"未知版本";
+    public NavigationGateway Navigation{get;}=new();
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
     public AppearanceSettingsService Appearance{get;private set;}=null!;
@@ -140,6 +141,7 @@ public partial class App:Application
         stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
         stages.Run("SignalLegacyIpc",()=>{_ = _legacyIpc?.RequestStop();});
         stages.Run("SignalMounts",()=>Mounts?.RequestStop());
+        stages.Run("SignalNavigation",()=>Navigation.RequestStop());
         stages.Run("SignalPages",()=>MainWindow?.StopPages());
         await stages.RunAsync("IpcStop",()=>_ipc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);

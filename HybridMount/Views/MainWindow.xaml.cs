@@ -1,5 +1,4 @@
 using HybridMount.Helpers;
-using HybridMount.Pages;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,7 +10,8 @@ namespace HybridMount.Views;
 /// <summary>从 EPaperKit 窗口布局迁移的主导航，负责外观应用及轻量页面缓存。</summary>
 public sealed partial class MainWindow : Window
 {
-    private readonly Dictionary<string, Page> _pages = [];
+    private readonly NavigationService _navigation;
+    private bool _syncingSelection;
     private AppearanceBackdrop? _appliedBackdrop;
     /// <summary>原生窗口句柄，用于系统文件选择器。</summary>
     public IntPtr Handle => WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -19,6 +19,8 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _navigation=new NavigationService(ContentFrame,error=>App.Current.Logger.Queue("导航","Error","页面导航失败："+error.GetType().Name));
+        App.Current.Navigation.Bind(_navigation);_navigation.Navigated+=SynchronizeSelection;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.Resize(new SizeInt32(1080, 760));
@@ -26,23 +28,25 @@ public sealed partial class MainWindow : Window
         AppTitleBar.PaneToggleRequested += (_, _) => Navigation.IsPaneOpen = !Navigation.IsPaneOpen;
         Navigation.SelectionChanged += (_, args) =>
         {
-            if (args.SelectedItem is NavigationViewItem item && item.Tag is string key) Navigate(key);
+            if(_syncingSelection)return;
+            if(args.SelectedItem is NavigationViewItem item&&item.Tag is string value&&Uri.TryCreate(value,UriKind.Absolute,out var target))
+                if(!Navigate(target)&&_navigation.Current is {} current)SynchronizeSelection(current);
         };
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
         ApplyAppearance();
-        Navigation.SelectedItem = Navigation.MenuItems[0];
+        Navigate(ApplicationRoutes.Home);
     }
-    /// <summary>切换页面；缓存限五个页面，退出时解除日志订阅。</summary>
-    public void Navigate(string key)
+    /// <summary>内部 URI 统一入口，实际导航由服务经 Frame.Navigate 执行。</summary>
+    public bool Navigate(Uri target)=>_navigation.Navigate(target);
+    private void SynchronizeSelection(Uri target)
     {
-        if (!_pages.TryGetValue(key, out var page))
+        if(_syncingSelection)return;_syncingSelection=true;
+        try
         {
-            page = key switch { "Mounts" => new MountsPage(), "Tasks" => new TasksPage(), "Logs" => new LogsPage(), "Settings" => new SettingsPage(), _ => new HomePage() };
-            _pages[key] = page;
+            var selected=Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>().FirstOrDefault(item=>Equals(item.Tag,target.OriginalString));
+            if(selected is not null&&!ReferenceEquals(Navigation.SelectedItem,selected))Navigation.SelectedItem=selected;
         }
-        ContentFrame.Content = page;
-        var selected = Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>().FirstOrDefault(item => Equals(item.Tag, key));
-        if (selected is not null && !ReferenceEquals(Navigation.SelectedItem, selected)) Navigation.SelectedItem = selected;
+        finally{_syncingSelection=false;}
     }
     /// <summary>立即应用已经成功保存的主题和材质；回退不覆盖用户选择。</summary>
     public void ApplyAppearance()
@@ -92,22 +96,11 @@ public sealed partial class MainWindow : Window
         NotificationBar.Severity = args.Severity;
         NotificationBar.IsOpen = true;
     }
-    /// <summary>真正退出时解除页面订阅和合成背景。</summary>
-    public void StopPages()
-    {
-        var errors=new List<Exception>();
-        foreach(var page in _pages.Values)
-            try{if(page is IDisposable disposable)disposable.Dispose();}catch(Exception error){errors.Add(error);}
-        if(errors.Count>0)throw new AggregateException("部分页面停止失败。",errors);
-    }
-    /// <summary>等待已经发出的系统设置操作；一个页面失败不跳过其他页面释放。</summary>
+    /// <summary>只在真正退出停止 Frame 缓存页；一级导航不会释放页面 VM。</summary>
+    public void StopPages()=>_navigation.StopPages();
     public async Task ReleaseResourcesAsync()
     {
-        var errors=new List<Exception>();
-        foreach(var page in _pages.Values)
-            try{if(page is IAsyncDisposable asynchronous)await asynchronous.DisposeAsync();else if(page is IDisposable disposable)disposable.Dispose();}
-            catch(Exception error){errors.Add(error);}
-        _pages.Clear();SystemBackdrop=null;
-        if(errors.Count>0)throw new AggregateException("部分页面释放失败。",errors);
+        try{await _navigation.DisposeAsync();}
+        finally{_navigation.Navigated-=SynchronizeSelection;App.Current.Navigation.Unbind(_navigation);SystemBackdrop=null;}
     }
 }

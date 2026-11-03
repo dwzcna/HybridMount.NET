@@ -19,7 +19,9 @@ public sealed class SqsMountIntegrationTests
         await host.Manager.SetSqsConfigurationAsync(host.Id,SqsEventTests.Queue);await Until(()=>queue.Receives>0);
         var before=host.Fixture.Server.Requests.Count;var bytes=Enumerable.Repeat((byte)91,34099).ToArray();host.Fixture.Put("remote/文件.bin",bytes);
         queue.Add(new("updated",SqsEventTests.Body(sequence:"F"),"receipt"));await queue.Acknowledged.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await Until(()=>host.Repository.AllRemotePending(host.Id).Any(x=>x.Path=="文件.bin"&&x.Entry?.Size==bytes.Length&&x.State=="Completed"));
+        // 完成行先落库，检测汇总在本轮应用结束后发布；等待两者，不把中间快照当成最终结果。
+        await Until(()=>host.Repository.AllRemotePending(host.Id).Any(x=>x.Path=="文件.bin"&&x.Entry?.Size==bytes.Length&&x.State=="Completed")&&
+            host.Manager.Mounts.Single().Detection is {LastEventUtc:not null,PendingHints:0});
         Assert.Equal(bytes,await File.ReadAllBytesAsync(path));Assert.Equal(1u,CloudFilesNative.Inspect(path)!.Value.Info.PinState);
         Assert.DoesNotContain(host.Fixture.Server.Requests.Skip(before),x=>x.Target.Contains("list-type=")||x.Method is "PUT" or "POST");
         var status=host.Manager.Mounts.Single().Detection!;Assert.NotNull(status.LastEventUtc);Assert.Equal(0,status.PendingHints);
