@@ -99,6 +99,12 @@ public sealed partial class MountManager : IAsyncDisposable
             return history.Values.ToArray();
         }
     }
+    /// <summary>后台清除已完成的展示历史并通知页面；由应用持有生命周期，不联网、不删除上传恢复状态或文件。</summary>
+    public Task<int> ClearCompletedOperationsAsync(CancellationToken token=default)
+        =>OwnAsync(cancel=>Task.Run(()=>
+        {
+            cancel.ThrowIfCancellationRequested();var count=_repository.ClearCompletedOperations();Notify();return count;
+        },cancel),token);
     private void Notify() { if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
     private Task? _startup;

@@ -19,6 +19,7 @@
             <Button Content="查看结果" Click="ShowResults"/>
             <Button Content="重试上传" Click="RetryUpload"/>
             <Button Content="另存副本" Click="SaveUploadCopy"/>
+            <Button Content="清除已完成" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" ToolTipService.ToolTip="清除成功完成的任务历史，保留其他任务及同步数据。"/>
         </StackPanel>
         <ListView x:Name="JobList" Grid.Row="2" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" AutomationProperties.Name="挂载任务">
             <ListView.ItemTemplate>

@@ -104,6 +104,21 @@ public sealed partial class MountRepository
             using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "INSERT INTO operations VALUES($id,$j) ON CONFLICT(id) DO UPDATE SET json=$j"; cmd.Parameters.AddWithValue("$id", snapshot.Id); cmd.Parameters.AddWithValue("$j", JsonSerializer.Serialize(snapshot)); cmd.ExecuteNonQuery();
         }
     }
+    /// <summary>只清除成功完成的展示历史；保留上传基线、恢复日志和索引，原子排除已经重新入队的同 ID 工作。</summary>
+    /// <returns>本次从整个历史表清除的记录数，包含当前列表历史上限之外的已完成记录。</returns>
+    public int ClearCompletedOperations()
+    {
+        lock(_gate)
+        {
+            using var db=Open();using var command=db.CreateCommand();
+            command.CommandText="""
+                DELETE FROM operations WHERE json_extract(json,'$.State')='Completed'
+                AND NOT EXISTS (SELECT 1 FROM uploads u WHERE u.id=operations.id AND json_extract(u.json,'$.State')<>'Completed')
+                AND NOT EXISTS (SELECT 1 FROM remote_pending r WHERE r.id=operations.id AND json_extract(r.json,'$.State')<>'Completed')
+                """;
+            return command.ExecuteNonQuery();
+        }
+    }
     public IReadOnlyList<MountOperationSnapshot> LoadOperations()
     {
         lock (_gate)

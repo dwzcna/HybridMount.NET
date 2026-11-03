@@ -63,6 +63,8 @@ public sealed partial class TasksPage : Page, IDisposable
         catch(Exception error){ViewModel.Status=error.Message;}
         finally{_showingResults=false;}
     }
+    /// <summary>仅清理已完成历史，实际操作和异常处理由 ViewModel 及应用所有者执行。</summary>
+    private async void ClearCompleted(object sender,RoutedEventArgs args)=>await ViewModel.ClearCompletedAsync();
     private async void ShowResults(object sender,RoutedEventArgs args)
     {
         if(_showingResults)return;

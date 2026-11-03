@@ -47,7 +47,7 @@ public sealed class LiveWebDavRunnerTests
         finally{await cancel.CancelAsync();}
         await running.WaitAsync(TimeSpan.FromSeconds(45));using var result=JsonDocument.Parse(await File.ReadAllTextAsync(report));
         Assert.True(ready,result.RootElement.GetRawText());Assert.Equal("Canceled",result.RootElement.GetProperty("Phase").GetString());Assert.True(result.RootElement.GetProperty("ElapsedSeconds").GetDouble()<120);
-        Assert.Equal(0,result.RootElement.GetProperty("Failed").GetInt32());Assert.Contains(result.RootElement.GetProperty("Results").EnumerateArray(),item=>item.GetProperty("Name").GetString()=="precise cleanup"&&item.GetProperty("State").GetString()=="Passed");
+        Assert.True(result.RootElement.GetProperty("Failed").GetInt32()==0,result.RootElement.GetRawText());Assert.Contains(result.RootElement.GetProperty("Results").EnumerateArray(),item=>item.GetProperty("Name").GetString()=="precise cleanup"&&item.GetProperty("State").GetString()=="Passed");
         if(provisionalWeakTag)Assert.True(metadataReads>=3);
         Assert.Equal(initial,fixture.Objects.Keys.Order(StringComparer.Ordinal).ToArray());Assert.Null(MountPathGuard.ReadRoot(Path.Combine(work,"mount")));
         using var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\HybridMount.NET.Tests\LiveDav-"+id.ToString("N"));Assert.Null(key);

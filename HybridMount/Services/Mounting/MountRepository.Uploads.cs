@@ -42,9 +42,9 @@ public sealed partial class MountRepository
             var next=update(current);using var db=Open();using var transaction=db.BeginTransaction();
             if(current.State=="Completed"&&(next.State!="Completed"||next.Generation!=current.Generation))
             {
-                // 新一代本地意图不能覆盖上一代已经成功的事实；历史 ID 保持合法 GUID，继续支持 IPC 查询。
+                // 新一代保留尚未清除的成功历史；用户已清除的展示记录不因下一次编辑重新出现，上传基线仍保留。
                 var archived=current.ToSnapshot() with{Id=Guid.NewGuid().ToString("N")};using var history=db.CreateCommand();history.Transaction=transaction;
-                history.CommandText="INSERT INTO operations VALUES($id,$j)";history.Parameters.AddWithValue("$id",archived.Id);history.Parameters.AddWithValue("$j",JsonSerializer.Serialize(archived));history.ExecuteNonQuery();
+                history.CommandText="INSERT INTO operations SELECT $id,$j WHERE EXISTS (SELECT 1 FROM operations WHERE id=$previous AND json_extract(json,'$.State')='Completed')";history.Parameters.AddWithValue("$id",archived.Id);history.Parameters.AddWithValue("$j",JsonSerializer.Serialize(archived));history.Parameters.AddWithValue("$previous",current.Id);history.ExecuteNonQuery();
             }
             WriteUpload(db,next,transaction);transaction.Commit();return next;
         }
