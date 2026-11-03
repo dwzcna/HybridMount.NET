@@ -70,6 +70,8 @@ public sealed class UploadFlowTests
         var record=new LocalUpload(Guid.NewGuid().ToString("N"),test.Id,"recovery.txt","recovery.txt",false,stamp.Key,1,"Sending",DateTimeOffset.UtcNow.AddSeconds(-5),SnapshotPath:snapshot,SnapshotSha256:Convert.ToHexString(SHA256.HashData(content)),SnapshotStamp:stamp.Key,SnapshotIdentity:stamp.Identity,SnapshotGeneration:1,Total:content.Length);
         test.Repository.SaveUpload(record);test.Repository.SaveOperation(new(record.Id,"upload","Sending",0,1,[],null));var before=test.Dav.Server.Requests.Count(x=>x.Method=="PUT"&&x.Target.EndsWith("recovery.txt",StringComparison.Ordinal));
         test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);await test.Wait("recovery.txt");
+        // Completed 先提交到数据库，快照回收随后完成；等待工作器收尾后再核对清理，避免把提交与删除误当作原子操作。
+        await test.Manager.DisconnectAsync(test.Id);
         Assert.Equal(before,test.Dav.Server.Requests.Count(x=>x.Method=="PUT"&&x.Target.EndsWith("recovery.txt",StringComparison.Ordinal)));Assert.False(File.Exists(snapshot));
     }
     [Fact(Timeout=120000)]

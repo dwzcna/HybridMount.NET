@@ -47,6 +47,35 @@ public sealed class ShutdownTests(ITestOutputHelper output)
     }
     [Theory(Timeout=30000)]
     [InlineData(false)][InlineData(true)]
+    public async Task WebDavRetryBackoffStopsForManualAndStartupConnectionOwners(bool startup)
+    {
+        await using var dav=new DavFixture();var waiting=Signal();var requests=0;
+        var factory=new ControlledFactory(async token=>
+        {
+            var source=new WebDavFileSource(dav.Options,new(),new WholeFileCache(Path.Combine(dav.Area,"retry-stop-cache")),new RetryResetHttpHandler(()=>Interlocked.Increment(ref requests)))
+            {ReadRetryDelay=TimeSpan.FromSeconds(2),ReadRetryWaiting=()=>waiting.TrySetResult()};
+            try{await source.ProbeAsync(token);return source;}catch{await source.DisposeAsync();throw;}
+        });
+        await using var host=new Host(dav.Area,dav.Options,new(),factory);var phases=new ConcurrentQueue<string>();
+        host.Manager.StopObserver=(phase,_)=>phases.Enqueue(phase);
+        var connecting=startup?host.Manager.StartAsync():host.Manager.ConnectAsync(host.Id);
+        await waiting.Task.WaitAsync(TimeSpan.FromSeconds(5));await StopWithinTarget(host.Manager);
+        if(startup)await connecting;else await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>connecting);
+        Assert.Equal(1,requests);Assert.Contains("ConnectionCanceled.Shutdown",phases);Assert.Equal("未连接",host.Manager.Mounts.Single().Status);
+        Assert.Null(CloudFilesNative.RootIdentity(host.Local,strict:true));await NoErrorLogs(host.Logger);
+    }
+    /// <summary>只制造可重试的连接重置；准确到达退避后停止，不创建服务器或写入对象。</summary>
+    private sealed class RetryResetHttpHandler(Action requested):HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
+        {
+            requested();return Task.FromException<HttpResponseMessage>(new HttpRequestException(HttpRequestError.ConnectionError,"test reset",
+                new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionReset)));
+        }
+    }
+
+    [Theory(Timeout=30000)]
+    [InlineData(false)][InlineData(true)]
     public async Task ExplicitDisconnectCancelsProbeWithoutMarkingMountAbnormal(bool callerCancellation)
     {
         await using var s3=new S3Fixture();await using var host=new Host(s3.Area,s3.Options,S3Fixture.Credentials);

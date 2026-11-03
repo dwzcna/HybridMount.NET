@@ -88,11 +88,11 @@ public sealed class WebDavNetworkTests
     public async Task Cancellation_during_backoff_remains_cancellation_and_stops_promptly()
     {
         var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var attempts=0;
-        var handler=new FaultHandler((request,token)=>{Interlocked.Increment(ref attempts);entered.TrySetResult();throw Reset();});
-        await using var source=new WebDavFileSource(new(FileSourceKind.WebDav,"https://example.test/dav/"),new(),new WholeFileCache("unused"),handler){ReadRetryDelay=TimeSpan.FromSeconds(2)};
+        var handler=new FaultHandler((request,token)=>{Interlocked.Increment(ref attempts);throw Reset();});
+        await using var source=new WebDavFileSource(new(FileSourceKind.WebDav,"https://example.test/dav/"),new(),new WholeFileCache("unused"),handler){ReadRetryDelay=TimeSpan.FromSeconds(2),ReadRetryWaiting=()=>entered.TrySetResult()};
         using var stop=new CancellationTokenSource();var read=source.ProbeAsync(stop.Token);await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var watch=Stopwatch.StartNew();stop.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>read);
-        Assert.True(watch.Elapsed<TimeSpan.FromSeconds(2));Assert.Equal(1,attempts);
+        Assert.True(watch.Elapsed<TimeSpan.FromSeconds(2));Assert.Equal(1,attempts);Assert.True(read.IsCanceled);
     }
     [Theory]
     [InlineData(false)][InlineData(true)]

@@ -15,6 +15,20 @@ public sealed partial class WebDavFileSource
     // 实例级截止时间供受控测试缩短；产品默认完整元数据 120 秒、文件流无进展 120 秒。
     internal TimeSpan MetadataDeadline { get; set; }=TimeSpan.FromSeconds(120);
     internal TimeSpan ReadIdleTimeout { get; set; }=TimeSpan.FromSeconds(120);
+    /// <summary>实例级回归屏障；仅在退避计时和取消通知均已建立后调用，不接触请求内容。</summary>
+    internal Action? ReadRetryWaiting { get; set; }
+    /// <summary>退避以普通结果报告停止，避免把正常唤醒建立成异常；计时器和取消注册由本次等待释放。</summary>
+    /// <returns>等待结束且令牌仍有效时为 true；主动停止或所有者期限到达时为 false。</returns>
+    internal async ValueTask<bool> WaitReadRetryAsync(TimeSpan delay,CancellationToken token)
+    {
+        if(token.IsCancellationRequested)return false;
+        if(delay<=TimeSpan.Zero)return true;
+        var wake=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var canceled=token.UnsafeRegister(static state=>((TaskCompletionSource<bool>)state!).TrySetResult(false),wake);
+        using var timer=new Timer(static state=>((TaskCompletionSource<bool>)state!).TrySetResult(true),wake,delay,Timeout.InfiniteTimeSpan);
+        ReadRetryWaiting?.Invoke();
+        return await wake.Task.ConfigureAwait(false)&&!token.IsCancellationRequested;
+    }
     private readonly AsyncLocal<WireObservation?> _wire=new();
     private readonly AsyncLocal<bool> _strictRead=new();
     private sealed class WireObservation { public int Status; public bool Identity; public bool Sent; public string? ETag; }
@@ -24,8 +38,28 @@ public sealed partial class WebDavFileSource
     /// <summary>认证仅由限定根的传输处理器注入；不允许重定向或把凭据带出配置根。</summary>
     private sealed class DavTransport(WebDavFileSource owner,SourceCredentials credentials,HttpMessageHandler inner) : DelegatingHandler(inner)
     {
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
+        /// <summary>把正常停止映射为已取消任务；不在传输层重新抛出退避取消，真实失败仍原样交给 HTTP 所有者。</summary>
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
         {
+            var completion=new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _=CompleteAsync(request,token,completion);
+            return completion.Task;
+        }
+        /// <summary>观察所有异步结果，确保内部工作无遗失异常；空值只在内部表示停止，绝不作为 HTTP 成功响应返回。</summary>
+        private async Task CompleteAsync(HttpRequestMessage request,CancellationToken token,TaskCompletionSource<HttpResponseMessage> completion)
+        {
+            try
+            {
+                var response=await SendCoreAsync(request,token).ConfigureAwait(false);
+                if(response is null)completion.TrySetCanceled(token);else completion.TrySetResult(response);
+            }
+            catch(OperationCanceledException)when(token.IsCancellationRequested){completion.TrySetCanceled(token);}
+            catch(Exception error){completion.TrySetException(error);}
+        }
+        /// <summary>每次发送仍使用关联令牌；只有尚未重发的只读退避可正常结束，已发送写入的未知结果由外层保留。</summary>
+        private async Task<HttpResponseMessage?> SendCoreAsync(HttpRequestMessage request,CancellationToken token)
+        {
+            if(token.IsCancellationRequested)return null;
             owner.HrefPath(request.RequestUri!.AbsoluteUri,owner._endpoint);
             if(credentials.UserName.Length!=0)
                 request.Headers.Authorization=new AuthenticationHeaderValue("Basic",Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials.UserName+":"+credentials.Password)));
@@ -37,7 +71,7 @@ public sealed partial class WebDavFileSource
             var attempts=readOnly&&retryableBody&&!owner._strictRead.Value?3:1;
             for(var index=0;index<attempts;index++)
             {
-                token.ThrowIfCancellationRequested();
+                if(token.IsCancellationRequested)return null;
                 using var clone=index==0?null:Clone(request,content);
                 var current=clone??request;var network=new NetworkAttempt();current.Options.Set(NetworkAttemptKey,network);
                 if(observation is not null)observation.Sent=true;
@@ -49,11 +83,12 @@ public sealed partial class WebDavFileSource
                 }
                 catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
                 {
-                    if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
+                    if(error is OperationCanceledException&&token.IsCancellationRequested)return null;
                     var failure=error as SourceConnectionException??WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应头／连接",network.Certificate,network.Chain,error is OperationCanceledException,index+1);
                     if(!failure.Diagnostic.Transient||index==attempts-1)throw failure;
                 }
-                await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<index))),token).ConfigureAwait(false);
+                var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<index)));
+                if(!await owner.WaitReadRetryAsync(delay,token).ConfigureAwait(false))return null;
             }
             throw new InvalidOperationException("DAV 重试状态无效。");
         }
