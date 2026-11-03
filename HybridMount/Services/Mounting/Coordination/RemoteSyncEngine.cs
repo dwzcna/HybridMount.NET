@@ -3,7 +3,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>只负责只读发现和持久事件；应用本地变更由根协调器执行。单实例调用串行，网络不持根锁。</summary>
-internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource source,IRemoteChangeSource changes,MountRepository repository)
+internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSource source,IRemoteChangeSource changes,MountRepository repository)
 {
     private readonly SemaphoreSlim _poll=new(1,1);
     public string Scope=>scope;
@@ -31,10 +31,10 @@ internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource sourc
                     try
                     {
                         try{await SyncAsync(checkpoint,token).ConfigureAwait(false);}
-                        catch(RemoteSyncException error)when(error.InvalidToken)
+                        catch(RemoteChangeFailure error)when(error.InvalidCheckpoint)
                         {await SyncAsync(checkpoint with{Token=null,BuildingBaseline=false,Baseline=null},token).ConfigureAwait(false);}
                     }
-                    catch(RemoteSyncException error)when(error.Unsupported)
+                    catch(RemoteChangeFailure error)when(error.Unsupported)
                     { await FullAsync(checkpoint with{Mode="Full",Token=null,BuildingBaseline=false,Baseline=null},token).ConfigureAwait(false); }
                 }
                 else if(forceFull||checkpoint.LastFullUtc is null||DateTimeOffset.UtcNow-checkpoint.LastFullUtc>=fullInterval)
@@ -75,25 +75,14 @@ internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource sourc
         }
         catch{repository.FailRemoteScan(mount,scope,scan);throw;}
     }
-    /// <summary>事件只唤醒当前状态查询，不按消息删除本地；父集合先确认，变更与提示处理状态同事务提交。</summary>
-    public async Task ObserveS3HintsAsync(CancellationToken token)
+    /// <summary>只消费协议适配器重新核对的提示结果；状态与检查点在现有事务中共同提交。</summary>
+    public async Task ObserveEventHintsAsync(CancellationToken token)
     {
-        if(source is not S3FileSource)return;
-        foreach(var hint in repository.S3EventHints(mount,scope).Where(x=>x.State=="Pending"))
+        if(source is not IRemoteHintSource hints)return;
+        await foreach(var hint in hints.ReadHintChangesAsync(repository,mount,scope,token).ConfigureAwait(false))
         {
-            token.ThrowIfCancellationRequested();var metadata=await source.TryGetMetadataAsync(hint.Path,token).ConfigureAwait(false);
-            var entries=new List<SourceEntry>();
-            if(metadata is not null)
-            {
-                for(var parent=RelativePaths.Parent(metadata.Path);parent.Length!=0;parent=RelativePaths.Parent(parent))
-                {
-                    var collection=await source.TryGetMetadataAsync(parent,token).ConfigureAwait(false);
-                    if(collection?.IsDirectory!=true)throw new SourceConflictException("S3 事件路径的当前父集合不完整，保留提示待重试。");entries.Insert(0,collection);
-                }
-                entries.Add(metadata);
-            }
             var checkpoint=repository.RemoteCollections(mount,scope).FirstOrDefault(x=>x.Path=="")??new RemoteCollectionCheckpoint("",Mode:"Full");
-            Commit(checkpoint,entries,metadata is null?[hint.Path]:[],false,hint:hint.Id);
+            Commit(checkpoint,hint.Entries,hint.Deleted,false,hint:hint.Id);
         }
     }
     private async Task SyncAsync(RemoteCollectionCheckpoint checkpoint,CancellationToken token)

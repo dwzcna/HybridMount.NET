@@ -10,12 +10,13 @@ public sealed partial class MountRepository
 {
     private readonly IMountDefinitionStore _definitions;
     private readonly MountDatabase _database;
+    private readonly IReadOnlyList<IMountProtocolStorage> _protocolStorage=MountProtocolComposition.Storage;
     private readonly object _gate = new();
     public string DataDirectory=>_database.DataDirectory;
     /// <summary>装配定义与运行索引存储；可注入隔离定义存储，所有 DB 事务继续由仓库串行拥有。</summary>
     public MountRepository(string dataDirectory,string? registryPath=null,IMountDefinitionStore? definitions=null)
     {
-        _database=new MountDatabase(dataDirectory);_definitions=definitions??new RegistryMountDefinitionStore(registryPath);
+        _database=new MountDatabase(dataDirectory,_protocolStorage);_definitions=definitions??new RegistryMountDefinitionStore(registryPath);
     }
     private SqliteConnection Open()=>_database.Open();
     public IReadOnlyList<MountDefinition> LoadDefinitions(){lock(_gate)return _definitions.LoadDefinitions();}
@@ -28,7 +29,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;DELETE FROM s3_event_hints WHERE mount=$m;DELETE FROM s3_event_watermarks WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;"+string.Concat(_protocolStorage.Select(module=>module.DeleteEntriesSql));command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
         }
     }
     public IReadOnlyList<MountEntry> Entries(Guid mount)

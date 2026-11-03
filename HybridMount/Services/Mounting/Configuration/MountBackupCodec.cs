@@ -110,13 +110,12 @@ public static class MountBackupCodec
             throw new InvalidDataException("配置备份载荷版本或条目数量无效。");
         foreach (var item in backup.Mounts)
         {
-            if(item?.Sqs is {} queue&&(item.Source.Kind!=FileSourceKind.S3||!Enum.IsDefined(queue.CredentialMode)||queue.QueueUrl is null||queue.Region is null||queue.QueueUrl.Length>2048||queue.Region.Length>64))throw new InvalidDataException("备份包含无效 SQS 配置。");
-            if(item?.SqsCredentials is {} queueKeys&&(queueKeys.AccessKey is null||queueKeys.SecretKey is null||queueKeys.SessionToken is null))throw new InvalidDataException("备份队列凭据不完整。");
             if(item is not null&&(item.RemoteIncrementalSeconds is <10 or >86400||item.RemoteFullSeconds is <30 or >604800))throw new InvalidDataException("配置备份包含无效检测间隔。");
             if (item is null || item.Name is null || item.LocalPath is null || item.Source is not {} source || item.Credentials is not {} secrets ||
                 source.Endpoint is null || source.Bucket is null || source.Prefix is null || source.Region is null ||
                 secrets.UserName is null || secrets.Password is null || secrets.AccessKey is null || secrets.SecretKey is null || secrets.SessionToken is null)
                 throw new InvalidDataException("配置备份包含不完整条目。");
+            FileSourceFactory.ValidateBackupFields(item);
         }
     }
     // v1 生成只供兼容回归使用，不能在 v1 容器中悄悄写入新版选项。

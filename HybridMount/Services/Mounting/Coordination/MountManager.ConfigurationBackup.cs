@@ -23,8 +23,8 @@ public sealed partial class MountManager
                     if (!_roots.ContainsKey(id) || root.RemovalRequested || root.Definition.RemovalPending) throw new IOException("选中的挂载正在移除，请重新选择。");
                     var definition = root.Definition;
                     if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 } source) throw new NotSupportedException("仅支持备份 WebDAV 和 S3 挂载。");
-                    var credentials = source.Kind == FileSourceKind.S3 && source.UseDefaultCredentials ? new SourceCredentials() : new CredentialStore(_repository.DataDirectory).Load(id);
-                    items.Add(new(definition.Name, definition.LocalPath, source, credentials, definition.AutoConnect, definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds,definition.Sqs,definition.Sqs?.CredentialMode==SqsCredentialMode.SeparateKeys?SqsStore().Load(id):null));
+                    var credentials = FileSourceFactory.BackupCredentials(definition,_repository.DataDirectory);
+                    items.Add(new(definition.Name, definition.LocalPath, source, credentials, definition.AutoConnect, definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds,definition.Sqs,FileSourceFactory.BackupAdditionalCredentials(definition,_repository.DataDirectory)));
                 }
                 finally { root.Gate.Release(); }
             }
@@ -84,7 +84,7 @@ public sealed partial class MountManager
                         else
                         {
                             var item = items[index].Configuration;
-                            var credentials = item.Source.Kind == FileSourceKind.S3 && item.Source.UseDefaultCredentials ? new SourceCredentials() : item.Credentials;
+                            var credentials = FileSourceFactory.NormalizeImportCredentials(item.Source,item.Credentials);
                             var saved = SaveNewMountCore(item.Name, items[index].LocalPath, item.AutoConnect, item.Source, credentials, item.ThumbnailsEnabled, cancel, importing: true, remoteAuto:item.RemoteAutoDetectEnabled, incremental:item.RemoteIncrementalSeconds, full:item.RemoteFullSeconds,sqs:item.Sqs,sqsCredentials:item.SqsCredentials);
                             result = new(index, "Saved", "已保存，尚未连接。", saved.Id);
                         }
@@ -141,12 +141,7 @@ public sealed partial class MountManager
             credentials.UserName is null || credentials.Password is null || credentials.AccessKey is null || credentials.SecretKey is null || credentials.SessionToken is null)
             throw new ArgumentException("连接配置或凭据字段不完整。");
         FileSourceFactory.Endpoint(source);
-        if (source.Kind == FileSourceKind.S3)
-        {
-            S3FileSource.ValidateOptions(source);
-            if (!source.UseDefaultCredentials && (string.IsNullOrWhiteSpace(credentials.AccessKey) || string.IsNullOrWhiteSpace(credentials.SecretKey))) throw new ArgumentException("请填写 S3 访问密钥或选择默认凭据链。");
-        }
-        if (source.Kind == FileSourceKind.WebDav && credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 账号不能包含冒号。");
+        FileSourceFactory.ValidateProtocolOptions(source);FileSourceFactory.ValidateProtocolCredentials(source,credentials);
     }
 
     /// <summary>必须在配置串行锁内调用；空目录与实际系统同步根检查不依赖备份中的身份。</summary>
@@ -177,14 +172,14 @@ public sealed partial class MountManager
             try
             {
                 if (credentials is not null) store.Save(definition.Id, credentials);
-                if(sqs?.CredentialMode==SqsCredentialMode.SeparateKeys&&sqsCredentials is not null)SqsStore().Save(definition.Id,sqsCredentials);
+                FileSourceFactory.SaveAdditionalCredentials(definition,sqsCredentials,_repository.DataDirectory);
                 _repository.SaveDefinition(definition);
             }
             catch
             {
                 // 新 ID 仅属于本次保存；逐项清理中途创建的定义和凭据，清理错误另记而不掩盖原故障。
                 try { _repository.DeleteDefinition(definition.Id); } catch (Exception error) { _logger.Queue("配置导入", "Warning", "清理未完成定义：" + error.GetType().Name); }
-                try { SqsStore().Delete(definition.Id); } catch (Exception error) { _logger.Queue("配置导入", "Warning", "清理队列凭据：" + error.GetType().Name); }
+                try { FileSourceFactory.DeleteAdditionalCredentials(definition,_repository.DataDirectory); } catch (Exception error) { _logger.Queue("配置导入", "Warning", "清理队列凭据：" + error.GetType().Name); }
                 try { store.Delete(definition.Id); } catch (Exception error) { _logger.Queue("配置导入", "Warning", "清理未完成凭据：" + error.GetType().Name); }
                 throw;
             }

@@ -35,16 +35,16 @@ public sealed partial class MountManager
             {
                 if(startLoop&&!existing.LoopStarted&&!existing.Stopping&&root.Definition.RemoteAutoDetectEnabled&&!IsStopping)
                 {existing.LoopStarted=true;existing.Work=Task.Run(()=>RemoteLoopAsync(root,existing));}
-                if(startLoop)StartSqs(root,existing);
+                if(startLoop)StartRemoteEvents(root,existing);
                 return;
             }
             if(root.Source is not IRemoteChangeSource changes||root.Session is null||root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)||root.RemovalRequested||IsStopping)return;
-            var identity=root.Source is WebDavFileSource dav?dav.RemoteSyncIdentity:root.Definition.Source.Endpoint;
-            var scope=root.Source is S3FileSource s3?s3.RemoteScope(root.Definition.CredentialRevision):root.Source is WebDavFileSource scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
+            var identity=root.Definition.Source.Endpoint;
+            var scope=root.Source is IMountSourceRuntime scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
             _repository.ActivateRemoteScope(root.Definition.Id,scope);
             var runtime=new RemoteSyncRuntime(root.Source,root.Session,new(root.Definition.Id,scope,root.Source,changes,_repository),_stop.Token);root.RemoteSync=runtime;
             changes.RestoreObservations(_repository.RemoteShadow(root.Definition.Id,scope));
-            if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=Task.Run(()=>RemoteLoopAsync(root,runtime));StartSqs(root,runtime);}
+            if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=Task.Run(()=>RemoteLoopAsync(root,runtime));StartRemoteEvents(root,runtime);}
         }
     }
     private static void RequestRemoteStop(Runtime root){lock(root.ConnectionSync)root.RemoteSync?.RequestStop();}
@@ -81,11 +81,11 @@ public sealed partial class MountManager
             {
                 root.Detection=root.Detection with{Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
                 if(error is SourceRescanRequiredException){runtime.RescanSoon=true;next=TimeSpan.FromSeconds(5);continue;}
-                if(error is RemoteSyncException{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403} or SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Authentication or ConnectionFailureKind.Permission}){_logger.Queue("远端检测","Warning","远端认证或权限失败，已暂停至重新连接。");break;}
+                if(error is RemoteChangeFailure{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403} or SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Authentication or ConnectionFailureKind.Permission}){_logger.Queue("远端检测","Warning","远端认证或权限失败，已暂停至重新连接。");break;}
                 if(error is SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Certificate})
                 {root.Detection=root.Detection with{Error=error.Message+" 自动检测已暂停，请修正后断开并重新连接。"};Notify();_logger.Queue("远端检测","Warning",root.Detection.Error);break;}
                 failures++;next=TimeSpan.FromMinutes(Math.Clamp(Math.Pow(2,Math.Min(failures-1,4))*(0.9+Random.Shared.NextDouble()*0.2),1,15));
-                var retry=error is RemoteSyncException sync?sync.RetryAfter:(error as SourceRequestRejectedException)?.RetryAfter;
+                var retry=error is RemoteChangeFailure sync?sync.RetryAfter:(error as SourceRequestRejectedException)?.RetryAfter;
                 if(retry is {} delay&&delay>next)next=delay;
                 if(error is not SourceConnectionException connection)_logger.Queue("远端检测","Warning",error.Message);
                 else if(runtime.FailureLog.ShouldWrite(connection.Diagnostic,out var suffix))_logger.Queue("远端检测","Warning",connection.Message+suffix);
@@ -113,12 +113,12 @@ public sealed partial class MountManager
             await _remoteSlots.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                await runtime.Engine.ObserveS3HintsAsync(token).ConfigureAwait(false);
+                await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
                 await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);
                 await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);
                 var checkpoint=_repository.RemoteCollections(root.Definition.Id,runtime.Engine.Scope).FirstOrDefault(x=>x.Path=="");
                 root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
-                    PendingHints=_repository.S3EventHints(root.Definition.Id,runtime.Engine.Scope).Count(x=>x.State=="Pending")};Notify();
+                    PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
             }
             finally{_remoteSlots.Release();}
         }

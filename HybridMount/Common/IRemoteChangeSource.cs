@@ -19,3 +19,14 @@ public interface IRemoteSnapshotSource
 {
     Task<IReadOnlyList<SourceEntry>> ReadSnapshotAsync(IReadOnlyList<RemoteShadowEntry> previous,CancellationToken token);
 }
+
+/// <summary>持久提示的最小只读视图，不暴露队列正文、回执或协议事件字段。</summary>
+public interface IRemoteHintJournal
+{
+    IReadOnlyList<RemotePathHint> PendingRemoteHints(Guid mount,string scope);
+}
+/// <summary>可选事件提示核对；只返回重新查询后的当前变化，提交及确认仍由公共事务协调。</summary>
+public interface IRemoteHintSource
+{
+    IAsyncEnumerable<RemoteHintChange> ReadHintChangesAsync(IRemoteHintJournal journal,Guid mount,string scope,CancellationToken token);
+}

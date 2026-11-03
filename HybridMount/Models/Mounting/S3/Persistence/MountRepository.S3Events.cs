@@ -2,18 +2,10 @@ using System.Text.Json;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
-public sealed partial class MountRepository
+public sealed partial class MountRepository : IRemoteHintJournal
 {
-    /// <summary>新凭据作用域不重放旧提示；不可逆本地提交保留证据和保护屏障，其他旧作用域批次退役。</summary>
-    internal void ActivateRemoteScope(Guid mount,string scope)
-    {
-        lock(_gate)
-        {
-            using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="UPDATE s3_event_hints SET json=json_set(json,'$.State','Superseded') WHERE mount=$m AND scope<>$s AND json_extract(json,'$.State')='Pending';UPDATE remote_pending SET json=json_set(json,'$.State','Superseded') WHERE mount=$m AND scope<>$s AND json_extract(json,'$.State') NOT IN ('Completed','Superseded','Committing','Hydrating')";
-            command.Parameters.AddWithValue("$m",mount.ToString("N"));command.Parameters.AddWithValue("$s",scope);command.ExecuteNonQuery();
-        }
-    }
+    /// <summary>只把提示身份和路径投影给公共层，协议事件与消息正文仍留在模块。</summary>
+    public IReadOnlyList<RemotePathHint> PendingRemoteHints(Guid mount,string scope)=>S3EventHints(mount,scope).Where(x=>x.State=="Pending").Select(x=>new RemotePathHint(x.Id,x.Path)).ToArray();
     public IReadOnlyList<S3EventHint> S3EventHints(Guid mount,string scope)=>RemoteRows<S3EventHint>("s3_event_hints",mount,scope);
     /// <summary>消息去重、同 Key 顺序及全部挂载提示在同一事务持久化；返回后才允许队列确认。无 Receipt 或原始正文。</summary>
     internal void PersistSqsMessage(string queue,string message,IReadOnlyList<S3EventHint> hints)

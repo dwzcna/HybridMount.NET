@@ -33,6 +33,7 @@
     <Compile Include="..\HybridMount\Common\IMountDefinitionStore.cs" Link="Production\IMountDefinitionStore.cs"/>
     <Compile Include="..\HybridMount\Common\ILocalUploadCommitter.cs" Link="Production\ILocalUploadCommitter.cs"/>
     <Compile Include="..\HybridMount\Common\IReadDiagnosticsSource.cs" Link="Production\IReadDiagnosticsSource.cs"/>
+    <Compile Include="..\HybridMount\Common\SourcePartialMoveException.cs" Link="Production\SourcePartialMoveException.cs"/>
     <Using Include="HybridMount.Models"/><Using Include="HybridMount.Models.Mounting"/><Using Include="HybridMount.Common"/><Using Include="HybridMount.Services"/><Using Include="Xunit"/>
   </ItemGroup>
 </Project>

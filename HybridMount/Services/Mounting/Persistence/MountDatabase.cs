@@ -5,7 +5,7 @@ namespace HybridMount.Services.Mounting.Persistence;
 internal sealed class MountDatabase
 {
     public string DataDirectory {get;}
-    public MountDatabase(string directory)
+    public MountDatabase(string directory,IReadOnlyList<IMountProtocolStorage> protocolStorage)
     {
         DataDirectory=Path.GetFullPath(directory);Directory.CreateDirectory(DataDirectory);
         using var db = Open(); using var cmd = db.CreateCommand();
@@ -21,18 +21,12 @@ internal sealed class MountDatabase
             CREATE TABLE IF NOT EXISTS content_baselines(mount TEXT NOT NULL,path TEXT NOT NULL,version TEXT NOT NULL,sha256 TEXT NOT NULL,
                 PRIMARY KEY(mount,path,version));
             CREATE TABLE IF NOT EXISTS remote_presence(mount TEXT NOT NULL,id TEXT NOT NULL,presence INTEGER NOT NULL,PRIMARY KEY(mount,id));
-            CREATE TABLE IF NOT EXISTS remote_temporary(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
             CREATE TABLE IF NOT EXISTS remote_collections(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
             CREATE TABLE IF NOT EXISTS remote_shadow(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
             CREATE TABLE IF NOT EXISTS remote_pending(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS s3_event_hints(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
-            CREATE INDEX IF NOT EXISTS s3_event_hints_mount ON s3_event_hints(mount,scope);
-            CREATE TABLE IF NOT EXISTS s3_event_watermarks(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,sequence TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
-            CREATE TABLE IF NOT EXISTS sqs_messages(queue TEXT NOT NULL,id TEXT NOT NULL,received TEXT NOT NULL,PRIMARY KEY(queue,id));
             CREATE TABLE IF NOT EXISTS remote_scans(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,state TEXT NOT NULL,started TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS remote_pending_mount ON remote_pending(mount,scope);
-            PRAGMA user_version=6;
-            """; cmd.ExecuteNonQuery();
+            """+"\n"+string.Join("\n",protocolStorage.Select(module=>module.SchemaSql))+"\nPRAGMA user_version=6;"; cmd.ExecuteNonQuery();
     }
     public SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }
 }

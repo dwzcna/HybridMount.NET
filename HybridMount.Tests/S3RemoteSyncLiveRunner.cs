@@ -24,6 +24,7 @@ public static class S3RemoteSyncLiveRunner
                 .Single(x=>x?.Source?.Kind==FileSourceKind.S3&&x.LocalPath.Equals(localRoot,StringComparison.OrdinalIgnoreCase))!;
         }
         var options=original.Source!;var endpoint=FileSourceFactory.Endpoint(options);var data=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"HybridMount.NET","Mounting");
+        if(endpoint.Host=="10.0.0.20")throw new IOException("已取消该 NAS 的真实测试。");
         var keys=options.UseDefaultCredentials?new SourceCredentials():new CredentialStore(data).Load(original.Id);
         area=Path.GetFullPath(area);var validation=Path.GetFullPath(Path.Combine(Environment.CurrentDirectory,"artifacts","validation"));
         if(!MountPathGuard.IsUnder(validation,area)||Directory.Exists(area))throw new IOException("真实验证必须使用 validation 下新目录。");
@@ -32,7 +33,7 @@ public static class S3RemoteSyncLiveRunner
         var manager=new MountManager(repository,logger,new ProjectionFactory(name));await using var remote=new S3FileSource(options,keys,Path.Combine(area,"independent-cache"));
         using var raw=CreateClient(options,keys);var objectKey=(options.Prefix.Trim('/').Length==0?"":options.Prefix.Trim('/')+"/")+name;
         var payloads=new List<byte[]>();var cases=new List<object>();var cleanup=new List<object>();Guid? id=null;var phase="Preparing";string? failure=null;var report=Path.Combine(area,"report.json");
-        void Save()=>File.WriteAllText(report,JsonSerializer.Serialize(new{Version="0.0.8",Endpoint=endpoint.AbsoluteUri,Bucket=options.Bucket,File=name,LocalRoot=local,MountId=id,Phase=phase,Failure=failure,Cases=cases,Cleanup=cleanup},new JsonSerializerOptions{WriteIndented=true}));
+        void Save()=>File.WriteAllText(report,JsonSerializer.Serialize(new{Version=typeof(S3RemoteSyncLiveRunner).Assembly.GetName().Version!.ToString(),Endpoint=endpoint.AbsoluteUri,Bucket=options.Bucket,File=name,LocalRoot=local,MountId=id,Phase=phase,Failure=failure,Cases=cases,Cleanup=cleanup},new JsonSerializerOptions{WriteIndented=true}));
         try
         {
             Save();await remote.ProbeAsync(token);Require(await remote.TryGetMetadataAsync(name,token) is null,"唯一远端名称已经存在，拒绝接管。");

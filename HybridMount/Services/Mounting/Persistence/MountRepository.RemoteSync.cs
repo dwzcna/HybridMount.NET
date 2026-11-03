@@ -53,7 +53,7 @@ public sealed partial class MountRepository
                 SavePendingCore(db,transaction,new(Guid.NewGuid().ToString("N"),mount,scope,path,null));
             }
             RemoteCommand(db,transaction,"INSERT INTO remote_collections VALUES($m,$s,$p,$j) ON CONFLICT(mount,scope,path) DO UPDATE SET json=$j",mount,scope,checkpoint.Path,JsonSerializer.Serialize(checkpoint));
-            if(hint is not null)MarkS3HintCore(db,transaction,mount,scope,hint);
+            if(hint is not null)foreach(var module in _protocolStorage)module.CompleteHint(this,db,transaction,mount,scope,hint);
             if(scan is not null)
             {using var done=db.CreateCommand();done.Transaction=transaction;done.CommandText="UPDATE remote_scans SET state='Completed' WHERE id=$id AND mount=$m AND scope=$s";done.Parameters.AddWithValue("$id",scan);done.Parameters.AddWithValue("$m",mount.ToString("N"));done.Parameters.AddWithValue("$s",scope);if(done.ExecuteNonQuery()!=1)throw new IOException("远端扫描身份丢失，未提交快照。");}
             transaction.Commit();
@@ -87,8 +87,19 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var cmd=db.CreateCommand();
-            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND (path=$p OR substr($p,1,length(path)+1)=path||'/')) OR EXISTS (SELECT 1 FROM s3_event_hints WHERE mount=$m AND json_extract(json,'$.State')='Pending' AND (path=$p OR substr($p,1,length(path)+1)=path||'/'))";
+            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND (path=$p OR substr($p,1,length(path)+1)=path||'/'))"+string.Concat(_protocolStorage.Select(module=>module.PendingPredicate is {} predicate?" OR ("+predicate+")":""));
             cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$p",path);return cmd.ExecuteScalar() is not null;
         }
     }
+    /// <summary>新凭据作用域不重放旧提示；不可逆本地提交保留证据和保护屏障，其他旧作用域批次退役。</summary>
+    internal void ActivateRemoteScope(Guid mount,string scope)
+    {
+        lock(_gate)
+        {
+            using var db=Open();using var command=db.CreateCommand();
+            command.CommandText=string.Concat(_protocolStorage.Select(module=>module.ActivateScopeSql))+"UPDATE remote_pending SET json=json_set(json,'$.State','Superseded') WHERE mount=$m AND scope<>$s AND json_extract(json,'$.State') NOT IN ('Completed','Superseded','Committing','Hydrating')";
+            command.Parameters.AddWithValue("$m",mount.ToString("N"));command.Parameters.AddWithValue("$s",scope);command.ExecuteNonQuery();
+        }
+    }
+
 }

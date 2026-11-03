@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.8.7**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.8.8**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 

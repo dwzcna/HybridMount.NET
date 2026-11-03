@@ -69,7 +69,7 @@ public sealed partial class MountManager
         if(_maintenance is not null)await Step("Maintenance",()=>_maintenance).ConfigureAwait(false);
         await Step("RemoteSync",()=>Task.WhenAll(_roots.Values.Select(StopRemoteAsync))).ConfigureAwait(false);
         await Step("Capacity",()=>Task.WhenAll(_roots.Values.Select(StopCapacityAsync))).ConfigureAwait(false);
-        await Step("SqsReceivers",()=>_sqsEvents.DisposeAsync().AsTask()).ConfigureAwait(false);
+        await Step("SqsReceivers",()=>_remoteEvents.DisposeAsync().AsTask()).ConfigureAwait(false);
         await Step("Uploads",()=>Task.WhenAll(_roots.Values.Select(StopUploadsAsync))).ConfigureAwait(false);
         await Step("Previews",()=>_previews.DisposeAsync().AsTask()).ConfigureAwait(false);
         foreach(var root in _roots.Values)

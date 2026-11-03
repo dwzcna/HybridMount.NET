@@ -17,7 +17,14 @@ public static class RemoteSyncLiveRunner
     public static Task<string> RunOriginalAsync(string localRoot,string area,CancellationToken token=default)
     {
         var data=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"HybridMount.NET","Mounting");
-        var original=new MountRepository(data).LoadDefinitions().Single(x=>x.LocalPath.Equals(localRoot,StringComparison.OrdinalIgnoreCase)&&x.Source?.Kind==FileSourceKind.WebDav);
+        MountDefinition original;
+        using(var registry=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\HybridMount.NET\Mounts\Unpackaged"))
+        {
+            if(registry is null)throw new IOException("原非打包挂载配置不存在。");
+            original=registry.GetSubKeyNames().Select(name=>{using var key=registry.OpenSubKey(name);return key?.GetValue("Definition") is string json?JsonSerializer.Deserialize<MountDefinition>(json):null;})
+                .Single(x=>x?.Source?.Kind==FileSourceKind.WebDav&&x.LocalPath.Equals(localRoot,StringComparison.OrdinalIgnoreCase))!;
+        }
+        if(new Uri(original.Source!.Endpoint).Host=="10.0.0.20")throw new IOException("已取消该 NAS 的真实测试。");
         var options=original.Source!;
         if(new Uri(options.Endpoint).Host=="dav.jianguoyun.com"&&new Uri(options.Endpoint).AbsolutePath.TrimEnd('/')=="/dav")
             options=options with{Endpoint=options.Endpoint.TrimEnd('/')+"/"+Uri.EscapeDataString("我的坚果云")+"/"};
@@ -47,7 +54,7 @@ public static class RemoteSyncLiveRunner
         await using var logger=new LoggerService(Path.Combine(area,"logs.db"));
         var payloads=new List<byte[]>();var cases=new List<object>();var cleanup=new List<object>();var phase="Preparing";Guid? mountId=null;string? failure=null;
         var report=Path.Combine(area,"report.json");
-        void Save()=>File.WriteAllText(report,JsonSerializer.Serialize(new{Version="0.0.7",Endpoint=options.Endpoint,File=name,LocalRoot=local,MountId=mountId,Phase=phase,Failure=failure,Cases=cases,Cleanup=cleanup},new JsonSerializerOptions{WriteIndented=true}));
+        void Save()=>File.WriteAllText(report,JsonSerializer.Serialize(new{Version=typeof(RemoteSyncLiveRunner).Assembly.GetName().Version!.ToString(),Endpoint=options.Endpoint,File=name,LocalRoot=local,MountId=mountId,Phase=phase,Failure=failure,Cases=cases,Cleanup=cleanup},new JsonSerializerOptions{WriteIndented=true}));
         await using var remote=new WebDavFileSource(options,credentials,new WholeFileCache(Path.Combine(area,"verify-cache")),new WireErrors());
         using var http=new HttpClient(new Authentication(credentials)){Timeout=TimeSpan.FromSeconds(45)};
         using var independent=new DavClient(FileSourceFactory.Endpoint(options),http);var davPath=DavPath.Parse(Uri.EscapeDataString(name));

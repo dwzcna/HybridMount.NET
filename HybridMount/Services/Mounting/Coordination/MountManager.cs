@@ -45,6 +45,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private readonly ExePreviewCache _previews;
     private readonly MountRepository _repository;
     private readonly ILocalUploadCommitter _uploadCommitter;
+    private readonly IAsyncDisposable _remoteEvents;
     private readonly LoggerService _logger;
     private readonly IFileSourceFactory _factory;
     private Task? _maintenance;
@@ -56,7 +57,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null)
     {
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
-        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_sqsEvents=new(repository,CreateQueueClient);
+        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in repository.LoadDefinitions())
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
@@ -143,20 +144,14 @@ public sealed partial class MountManager : IAsyncDisposable
             if(root.Definition.RemovalPending || root.RemovalRequested || !_roots.ContainsKey(id))throw new IOException("移除过程中不能更换凭据。");
             var effective=settings??root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
             FileSourceFactory.Endpoint(effective);
-            if(effective.Kind==FileSourceKind.WebDav && credentials.UserName.Contains(':'))throw new ArgumentException("WebDAV 账号不能包含冒号。");
-            if(effective.Kind==FileSourceKind.S3)
-            {
-                S3FileSource.ValidateOptions(effective);
-                if(!effective.UseDefaultCredentials && (string.IsNullOrWhiteSpace(credentials.AccessKey)||string.IsNullOrWhiteSpace(credentials.SecretKey)))
-                    throw new ArgumentException("请填写 S3 访问密钥或选择默认凭据链。");
-            }
+            FileSourceFactory.ValidateProtocolOptions(effective);FileSourceFactory.ValidateProtocolCredentials(effective,credentials);
             if(settings is not null)
             {
                 var previous=root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
                 if(previous.Kind!=settings.Kind || (!CanEditRemoteRoot(id) && (previous.Endpoint!=settings.Endpoint||previous.Bucket!=settings.Bucket||previous.Prefix!=settings.Prefix||previous.AllowHttp!=settings.AllowHttp)))
                     throw new IOException("已有挂载不能更换远端根，请新建挂载。");
                 FileSourceFactory.Endpoint(settings);
-                if(settings.Kind==FileSourceKind.S3)S3FileSource.ValidateOptions(settings);
+                FileSourceFactory.ValidateProtocolOptions(settings);
                 root.Definition=root.Definition with{Source=settings};_repository.SaveDefinition(root.Definition);
             }
             new CredentialStore(_repository.DataDirectory).Save(id,credentials);
@@ -237,7 +232,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.Entries(root.Definition.Id).Any(entry=>entry.Materialized))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
             root.Source=await _factory.CreateAsync(root.Definition,_repository,false,token).ConfigureAwait(false);ObserveUploadSource(root);
-            if(root.Source is WebDavFileSource dav)await dav.RecoverTemporaryItemsAsync(token).ConfigureAwait(false);
+            if(root.Source is IMountSourceRuntime preparing)await preparing.BeforeRegistrationAsync(token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             registered=InspectRegistration(root);
             if(!registered)SetRegistration(root,MountRegistrationStage.Registering);
@@ -265,11 +260,11 @@ public sealed partial class MountManager : IAsyncDisposable
             token.ThrowIfCancellationRequested();Status(root,"已连接",RefreshSummary(refreshed));
             if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
             _previews.ResumeMount(root.Definition.Id);foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);
-            if(root.Source is S3FileSource s3)
+            if(root.Source is IMountSourceRuntime recovery)
             {
-                try { await s3.RecoverKnownUploadsAsync(token).ConfigureAwait(false); }
+                try{await recovery.AfterRegistrationAsync(token).ConfigureAwait(false);}
                 catch(Exception recoveryError)when(recoveryError is not OperationCanceledException)
-                { Status(root,"已连接","已知分片恢复失败，读取仍可用；请稍后重试连接。" );_logger.Queue("S3 分片恢复","Warning",recoveryError.Message); }
+                {Status(root,"已连接",recovery.RecoveryWarning);_logger.Queue(recovery.RecoveryLogArea,"Warning",recoveryError.Message);}
             }
             StartUploads(root);StartRemoteSync(root);StartCapacity(root);
         }
@@ -525,7 +520,7 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         foreach(var upload in _repository.Uploads(root.Definition.Id))DeleteUploadSnapshot(upload.SnapshotPath);
         foreach(var pending in RemotePendingFor(root))DeleteRemoteSnapshot(pending.SnapshotPath);
-        new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);SqsStore().Delete(root.Definition.Id);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
+        new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);FileSourceFactory.DeleteAdditionalCredentials(root.Definition,_repository.DataDirectory);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
         _roots.TryRemove(root.Definition.Id,out _);Notify();
     }
     /// <summary>清空本地目录；保留 CFAPI 删除确认，不读取或删除源内容。失败／取消保留意图供显式重试。</summary>

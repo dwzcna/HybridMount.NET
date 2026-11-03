@@ -3,7 +3,8 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
-    private readonly SqsEventHub _sqsEvents;
+    private SqsEventHub QueueEvents=>(SqsEventHub)_remoteEvents;
+    private IAsyncDisposable CreateRemoteEvents()=>new SqsEventHub(_repository,CreateQueueClient);
     /// <summary>实例级队列传输注入，仅测试程序集可设置，不经持久配置或 IPC 暴露。</summary>
     internal Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? SqsClientForTests {get;set;}
     private ISqsQueueClient CreateQueueClient(FileSourceConfiguration source,SqsConfiguration options,SourceCredentials keys)=>SqsClientForTests?.Invoke(source,options,keys)??new SqsQueueClient(source,options,keys);
@@ -57,7 +58,7 @@ public sealed partial class MountManager
             finally{root.Gate.Release();}
             RequestRemoteStop(root);await StopRemoteAsync(root).ConfigureAwait(false);StartRemoteSync(root);Notify();
         },token);
-    private void StartSqs(Runtime root,RemoteSyncRuntime runtime)
+    private void StartRemoteEvents(Runtime root,RemoteSyncRuntime runtime)
     {
         if(runtime.QueueStarted||runtime.Stopping||IsStopping||!root.Definition.RemoteAutoDetectEnabled||root.Definition.Sqs is not {Enabled:true} options||root.Source is not S3FileSource)return;
         runtime.QueueStarted=true;runtime.QueueWork=Task.Run(()=>QueueSubscriptionAsync(root,runtime,options));
@@ -67,7 +68,7 @@ public sealed partial class MountManager
         try
         {
             root.Detection=root.Detection with{QueueMode="正在连接",QueueError=null};Notify();var mount=root.Definition;
-            await using var lease=await _sqsEvents.SubscribeAsync(new(mount,runtime.Engine.Scope,time=>
+            await using var lease=await QueueEvents.SubscribeAsync(new(mount,runtime.Engine.Scope,time=>
             {
                 if(!RemoteSessionCurrent(root,runtime))return;root.Detection=root.Detection with{LastEventUtc=time,PendingHints=_repository.S3EventHints(mount.Id,runtime.Engine.Scope).Count(x=>x.State=="Pending")};Notify();runtime.Wake();
             },error=>{if(RemoteSessionCurrent(root,runtime)){root.Detection=root.Detection with{QueueError=error,QueueMode=error is null?"正在监听":"故障，完整对账继续"};Notify();}}),options,QueueCredentials(mount,options),runtime.Stop.Token).ConfigureAwait(false);
