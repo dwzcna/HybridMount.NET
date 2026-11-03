@@ -16,7 +16,7 @@ public sealed class WebDavMigrationTests
         fixture.Server.Handler=async request=>{var result=await original(request);return request.Method=="PROPFIND"?result with{BeforeBody=new TaskCompletionSource().Task,HeadersSent=headers}:result;};
         await using var source=fixture.Source();source.MetadataDeadline=TimeSpan.FromMilliseconds(callerCancel?5000:120);
         using var stop=new CancellationTokenSource();var read=source.GetMetadataAsync("文件.bin",stop.Token);await headers.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        if(callerCancel){stop.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>read);}else await Assert.ThrowsAsync<IOException>(()=>read);
+        if(callerCancel){stop.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>read);}else await Assert.ThrowsAnyAsync<IOException>(()=>read);
     }
     [Theory(Timeout=10000)]
     [InlineData(false)][InlineData(true)]
@@ -25,7 +25,7 @@ public sealed class WebDavMigrationTests
         await using var fixture=new DavFixture{WeakEtag=weak};var original=fixture.Server.Handler;
         fixture.Server.Handler=async request=>{var result=await original(request);return request.Method=="GET"?result with{BeforeBody=new TaskCompletionSource().Task}:result;};
         await using var source=fixture.Source();source.ReadIdleTimeout=TimeSpan.FromMilliseconds(100);var entry=await source.GetMetadataAsync("文件.bin");
-        var error=await Assert.ThrowsAsync<IOException>(async()=>await source.ReadRangeAsync(entry,0,new byte[8]));Assert.Contains("正文",error.Message);
+        var error=await Assert.ThrowsAnyAsync<IOException>(async()=>await source.ReadRangeAsync(entry,0,new byte[8]));Assert.Contains("正文",error.Message);
     }
     [Fact]
     public async Task Move207WithLockedChildReportsPartialMoveAndKeepsSource()

@@ -161,7 +161,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         var error=await Assert.ThrowsAsync<SourceConnectionException>(()=>source.ProbeAsync());Assert.Equal(ConnectionFailureKind.Network,error.Diagnostic.Kind);
         using var canceled=new CancellationTokenSource();canceled.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>source.ProbeAsync(canceled.Token));
         await using var dav=new DavFixture();await using var davSource=new WebDavFileSource(dav.Options,new(),new WholeFileCache(Path.Combine(dav.Area,"cache")),new TimeoutHttpHandler());
-        Assert.Contains("超时",(await Assert.ThrowsAsync<IOException>(()=>davSource.ProbeAsync())).Message);await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>davSource.ProbeAsync(canceled.Token));
+        var davTimeout=await Assert.ThrowsAsync<SourceConnectionException>(()=>davSource.ProbeAsync());Assert.Equal(ConnectionFailureKind.Timeout,davTimeout.Diagnostic.Kind);Assert.Contains("超时",davTimeout.Message);await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>davSource.ProbeAsync(canceled.Token));
     }
     [Fact]
     public async Task ShutdownStagesContinueAfterFailureAndLifecycleRetainsActualContext()

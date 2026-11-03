@@ -63,7 +63,7 @@ public sealed partial class WebDavFileSource
             return reports?.Descendants(Dav+"sync-collection").Any()==true&&!string.IsNullOrWhiteSpace(value);
         }
         catch(WebDAVException){throw new IOException("DAV 集合发现响应格式无效。");}
-        catch(OperationCanceledException)when(!token.IsCancellationRequested){throw new IOException("DAV 集合发现超时。");}
+        catch(OperationCanceledException error)when(!token.IsCancellationRequested){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 集合发现",timeout:true);}
     }
     /// <summary>单批查询，校验路径及资源状态；绝不将属性 404 或普通 HTTP 404 解释为删除。</summary>
     public async Task<RemoteChangeBatch> GetCollectionChangesAsync(string collection,string? syncToken,CancellationToken token)
@@ -94,6 +94,6 @@ public sealed partial class WebDavFileSource
             return new(entries,deleted,result.SyncToken!,result.HasMore);
         }
         catch(WebDAVException){throw new IOException("DAV 同步 REPORT 格式无效，未推进检查点。");}
-        catch(OperationCanceledException)when(!token.IsCancellationRequested){throw new IOException("DAV 同步 REPORT 超时。");}
+        catch(OperationCanceledException error)when(!token.IsCancellationRequested){throw WebDavNetworkDiagnostics.Failure(error,"REPORT 远端检测",timeout:true);}
     }
 }

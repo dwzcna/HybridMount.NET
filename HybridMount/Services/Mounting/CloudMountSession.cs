@@ -18,6 +18,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private bool _clearing;
     private readonly MountRepository _repository;
     private readonly LoggerService _logger;
+    private readonly NetworkFailureLog _networkFailures=new();
     private readonly CancellationTokenSource _stop = new();
     private readonly PriorityReadQueue _reads=new();
     private readonly SharedAsyncWork<string,SourceEntry> _metadata=new();
@@ -199,13 +200,18 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 }
             }
             finally { pin.Free(); }
+            if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);
             _localContentReady?.Invoke(entry);
         }
         catch(Exception error)
         {
             var canceled=error is OperationCanceledException&&token.IsCancellationRequested;outcome=canceled?"canceled":"failed";
             try { Complete(info,offset,length,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00),token:token); } catch(Exception completion) { _logger.Queue("CFAPI","Warning",$"请求结束：{completion.GetType().Name}"); }
-            if(!canceled)_logger.Queue("按需读取","Error",error.Message);
+            if(!canceled)
+            {
+                if(error is not SourceConnectionException connection)_logger.Queue("按需读取","Error",error.Message);
+                else if(_networkFailures.ShouldWrite(connection.Diagnostic,out var suffix))_logger.Queue("按需读取","Error",connection.Message+suffix);
+            }
         }
         finally
         {

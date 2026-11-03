@@ -13,7 +13,7 @@ public sealed partial class WebDavFileSource
         var tag=NormalizeTag(Version(entry).ETag);if(!Strong(tag))return new(false,0);
         using var request=new HttpRequestMessage(HttpMethod.Get,Address(entry.Path));request.Headers.Range=new RangeHeaderValue(offset,offset+count-1);request.Headers.IfMatch.ParseAdd(tag!);
         HttpResponseMessage response;
-        try { response=await SendAsync(request,token).ConfigureAwait(false); }
+        try { response=await SendAsync(request,token,strictRead:true).ConfigureAwait(false); }
         catch(DavRangeIgnoredException){return new(false,0);}
         catch(DavMalformedRangeException){throw new SourceConflictException("预览范围无效，未读取完整文件。");}
         using var owned=response;Success(response);

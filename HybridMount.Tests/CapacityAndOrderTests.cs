@@ -57,7 +57,7 @@ public sealed class CapacityAndOrderTests
         await using var fixture=new DavFixture();var blocked=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.Server.Handler=_=>Task.FromResult(new HttpTestServer.Response(207,System.Text.Encoding.UTF8.GetBytes(QuotaXml("1","2")),BeforeBody:blocked.Task));
         await using var source=fixture.Source();source.MetadataDeadline=TimeSpan.FromMilliseconds(150);
-        var error=await Assert.ThrowsAsync<IOException>(()=>source.GetRemoteCapacityAsync());Assert.Contains("超时",error.Message);
+        var error=await Assert.ThrowsAnyAsync<IOException>(()=>source.GetRemoteCapacityAsync());Assert.Contains("超时",error.Message);
         using var cancel=new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>source.GetRemoteCapacityAsync(cancel.Token));
     }

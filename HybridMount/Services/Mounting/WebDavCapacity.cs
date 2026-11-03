@@ -33,8 +33,8 @@ public sealed partial class WebDavFileSource
             }
             return new("服务器报告的账户／目录配额（非物理磁盘容量）",Read(QuotaAvailable),Read(QuotaUsed));
         }
-        catch(OperationCanceledException)when(!token.IsCancellationRequested){throw new IOException("WebDAV 配额查询超时。");}
-        catch(HttpRequestException){throw new IOException("WebDAV 配额网络请求失败，请检查网络与 TLS 连接。");}
+        catch(OperationCanceledException error)when(!token.IsCancellationRequested){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 远端配额",timeout:true);}
+        catch(HttpRequestException error){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 远端配额");}
         catch(WebDAVClient.Helpers.WebDAVException){throw new IOException("WebDAV 配额 XML 无效。");}
     }
 }

@@ -32,9 +32,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         _endpoint = FileSourceFactory.Endpoint(options); _cache = cache;
         _temporaryScope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(_endpoint.AbsoluteUri+"\0"+credentials.UserName)));
         if (credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 用户名不能包含冒号。");
-        _http = new HttpClient(new DavTransport(this, credentials, handler ?? new SocketsHttpHandler
-        { AllowAutoRedirect=false, UseCookies=false, MaxConnectionsPerServer=4,
-          AutomaticDecompression=DecompressionMethods.None, ConnectTimeout=TimeSpan.FromSeconds(20) }))
+        _http = new HttpClient(new DavTransport(this, credentials, handler ?? CreateHttpHandler()))
           { Timeout=Timeout.InfiniteTimeSpan };
         _dav = new WebDAVClient.DavClient(_endpoint, _http, new() { MetadataTimeout=TimeSpan.FromSeconds(120) });
     }
@@ -44,15 +42,21 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         var suffix = string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
         return new Uri(_endpoint.AbsoluteUri + suffix + (directory && suffix.Length != 0 ? "/" : ""));
     }
-    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token, bool mutation = false)
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token, bool mutation = false,bool strictRead=false)
     {
         token.ThrowIfCancellationRequested();
         if(mutation)await PrepareTemporaryRequestAsync(request,token).ConfigureAwait(false);
+        var previousStrict=_strictRead.Value;_strictRead.Value=previousStrict||strictRead;
         try
         {
             var response=await ExecuteDavAsync(request,token).ConfigureAwait(false);
             if(mutation)ObserveTemporaryResponse(request,response);
             return response;
+        }
+        catch(SourceConnectionException error)
+        {
+            if(mutation)throw new SourceOutcomeUnknownException(request.Method.Method,error);
+            throw;
         }
         catch (WebDAVClient.Helpers.WebDAVException)
         {
@@ -63,9 +67,9 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         {
             if (mutation) throw new SourceOutcomeUnknownException(request.Method.Method, new IOException("网络请求未确认完成。"));
             if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
-            if(error is OperationCanceledException)throw new IOException("WebDAV 请求超时，请检查网络及服务响应。");
-            throw new IOException("WebDAV 连接失败，请检查网络、地址及证书。");
+            throw WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应",timeout:error is OperationCanceledException);
         }
+        finally{_strictRead.Value=previousStrict;}
     }
     private static void Success(HttpResponseMessage response)
     {

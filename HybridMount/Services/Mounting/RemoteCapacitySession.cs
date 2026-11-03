@@ -53,7 +53,7 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
             lock(_sync)
             {
                 if(_stopping||_stop.IsCancellationRequested)return;
-                var message=error is SourceRequestRejectedException rejected?$"远端配额查询被拒绝（HTTP {rejected.HttpStatus}），保留上次值。":
+                var message=error is SourceConnectionException connection?connection.Message+" 已保留上次值。":error is SourceRequestRejectedException rejected?$"远端配额查询被拒绝（HTTP {rejected.HttpStatus}），保留上次值。":
                     $"远端配额查询失败（{error.GetType().Name}），保留上次值。";
                 current=_snapshot=_snapshot with{IsRefreshing=false,Error=message};
             }

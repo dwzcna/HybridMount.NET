@@ -50,8 +50,12 @@ public sealed class FileSourceFactory : IFileSourceFactory
             await source.ProbeAsync(deadline.Token).ConfigureAwait(false);
             return new(true,"只读连接测试成功；未保存挂载，也未验证远端写入权限。");
         }
-        catch(OperationCanceledException)when(!token.IsCancellationRequested)
-        { return new(false,"连接测试超时，请检查网络及服务响应。"); }
+        catch(OperationCanceledException error)when(!token.IsCancellationRequested)
+        {
+            if(settings.Kind==FileSourceKind.WebDav)
+            {var failure=WebDavNetworkDiagnostics.Failure(error,"测试连接",timeout:true);return new(false,failure.Message,failure.Diagnostic);}
+            return new(false,"连接测试超时，请检查网络及服务响应。");
+        }
         catch(SourceConnectionException error) { return new(false,error.Message,error.Diagnostic); }
         catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException)
         { return new(false,error.Message); }

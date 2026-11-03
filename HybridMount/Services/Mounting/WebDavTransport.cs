@@ -16,6 +16,7 @@ public sealed partial class WebDavFileSource
     internal TimeSpan MetadataDeadline { get; set; }=TimeSpan.FromSeconds(120);
     internal TimeSpan ReadIdleTimeout { get; set; }=TimeSpan.FromSeconds(120);
     private readonly AsyncLocal<WireObservation?> _wire=new();
+    private readonly AsyncLocal<bool> _strictRead=new();
     private sealed class WireObservation { public int Status; public bool Identity; public bool Sent; public string? ETag; }
     private sealed class DavRangeIgnoredException : Exception { }
     private sealed class DavMalformedRangeException : Exception { }
@@ -28,10 +29,46 @@ public sealed partial class WebDavFileSource
             owner.HrefPath(request.RequestUri!.AbsoluteUri,owner._endpoint);
             if(credentials.UserName.Length!=0)
                 request.Headers.Authorization=new AuthenticationHeaderValue("Basic",Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials.UserName+":"+credentials.Password)));
-            var observation=owner._wire.Value;if(observation is not null)observation.Sent=true;
-            var result=await base.SendAsync(request,token).ConfigureAwait(false);
-            if(observation is not null){observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);observation.Identity=result.Content.Headers.ContentEncoding.All(x=>x.Equals("identity",StringComparison.OrdinalIgnoreCase));}
-            return result;
+            var observation=owner._wire.Value;
+            var readOnly=request.Method.Method is "OPTIONS" or "GET" or "PROPFIND" or "REPORT";
+            byte[]? content=null;
+            var retryableBody=request.Content is null||request.Content.Headers.ContentLength is >=0 and <=65536;
+            if(readOnly&&request.Content is not null&&retryableBody)content=await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+            var attempts=readOnly&&retryableBody&&!owner._strictRead.Value?3:1;
+            for(var index=0;index<attempts;index++)
+            {
+                token.ThrowIfCancellationRequested();
+                using var clone=index==0?null:Clone(request,content);
+                var current=clone??request;var network=new NetworkAttempt();current.Options.Set(NetworkAttemptKey,network);
+                if(observation is not null)observation.Sent=true;
+                try
+                {
+                    var result=await base.SendAsync(current,token).ConfigureAwait(false);
+                    if(observation is not null){observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);observation.Identity=result.Content.Headers.ContentEncoding.All(x=>x.Equals("identity",StringComparison.OrdinalIgnoreCase));}
+                    return result;
+                }
+                catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
+                {
+                    if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
+                    var failure=error as SourceConnectionException??WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应头／连接",network.Certificate,network.Chain,error is OperationCanceledException,index+1);
+                    if(!failure.Diagnostic.Transient||index==attempts-1)throw failure;
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<index))),token).ConfigureAwait(false);
+            }
+            throw new InvalidOperationException("DAV 重试状态无效。");
+        }
+        /// <summary>只读 XML 请求仅在有界缓冲后复制；条件、范围与版本头保持一致，写请求从不复制重发。</summary>
+        private static HttpRequestMessage Clone(HttpRequestMessage original,byte[]? body)
+        {
+            var copy=new HttpRequestMessage(original.Method,original.RequestUri){Version=original.Version,VersionPolicy=original.VersionPolicy};
+            foreach(var header in original.Headers)copy.Headers.TryAddWithoutValidation(header.Key,header.Value);
+            foreach(var option in original.Options)copy.Options.Set(new HttpRequestOptionsKey<object?>(option.Key),option.Value);
+            if(original.Content is not null)
+            {
+                copy.Content=new ByteArrayContent(body??[]);
+                foreach(var header in original.Content.Headers)copy.Content.Headers.TryAddWithoutValidation(header.Key,header.Value);
+            }
+            return copy;
         }
     }
     private DavPath LibraryPath(Uri uri)
@@ -148,7 +185,8 @@ public sealed partial class WebDavFileSource
         {
             using var limit=CancellationTokenSource.CreateLinkedTokenSource(token);limit.CancelAfter(idle);
             try{return await _inner.ReadAsync(buffer,limit.Token).ConfigureAwait(false);}
-            catch(OperationCanceledException)when(!token.IsCancellationRequested){throw new IOException("WebDAV 文件正文无进展超时。");}
+            catch(OperationCanceledException error)when(!token.IsCancellationRequested){throw WebDavNetworkDiagnostics.Failure(error,"GET 正文",timeout:true);}
+            catch(Exception error)when(error is HttpRequestException or IOException){throw WebDavNetworkDiagnostics.Failure(error,"GET 正文");}
         }
         public override Task<int> ReadAsync(byte[] buffer,int offset,int count,CancellationToken token)=>ReadAsync(buffer.AsMemory(offset,count),token).AsTask();
         public override int Read(byte[] buffer,int offset,int count)=>ReadAsync(buffer.AsMemory(offset,count)).AsTask().GetAwaiter().GetResult();

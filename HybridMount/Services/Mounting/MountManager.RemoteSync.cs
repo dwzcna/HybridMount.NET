@@ -15,6 +15,7 @@ public sealed partial class MountManager
         public readonly RemoteSyncEngine Engine=engine;
         public readonly CancellationTokenSource Stop=CancellationTokenSource.CreateLinkedTokenSource(parent);
         public readonly SemaphoreSlim Serial=new(1,1);
+        public readonly NetworkFailureLog FailureLog=new();
         public readonly SemaphoreSlim Signal=new(0,1);
         public readonly object Sync=new();
         public CancellationTokenSource? Request;
@@ -72,6 +73,7 @@ public sealed partial class MountManager
             {
                 await runtime.Signal.WaitAsync(next,runtime.Stop.Token).ConfigureAwait(false);
                 await DetectRemoteAsync(root,runtime,runtime.RescanSoon,runtime.Stop.Token).ConfigureAwait(false);runtime.RescanSoon=false;failures=0;
+                if(runtime.FailureLog.Recovered(out var recovered))_logger.Queue("远端检测","Information",recovered);
                 next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource||runtime.Engine.Mode.StartsWith("完整对账")?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
             }
             catch(OperationCanceledException)when(runtime.Stop.IsCancellationRequested){break;}
@@ -80,10 +82,13 @@ public sealed partial class MountManager
                 root.Detection=root.Detection with{Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
                 if(error is SourceRescanRequiredException){runtime.RescanSoon=true;next=TimeSpan.FromSeconds(5);continue;}
                 if(error is RemoteSyncException{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403} or SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Authentication or ConnectionFailureKind.Permission}){_logger.Queue("远端检测","Warning","远端认证或权限失败，已暂停至重新连接。");break;}
+                if(error is SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Certificate})
+                {root.Detection=root.Detection with{Error=error.Message+" 自动检测已暂停，请修正后断开并重新连接。"};Notify();_logger.Queue("远端检测","Warning",root.Detection.Error);break;}
                 failures++;next=TimeSpan.FromMinutes(Math.Clamp(Math.Pow(2,Math.Min(failures-1,4))*(0.9+Random.Shared.NextDouble()*0.2),1,15));
                 var retry=error is RemoteSyncException sync?sync.RetryAfter:(error as SourceRequestRejectedException)?.RetryAfter;
                 if(retry is {} delay&&delay>next)next=delay;
-                _logger.Queue("远端检测","Warning",error.Message);
+                if(error is not SourceConnectionException connection)_logger.Queue("远端检测","Warning",error.Message);
+                else if(runtime.FailureLog.ShouldWrite(connection.Diagnostic,out var suffix))_logger.Queue("远端检测","Warning",connection.Message+suffix);
             }
         }
     }
