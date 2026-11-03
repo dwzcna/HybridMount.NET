@@ -22,7 +22,7 @@ public enum MountRegistrationStage { Unknown, NotRegistered, Registering, Regist
 public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown, bool AutoUploadEnabled = false, bool UploadInitialReviewCompleted = false, bool ContinuousUploadMigrated = false, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, long CredentialRevision = 0, SqsConfiguration? Sqs = null);
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false, RemotePresence RemotePresence = RemotePresence.Unknown);
-public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail, RemoteDetectionStatus? Detection=null)
+public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail, RemoteDetectionStatus? Detection=null, bool IsConnected=false, bool IsConnecting=false, bool IsDisconnecting=false, string? ActiveOperation=null)
 {
     public string RemoteDetectionDisplay=>Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)?"":!Definition.RemoteAutoDetectEnabled?"远端自动检测：关闭":
          $"远端自动检测：{Detection?.Mode??"尚未检测"}；{(Definition.Source?.Kind==FileSourceKind.S3?"":$"增量 {Definition.RemoteIncrementalSeconds} 秒，")}完整 {Definition.RemoteFullSeconds} 秒；最近成功：{Detection?.LastSuccessUtc?.ToLocalTime().ToString("g")??"尚无"}"+(Detection?.Error is {} error?"；"+error:"");
@@ -39,8 +39,12 @@ public sealed record MountOperationSnapshot(string Id, string Operation, string 
     /// <summary>区分文件、目录和副本目标；旧历史缺少类型时显示条目，不猜测类型。</summary>
     public string DisplayTarget=>Operation!="upload"?ItemPath??"":$"{(IsDirectory is true?"目录":IsDirectory is false?"文件":"条目")}：{ItemPath}"+
         (RemotePath is not null&&RemotePath!=ItemPath?$" → 远端：{RemotePath}":"");
-    public double ProgressPercent=>Operation is "upload" or "remoteUpdate"?(TotalBytes>0?Math.Clamp(100.0*BytesTransferred/TotalBytes,0,100):State=="Completed"?100:0):Total>0?100.0*Completed/Total:0;
-    public string ProgressText=>Operation is "upload" or "remoteUpdate"?$"{BytesTransferred:N0} / {TotalBytes:N0} 字节":$"{Completed} / {Total}";
+    public double ProgressPercent=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true?(TotalBytes>0?Math.Clamp(100.0*BytesTransferred/TotalBytes,0,100):State=="Completed"?100:0):Total>0?100.0*Completed/Total:0;
+    public string ProgressText=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true
+        ?$"{TaskByteFormat.Format(BytesTransferred)} / {TaskByteFormat.Format(TotalBytes)}":$"{Completed:N0} / {Total:N0} 项";
+    /// <summary>悬停保留精确字节；目录任务按条目计数，不把目录显示为零字节文件。</summary>
+    public string ProgressDetail=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true
+        ?$"{BytesTransferred:N0} / {TotalBytes:N0} 字节":$"{Completed:N0} / {Total:N0} 项";
     public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","remoteUpdate"=>"应用远端更改","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
     public string DisplayState=>State switch{"AwaitingConfirmation"=>"等待首次确认","Ignored"=>"未纳入上传","Waiting"=>"等待文件可用","Downloading"=>"下载远端快照","Committing"=>"切换占位版本","Hydrating"=>"从快照水合","Pending"=>"待应用","Superseded"=>"已被新版本替代","Prepared"=>"快照已就绪","Sending"=>"上传中","RemoteCommitted"=>"提交本地状态","Conflict"=>"冲突","OutcomeUnknown"=>"结果待核对","Queued"=>"排队中","Running"=>"执行中","Completed"=>"已完成","PartialFailure"=>"部分失败","Failed"=>"失败","Canceled"=>"已取消","Interrupted"=>"已中断",_=>State};
 }

@@ -27,7 +27,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <TextBlock Text="{x:Bind DisplayOperation}" FontWeight="SemiBold"/>
                             <TextBlock Text="{x:Bind DisplayState}"/>
-                            <TextBlock Text="{x:Bind ProgressText}"/>
+                            <TextBlock Text="{x:Bind ProgressText}" ToolTipService.ToolTip="{x:Bind ProgressDetail}" AutomationProperties.HelpText="{x:Bind ProgressDetail}"/>
                         </StackPanel>
                         <TextBlock Text="{x:Bind DisplayTarget}" TextWrapping="Wrap"/>
                         <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ProgressPercent}"/>

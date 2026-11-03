@@ -74,7 +74,14 @@ public sealed partial class MountManager : IAsyncDisposable
         {root.Gate.Release();return null;}
         return new PreviewLease(root.Gate);
     }
-    public IReadOnlyList<MountSnapshot> Mounts => _roots.Values.Select(root=>new MountSnapshot(root.Definition,root.Status,root.Detail,root.Detection)).OrderBy(item=>item.Definition.Name).ToArray();
+    public IReadOnlyList<MountSnapshot> Mounts => _roots.Values.Select(Snapshot).OrderBy(item=>item.Definition.Name).ThenBy(item=>item.Definition.Id).ToArray();
+    /// <summary>实际连接状态供页面启用操作；不把后台上传视为全页忙碌。</summary>
+    private MountSnapshot Snapshot(Runtime root)
+    {
+        lock(root.ConnectionSync)return new(root.Definition,root.Status,root.Detail,root.Detection,root.Session is not null,
+            root.Connecting is not null,root.ConnectionStops>0,
+            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation);
+    }
     public IReadOnlyList<MountOperationSnapshot> Operations
     {
         get
