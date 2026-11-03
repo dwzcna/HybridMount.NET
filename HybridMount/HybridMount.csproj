@@ -52,7 +52,7 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools"/>
     <PackageReference Include="CommunityToolkit.Mvvm"/>
     <PackageReference Include="Microsoft.Data.Sqlite"/>
-    <PackageReference Include="AWSSDK.S3"/>
+    <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/>
     <PackageReference Include="WebDAVClient"/>
   </ItemGroup>
   <ItemGroup>

@@ -22,4 +22,4 @@ public sealed record RemotePendingChange(string Id,Guid MountId,string Scope,str
     string State="Pending",string? Error=null,string? SnapshotPath=null,string? Sha256=null,string? OriginalStamp=null,
     string? EntryId=null,long UploadGeneration=0,uint PinState=0,string? OldVersion=null);
 /// <summary>挂载的检测状态，不包含内部游标。</summary>
-public sealed record RemoteDetectionStatus(string Mode="尚未检测",DateTimeOffset? LastSuccessUtc=null,string? Error=null);
+public sealed record RemoteDetectionStatus(string Mode="尚未检测",DateTimeOffset? LastSuccessUtc=null,string? Error=null,DateTimeOffset? LastEventUtc=null,int PendingHints=0,string QueueMode="尚未启动",string? QueueError=null);

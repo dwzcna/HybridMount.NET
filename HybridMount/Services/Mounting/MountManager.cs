@@ -51,7 +51,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public event Action? Changed;
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null)
     {
-        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationProcess.DiagnosticsEnabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();
+        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationProcess.DiagnosticsEnabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_sqsEvents=new(repository,CreateQueueClient);
         foreach(var definition in repository.LoadDefinitions())
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
@@ -234,6 +234,8 @@ public sealed partial class MountManager : IAsyncDisposable
                 StartRemoteSync(root,startLoop:false);var runtime=root.RemoteSync!;
                 root.Gate.Release();
                 try{await DetectRemoteAsync(root,runtime,true,token).ConfigureAwait(false);}
+                catch(SourceRescanRequiredException)
+                {runtime.RescanSoon=true;root.Detection=new("S3 完整对账",Error:"远端持续变化，初始扫描暂未稳定；连接保留，后台立即继续完整扫描。");}
                 finally{await root.Gate.WaitAsync().ConfigureAwait(false);}
                 refreshed=RemotePendingFor(root).Where(x=>x.State is not("Completed" or "Superseded")).Select(x=>new MountItemResult(x.Path,"Conflict",x.Error??"远端变更待处理。")).ToArray();
             }
@@ -498,7 +500,7 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         foreach(var upload in _repository.Uploads(root.Definition.Id))DeleteUploadSnapshot(upload.SnapshotPath);
         foreach(var pending in RemotePendingFor(root))DeleteRemoteSnapshot(pending.SnapshotPath);
-        new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
+        new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);SqsStore().Delete(root.Definition.Id);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
         _roots.TryRemove(root.Definition.Id,out _);Notify();
     }
     /// <summary>清空本地目录；保留 CFAPI 删除确认，不读取或删除源内容。失败／取消保留意图供显式重试。</summary>

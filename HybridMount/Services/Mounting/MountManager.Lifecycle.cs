@@ -68,6 +68,7 @@ public sealed partial class MountManager
         await Step("Jobs",()=>Task.WhenAll(_jobs.Values.Select(job=>job.Work))).ConfigureAwait(false);
         if(_maintenance is not null)await Step("Maintenance",()=>_maintenance).ConfigureAwait(false);
         await Step("RemoteSync",()=>Task.WhenAll(_roots.Values.Select(StopRemoteAsync))).ConfigureAwait(false);
+        await Step("SqsReceivers",()=>_sqsEvents.DisposeAsync().AsTask()).ConfigureAwait(false);
         await Step("Uploads",()=>Task.WhenAll(_roots.Values.Select(StopUploadsAsync))).ConfigureAwait(false);
         await Step("Previews",()=>_previews.DisposeAsync().AsTask()).ConfigureAwait(false);
         foreach(var root in _roots.Values)

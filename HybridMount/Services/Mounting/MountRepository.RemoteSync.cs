@@ -31,7 +31,7 @@ public sealed partial class MountRepository
         cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$s",scope);cmd.Parameters.AddWithValue("$p",path);cmd.Parameters.AddWithValue("$j",json);cmd.Parameters.AddWithValue("$id",(object?)id??DBNull.Value);cmd.ExecuteNonQuery();
     }
     /// <summary>事件、远端观测和检查点在同一事务持久化；本地占用或中断不导致游标前进后丢事件。</summary>
-    public void CommitRemoteBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null)
+    public void CommitRemoteBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null)
     {
         lock(_gate)
         {
@@ -53,6 +53,9 @@ public sealed partial class MountRepository
                 SavePendingCore(db,transaction,new(Guid.NewGuid().ToString("N"),mount,scope,path,null));
             }
             RemoteCommand(db,transaction,"INSERT INTO remote_collections VALUES($m,$s,$p,$j) ON CONFLICT(mount,scope,path) DO UPDATE SET json=$j",mount,scope,checkpoint.Path,JsonSerializer.Serialize(checkpoint));
+            if(hint is not null)MarkS3HintCore(db,transaction,mount,scope,hint);
+            if(scan is not null)
+            {using var done=db.CreateCommand();done.Transaction=transaction;done.CommandText="UPDATE remote_scans SET state='Completed' WHERE id=$id AND mount=$m AND scope=$s";done.Parameters.AddWithValue("$id",scan);done.Parameters.AddWithValue("$m",mount.ToString("N"));done.Parameters.AddWithValue("$s",scope);if(done.ExecuteNonQuery()!=1)throw new IOException("远端扫描身份丢失，未提交快照。");}
             transaction.Commit();
         }
     }
@@ -84,7 +87,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var cmd=db.CreateCommand();
-            cmd.CommandText="SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND (path=$p OR substr($p,1,length(path)+1)=path||'/') LIMIT 1";
+            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND (path=$p OR substr($p,1,length(path)+1)=path||'/')) OR EXISTS (SELECT 1 FROM s3_event_hints WHERE mount=$m AND json_extract(json,'$.State')='Pending' AND (path=$p OR substr($p,1,length(path)+1)=path||'/'))";
             cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$p",path);return cmd.ExecuteScalar() is not null;
         }
     }

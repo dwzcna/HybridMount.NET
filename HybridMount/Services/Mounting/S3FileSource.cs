@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>SigV4 S3 通用桶驱动；版本读取、分页、条件写与复制后删除分别处理。</summary>
-public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource
+public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource, IRemoteSnapshotSource
 {
     private readonly IAmazonS3 _client;
     private readonly string _diagnosticContext;
@@ -33,6 +33,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         _diagnosticContext=$"SigV4；签名区域 {options.Region}"+(options.Region=="us-east-1"?"（默认值，尚待服务确认）":"（配置值）")+
             $"；寻址 {(options.PathStyle?"Path-Style":"Virtual-Host")}；凭据来源 {(options.UseDefaultCredentials?"SDK 默认凭据链":"表单／DPAPI 访问密钥")}";
 
+        _remoteSyncIdentity=string.Join("\0",endpoint.AbsoluteUri,options.Bucket,options.Prefix,options.UseDefaultCredentials?"default":credentials.AccessKey);
         _bucket = options.Bucket; _prefix = options.Prefix.Trim('/').Length == 0 ? "" : RelativePaths.Normalize(options.Prefix.Trim('/')) + "/";
         _work = workDirectory; _multipartThreshold = Math.Max(5L * 1024 * 1024, multipartThreshold);
         if (client is not null) { _client = client; return; }

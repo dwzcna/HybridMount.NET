@@ -15,6 +15,7 @@ public sealed partial class MountsPage : Page, IDisposable
     private bool _busy,_updatingPreview,_changingPreview,_updatingRemote,_savingRemote;
     private Guid? _selectedMount;
     private MountBackupDialog? _backupDialog;
+    private SqsSettingsDialog? _sqsDialog;
     /// <summary>创建页面并保留刷新前选中的挂载 ID。</summary>
     public MountsPage()
     {
@@ -46,8 +47,10 @@ public sealed partial class MountsPage : Page, IDisposable
         try
         {
             var mount=(MountList.SelectedItem as MountSnapshot)?.Definition;
-            RemoteControls.Visibility=mount?.Source?.Kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
+            RemoteControls.Visibility=mount?.Source?.Kind is FileSourceKind.WebDav or FileSourceKind.S3?Visibility.Visible:Visibility.Collapsed;
             RemoteControls.IsEnabled=mount is not null&&!mount.RemovalPending;
+            SqsSettingsButton.Visibility=mount?.Source?.Kind==FileSourceKind.S3?Visibility.Visible:Visibility.Collapsed;
+            IncrementalInterval.Visibility=mount?.Source?.Kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
             RemoteAutoToggle.IsOn=mount?.RemoteAutoDetectEnabled??true;
             IncrementalInterval.Value=mount?.RemoteIncrementalSeconds??60;FullInterval.Value=mount?.RemoteFullSeconds??300;
         }
@@ -60,7 +63,7 @@ public sealed partial class MountsPage : Page, IDisposable
     private async Task SaveRemoteOptionsAsync()
     {
         if(_busy||_savingRemote||_updatingRemote)return;
-        var mount=(MountList.SelectedItem as MountSnapshot)?.Definition;if(mount?.Source?.Kind!=FileSourceKind.WebDav)return;
+        var mount=(MountList.SelectedItem as MountSnapshot)?.Definition;if(mount?.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3))return;
         _savingRemote=true;RemoteControls.IsEnabled=false;
         try
         {
@@ -123,6 +126,11 @@ public sealed partial class MountsPage : Page, IDisposable
         var mount=Selected().Definition;if(mount.Source is null)throw new InvalidOperationException("旧版模拟源仅支持迁出。");
         var dialog=new NetworkMountDialog(mount.Source.Kind,mount){XamlRoot=XamlRoot};await dialog.ShowAsync();ViewModel.Status=dialog.ResultMessage;
     });
+    private async void SqsSettings(object sender,RoutedEventArgs args)=>await Run(async()=>
+    {
+        try{_sqsDialog=new SqsSettingsDialog(Selected().Definition){XamlRoot=XamlRoot};await _sqsDialog.ShowAsync();}
+        finally{_sqsDialog=null;}
+    });
     private async void Disconnect(object sender,RoutedEventArgs args)=>await Run(()=>App.Current.Mounts.DisconnectAsync(Selected().Definition.Id));
     private async void OpenFolder(object sender,RoutedEventArgs args)=>await Run(async()=>{var folder=await StorageFolder.GetFolderFromPathAsync(Selected().Definition.LocalPath);await Windows.System.Launcher.LaunchFolderAsync(folder);});
     private void Queue(string operation)
@@ -156,5 +164,5 @@ public sealed partial class MountsPage : Page, IDisposable
         ViewModel.Status="移除任务已提交，可在任务页查看进度和逐项结果。";
     });
     /// <summary>窗口释放时解除列表订阅，不断开挂载。</summary>
-    public void Dispose() { _backupDialog?.CancelForShutdown();ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
+    public void Dispose() { _sqsDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
 }

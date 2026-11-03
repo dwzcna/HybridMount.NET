@@ -19,8 +19,8 @@ public sealed partial class MountManager
         public readonly object Sync=new();
         public CancellationTokenSource? Request;
         public string? CurrentId;
-        public Task Work=Task.CompletedTask,Cancellation=Task.CompletedTask;
-        public bool Stopping,LoopStarted;
+        public Task Work=Task.CompletedTask,QueueWork=Task.CompletedTask,Cancellation=Task.CompletedTask;
+        public bool Stopping,LoopStarted,RescanSoon,QueueStarted;
         public Task? Finish;
         public void RequestStop(){lock(Sync){if(Stopping)return;Stopping=true;Cancellation=Stop.CancelAsync();}}
         public void Wake(){lock(Sync){if(Stopping)return;if(Signal.CurrentCount==0)Signal.Release();}}
@@ -34,14 +34,16 @@ public sealed partial class MountManager
             {
                 if(startLoop&&!existing.LoopStarted&&!existing.Stopping&&root.Definition.RemoteAutoDetectEnabled&&!IsStopping)
                 {existing.LoopStarted=true;existing.Work=Task.Run(()=>RemoteLoopAsync(root,existing));}
+                if(startLoop)StartSqs(root,existing);
                 return;
             }
-            if(root.Source is not IRemoteChangeSource changes||root.Session is null||root.Definition.Source?.Kind!=FileSourceKind.WebDav||root.RemovalRequested||IsStopping)return;
+            if(root.Source is not IRemoteChangeSource changes||root.Session is null||root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)||root.RemovalRequested||IsStopping)return;
             var identity=root.Source is WebDavFileSource dav?dav.RemoteSyncIdentity:root.Definition.Source.Endpoint;
-            var scope=root.Source is WebDavFileSource scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
+            var scope=root.Source is S3FileSource s3?s3.RemoteScope(root.Definition.CredentialRevision):root.Source is WebDavFileSource scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
+            _repository.ActivateRemoteScope(root.Definition.Id,scope);
             var runtime=new RemoteSyncRuntime(root.Source,root.Session,new(root.Definition.Id,scope,root.Source,changes,_repository),_stop.Token);root.RemoteSync=runtime;
             changes.RestoreObservations(_repository.RemoteShadow(root.Definition.Id,scope));
-            if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=Task.Run(()=>RemoteLoopAsync(root,runtime));}
+            if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=Task.Run(()=>RemoteLoopAsync(root,runtime));StartSqs(root,runtime);}
         }
     }
     private static void RequestRemoteStop(Runtime root){lock(root.ConnectionSync)root.RemoteSync?.RequestStop();}
@@ -55,29 +57,30 @@ public sealed partial class MountManager
     }
     private static async Task FinishRemoteAsync(Runtime root,RemoteSyncRuntime runtime)
     {
-        await Task.WhenAll(runtime.Cancellation,runtime.Work).ConfigureAwait(false);
+        await Task.WhenAll(runtime.Cancellation,runtime.Work,runtime.QueueWork).ConfigureAwait(false);
         await runtime.Serial.WaitAsync().ConfigureAwait(false);runtime.Serial.Release();
         lock(root.ConnectionSync)if(ReferenceEquals(root.RemoteSync,runtime))root.RemoteSync=null;
         runtime.Dispose();
     }
     private async Task RemoteLoopAsync(Runtime root,RemoteSyncRuntime runtime)
     {
-        var failures=0;var next=TimeSpan.FromSeconds(root.Definition.RemoteIncrementalSeconds);
-        if(_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).Any(x=>x.State is not("Completed" or "Canceled" or "Superseded")))next=TimeSpan.Zero;
+        var failures=0;var next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
+        if(runtime.RescanSoon||_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).Any(x=>x.State is not("Completed" or "Canceled" or "Superseded")))next=TimeSpan.Zero;
         while(!runtime.Stop.IsCancellationRequested)
         {
             try
             {
                 await runtime.Signal.WaitAsync(next,runtime.Stop.Token).ConfigureAwait(false);
-                await DetectRemoteAsync(root,runtime,false,runtime.Stop.Token).ConfigureAwait(false);failures=0;
-                next=TimeSpan.FromSeconds(runtime.Engine.Mode.StartsWith("完整对账")?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
+                await DetectRemoteAsync(root,runtime,runtime.RescanSoon,runtime.Stop.Token).ConfigureAwait(false);runtime.RescanSoon=false;failures=0;
+                next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource||runtime.Engine.Mode.StartsWith("完整对账")?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
             }
             catch(OperationCanceledException)when(runtime.Stop.IsCancellationRequested){break;}
             catch(Exception error)
             {
-                root.Detection=root.Detection with{Error=error.Message};Notify();
-                if(error is RemoteSyncException{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403}){_logger.Queue("远端检测","Warning","WebDAV 认证或权限失败，已暂停至重新连接。");break;}
-                failures++;next=TimeSpan.FromMinutes(Math.Min(15,Math.Pow(2,Math.Min(failures-1,4))));
+                root.Detection=root.Detection with{Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
+                if(error is SourceRescanRequiredException){runtime.RescanSoon=true;next=TimeSpan.FromSeconds(5);continue;}
+                if(error is RemoteSyncException{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403} or SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Authentication or ConnectionFailureKind.Permission}){_logger.Queue("远端检测","Warning","远端认证或权限失败，已暂停至重新连接。");break;}
+                failures++;next=TimeSpan.FromMinutes(Math.Clamp(Math.Pow(2,Math.Min(failures-1,4))*(0.9+Random.Shared.NextDouble()*0.2),1,15));
                 var retry=error is RemoteSyncException sync?sync.RetryAfter:(error as SourceRequestRejectedException)?.RetryAfter;
                 if(retry is {} delay&&delay>next)next=delay;
                 _logger.Queue("远端检测","Warning",error.Message);
@@ -85,10 +88,11 @@ public sealed partial class MountManager
         }
     }
     /// <summary>手动刷新请求完整基线，关闭自动检测仍可执行；全程属于连接停止及应用退出所有者。</summary>
-    private Task DetectRemoteNowAsync(Runtime root,bool full,CancellationToken token)
+    private async Task DetectRemoteNowAsync(Runtime root,bool full,CancellationToken token)
     {
-        StartRemoteSync(root);var runtime=root.RemoteSync??throw new IOException("WebDAV 尚未连接。");
-        return DetectRemoteAsync(root,runtime,full,token);
+        StartRemoteSync(root);var runtime=root.RemoteSync??throw new IOException("远端尚未连接。");
+        try{await DetectRemoteAsync(root,runtime,full,token).ConfigureAwait(false);}
+        catch(SourceRescanRequiredException){runtime.RescanSoon=true;if(runtime.LoopStarted)runtime.Wake();throw;}
     }
     /// <summary>仅程序集内协议/CFAPI 联合验证使用，仍登记生命周期且走正式串行调度与保护。</summary>
     internal Task DetectRemoteForTestsAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>DetectRemoteNowAsync(Root(id),false,cancel),token);
@@ -104,9 +108,12 @@ public sealed partial class MountManager
             await _remoteSlots.WaitAsync(token).ConfigureAwait(false);
             try
             {
+                await runtime.Engine.ObserveS3HintsAsync(token).ConfigureAwait(false);
                 await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);
                 await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);
-                root.Detection=new(runtime.Engine.Mode,DateTimeOffset.UtcNow);Notify();
+                var checkpoint=_repository.RemoteCollections(root.Definition.Id,runtime.Engine.Scope).FirstOrDefault(x=>x.Path=="");
+                root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
+                    PendingHints=_repository.S3EventHints(root.Definition.Id,runtime.Engine.Scope).Count(x=>x.State=="Pending")};Notify();
             }
             finally{_remoteSlots.Release();}
         }
@@ -158,7 +165,7 @@ public sealed partial class MountManager
             var root=Root(id);await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
-                if(root.Definition.Source?.Kind!=FileSourceKind.WebDav||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前挂载不能更改 WebDAV 检测设置。");
+                if(root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前挂载不能更改远端检测设置。");
                 var definition=root.Definition with{RemoteAutoDetectEnabled=enabled,RemoteIncrementalSeconds=incrementalSeconds,RemoteFullSeconds=fullSeconds};_repository.SaveDefinition(definition);root.Definition=definition;
             }
             finally{root.Gate.Release();}

@@ -17,7 +17,7 @@ public sealed partial class MountRepository
         _registry = registryPath ?? ApplicationPaths.RegistryPath + @"\Mounts\" + (WinRegisterService.IsPackaged() ? "Packaged" : "Unpackaged");
         using var db = Open(); using var cmd = db.CreateCommand();
         cmd.CommandText="PRAGMA user_version";
-        if(Convert.ToInt32(cmd.ExecuteScalar())>5)throw new IOException("挂载索引版本较新，请使用新版 HybridMount。");
+        if(Convert.ToInt32(cmd.ExecuteScalar())>6)throw new IOException("挂载索引版本较新，请使用新版 HybridMount。");
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS entries(mount TEXT NOT NULL,id TEXT NOT NULL,source TEXT NOT NULL COLLATE NOCASE,
                 local TEXT NOT NULL COLLATE NOCASE,version TEXT NOT NULL,directory INTEGER NOT NULL,deleted INTEGER NOT NULL,
@@ -32,8 +32,13 @@ public sealed partial class MountRepository
             CREATE TABLE IF NOT EXISTS remote_collections(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
             CREATE TABLE IF NOT EXISTS remote_shadow(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
             CREATE TABLE IF NOT EXISTS remote_pending(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS s3_event_hints(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS s3_event_hints_mount ON s3_event_hints(mount,scope);
+            CREATE TABLE IF NOT EXISTS s3_event_watermarks(mount TEXT NOT NULL,scope TEXT NOT NULL,path TEXT NOT NULL,sequence TEXT NOT NULL,PRIMARY KEY(mount,scope,path));
+            CREATE TABLE IF NOT EXISTS sqs_messages(queue TEXT NOT NULL,id TEXT NOT NULL,received TEXT NOT NULL,PRIMARY KEY(queue,id));
+            CREATE TABLE IF NOT EXISTS remote_scans(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,state TEXT NOT NULL,started TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS remote_pending_mount ON remote_pending(mount,scope);
-            PRAGMA user_version=5;
+            PRAGMA user_version=6;
             """; cmd.ExecuteNonQuery();
     }
     private SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }
@@ -56,7 +61,7 @@ public sealed partial class MountRepository
     }
     public void SaveDefinition(MountDefinition definition)
     {
-        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 8, RegistryValueKind.DWord); }
+        lock (_gate) { using var key = Registry.CurrentUser.CreateSubKey(_registry + "\\" + definition.Id.ToString("N"), true); key.SetValue("Definition", JsonSerializer.Serialize(definition)); key.SetValue("MountSchemaVersion", 9, RegistryValueKind.DWord); }
     }
     /// <summary>此仓库的全局缓存软上限；旧配置默认 10 GiB，0 为关闭。</summary>
     public long CacheLimitBytes
@@ -71,7 +76,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;DELETE FROM s3_event_hints WHERE mount=$m;DELETE FROM s3_event_watermarks WHERE mount=$m";command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
         }
     }
     public IReadOnlyList<MountEntry> Entries(Guid mount)

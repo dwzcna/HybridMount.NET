@@ -1,0 +1,6 @@
+AWSSDK.SQS 4.0.100.21
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+License: Apache-2.0 (NuGet package declaration).
+https://www.nuget.org/packages/AWSSDK.SQS/4.0.100.21
+Uses AWSSDK.Core [4.0.102.14, 5.0.0), aligned with the existing AWSSDK.S3 4.0.104.7.
+The AWS SDK license and third-party notices are retained in License.txt and Notice.txt in this directory.

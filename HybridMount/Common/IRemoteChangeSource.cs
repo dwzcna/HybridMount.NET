@@ -13,3 +13,9 @@ public interface IRemoteChangeSource
     bool IsSameVersionHint(string expected,string observed)=>expected==observed;
     bool HasReliableVersion(SourceEntry entry);
 }
+
+/// <summary>完整远端快照能力；所有页面及变化元数据核对完成后才返回，不把分页当增量游标。</summary>
+public interface IRemoteSnapshotSource
+{
+    Task<IReadOnlyList<SourceEntry>> ReadSnapshotAsync(IReadOnlyList<RemoteShadowEntry> previous,CancellationToken token);
+}

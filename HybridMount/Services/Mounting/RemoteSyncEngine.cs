@@ -14,6 +14,7 @@ internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource sourc
         try
         {
             changes.RestoreObservations(repository.RemoteShadow(mount,scope));
+            if(source is IRemoteSnapshotSource snapshot){await SnapshotAsync(snapshot,forceFull,fullInterval,token).ConfigureAwait(false);return;}
             var visited=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var queue=new Queue<string>();queue.Enqueue("");
             while(queue.Count!=0)
             {
@@ -45,6 +46,55 @@ internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource sourc
             Mode=modes.Contains("RFC6578")?(modes.Contains("Full")?"RFC 6578 + 完整对账":"RFC 6578 增量检测"):"完整对账（服务器不支持 RFC 6578）";
         }
         finally{_poll.Release();}
+    }
+    /// <summary>一次扫描的所有分页先在锁外完成；缺失逐项查询当前状态，失败/取消不持久任何删除。</summary>
+    private async Task SnapshotAsync(IRemoteSnapshotSource snapshot,bool force,TimeSpan interval,CancellationToken token)
+    {
+        for(var attempt=0;attempt<3;attempt++)
+        {
+            token.ThrowIfCancellationRequested();
+            try{await SnapshotAttemptAsync(snapshot,force||attempt>0,interval,token).ConfigureAwait(false);return;}
+            catch(SourceRescanRequiredException)when(attempt<2){await Task.Yield();}
+        }
+    }
+    /// <summary>每次重扫从第一页开始；最多连续三轮，持续变化由后台短周期继续，不形成无限同步循环。</summary>
+    private async Task SnapshotAttemptAsync(IRemoteSnapshotSource snapshot,bool force,TimeSpan interval,CancellationToken token)
+    {
+        Mode="S3 完整对账";var checkpoint=repository.RemoteCollections(mount,scope).FirstOrDefault(x=>x.Path=="")??new RemoteCollectionCheckpoint("",Mode:"Full");
+        if(!force&&checkpoint.LastFullUtc is {} prior&&DateTimeOffset.UtcNow-prior<interval)return;
+        var scan=Guid.NewGuid().ToString("N");repository.BeginRemoteScan(mount,scope,scan);
+        try
+        {
+            var entries=(await snapshot.ReadSnapshotAsync(repository.RemoteShadow(mount,scope),token).ConfigureAwait(false)).ToDictionary(x=>x.Path,StringComparer.OrdinalIgnoreCase);
+            var missing=repository.RemoteShadow(mount,scope).Select(x=>x.Entry.Path).Concat(repository.Entries(mount).Where(x=>x.RemotePresence!=RemotePresence.Deleted).Select(x=>x.SourcePath))
+                .Where(x=>x.Length!=0&&!entries.ContainsKey(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            foreach(var path in missing)
+                if(await source.TryGetMetadataAsync(path,token).ConfigureAwait(false) is not null)throw new SourceRescanRequiredException("S3 列表缺失对象在当前查询仍存在，正在重新完整扫描，未确认删除。");
+            token.ThrowIfCancellationRequested();
+            Commit(checkpoint with{Mode="Full",LastFullUtc=DateTimeOffset.UtcNow},entries.Values.ToArray(),missing,false,scan);
+        }
+        catch{repository.FailRemoteScan(mount,scope,scan);throw;}
+    }
+    /// <summary>事件只唤醒当前状态查询，不按消息删除本地；父集合先确认，变更与提示处理状态同事务提交。</summary>
+    public async Task ObserveS3HintsAsync(CancellationToken token)
+    {
+        if(source is not S3FileSource)return;
+        foreach(var hint in repository.S3EventHints(mount,scope).Where(x=>x.State=="Pending"))
+        {
+            token.ThrowIfCancellationRequested();var metadata=await source.TryGetMetadataAsync(hint.Path,token).ConfigureAwait(false);
+            var entries=new List<SourceEntry>();
+            if(metadata is not null)
+            {
+                for(var parent=RelativePaths.Parent(metadata.Path);parent.Length!=0;parent=RelativePaths.Parent(parent))
+                {
+                    var collection=await source.TryGetMetadataAsync(parent,token).ConfigureAwait(false);
+                    if(collection?.IsDirectory!=true)throw new SourceConflictException("S3 事件路径的当前父集合不完整，保留提示待重试。");entries.Insert(0,collection);
+                }
+                entries.Add(metadata);
+            }
+            var checkpoint=repository.RemoteCollections(mount,scope).FirstOrDefault(x=>x.Path=="")??new RemoteCollectionCheckpoint("",Mode:"Full");
+            Commit(checkpoint,entries,metadata is null?[hint.Path]:[],false,hint:hint.Id);
+        }
     }
     private async Task SyncAsync(RemoteCollectionCheckpoint checkpoint,CancellationToken token)
     {
@@ -104,7 +154,7 @@ internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource sourc
         return repository.RemoteShadow(mount,scope).Select(x=>x.Entry.Path).Concat(repository.Entries(mount).Where(x=>x.RemotePresence!=RemotePresence.Deleted).Select(x=>x.SourcePath))
             .Where(x=>x.Length!=0&&RelativePaths.Parent(x)==collection&&!seen.Contains(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
-    private void Commit(RemoteCollectionCheckpoint checkpoint,IReadOnlyList<SourceEntry> incoming,IReadOnlyList<string> deleted,bool explicitChanges)
+    private void Commit(RemoteCollectionCheckpoint checkpoint,IReadOnlyList<SourceEntry> incoming,IReadOnlyList<string> deleted,bool explicitChanges,string? scan=null,string? hint=null)
     {
         var shadow=repository.RemoteShadow(mount,scope).ToDictionary(x=>x.Entry.Path,StringComparer.OrdinalIgnoreCase);var changed=new List<RemoteShadowEntry>();var silent=new HashSet<string>(StringComparer.Ordinal);
         foreach(var entry in incoming)
@@ -117,6 +167,6 @@ internal sealed class RemoteSyncEngine(Guid mount,string scope,IFileSource sourc
             changed.Add(new(changes.WithObservation(entry,observation),observation));
             if(old is null&&repository.Entries(mount).Any(x=>x.SourcePath==entry.Path&&x.IsDirectory==entry.IsDirectory&&x.Materialized&&x.RemotePresence!=RemotePresence.Deleted&&source.IsSameVersion(x.Version,entry.Version)))silent.Add(entry.Path);
         }
-        repository.CommitRemoteBatch(mount,scope,checkpoint,changed,deleted,silent);
+        repository.CommitRemoteBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint);
     }
 }

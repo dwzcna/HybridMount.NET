@@ -9,7 +9,7 @@
     <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/>
-    <PackageReference Include="AWSSDK.S3"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
+    <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
   <ItemGroup><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\Models\AppearancePreferences.cs" Link="Production\AppearancePreferences.cs"/>
