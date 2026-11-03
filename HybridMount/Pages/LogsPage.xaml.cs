@@ -11,38 +11,43 @@ namespace HybridMount.Pages;
 public sealed partial class LogsPage : Page, IDisposable
 {
     /// <summary>仅该页面拥有日志展示订阅。</summary>
-    public LogsViewModel ViewModel { get; } = new(App.Current.Logger);
+    public LogsViewModel ViewModel { get; } = new(App.Current.Logger,App.Current.UiDispatcher);
     /// <summary>页面出现时重新读取 SQLite 快照。</summary>
-    public LogsPage() { InitializeComponent(); Loaded += async (_, _) => await ViewModel.RefreshAsync(); }
+    public LogsPage() { InitializeComponent(); Loaded += PageLoaded; }
+    private async void PageLoaded(object sender,RoutedEventArgs args)=>await ViewModel.RefreshAsync();
     private void SeverityChanged(object sender, SelectionChangedEventArgs args)
     { if (SeverityBox?.SelectedItem is ComboBoxItem item && item.Tag is string tag) ViewModel.Severity = tag; }
     private async void RefreshClicked(object sender, RoutedEventArgs args) => await ViewModel.RefreshAsync();
     private void CopyClicked(object sender, RoutedEventArgs args)
     {
         try { var package = new DataPackage(); package.SetText(ViewModel.ExportText()); Clipboard.SetContent(package); }
-        catch (Exception error) { App.Current.Logger.Log("日志", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ViewModel.ReportError(error); }
     }
     private async void ExportClicked(object sender, RoutedEventArgs args)
     {
+        if(!ViewModel.TryBeginDialog())return;
         try
         {
             var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-{DateTime.Now:yyyyMMdd-HHmmss}" };
             picker.FileTypeChoices.Add("文本日志", new List<string> { ".txt" });
             WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
             var file = await picker.PickSaveFileAsync();
-            if (file is not null) await FileIO.WriteTextAsync(file, ViewModel.ExportText());
+            if (file is not null&&!App.Current.IsExiting) await FileIO.WriteTextAsync(file, ViewModel.ExportText());
         }
-        catch (Exception error) { App.Current.Logger.Log("日志", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ViewModel.ReportError(error); }
+        finally {ViewModel.EndDialog();}
     }
     private async void ClearClicked(object sender, RoutedEventArgs args)
     {
+        if(!ViewModel.TryBeginDialog())return;
         try
         {
             var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "清除日志", Content = "清除本机已保存的运行日志？", PrimaryButtonText = "清除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
             if (await dialog.ShowAsync() == ContentDialogResult.Primary) await ViewModel.ClearAsync();
         }
-        catch (Exception error) { App.Current.Logger.Log("日志", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ViewModel.ReportError(error); }
+        finally {ViewModel.EndDialog();}
     }
     /// <summary>真正退出时解除日志订阅。</summary>
-    public void Dispose() => ViewModel.Dispose();
+    public void Dispose() {Loaded-=PageLoaded;ViewModel.Dispose();}
 }

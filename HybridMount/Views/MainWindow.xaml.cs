@@ -93,10 +93,21 @@ public sealed partial class MainWindow : Window
         NotificationBar.IsOpen = true;
     }
     /// <summary>真正退出时解除页面订阅和合成背景。</summary>
-    public void ReleaseResources()
+    public void StopPages()
     {
-        foreach (var page in _pages.Values) if (page is IDisposable disposable) disposable.Dispose();
-        _pages.Clear();
-        SystemBackdrop = null;
+        var errors=new List<Exception>();
+        foreach(var page in _pages.Values)
+            try{if(page is IDisposable disposable)disposable.Dispose();}catch(Exception error){errors.Add(error);}
+        if(errors.Count>0)throw new AggregateException("部分页面停止失败。",errors);
+    }
+    /// <summary>等待已经发出的系统设置操作；一个页面失败不跳过其他页面释放。</summary>
+    public async Task ReleaseResourcesAsync()
+    {
+        var errors=new List<Exception>();
+        foreach(var page in _pages.Values)
+            try{if(page is IAsyncDisposable asynchronous)await asynchronous.DisposeAsync();else if(page is IDisposable disposable)disposable.Dispose();}
+            catch(Exception error){errors.Add(error);}
+        _pages.Clear();SystemBackdrop=null;
+        if(errors.Count>0)throw new AggregateException("部分页面释放失败。",errors);
     }
 }

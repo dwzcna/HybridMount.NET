@@ -27,12 +27,14 @@ public partial class App:Application
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
     public AppearanceSettingsService Appearance{get;private set;}=null!;
-    public SettingsViewModel Settings{get;private set;}=null!;
+    public ApplicationPreferencesService Preferences{get;private set;}=null!;
+    public IStartupService Startup{get;private set;}=null!;
+    public IUiDispatcher UiDispatcher{get;private set;}=null!;
     public MountManager Mounts{get;private set;}=null!;
     public App()=>InitializeComponent();
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _dispatcher=DispatcherQueue.GetForCurrentThread();
+        _dispatcher=DispatcherQueue.GetForCurrentThread();UiDispatcher=new UiDispatcher(_dispatcher);
         try
         {
             var silent=Environment.GetCommandLineArgs().Any(value=>value is "--tray" or "--background")||AppInstance.GetCurrent().GetActivatedEventArgs().Kind==ExtendedActivationKind.StartupTask;
@@ -50,7 +52,7 @@ public partial class App:Application
             Logger=new LoggerService();
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
             Appearance=new AppearanceSettingsService(new AppearancePreferenceStoreService());
-            Settings=new SettingsViewModel(new AppearanceSettingsViewModel(Appearance),new StartupService(Logger),Logger);
+            Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
             Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger){StopObserver=RecordMountStop};
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}
@@ -111,7 +113,7 @@ public partial class App:Application
     private void OnWindowClosing(AppWindow sender,AppWindowClosingEventArgs args)
     {
         if(_allowClose)return;args.Cancel=true;
-        if(!_exiting&&Settings.CloseToTray&&_tray?.IsRegistered==true)sender.Hide();else RequestExit();
+        if(!_exiting&&Preferences.CloseToTray&&_tray?.IsRegistered==true)sender.Hide();else RequestExit();
     }
     /// <summary>原生托盘事件边界不允许异常穿出；重复点击等待同一次收尾。</summary>
     private async void RequestExit()
@@ -138,12 +140,12 @@ public partial class App:Application
         stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
         stages.Run("SignalLegacyIpc",()=>{_ = _legacyIpc?.RequestStop();});
         stages.Run("SignalMounts",()=>Mounts?.RequestStop());
+        stages.Run("SignalPages",()=>MainWindow?.StopPages());
         await stages.RunAsync("IpcStop",()=>_ipc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
         stages.Run("UiSubscriptions",()=>{if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;if(Logger is not null)Logger.NotificationRequested-=OnNotification;});
-        stages.Run("SettingsRelease",()=>{if(Settings is not null)Settings.Appearance.Dispose();});
-        stages.Run("WindowResources",()=>MainWindow?.ReleaseResources());
+        await stages.RunAsync("WindowResources",()=>MainWindow?.ReleaseResourcesAsync()??Task.CompletedTask);
         // 所有日志生产者已结束，再排空日志；后续阶段证据直接进入生命周期文件。
         await stages.RunAsync("LoggerStop",async()=>{if(Logger is not null){Logger.Queue("应用","Information","HybridMount.NET 正在退出。");await Logger.DisposeAsync();}});
         stages.Run("TrayRelease",()=>{if(_tray is not null){_tray.RestoreRequested-=RestoreWindow;_tray.ExitRequested-=RequestExit;_tray.Dispose();_tray=null;}});

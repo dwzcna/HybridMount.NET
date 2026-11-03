@@ -1,3 +1,4 @@
+using HybridMount.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -7,7 +8,8 @@ namespace HybridMount.Pages;
 public sealed partial class HomePage : Page
 {
     /// <summary>创建首页并显示实际程序集版本。</summary>
-    public HomePage() { InitializeComponent(); VersionText.Text = $"版本 {App.Version}"; }
+    public HomeViewModel ViewModel {get;}=new(App.Version);
+    public HomePage() { InitializeComponent(); }
     private void OpenMounts(object sender, RoutedEventArgs args) => App.Current.MainWindow?.Navigate("Mounts");
     private void OpenSettings(object sender, RoutedEventArgs args) => App.Current.MainWindow?.Navigate("Settings");
     private void OpenLogs(object sender, RoutedEventArgs args) => App.Current.MainWindow?.Navigate("Logs");

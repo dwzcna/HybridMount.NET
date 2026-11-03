@@ -25,7 +25,11 @@
     <Compile Include="..\HybridMount\Services\LoggerService.cs" Link="Production\LoggerService.cs"/>
     <Compile Include="..\HybridMount\Services\Ipc*.cs" Link="Production\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\SingleInstanceService.cs"/>
-    <Compile Include="..\HybridMount\ViewModels\AppearanceSettingsViewModel.cs" Link="Production\AppearanceSettingsViewModel.cs"/>
+    <Compile Include="..\HybridMount\ViewModels\**\*.cs" Link="Production\ViewModels\%(RecursiveDir)%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Models\StartupState.cs" Link="Production\StartupState.cs"/>
+    <Compile Include="..\HybridMount\Common\IStartupService.cs" Link="Production\IStartupService.cs"/>
+    <Compile Include="..\HybridMount\Common\IUiDispatcher.cs" Link="Production\IUiDispatcher.cs"/>
+    <Compile Include="..\HybridMount\Services\ApplicationPreferencesService.cs" Link="Production\ApplicationPreferencesService.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\**\*.cs" Link="Production\Models\Mounting\%(RecursiveDir)%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\Mounting\**\*.cs" Link="Production\Services\Mounting\%(RecursiveDir)%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Common\IRemoteChangeSource.cs" Link="Production\IRemoteChangeSource.cs"/>

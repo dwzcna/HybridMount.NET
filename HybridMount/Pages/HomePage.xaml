@@ -4,9 +4,9 @@
       <StackPanel Orientation="Horizontal" Spacing="16"><Image Source="ms-appx:///Assets/HybridMount.png" Width="64" Height="64"/><StackPanel Spacing="8"><TextBlock Text="HybridMount.NET" Style="{ThemeResource TitleTextBlockStyle}"/><TextBlock Text="远端文件的本地视图" Style="{ThemeResource SubtitleTextBlockStyle}"/></StackPanel></StackPanel>
       <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
         <TextBlock Text="按需挂载已就绪" FontSize="20" FontWeight="SemiBold"/>
-        <TextBlock Text="将 WebDAV 或 S3 远端文件显示为本地 NTFS 占位文件，打开时按需下载。支持固定和释放缓存，支持新增和修改的自动上传；旧挂载首次启用需确认已有改动。" TextWrapping="Wrap"/>
+        <TextBlock Text="将 WebDAV 或 S3 远端文件显示为本地 NTFS 占位文件，打开时按需下载。支持固定和释放缓存，支持新增和修改的自动上传；已有本地改动也自动纳入，冲突和取消继续受到保护。" TextWrapping="Wrap"/>
         <Button Content="管理挂载" Click="OpenMounts" Style="{StaticResource PageActionButtonStyle}"/>
-        <TextBlock x:Name="VersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <TextBlock Text="{x:Bind ViewModel.VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
       </StackPanel></Border>
       <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
         <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12"><FontIcon Glyph="&#xE713;" FontSize="28" HorizontalAlignment="Left"/><TextBlock Text="按喜好调整外观" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="选择主题与窗口背景，设置会自动保存。" TextWrapping="Wrap"/><Button Content="打开设置" Click="OpenSettings" Style="{StaticResource PageActionButtonStyle}"/></StackPanel></Border>

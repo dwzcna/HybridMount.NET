@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.8.9 — 页面与 ViewModel 一一对应（2026-11-04）
+
+- Home／Mounts／Tasks／Logs／Settings 各由同名唯一 ViewModel 提供状态。挂载草稿、选择、按挂载忙碌、校验与命令、任务取消／重试／单次副本、日志筛选／清除均归 VM；Page 只保留布局、控件适配、滚动、选择器／剪贴板及对话框展示。
+- AppearanceSettingsViewModel 合并到 SettingsViewModel，底层外观存储留待 0.0.8.11 合并。应用关闭偏好改由独立服务提供；设置页拥有缓存草稿及保存失败回滚、系统启动操作防重入和退出等待。UI 派发可注入，释放后忽略迟到结果，离开页面不停止挂载任务。
+- 日志列表改为增量合并，保留筛选及滚动；任务存储查询失败在命令边界显示，不越过控件事件。46/46 针对性、Debug／Release 各 429/429、双架构签名 MSIX 及 ARM64 测试交叉编译通过。页面缓存仍沿用本版现有机制，下一版改 Frame.Navigate；实际 GUI／高 DPI／Explorer 和实机边界见 docs/Validation-0.0.8.9.md。
+
 ## 0.0.8.8 — 收拢 WebDAV／S3 协议实现（2026-11-04）
 
 - 全部协议实现按 Files／Transport／Uploads／Sync／Preview／Capacity 或 Events／Persistence／Models 收入指定 Models/Mounting 模块；拆出驱动内版本、传输和上传职责，共用移动异常独立，保持公开类型及调用兼容。

@@ -21,7 +21,7 @@ public sealed class ContractTests
     {
         var store = new Store();
         var service = new AppearanceSettingsService(store);
-        using var vm = new AppearanceSettingsViewModel(service);
+        using var vm = new SettingsViewModel(service);
         vm.ThemeSelection = "Dark";
         Assert.Equal(AppearanceTheme.Dark, service.Current.Theme);
         store.Fail = true;
