@@ -38,14 +38,15 @@ public sealed class ContractTests
         var path = @"Software\HybridMount.NET.Tests\" + Guid.NewGuid().ToString("N");
         try
         {
-            var store = new AppearancePreferenceStoreService(path);
-            Assert.Equal(AppearancePreferences.Default, store.Read());
-            store.Write(new(AppearanceBackdrop.AcrylicThin, AppearanceTheme.Dark));
-            Assert.Equal(new(AppearanceBackdrop.AcrylicThin, AppearanceTheme.Dark), store.Read());
+            var service = new AppearanceSettingsService(path);
+            Assert.Equal(AppearancePreferences.Default, service.Current);
+            Assert.True(service.TrySave(new(AppearanceBackdrop.AcrylicThin, AppearanceTheme.Dark),out _));
+            Assert.Equal(new(AppearanceBackdrop.AcrylicThin, AppearanceTheme.Dark), new AppearanceSettingsService(path).Current);
             using var key = Registry.CurrentUser.OpenSubKey(path, true)!;
             Assert.Equal(RegistryValueKind.DWord, key.GetValueKind("AppearanceTheme"));
             key.SetValue("AppearanceBackdrop", "invalid", RegistryValueKind.String);
-            Assert.Equal(new(AppearanceBackdrop.None, AppearanceTheme.Dark), store.Read());
+            Assert.True(service.Reload());
+            Assert.Equal(new(AppearanceBackdrop.None, AppearanceTheme.Dark), service.Current);
             Assert.Equal("invalid", key.GetValue("AppearanceBackdrop"));
             Assert.Equal(@"Software\HybridMount.NET", ApplicationPaths.RegistryPath);
         }

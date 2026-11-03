@@ -52,7 +52,7 @@ public partial class App:Application
             UnhandledException+=OnUiUnhandled;AppDomain.CurrentDomain.UnhandledException+=OnDomainUnhandled;TaskScheduler.UnobservedTaskException+=OnTaskUnobserved;
             Logger=new LoggerService();
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
-            Appearance=new AppearanceSettingsService(new AppearancePreferenceStoreService());
+            Appearance=new AppearanceSettingsService();
             Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
             Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger){StopObserver=RecordMountStop};
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;

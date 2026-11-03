@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.8.11 — 统一外观设置服务（2026-11-04）
+
+- 默认注册表存储并入 AppearanceSettingsService.cs，作为同文件内部类型；生产统一使用 AppearanceSettingsService 默认入口，删除独立文件及旧编译引用，保留 IAppearancePreferenceStore 注入和隔离回归入口。
+- HKCU 根、键名、DWORD 合法值、读取不回写、失败保护、成对保存回滚及通知发布代码保持。页面继续通过 SettingsViewModel 绑定，保存成功即时应用、重入防护和释放后的通知抑制保持。
+- 52/52 针对性、Debug／Release 各 458/458、双架构签名 MSIX 及 ARM64 测试交叉编译通过；隔离 HKCU 验证首次启动、非法值、不改其他偏好和重启恢复，注入测试覆盖读写故障、通知次数及页面状态重建。核心／存储读写代码一致性及 GUI 边界见 docs/Validation-0.0.8.11.md。本批 0.0.8.7—11 代码和分版验证完成，真实 GUI／实机与历史待办仍单列。
+
 ## 0.0.8.10 — URI 与 Frame.Navigate 统一导航（2026-11-04）
 
 - INavigationService 提供 bool Navigate(Uri target)，只接受五个固定内部路由，拒绝外部、未知、编码别名、查询／片段及相对目标。生产适配器实际执行 Frame.Navigate(pageType,parameter)，删除 new Page 分支及 Frame.Content 赋值。
