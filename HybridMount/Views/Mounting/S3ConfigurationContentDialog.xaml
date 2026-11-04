@@ -1,0 +1,86 @@
+<ContentDialog x:Class="HybridMount.Views.Mounting.S3ConfigurationContentDialog"
+               xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid MaxHeight="640" MinWidth="360" MaxWidth="520" RowSpacing="12">
+        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+            <StackPanel Spacing="16">
+                <UserControl x:Name="ConnectionFields"><StackPanel Spacing="12">
+                    <TextBlock Text="连接配置" FontWeight="SemiBold"/>
+                    <TextBox x:Name="NameField" Header="名称"/>
+                    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="PathField" Header="本地 NTFS 空目录" IsReadOnly="True"/>
+                        <Button x:Name="ChooseButton" Grid.Column="1" Content="选择目录" VerticalAlignment="Bottom" Click="ChooseFolder"/>
+                    </Grid>
+                    <TextBox x:Name="EndpointField" Header="服务器地址"/>
+                    <StackPanel Spacing="12">
+                                    <TextBox x:Name="BucketField" Header="桶名 / Bucket"/>
+                                    <TextBox x:Name="PrefixField" Header="目录前缀（可选）"/>
+                                    <TextBox x:Name="RegionField" Header="签名区域 / Region" Text="us-east-1"/>
+                                    <TextBlock Text="us-east-1 是未验证默认值，请按服务商说明或服务端区域提示确认。" TextWrapping="Wrap"/>
+                                    <CheckBox x:Name="PathStyleField" Content="路径寻址 / Path-Style" IsChecked="True"/>
+                                    <CheckBox x:Name="DefaultCredentialsField" Content="使用 AWS SDK 默认凭据链" Checked="CredentialsModeChanged" Unchecked="CredentialsModeChanged"/>
+                                    <UserControl x:Name="S3Secrets"><StackPanel Spacing="12">
+                                        <TextBox x:Name="AccessKeyField" Header="Access Key ID"/>
+                                        <PasswordBox x:Name="SecretKeyField" Header="Secret Access Key"/>
+                                        <PasswordBox x:Name="SessionTokenField" Header="Session Token（临时凭据，可选）"/>
+                                    </StackPanel></UserControl>
+                                </StackPanel>
+                    <CheckBox x:Name="HttpField" Content="允许明文 HTTP（仅可信测试环境）"/>
+                    <ToggleSwitch x:Name="AutoConnectField" Header="随程序启动连接" IsOn="True"/>
+                    <TextBlock x:Name="RootNotice" Text="已有同步内容的挂载不能更换远端根；如需更换，请新建挂载。" TextWrapping="Wrap" Visibility="Collapsed"/>
+                </StackPanel></UserControl>
+                <UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
+                    <TextBlock Text="容量上限" FontWeight="SemiBold"/>
+                    <ToggleSwitch x:Name="CapacityAuto" Header="自动识别容量" Toggled="CapacityModeChanged"/>
+                    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="MaximumField" Header="手动最大容量（留空不限）" TextChanged="CapacityTextChanged"/>
+                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" Header="单位" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
+                    </Grid>
+                    <TextBlock x:Name="CapacityScope" TextWrapping="Wrap"/>
+                    <Button x:Name="SaveCapacityButton" Content="保存容量设置" Click="SaveCapacity"/>
+                    <Button x:Name="RecheckButton" Content="重新核实容量" Click="RecheckCapacity"/>
+                    <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                    <TextBlock Text="同步与预览" FontWeight="SemiBold"/>
+                    <ToggleSwitch x:Name="ThumbnailToggle" Header="缩略图（实验性）" Toggled="ThumbnailChanged"/>
+                    <TextBlock x:Name="ThumbnailDescription" TextWrapping="Wrap"/>
+                    <ToggleSwitch x:Name="RemoteAuto" Header="远端自动检测" Toggled="RemoteAutoChanged"/>
+                    <NumberBox x:Name="IncrementalField" Header="增量检测间隔（秒）" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
+                    <NumberBox x:Name="FullField" Header="完整对账间隔（秒）" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
+                    <Button x:Name="SaveIntervalsButton" Content="保存检测间隔" Click="SaveIntervals"/>
+                    <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                    <TextBlock x:Name="SqsDescription" TextWrapping="Wrap"/>
+                    <Expander Header="SQS 事件加速设置" HorizontalAlignment="Stretch" IsExpanded="False">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="SQS 可加速变化检测，定时完整对账继续保留。支持同区域 AWS Standard Queue；R2 使用定时对账。每台机器应配置独立专用队列；本程序不创建队列或修改桶通知。" TextWrapping="Wrap"/>
+                            <UserControl x:Name="SqsFields"><StackPanel Spacing="12">
+                                <ToggleSwitch x:Name="SqsEnabled" Header="启用 SQS 事件加速"/>
+                                <TextBox x:Name="SqsUrl" Header="Standard Queue URL"/>
+                                <TextBox x:Name="SqsRegion" Header="队列区域（必须与 S3 一致）"/>
+                                <ComboBox x:Name="SqsMode" Header="队列凭据来源" HorizontalAlignment="Stretch" SelectionChanged="SqsCredentialsModeChanged">
+                                    <x:String>明确复用 S3 凭据</x:String><x:String>SDK 默认凭据链</x:String><x:String>独立访问密钥</x:String>
+                                </ComboBox>
+                                <UserControl x:Name="SqsSecrets"><StackPanel Spacing="12">
+                                    <TextBox x:Name="SqsAccessField" Header="独立访问密钥 ID"/>
+                                    <PasswordBox x:Name="SqsSecretField" Header="独立访问密钥"/>
+                                    <PasswordBox x:Name="SqsSessionField" Header="临时会话令牌（可选）"/>
+                                </StackPanel></UserControl>
+                            </StackPanel></UserControl>
+                            <Button x:Name="SqsTestButton" Content="测试 SQS 连接（只读）" Click="TestSqs"/>
+                            <Button x:Name="SqsSaveButton" Content="保存 SQS 设置" Click="SaveSqs"/>
+                            <TextBlock x:Name="SqsResult" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel></UserControl>
+                <TextBlock Text="自动上传不传播删除；改名上传到新路径并保留远端旧项。不支持安全覆盖的服务会提示冲突，可另存副本。" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+        <ScrollViewer Grid.Row="1" MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="8">
+                <InfoBar x:Name="ProbeBar" IsOpen="False" IsClosable="False" Severity="Informational" Title="只读连接测试"/>
+                <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="False" Severity="Error" Title="未能完成操作"/>
+                <TextBlock x:Name="StatusText" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ContentDialog>

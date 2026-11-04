@@ -1,0 +1,141 @@
+<UserControl x:Class="HybridMount.Views.MountCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             SizeChanged="CardSizeChanged">
+    <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+        <Grid x:Name="CardGrid" ColumnSpacing="16" RowSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="CapacityColumn" Width="180"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="32"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="MountName" Grid.Row="0" Grid.Column="0"
+                       Text="{x:Bind Item.Name,Mode=OneWay}" FontWeight="SemiBold" FontSize="18"
+                       TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Item.Name,Mode=OneWay}"/>
+            <TextBlock x:Name="MountPath" Grid.Row="1" Grid.Column="0"
+                       Text="{x:Bind Item.SourceAndPath,Mode=OneWay}" TextTrimming="CharacterEllipsis"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       ToolTipService.ToolTip="{x:Bind Item.SourceAndPath,Mode=OneWay}"/>
+            <TextBlock x:Name="UsedCapacity" Grid.Row="0" Grid.Column="1"
+                       Text="{x:Bind Item.UsedText,Mode=OneWay}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                       ToolTipService.ToolTip="{x:Bind Item.CapacityDetails,Mode=OneWay}"/>
+            <TextBlock x:Name="TotalCapacity" Grid.Row="1" Grid.Column="1"
+                       Text="{x:Bind Item.TotalText,Mode=OneWay}" HorizontalAlignment="Right"
+                       ToolTipService.ToolTip="{x:Bind Item.CapacityDetails,Mode=OneWay}"/>
+            <Grid x:Name="ActionsHost" Grid.Row="2" Grid.Column="0" SizeChanged="ActionsSizeChanged">
+                <Grid x:Name="StatusPanel" ColumnSpacing="8" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <FontIcon Glyph="{x:Bind Item.ConnectionGlyph,Mode=OneWay}" FontSize="16"
+                              AutomationProperties.Name="{x:Bind Item.ConnectionStatus,Mode=OneWay}"
+                              ToolTipService.ToolTip="{x:Bind Item.ConnectionStatus,Mode=OneWay}"/>
+                    <TextBlock Grid.Column="1" Text="{x:Bind Item.ConnectionStatus,Mode=OneWay}" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </Grid>
+                <StackPanel x:Name="ActionsGrid" Orientation="Horizontal" Spacing="6" Visibility="Collapsed">
+                    <ToggleButton x:Name="ConnectionButton" Tag="connection" Width="36" Height="32" Padding="6"
+                                  IsChecked="{x:Bind Item.IsConnected,Mode=OneWay}" IsEnabled="{x:Bind Item.CanChangeConnection,Mode=OneWay}"
+                                  ToolTipService.ToolTip="{x:Bind Item.ConnectionText,Mode=OneWay}"
+                                  AutomationProperties.Name="{x:Bind Item.ConnectionText,Mode=OneWay}" Click="PerformAction">
+                        <FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}" FontSize="16"/>
+                    </ToggleButton>
+                    <Button x:Name="SettingsButton" Tag="settings" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" ToolTipService.ToolTip="修改设置" AutomationProperties.Name="修改设置" Click="PerformAction">
+                        <FontIcon Glyph="&#xE713;" FontSize="16"/>
+                    </Button>
+                    <Border x:Name="ConnectionSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
+                    <Button x:Name="ScanButton" Tag="scan" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" ToolTipService.ToolTip="扫描本地改动" AutomationProperties.Name="扫描本地改动" Click="PerformAction">
+                        <FontIcon Glyph="&#xE721;" FontSize="16"/>
+                    </Button>
+                    <Button x:Name="DetectButton" Tag="refresh" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" ToolTipService.ToolTip="远端手动检测（完整对账）" AutomationProperties.Name="远端手动检测" Click="PerformAction">
+                        <FontIcon Glyph="&#xE895;" FontSize="16"/>
+                    </Button>
+                    <Border x:Name="ManualSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
+                    <ToggleButton x:Name="ThumbnailButton" Tag="thumbnails" Width="36" Height="32" Padding="6"
+                                  IsChecked="{x:Bind Item.ThumbnailsEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}"
+                                  ToolTipService.ToolTip="{x:Bind Item.ThumbnailText,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.ThumbnailText,Mode=OneWay}" Click="PerformAction">
+                        <SymbolIcon Symbol="Pictures"/>
+                    </ToggleButton>
+                    <ToggleButton x:Name="RemoteDetectionButton" Tag="remoteDetection" Width="36" Height="32" Padding="6"
+                                  IsChecked="{x:Bind Item.RemoteDetectionEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}"
+                                  ToolTipService.ToolTip="{x:Bind Item.DetectionText,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DetectionText,Mode=OneWay}" Click="PerformAction">
+                        <FontIcon Glyph="&#xE895;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </ToggleButton>
+                    <Border x:Name="OptionsSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
+                    <Button x:Name="KeepButton" Tag="keepOnDevice" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" ToolTipService.ToolTip="始终保留在设备上" AutomationProperties.Name="始终保留在设备上" Click="PerformAction">
+                        <FontIcon Glyph="&#xE718;" FontSize="16"/>
+                    </Button>
+                    <Button x:Name="FreeButton" Tag="freeSpace" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" ToolTipService.ToolTip="释放空间" AutomationProperties.Name="释放空间" Click="PerformAction">
+                        <FontIcon Glyph="&#xE753;" FontSize="16"/>
+                    </Button>
+                    <Button x:Name="CapacityButton" Tag="capacity" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" ToolTipService.ToolTip="重新核实容量" AutomationProperties.Name="重新核实容量" Click="PerformAction">
+                        <FontIcon Glyph="&#xEDA2;" FontSize="16"/>
+                    </Button>
+                    <Border x:Name="StorageSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
+                    <Button x:Name="RemoveButton" Tag="remove" Width="36" Height="32" Padding="6"
+                            IsEnabled="{x:Bind Item.CanRemove,Mode=OneWay}" ToolTipService.ToolTip="{x:Bind Item.RemoveText,Mode=OneWay}"
+                            AutomationProperties.Name="{x:Bind Item.RemoveText,Mode=OneWay}" Click="PerformAction">
+                        <FontIcon Glyph="&#xE74D;" FontSize="16"/>
+                    </Button>
+                    <DropDownButton x:Name="MoreButton" Width="48" Height="32" Padding="6" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}"
+                                    AutomationProperties.Name="更多挂载操作" ToolTipService.ToolTip="更多操作">
+                        <FontIcon Glyph="&#xE712;" FontSize="16"/>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout Opening="OverflowOpening">
+                                <MenuFlyoutItem x:Name="ConnectionOverflow" Text="{x:Bind Item.ConnectionText,Mode=OneWay}" Tag="connection" IsEnabled="{x:Bind Item.CanChangeConnection,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="SettingsOverflow" Text="修改设置" Tag="settings" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator x:Name="ConnectionOverflowSeparator" Visibility="Collapsed"/>
+                                <MenuFlyoutItem x:Name="ScanOverflow" Text="扫描本地改动" Tag="scan" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE721;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="DetectOverflow" Text="远端手动检测" Tag="refresh" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator x:Name="ManualOverflowSeparator" Visibility="Collapsed"/>
+                                <ToggleMenuFlyoutItem x:Name="ThumbnailOverflow" Text="{x:Bind Item.ThumbnailText,Mode=OneWay}" Tag="thumbnails" IsChecked="{x:Bind Item.ThumbnailsEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction"/>
+                                <ToggleMenuFlyoutItem x:Name="RemoteDetectionOverflow" Text="{x:Bind Item.DetectionText,Mode=OneWay}" Tag="remoteDetection" IsChecked="{x:Bind Item.RemoteDetectionEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction"/>
+                                <MenuFlyoutSeparator x:Name="OverflowSeparator" Visibility="Collapsed"/>
+                                <MenuFlyoutItem x:Name="KeepOverflow" Text="始终保留在设备上" Tag="keepOnDevice" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE718;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="FreeOverflow" Text="释放空间" Tag="freeSpace" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE753;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="CapacityOverflow" Text="重新核实容量" Tag="capacity" IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" Click="PerformAction">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDA2;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator x:Name="StorageOverflowSeparator" Visibility="Collapsed"/>
+                                <MenuFlyoutItem x:Name="RemoveOverflow" Text="{x:Bind Item.RemoveText,Mode=OneWay}" Tag="remove" IsEnabled="{x:Bind Item.CanRemove,Mode=OneWay}" Click="PerformAction">
+                                    <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;"/></MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </StackPanel>
+            </Grid>
+            <TextBlock x:Name="CapacityPercentage" Grid.Row="2" Grid.Column="1"
+                       Text="{x:Bind Item.PercentageText,Mode=OneWay}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                       ToolTipService.ToolTip="{x:Bind Item.CapacityDetails,Mode=OneWay}"/>
+            <Border Grid.Column="2" Grid.RowSpan="3" BorderThickness="1,0,0,0"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="12,0,0,0">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Button Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Width="36" Height="32" Padding="6" ToolTipService.ToolTip="打开目录" AutomationProperties.Name="打开目录"><FontIcon Glyph="&#xED25;" FontSize="16"/></Button>
+                    <Button Grid.Row="2" Tag="diagnostics" Click="PerformAction" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" Width="36" Height="32" Padding="6" ToolTipService.ToolTip="完整诊断" AutomationProperties.Name="完整诊断"><FontIcon Glyph="&#xE9D9;" FontSize="16"/></Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

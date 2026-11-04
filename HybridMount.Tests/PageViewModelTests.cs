@@ -51,6 +51,35 @@ public sealed class PageViewModelTests
         area.Store.FailSave=false;vm.UpdateCapacityDraft(a.Id,false,"-1","GB");await vm.SaveSelectedCapacityAsync();Assert.Equal(saved,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition);
         await area.Manager.DisposeAsync();vm.UpdateCapacityDraft(a.Id,false,"9","GB");await vm.SaveSelectedCapacityAsync();Assert.Equal(saved,area.Store.Items.Single(x=>x.Id==a.Id));
     }
+    [Fact]
+    public async Task Mount_rows_are_stable_and_id_commands_do_not_follow_changed_selection()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        vm.SelectedMountId=a.Id;var first=vm.Items.Single(x=>x.Id==a.Id);Assert.True(first.IsSelected);
+        vm.SelectedMountId=b.Id;vm.RefreshNow();Assert.Same(first,vm.Items.Single(x=>x.Id==a.Id));Assert.False(first.IsSelected);Assert.True(vm.Items.Single(x=>x.Id==b.Id).IsSelected);
+        vm.UpdateCapacityDraft(a.Id,false,"3","GB");await vm.SaveCapacityAsync(a.Id);Assert.Equal(b.Id,vm.SelectedMountId);Assert.Equal(3_000_000_000,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.MaximumCapacityBytes);Assert.Null(area.Manager.Mounts.Single(x=>x.Definition.Id==b.Id).Definition.MaximumCapacityBytes);
+        Assert.Equal(vm.FindMount(a.Id)!.Detail.Length>0?vm.FindMount(a.Id)!.Detail:"当前没有诊断信息。",vm.Diagnostic(a.Id));Assert.Equal(b.Id,vm.SelectedMountId);
+        var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var work=vm.RunMountAsync(a.Id,()=>release.Task);Assert.False(first.CanEdit);Assert.True(vm.Items.Single(x=>x.Id==b.Id).CanEdit);release.SetResult();await work;Assert.True(first.CanEdit);
+    }
+    [Fact]
+    public async Task Mount_shortcuts_preserve_unsaved_intervals_and_failure_keeps_actual_toggle_state()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        vm.UpdateDraft(a.Id,true,91,601);vm.SelectedMountId=b.Id;
+        await vm.SetRemoteDetectionEnabledAsync(a.Id,false);var saved=vm.FindMount(a.Id)!.Definition;
+        Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(a.RemoteIncrementalSeconds,saved.RemoteIncrementalSeconds);Assert.Equal(91,vm.Draft(saved).Incremental);Assert.False(vm.Draft(saved).Enabled);
+        Assert.True(vm.FindMount(b.Id)!.Definition.RemoteAutoDetectEnabled);Assert.Equal(b.Id,vm.SelectedMountId);
+        area.Store.FailSave=true;await vm.SetRemoteDetectionEnabledAsync(a.Id,true);Assert.False(vm.FindMount(a.Id)!.Definition.RemoteAutoDetectEnabled);Assert.False(vm.Draft(saved).Enabled);
+        await vm.SetThumbnailAsync(a.Id,true);Assert.False(vm.FindMount(a.Id)!.Definition.ThumbnailsEnabled);
+        area.Store.FailSave=false;await vm.SetThumbnailAsync(a.Id,true);Assert.True(vm.FindMount(a.Id)!.Definition.ThumbnailsEnabled);Assert.False(vm.FindMount(b.Id)!.Definition.ThumbnailsEnabled);
+    }
+    [Fact]
+    public async Task Configuration_validation_failure_releases_busy_and_does_not_replace_saved_source()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var original=area.A;
+        await Assert.ThrowsAsync<ArgumentException>(()=>vm.SaveConnectionAsync(original.Id,original.Name,original.LocalPath,original.AutoConnect,new(FileSourceKind.WebDav,"file:///invalid"),new()));
+        Assert.False(vm.IsBusy(original.Id));Assert.Equal(original.Source,vm.FindMount(original.Id)!.Definition.Source);Assert.Equal(2,vm.Items.Count);Assert.Null(MountPathGuard.ReadRoot(original.LocalPath));
+    }
     private sealed class AppearanceStore : IAppearancePreferenceStore
     {
         public AppearancePreferences Value=AppearancePreferences.Default;public bool Fail;public int Writes;
