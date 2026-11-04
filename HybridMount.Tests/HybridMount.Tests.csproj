@@ -36,6 +36,7 @@
     <Compile Include="..\HybridMount\Models\Mounting\**\*.cs" Link="Production\Models\Mounting\%(RecursiveDir)%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\Mounting\**\*.cs" Link="Production\Services\Mounting\%(RecursiveDir)%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Common\IRemoteChangeSource.cs" Link="Production\IRemoteChangeSource.cs"/>
+    <Compile Include="..\HybridMount\Common\IRemoteUsageSource.cs" Link="Production\IRemoteUsageSource.cs"/>
     <Compile Include="..\HybridMount\Common\IFileSource.cs" Link="Production\IFileSource.cs"/>
     <Compile Include="..\HybridMount\Common\IMountDefinitionStore.cs" Link="Production\IMountDefinitionStore.cs"/>
     <Compile Include="..\HybridMount\Common\ILocalUploadCommitter.cs" Link="Production\ILocalUploadCommitter.cs"/>

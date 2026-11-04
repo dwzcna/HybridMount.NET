@@ -12,10 +12,12 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     private readonly HashSet<Guid> _busyMounts=[],_cancelingConnections=[];
     private readonly Dictionary<Guid,DetectionDraft> _drafts=[];
     private readonly Dictionary<Guid,bool> _thumbnailDrafts=[];
+    private readonly Dictionary<Guid,CapacityDraft> _capacityDrafts=[];
     private int _pending;
     private bool _disposed,_dialogBusy;
     private Guid? _selected;
     private string _status="本地：实心绿勾；仅远端：云；待脱水：空心绿勾，表示允许回收。自动上传仅提交新增和修改；本地删除不删除远端。";
+    public sealed record CapacityDraft(bool Automatic,string Text,string Unit);
     public sealed record DetectionDraft(bool Enabled,double Incremental,double Full);
     public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
     public Guid? SelectedMountId {get=>_selected;set{if(!_disposed&&SetProperty(ref _selected,value)){OnPropertyChanged(nameof(Selected));StateChanged?.Invoke();}}}
@@ -89,6 +91,25 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
         var id=selected.Definition.Id;_thumbnailDrafts[id]=enabled;
         return RunMountAsync(id,async()=>{try{await _manager.SetThumbnailsEnabledAsync(id,enabled);Status=enabled?"缩略图已开启，无法高效读取时显示普通图标。":"缩略图已关闭，后台预览已停止。";}finally{_thumbnailDrafts.Remove(id);}});
     }
+    /// <summary>字节值以十进制 GB 无损呈现；草稿按挂载隔离，列表刷新和选择切换不写回。</summary>
+    public CapacityDraft CapacitySettingsDraft(MountDefinition definition)=>_capacityDrafts.GetValueOrDefault(definition.Id)??new(definition.CapacityAutoDetectEnabled,
+        definition.MaximumCapacityBytes is {} bytes?((decimal)bytes/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"","GB");
+    public void UpdateCapacityDraft(Guid id,bool automatic,string text,string unit){if(!IsStopping)_capacityDrafts[id]=new(automatic,text,unit);}
+    public Task SaveSelectedCapacityAsync()
+    {
+        if(Selected is not {} selected||IsBusy(selected.Definition.Id))return Task.CompletedTask;
+        var id=selected.Definition.Id;var draft=CapacitySettingsDraft(selected.Definition);
+        return RunMountAsync(id,async()=>
+        {
+            try{var bytes=CapacityRules.ParseMaximum(draft.Text,draft.Unit);await _manager.SetCapacityAsync(id,draft.Automatic,bytes);Status="容量设置已保存；上传前将按当前设置检查。";}
+            finally{_capacityDrafts.Remove(id);}
+        });
+    }
+    public Task RecheckSelectedCapacityAsync()=>RunSelectedAsync(async mount=>
+    {
+        await _manager.RefreshCapacityAsync(mount.Definition.Id,true);
+        Status=_manager.Mounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error??"容量核实完成；等待任务将重新检查可用空间。";
+    });
     public async Task ReadCapacityAsync(Guid? id)
     {
         if(id is null||IsStopping)return;

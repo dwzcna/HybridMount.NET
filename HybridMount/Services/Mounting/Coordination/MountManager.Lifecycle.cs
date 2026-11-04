@@ -81,7 +81,7 @@ public sealed partial class MountManager
                 finally{root.Gate.Release();}
             }).ConfigureAwait(false);
         }
-        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_configurationGate.Dispose();_stop.Dispose();
+        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_capacities.Dispose();_configurationGate.Dispose();_stop.Dispose();
         ObserveStop(errors.Count==0?"Stopped":"StoppedWithErrors",null);
         if(errors.Count!=0)throw new AggregateException("挂载停止时有资源未正常释放。",errors);
     }

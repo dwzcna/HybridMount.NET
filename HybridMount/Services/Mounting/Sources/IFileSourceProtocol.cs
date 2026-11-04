@@ -6,6 +6,7 @@ internal interface IFileSourceProtocol
 {
     IFileSource Create(FileSourceConfiguration options,SourceCredentials credentials,string work);
     void ValidateOptions(FileSourceConfiguration options);
+    string CapacityWriteScope(FileSourceConfiguration options);
     void ValidateCredentials(FileSourceConfiguration options,SourceCredentials credentials);
     ConnectionTestResult Timeout(OperationCanceledException error);
     /// <summary>配置迁移只读取当前用户凭据；默认凭据链等协议模式由模块裁决，不解析环境秘密。</summary>

@@ -5,6 +5,7 @@ namespace HybridMount.Services.Mounting;
 internal sealed class WebDavSourceProtocol : IFileSourceProtocol
 {
     public IFileSource Create(FileSourceConfiguration options,SourceCredentials credentials,string work)=>new WebDavFileSource(options,credentials,new WholeFileCache(work));
+    public string CapacityWriteScope(FileSourceConfiguration options)=>"DAV:"+FileSourceFactory.Endpoint(options).GetLeftPart(UriPartial.Authority);
     public void ValidateOptions(FileSourceConfiguration options)=>FileSourceFactory.Endpoint(options);
     public void ValidateCredentials(FileSourceConfiguration options,SourceCredentials credentials)
     {if(credentials.UserName.Contains(':'))throw new ArgumentException("WebDAV 账号不能包含冒号。");}

@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>SigV4 S3 通用桶驱动；版本读取、分页、条件写与复制后删除分别处理。</summary>
-public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource, IRemoteSnapshotSource
+public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource, IRemoteSnapshotSource, IRemoteUsageSource
 {
     private readonly IAmazonS3 _client;
     private readonly string _bucket, _prefix, _work;

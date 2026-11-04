@@ -76,6 +76,7 @@ public sealed class FileSourceFactory : IFileSourceFactory
     {if(mount.Source is {} source&&Protocols.TryGetValue(source.Kind,out var protocol))protocol.DeleteAdditionalCredentials(mount.Id,directory);}
     internal static void ValidateBackupFields(MountBackupItem item)
     {foreach(var protocol in Protocols.Values)protocol.ValidateBackupFields(item);}
+    internal static string CapacityWriteScope(MountDefinition definition)=>definition.Source is {Kind:FileSourceKind.WebDav or FileSourceKind.S3} source?Protocol(source.Kind).CapacityWriteScope(source):definition.Id.ToString("N");
     private static IFileSourceProtocol Protocol(FileSourceKind kind)=>Protocols.TryGetValue(kind,out var value)?value:throw new NotSupportedException("此协议尚未实现。");
     /// <summary>禁止 URL 账户、查询和片段，HTTP 必须由用户显式启用；不接受重定向后的身份转发。</summary>
     public static Uri Endpoint(FileSourceConfiguration options)

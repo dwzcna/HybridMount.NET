@@ -14,7 +14,7 @@ namespace HybridMount.Tests;
 public static class RemoteSyncLiveRunner
 {
     /// <summary>只读原挂载定义及凭据，使用独立本地根；正式根与原配置不改绑。</summary>
-    public static Task<string> RunOriginalAsync(string localRoot,string area,CancellationToken token=default)
+    public static Task<string> RunOriginalAsync(string localRoot,string area,CancellationToken token=default,bool capacityValidation=false)
     {
         var data=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"HybridMount.NET","Mounting");
         MountDefinition original;
@@ -28,7 +28,7 @@ public static class RemoteSyncLiveRunner
         var options=original.Source!;
         if(new Uri(options.Endpoint).Host=="dav.jianguoyun.com"&&new Uri(options.Endpoint).AbsolutePath.TrimEnd('/')=="/dav")
             options=options with{Endpoint=options.Endpoint.TrimEnd('/')+"/"+Uri.EscapeDataString("我的坚果云")+"/"};
-        return RunAsync(options,new CredentialStore(data).Load(original.Id),area,token);
+        return RunAsync(options,new CredentialStore(data).Load(original.Id),area,token,capacityValidation);
     }
     private sealed class Authentication(SourceCredentials credentials) : DelegatingHandler(new SocketsHttpHandler{AllowAutoRedirect=false,UseCookies=false,ConnectTimeout=TimeSpan.FromSeconds(15)})
     {
@@ -45,11 +45,11 @@ public static class RemoteSyncLiveRunner
     private static void Require(bool value,string reason){if(!value)throw new IOException(reason);}
     private static async Task WaitAsync(Func<bool> condition,CancellationToken token,int seconds=150)
     {var end=DateTimeOffset.UtcNow.AddSeconds(seconds);while(!condition()){token.ThrowIfCancellationRequested();if(DateTimeOffset.UtcNow>end)throw new TimeoutException("真实服务状态未在预算内达到预期。");await Task.Delay(100,token);}}
-    private static async Task<string> RunAsync(FileSourceConfiguration options,SourceCredentials credentials,string area,CancellationToken token)
+    private static async Task<string> RunAsync(FileSourceConfiguration options,SourceCredentials credentials,string area,CancellationToken token,bool capacityValidation)
     {
         area=Path.GetFullPath(area);var validation=Path.GetFullPath(Path.Combine(Environment.CurrentDirectory,"artifacts","validation"));
         if(!MountPathGuard.IsUnder(validation,area)||Directory.Exists(area))throw new IOException("验证目录必须是仓库 validation 下的新目录。");
-        Directory.CreateDirectory(area);var run=Guid.NewGuid().ToString("N");var name="hm007-"+run+".bin";var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
+        Directory.CreateDirectory(area);var run=Guid.NewGuid().ToString("N");var name=(capacityValidation?"hm009-":"hm007-")+run+".bin";var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
         var registry=@"Software\HybridMount.NET.Tests\Remote007-"+run;var repository=new MountRepository(Path.Combine(area,"data"),registry);
         await using var logger=new LoggerService(Path.Combine(area,"logs.db"));
         var payloads=new List<byte[]>();var cases=new List<object>();var cleanup=new List<object>();var phase="Preparing";Guid? mountId=null;string? failure=null;
@@ -76,10 +76,22 @@ public static class RemoteSyncLiveRunner
             var mount=await manager.AddAsync("007 独立真实同步验证",local,false,token,options,credentials);mountId=mount.Id;
             // 缩短测试周期仍走正式调度路径；实际默认保持 60/300 秒。
             await manager.SetRemoteDetectionAsync(mount.Id,true,10,30,token);Save();
-            phase="FilesystemUpload";var first=Encoding.UTF8.GetBytes("HybridMount007 "+run);payloads.Add(first);Save();await File.WriteAllBytesAsync(Path.Combine(local,name),first,token);
+            phase="FilesystemUpload";var first=Encoding.UTF8.GetBytes("HybridMount 009 filesystem "+run);payloads.Add(first);Save();
+            if(capacityValidation)
+            {
+                var usage=await remote.GetRemoteUsageAsync(token);Require(usage.IsComplete&&usage.UsedBytes>0,"真实容量统计为空或不完整，保留现场待核对。");
+                await manager.SetCapacityAsync(mount.Id,false,checked(usage.UsedBytes+first.Length-1),token);
+                await File.WriteAllBytesAsync(Path.Combine(local,name),first,token);
+                await WaitAsync(()=>repository.Uploads(mount.Id).Any(x=>x.LocalPath==name&&x.State=="WaitingCapacity"),token);
+                Require(await remote.TryGetMetadataAsync(name,token) is null,"超限文件仍被写入远端。");
+                cases.Add(new{Name="Capacity denied before remote write",State="Passed",Scope=usage.Scope,UsedBytes=usage.UsedBytes});Save();
+                await manager.SetCapacityAsync(mount.Id,false,checked(usage.UsedBytes+first.Length),token);
+            }
+            else await File.WriteAllBytesAsync(Path.Combine(local,name),first,token);
             await WaitAsync(()=>repository.Uploads(mount.Id).Any(x=>x.LocalPath==name&&x.State=="Completed"),token);
             var metadata=await remote.GetMetadataAsync(name,token);Require(Digest(await ReadRemote(remote,metadata,token))==Digest(first),"自动上传摘要不符。");created=true;
             cases.Add(new{Name="Filesystem upload and independent SHA256",State="Passed"});
+            if(capacityValidation){cases.Add(new{Name="Exact capacity limit filesystem upload",State="Passed"});await manager.SetCapacityAsync(mount.Id,false,null,token);}
             var pin=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"keepOnDevice",[Path.Combine(local,name)]));Require(pin.State=="Completed",pin.Error??"固定失败。");
             var identity=LocalFileState.Read(Path.Combine(local,name)).Identity;
             phase="AutomaticPinnedUpdate";Save();var second=Enumerable.Range(0,65573).Select(x=>(byte)(x*11)).ToArray();await ExternalPut(second);
@@ -137,7 +149,7 @@ public static class RemoteSyncLiveRunner
             return new SingleFileSource(source,name);
         }
     }
-    private sealed class SingleFileSource(WebDavFileSource source,string name) : IFileSource,IRemoteChangeSource,IUploadDiagnosticsSource
+    private sealed class SingleFileSource(WebDavFileSource source,string name) : IFileSource,IRemoteChangeSource,IUploadDiagnosticsSource,IRemoteUsageSource
     {
         public FileSourceCapabilities Capabilities=>source.Capabilities;
         public SourceWriteCapabilities WriteCapabilities=>source.WriteCapabilities;
@@ -147,6 +159,7 @@ public static class RemoteSyncLiveRunner
         public Task ProbeAsync(CancellationToken token=default)=>source.ProbeAsync(token);
         public async IAsyncEnumerable<SourceEntry> ListAsync(string path,[EnumeratorCancellation]CancellationToken token=default)
         {await foreach(var item in source.ListAsync(path,token))if(item.Path==name)yield return item;}
+        public Task<RemoteUsage> GetRemoteUsageAsync(CancellationToken token=default)=>source.GetRemoteUsageAsync(token);
         public Task<SourceEntry> GetMetadataAsync(string path,CancellationToken token=default)=>source.GetMetadataAsync(path,token);
         public Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)=>source.TryGetMetadataAsync(path,token);
         public ValueTask<int> ReadRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default)=>source.ReadRangeAsync(entry,offset,buffer,token);

@@ -14,7 +14,7 @@ namespace HybridMount.Tests;
 /// <summary>显式真实 S3/R2 对账验证；只读原配置，唯一远端文件与独立本地根，不创建测试目录或队列。</summary>
 public static class S3RemoteSyncLiveRunner
 {
-    public static async Task<string> RunOriginalAsync(string localRoot,string area,CancellationToken token=default)
+    public static async Task<string> RunOriginalAsync(string localRoot,string area,CancellationToken token=default,bool capacityValidation=false)
     {
         MountDefinition original;
         using(var root=Registry.CurrentUser.OpenSubKey(@"Software\HybridMount.NET\Mounts\Unpackaged"))
@@ -28,7 +28,7 @@ public static class S3RemoteSyncLiveRunner
         var keys=options.UseDefaultCredentials?new SourceCredentials():new CredentialStore(data).Load(original.Id);
         area=Path.GetFullPath(area);var validation=Path.GetFullPath(Path.Combine(Environment.CurrentDirectory,"artifacts","validation"));
         if(!MountPathGuard.IsUnder(validation,area)||Directory.Exists(area))throw new IOException("真实验证必须使用 validation 下新目录。");
-        Directory.CreateDirectory(area);var run=Guid.NewGuid().ToString("N");var name="hm008-"+run+".bin";var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
+        Directory.CreateDirectory(area);var run=Guid.NewGuid().ToString("N");var name=(capacityValidation?"hm009-":"hm008-")+run+".bin";var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
         var registry=@"Software\HybridMount.NET.Tests\RealS3-"+run;var repository=new MountRepository(Path.Combine(area,"data"),registry);await using var logger=new LoggerService(Path.Combine(area,"logs.db"));
         var manager=new MountManager(repository,logger,new ProjectionFactory(name));await using var remote=new S3FileSource(options,keys,Path.Combine(area,"independent-cache"));
         using var raw=CreateClient(options,keys);var objectKey=(options.Prefix.Trim('/').Length==0?"":options.Prefix.Trim('/')+"/")+name;
@@ -38,9 +38,21 @@ public static class S3RemoteSyncLiveRunner
         {
             Save();await remote.ProbeAsync(token);Require(await remote.TryGetMetadataAsync(name,token) is null,"唯一远端名称已经存在，拒绝接管。");
             var mount=await manager.AddAsync("008 独立 R2/S3 对账验证",local,false,token,options,keys);id=mount.Id;await manager.SetRemoteDetectionAsync(mount.Id,true,60,30,token);
-            phase="FilesystemUpload";var first=Encoding.UTF8.GetBytes("HybridMount 008 filesystem "+run);payloads.Add(first);Save();await File.WriteAllBytesAsync(Path.Combine(local,name),first,token);
+            phase="FilesystemUpload";var first=Encoding.UTF8.GetBytes("HybridMount 009 filesystem "+run);payloads.Add(first);Save();
+            if(capacityValidation)
+            {
+                var usage=await remote.GetRemoteUsageAsync(token);Require(usage.IsComplete&&usage.UsedBytes>0,"真实容量统计为空或不完整，保留现场待核对。");
+                await manager.SetCapacityAsync(mount.Id,false,checked(usage.UsedBytes+first.Length-1),token);
+                await File.WriteAllBytesAsync(Path.Combine(local,name),first,token);
+                await Until(()=>repository.Uploads(mount.Id).Any(x=>x.LocalPath==name&&x.State=="WaitingCapacity"),token);
+                Require(await remote.TryGetMetadataAsync(name,token) is null,"超限文件仍被写入远端。");
+                cases.Add(new{Name="Capacity denied before remote write",State="Passed",Scope=usage.Scope,UsedBytes=usage.UsedBytes});Save();
+                await manager.SetCapacityAsync(mount.Id,false,checked(usage.UsedBytes+first.Length),token);
+            }
+            else await File.WriteAllBytesAsync(Path.Combine(local,name),first,token);
             await Until(()=>repository.Uploads(mount.Id).Any(x=>x.LocalPath==name&&x.State=="Completed"),token);
             var metadata=await remote.GetMetadataAsync(name,token);Require(Digest(await Read(remote,metadata,token))==Digest(first),"真实文件系统上传读回摘要不符。");cases.Add(new{Name="Filesystem automatic upload SHA256",State="Passed"});
+            if(capacityValidation){cases.Add(new{Name="Exact capacity limit filesystem upload",State="Passed"});await manager.SetCapacityAsync(mount.Id,false,null,token);}
             Require((await WebDavTests.Finished(manager,manager.Queue(mount.Id,"keepOnDevice",[Path.Combine(local,name)]))).State=="Completed","固定失败。");var identity=LocalFileState.Read(Path.Combine(local,name)).Identity;
             phase="AutomaticPinnedUpdate";var second=Enumerable.Range(0,65573).Select(x=>(byte)(x*13)).ToArray();payloads.Add(second);Save();
             await remote.UploadWithPreconditionAsync(name,new MemoryStream(second),new(metadata.Version,Digest(first)),token:token);
@@ -98,7 +110,7 @@ public static class S3RemoteSyncLiveRunner
     }
     private sealed class ProjectionFactory(string name):IFileSourceFactory
     {public async Task<IFileSource> CreateAsync(MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)=>new Projection((S3FileSource)await new FileSourceFactory().CreateAsync(mount,repository,recovery,token),name);}
-    private sealed class Projection(S3FileSource source,string name):IFileSource,IRemoteChangeSource,IRemoteSnapshotSource,IUploadDiagnosticsSource
+    private sealed class Projection(S3FileSource source,string name):IFileSource,IRemoteChangeSource,IRemoteSnapshotSource,IUploadDiagnosticsSource,IRemoteUsageSource
     {
         public FileSourceCapabilities Capabilities=>source.Capabilities;public SourceWriteCapabilities WriteCapabilities=>source.WriteCapabilities;
         public bool IsSameVersion(string a,string b)=>((IFileSource)source).IsSameVersion(a,b);
@@ -106,6 +118,7 @@ public static class S3RemoteSyncLiveRunner
         public event Action<string>? WriteWarning{add=>source.WriteWarning+=value;remove=>source.WriteWarning-=value;}
         public async IAsyncEnumerable<SourceEntry> ListAsync(string path,[EnumeratorCancellation]CancellationToken token=default){await foreach(var entry in source.ListAsync(path,token))if(entry.Path==name)yield return entry;}
         public async Task<IReadOnlyList<SourceEntry>> ReadSnapshotAsync(IReadOnlyList<RemoteShadowEntry> prior,CancellationToken token)=>(await source.ReadSnapshotAsync(prior,token)).Where(x=>x.Path==name).ToArray();
+        public Task<RemoteUsage> GetRemoteUsageAsync(CancellationToken token=default)=>source.GetRemoteUsageAsync(token);
         public Task<SourceEntry> GetMetadataAsync(string path,CancellationToken token=default)=>source.GetMetadataAsync(path,token);
         public Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)=>source.TryGetMetadataAsync(path,token);
         public ValueTask<int> ReadRangeAsync(SourceEntry entry,long offset,Memory<byte> bytes,CancellationToken token=default)=>source.ReadRangeAsync(entry,offset,bytes,token);

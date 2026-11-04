@@ -7,7 +7,7 @@ namespace HybridMount.Services.Mounting;
 internal sealed class RemoteCapacitySession : IAsyncDisposable
 {
     private readonly object _sync=new();
-    private readonly IFileSource _source;
+    private readonly Func<bool,CancellationToken,Task<RemoteCapacity>> _query;
     private readonly Action<RemoteCapacitySnapshot> _publish;
     private readonly Func<DateTimeOffset> _now;
     private readonly CancellationTokenSource _stop;
@@ -16,8 +16,8 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
     private Task? _dispose;
     private bool _stopping;
     public RemoteCapacitySession(IFileSource source,Action<RemoteCapacitySnapshot> publish,CancellationToken token,
-        RemoteCapacitySnapshot? previous=null,Func<DateTimeOffset>? now=null)
-    {_source=source;_publish=publish;_stop=CancellationTokenSource.CreateLinkedTokenSource(token);_snapshot=previous??new(RemoteCapacity.Unknown);_now=now??(()=>DateTimeOffset.UtcNow);}
+        RemoteCapacitySnapshot? previous=null,Func<DateTimeOffset>? now=null,Func<bool,CancellationToken,Task<RemoteCapacity>>? query=null)
+    {_query=query??((_,cancel)=>source.GetRemoteCapacityAsync(cancel));_publish=publish;_stop=CancellationTokenSource.CreateLinkedTokenSource(token);_snapshot=previous??new(RemoteCapacity.Unknown);_now=now??(()=>DateTimeOffset.UtcNow);}
     public bool IsStopping {get{lock(_sync)return _stopping;}}
     /// <summary>普通读取缓存五分钟；手动刷新和重连可强制查询，同时请求仍共用在途工作。</summary>
     public Task RefreshAsync(bool force=false,CancellationToken waiter=default)
@@ -31,18 +31,18 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
             else
             {
                 _snapshot=_snapshot with{LastAttemptUtc=_now(),IsRefreshing=true};
-                work=_work=Task.Run(RefreshCoreAsync);
+                work=_work=Task.Run(()=>RefreshCoreAsync(force));
             }
         }
         return waiter.CanBeCanceled?work.WaitAsync(waiter):work;
     }
-    private async Task RefreshCoreAsync()
+    private async Task RefreshCoreAsync(bool force)
     {
         try
         {
             RemoteCapacitySnapshot current;lock(_sync){if(_stopping)return;current=_snapshot;}
             _publish(current);
-            var value=await _source.GetRemoteCapacityAsync(_stop.Token).ConfigureAwait(false);
+            var value=await _query(force,_stop.Token).ConfigureAwait(false);
             lock(_sync){if(_stopping||_stop.IsCancellationRequested)return;current=_snapshot=new(value,_now(),_snapshot.LastAttemptUtc);}
             _publish(current);
         }

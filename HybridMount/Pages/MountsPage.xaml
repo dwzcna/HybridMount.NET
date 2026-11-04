@@ -46,6 +46,19 @@
                                 <Button x:Name="OpenButton" Grid.Row="1" Content="打开目录" Click="OpenFolder" HorizontalAlignment="Stretch"/>
                                 <Button x:Name="CredentialsButton" Grid.Row="1" Grid.Column="1" Content="更新凭据" Click="UpdateCredentials" HorizontalAlignment="Stretch"/>
                             </Grid>
+                            <StackPanel x:Name="CapacityControls" Spacing="8" Visibility="Collapsed">
+                                <TextBlock Text="容量上限" FontWeight="SemiBold"/>
+                                <ToggleSwitch x:Name="CapacityDetectToggle" Header="自动识别容量" Toggled="CapacityModeChanged"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="MaximumCapacityInput" Header="手动最大容量（留空不限）" PlaceholderText="正数" TextChanged="MaximumCapacityChanged"/>
+                                    <ComboBox x:Name="CapacityUnit" Grid.Column="1" Header="单位" SelectedIndex="0" SelectionChanged="CapacityUnitChanged" HorizontalAlignment="Stretch"><ComboBoxItem Content="GB"/><ComboBoxItem Content="TB"/></ComboBox>
+                                </Grid>
+                                <TextBlock x:Name="CapacityScopeDescription" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <Button x:Name="SaveCapacityButton" Content="保存容量设置" Click="SaveCapacity"/>
+                                <Button x:Name="RecheckCapacityButton" Content="重新核实容量" Click="RecheckCapacity"/>
+                                <TextBlock Text="容量不足或无法核实时，新增和扩容上传将等待。此检查不能替代服务端配额。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
                             <StackPanel Spacing="6">
                                 <TextBlock Text="同步与显示" FontWeight="SemiBold"/>
                                 <TextBlock x:Name="UploadDescription" TextWrapping="Wrap"/>

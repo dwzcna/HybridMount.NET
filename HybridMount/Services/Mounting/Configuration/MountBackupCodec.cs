@@ -7,7 +7,7 @@ using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
 
-/// <summary>便携加密备份 v3（兼容读取 v1/v2）；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
+/// <summary>便携加密备份 v4（兼容读取 v1/v2/v3）；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
 /// <remarks>文件为 44 字节认证头、16 字节 GCM 标签及密文。头依次为 HMCONFIG、LE 版本、盐、nonce、LE 密文长度。</remarks>
 public static class MountBackupCodec
 {
@@ -32,6 +32,7 @@ public static class MountBackupCodec
             plain = backup.SchemaVersion==1?
                 JsonSerializer.SerializeToUtf8Bytes(new LegacyBackup(1,backup.ExportedUtc,backup.Mounts.Select(x=>new LegacyItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled)).ToArray()),Json):
                 backup.SchemaVersion==2?JsonSerializer.SerializeToUtf8Bytes(new VersionTwoBackup(2,backup.ExportedUtc,backup.Mounts.Select(x=>new VersionTwoItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled,x.RemoteAutoDetectEnabled,x.RemoteIncrementalSeconds,x.RemoteFullSeconds)).ToArray()),Json):
+                backup.SchemaVersion==3?JsonSerializer.SerializeToUtf8Bytes(new VersionThreeBackup(3,backup.ExportedUtc,backup.Mounts.Select(x=>new VersionThreeItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled,x.RemoteAutoDetectEnabled,x.RemoteIncrementalSeconds,x.RemoteFullSeconds,x.Sqs,x.SqsCredentials)).ToArray()),Json):
                 JsonSerializer.SerializeToUtf8Bytes(backup, Json);
             if (plain.Length > MaximumFileBytes - PayloadOffset) throw new InvalidDataException("配置备份超过 8 MiB 限制。");
             var output = new byte[PayloadOffset + plain.Length]; "HMCONFIG"u8.CopyTo(output);
@@ -55,7 +56,7 @@ public static class MountBackupCodec
         if (file.Length < PayloadOffset || file.Length > MaximumFileBytes || !file.AsSpan(0, 8).SequenceEqual("HMCONFIG"u8))
             throw new InvalidDataException("不是有效的 HybridMount 配置备份，或文件大小超限。");
         var format=BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(8,4));
-        if (format is not(1 or 2 or 3)) throw new InvalidDataException("不支持此配置备份版本。");
+        if (format is not(1 or 2 or 3 or 4)) throw new InvalidDataException("不支持此配置备份版本。");
         if (BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(40, 4)) != file.Length - PayloadOffset)
             throw new InvalidDataException("配置备份长度无效。");
         byte[]? plain = null, passwordBytes = null, key = null;
@@ -106,7 +107,7 @@ public static class MountBackupCodec
     /// <summary>验证安全的结构边界；路径和已实现协议的校验留给逐项导入预览。</summary>
     private static void ValidateDocument(MountConfigurationBackup backup)
     {
-        if (backup.SchemaVersion is not(1 or 2 or 3) || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
+        if (backup.SchemaVersion is not(1 or 2 or 3 or 4) || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
             throw new InvalidDataException("配置备份载荷版本或条目数量无效。");
         foreach (var item in backup.Mounts)
         {
@@ -115,11 +116,16 @@ public static class MountBackupCodec
                 source.Endpoint is null || source.Bucket is null || source.Prefix is null || source.Region is null ||
                 secrets.UserName is null || secrets.Password is null || secrets.AccessKey is null || secrets.SecretKey is null || secrets.SessionToken is null)
                 throw new InvalidDataException("配置备份包含不完整条目。");
+            try{CapacityRules.Validate(source.Kind,item.CapacityAutoDetectEnabled,item.MaximumCapacityBytes);}
+            catch(ArgumentException){throw new InvalidDataException("配置备份包含无效容量设置。");}
+            if(backup.SchemaVersion<4&&(item.CapacityAutoDetectEnabled||item.MaximumCapacityBytes is not null))throw new InvalidDataException("旧版备份不能包含容量设置。");
             FileSourceFactory.ValidateBackupFields(item);
         }
     }
     // v1 生成只供兼容回归使用，不能在 v1 容器中悄悄写入新版选项。
     private sealed record LegacyItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled);
+    private sealed record VersionThreeItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled,bool RemoteAutoDetectEnabled,int RemoteIncrementalSeconds,int RemoteFullSeconds,SqsConfiguration? Sqs,SourceCredentials? SqsCredentials);
+    private sealed record VersionThreeBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<VersionThreeItem> Mounts);
     private sealed record VersionTwoItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled,bool RemoteAutoDetectEnabled,int RemoteIncrementalSeconds,int RemoteFullSeconds);
     private sealed record VersionTwoBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<VersionTwoItem> Mounts);
     private sealed record LegacyBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<LegacyItem> Mounts);

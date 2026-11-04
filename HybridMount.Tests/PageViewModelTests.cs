@@ -39,6 +39,18 @@ public sealed class PageViewModelTests
         }
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }
+    [Fact]
+    public async Task Capacity_drafts_survive_selection_and_save_failure_rolls_back_only_selected_mount()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        vm.SelectedMountId=a.Id;vm.UpdateCapacityDraft(a.Id,false,"1.25","TB");vm.SelectedMountId=b.Id;vm.UpdateCapacityDraft(b.Id,true,"2","GB");vm.RefreshNow();vm.SelectedMountId=a.Id;
+        Assert.Equal("1.25",vm.CapacitySettingsDraft(a).Text);Assert.True(vm.CapacitySettingsDraft(b).Automatic);
+        await vm.SaveSelectedCapacityAsync();var saved=area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition;Assert.Equal(1_250_000_000_000,saved.MaximumCapacityBytes);
+        area.Store.FailSave=true;vm.UpdateCapacityDraft(a.Id,false,"8","GB");await vm.SaveSelectedCapacityAsync();
+        Assert.Equal(saved,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition);Assert.Equal("1250",vm.CapacitySettingsDraft(saved).Text);Assert.Equal("2",vm.CapacitySettingsDraft(b).Text);
+        area.Store.FailSave=false;vm.UpdateCapacityDraft(a.Id,false,"-1","GB");await vm.SaveSelectedCapacityAsync();Assert.Equal(saved,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition);
+        await area.Manager.DisposeAsync();vm.UpdateCapacityDraft(a.Id,false,"9","GB");await vm.SaveSelectedCapacityAsync();Assert.Equal(saved,area.Store.Items.Single(x=>x.Id==a.Id));
+    }
     private sealed class AppearanceStore : IAppearancePreferenceStore
     {
         public AppearancePreferences Value=AppearancePreferences.Default;public bool Fail;public int Writes;

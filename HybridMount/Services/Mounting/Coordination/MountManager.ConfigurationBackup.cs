@@ -24,11 +24,11 @@ public sealed partial class MountManager
                     var definition = root.Definition;
                     if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 } source) throw new NotSupportedException("仅支持备份 WebDAV 和 S3 挂载。");
                     var credentials = FileSourceFactory.BackupCredentials(definition,_repository.DataDirectory);
-                    items.Add(new(definition.Name, definition.LocalPath, source, credentials, definition.AutoConnect, definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds,definition.Sqs,FileSourceFactory.BackupAdditionalCredentials(definition,_repository.DataDirectory)));
+                    items.Add(new(definition.Name, definition.LocalPath, source, credentials, definition.AutoConnect, definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds,definition.Sqs,FileSourceFactory.BackupAdditionalCredentials(definition,_repository.DataDirectory),definition.CapacityAutoDetectEnabled,definition.MaximumCapacityBytes));
                 }
                 finally { root.Gate.Release(); }
             }
-            var bytes = MountBackupCodec.Encode(new(3, DateTimeOffset.UtcNow, items), password, cancel);
+            var bytes = MountBackupCodec.Encode(new(4, DateTimeOffset.UtcNow, items), password, cancel);
             await MountBackupCodec.WriteAtomicAsync(path, bytes, cancel, (temporary, destination) =>
             {
                 lock (_lifetime) { ThrowIfStopping(); cancel.ThrowIfCancellationRequested(); File.Move(temporary, destination, true); }
@@ -85,7 +85,7 @@ public sealed partial class MountManager
                         {
                             var item = items[index].Configuration;
                             var credentials = FileSourceFactory.NormalizeImportCredentials(item.Source,item.Credentials);
-                            var saved = SaveNewMountCore(item.Name, items[index].LocalPath, item.AutoConnect, item.Source, credentials, item.ThumbnailsEnabled, cancel, importing: true, remoteAuto:item.RemoteAutoDetectEnabled, incremental:item.RemoteIncrementalSeconds, full:item.RemoteFullSeconds,sqs:item.Sqs,sqsCredentials:item.SqsCredentials);
+                            var saved = SaveNewMountCore(item.Name, items[index].LocalPath, item.AutoConnect, item.Source, credentials, item.ThumbnailsEnabled, cancel, importing: true, remoteAuto:item.RemoteAutoDetectEnabled, incremental:item.RemoteIncrementalSeconds, full:item.RemoteFullSeconds,sqs:item.Sqs,sqsCredentials:item.SqsCredentials,capacityAuto:item.CapacityAutoDetectEnabled,maximumCapacity:item.MaximumCapacityBytes);
                             result = new(index, "Saved", "已保存，尚未连接。", saved.Id);
                         }
                     }
@@ -105,6 +105,8 @@ public sealed partial class MountManager
         try
         {
             var item = request.Configuration ?? throw new ArgumentException("配置条目为空。");
+            if(item.Source is null)throw new ArgumentException("连接配置为空。");
+            CapacityRules.Validate(item.Source.Kind,item.CapacityAutoDetectEnabled,item.MaximumCapacityBytes);
             ValidateNewConnection(item.Source, item.Credentials);ValidateSqsSettings(item.Source,item.Sqs,item.SqsCredentials);
             if(item.RemoteIncrementalSeconds is <10 or >86400||item.RemoteFullSeconds is <30 or >604800)throw new ArgumentException("检测间隔超出允许范围。");
             var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(request.LocalPath));
@@ -158,13 +160,14 @@ public sealed partial class MountManager
     }
 
     /// <summary>配置锁保护根冲突检查；停止锁保护凭据、定义和运行列表提交，失败清除本项凭据。</summary>
-    private MountDefinition SaveNewMountCore(string name, string directory, bool autoConnect, FileSourceConfiguration? source, SourceCredentials? credentials, bool thumbnails, CancellationToken token, bool importing = false, bool remoteAuto = true, int incremental = 60, int full = 300, SqsConfiguration? sqs=null, SourceCredentials? sqsCredentials=null)
+    private MountDefinition SaveNewMountCore(string name, string directory, bool autoConnect, FileSourceConfiguration? source, SourceCredentials? credentials, bool thumbnails, CancellationToken token, bool importing = false, bool remoteAuto = true, int incremental = 60, int full = 300, SqsConfiguration? sqs=null, SourceCredentials? sqsCredentials=null,bool capacityAuto=false,long? maximumCapacity=null)
     {
         if (_factory is FileSourceFactory || importing) ValidateNewConnection(source, credentials ?? new SourceCredentials());
+        CapacityRules.Validate(source?.Kind,capacityAuto,maximumCapacity);
         ValidateSqsSettings(source!,sqs,sqsCredentials);
         var root = ValidateNewMountRoot(name, directory);
         var definition = new MountDefinition(Guid.NewGuid(), name.Trim(), root, autoConnect, RootIdentity: MountPathGuard.FileIdentity(root), Source: source,
-            RegistrationStage: MountRegistrationStage.NotRegistered, AutoUploadEnabled: true, UploadInitialReviewCompleted: true, ContinuousUploadMigrated: true, ThumbnailsEnabled: thumbnails, RemoteAutoDetectEnabled: remoteAuto, RemoteIncrementalSeconds: incremental, RemoteFullSeconds: full,Sqs:sqs);
+            RegistrationStage: MountRegistrationStage.NotRegistered, AutoUploadEnabled: true, UploadInitialReviewCompleted: true, ContinuousUploadMigrated: true, ThumbnailsEnabled: thumbnails, RemoteAutoDetectEnabled: remoteAuto, RemoteIncrementalSeconds: incremental, RemoteFullSeconds: full,Sqs:sqs,CapacityAutoDetectEnabled:capacityAuto,MaximumCapacityBytes:maximumCapacity);
         var store = new CredentialStore(_repository.DataDirectory);
         lock (_lifetime)
         {

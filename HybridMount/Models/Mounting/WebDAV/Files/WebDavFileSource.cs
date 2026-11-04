@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>基于 WebDAVClient DavClient 的 WebDAV 驱动；应用负责版本、缓存、写入条件和生命周期。</summary>
-public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource
+public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource, IRemoteUsageSource
 {
     private readonly Uri _endpoint;
     private readonly HttpClient _http;

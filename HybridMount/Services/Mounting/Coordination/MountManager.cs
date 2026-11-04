@@ -27,6 +27,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public RemoteCapacitySession? Capacity;
         public RemoteCapacitySnapshot? CapacityStatus;
         public string? CapacityScope;
+        public int CapacityForce;
         public bool SchedulingEnabled=true;
         // 导入在本进程只保存；重启重新加载后恢复配置中的自动连接选择。
         public bool SkipStartupConnection;
@@ -266,7 +267,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 catch(Exception recoveryError)when(recoveryError is not OperationCanceledException)
                 {Status(root,"已连接",recovery.RecoveryWarning);_logger.Queue(recovery.RecoveryLogArea,"Warning",recoveryError.Message);}
             }
-            StartUploads(root);StartRemoteSync(root);StartCapacity(root);
+            Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartRemoteSync(root);
         }
         catch(Exception error)
         {

@@ -81,11 +81,19 @@ public sealed partial class MountsPage : Page, IDisposable
         SqsSettingsButton.Visibility=source?.Kind==FileSourceKind.S3?Visibility.Visible:Visibility.Collapsed;SqsSettingsButton.IsEnabled=actions.CanEdit&&!ViewModel.DialogBusy;
         RemovalNotice.Visibility=definition.RemovalPending?Visibility.Visible:Visibility.Collapsed;
         RemovalNotice.Text=definition.RemovalPending?$"上次移除未完成，请继续“{actions.RemoveText}”。已处理的步骤不会回滚。":"";
+        CapacityControls.Visibility=source?.Kind is FileSourceKind.WebDav or FileSourceKind.S3?Visibility.Visible:Visibility.Collapsed;
+        CapacityDetectToggle.Visibility=source?.Kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
+        var capacityDraft=ViewModel.CapacitySettingsDraft(definition);
+        CapacityDetectToggle.IsEnabled=SaveCapacityButton.IsEnabled=actions.CanEdit;
+        MaximumCapacityInput.IsEnabled=CapacityUnit.IsEnabled=actions.CanEdit&&!capacityDraft.Automatic;
+        RecheckCapacityButton.IsEnabled=actions.CanRunConnected&&CapacityRules.Enabled(definition);
+        CapacityScopeDescription.Text=source?.Kind==FileSourceKind.S3?"按整个桶的当前对象统计，包含挂载前缀之外内容；不计历史版本及未完成分片。五分钟缓存。":capacityDraft.Automatic?"采用服务器报告的账户／目录配额；识别失败时等待核实。":"按配置远端根内的全部文件统计用量，五分钟缓存。GB/TB 使用十进制单位。";
         var draft=ViewModel.Draft(definition);
         _loadingControls=true;
         try
         {
             ThumbnailsToggle.IsOn=ViewModel.ThumbnailDraft(definition);
+            CapacityDetectToggle.IsOn=capacityDraft.Automatic;MaximumCapacityInput.Text=capacityDraft.Text;CapacityUnit.SelectedIndex=capacityDraft.Unit=="TB"?1:0;
             RemoteAutoToggle.IsOn=draft.Enabled;IncrementalInterval.Value=draft.Incremental;FullInterval.Value=draft.Full;
         }
         finally{_loadingControls=false;}
@@ -95,6 +103,13 @@ public sealed partial class MountsPage : Page, IDisposable
     private void IntervalChanged(NumberBox sender,NumberBoxValueChangedEventArgs args){if(!_loadingControls)CaptureDraft();}
     private async void RemoteAutoChanged(object sender,RoutedEventArgs args){if(!_loadingControls){CaptureDraft();await ViewModel.SaveSelectedDetectionAsync();}}
     private async void SaveDetectionIntervals(object sender,RoutedEventArgs args){if(!_loadingControls){CaptureDraft();await ViewModel.SaveSelectedDetectionAsync();}}
+    private void CaptureCapacityDraft()
+    {if(!_loadingControls&&ViewModel.Selected is {} mount)ViewModel.UpdateCapacityDraft(mount.Definition.Id,CapacityDetectToggle.IsOn,MaximumCapacityInput.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}
+    private void CapacityModeChanged(object sender,RoutedEventArgs args){if(!_loadingControls){CaptureCapacityDraft();UpdateDetails();}}
+    private void MaximumCapacityChanged(object sender,TextChangedEventArgs args)=>CaptureCapacityDraft();
+    private void CapacityUnitChanged(object sender,SelectionChangedEventArgs args)=>CaptureCapacityDraft();
+    private async void SaveCapacity(object sender,RoutedEventArgs args){CaptureCapacityDraft();await ViewModel.SaveSelectedCapacityAsync();}
+    private async void RecheckCapacity(object sender,RoutedEventArgs args)=>await ViewModel.RecheckSelectedCapacityAsync();
     private async void ThumbnailsChanged(object sender,RoutedEventArgs args){if(!_loadingControls)await ViewModel.SetSelectedThumbnailAsync(ThumbnailsToggle.IsOn);}
     private async void ReviewUploadChanges(object sender,RoutedEventArgs args)=>await ViewModel.ScanChangesAsync();
     private async void CreateWebDavMount(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>

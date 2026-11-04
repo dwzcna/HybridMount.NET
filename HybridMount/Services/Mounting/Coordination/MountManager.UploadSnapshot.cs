@@ -17,7 +17,7 @@ public sealed partial class MountManager
         {
             if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             var item=_repository.Upload(queued.Id);if(item is null||item.CancelRequested)return null;
-            if(item.State is not("Queued" or "Waiting" or "Prepared")||item.Error==UploadRules.TypeConflictMessage)return null;
+            if(item.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity")||item.Error==UploadRules.TypeConflictMessage)return null;
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
             var stamp=LocalFileState.Read(path);UploadRules.ValidateTypes(item,stamp);
             if(item.SnapshotPath is not null&&File.Exists(item.SnapshotPath)&&item.SnapshotStamp==stamp.Key&&item.SnapshotGeneration==item.Generation)

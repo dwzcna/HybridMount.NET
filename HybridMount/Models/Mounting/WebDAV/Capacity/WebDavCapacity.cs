@@ -37,4 +37,25 @@ public sealed partial class WebDavFileSource
         catch(HttpRequestException error){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 远端配额");}
         catch(WebDAVClient.Helpers.WebDAVException){throw new IOException("WebDAV 配额 XML 无效。");}
     }
+
+    /// <summary>手动上限统计配置根内的文件；包括实际存在的临时文件，只读 Depth 1，不下载正文。</summary>
+    public async Task<RemoteUsage> GetRemoteUsageAsync(CancellationToken token=default)
+    {
+        var queue=new Queue<string>();queue.Enqueue("");var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase){""};long used=0;
+        while(queue.Count>0)
+        {
+            token.ThrowIfCancellationRequested();var parent=queue.Dequeue();
+            var entries=await PropFindAsync(parent,1,token).ConfigureAwait(false);
+            if(entries.Count(x=>x.Path==parent&&x.IsDirectory)!=1)throw new IOException("容量统计目录响应不完整。");
+            foreach(var entry in entries)
+            {
+                if(entry.Path==parent)continue;
+                if(RelativePaths.Parent(entry.Path)!=parent||entry.Size<0||!seen.Add(entry.Path))throw new IOException("容量统计含越界、重复或无效条目。");
+                if(seen.Count>1_000_000)throw new IOException("容量统计超过安全条目限制，未采用部分结果。");
+                if(entry.IsDirectory)queue.Enqueue(entry.Path);
+                else try{used=checked(used+entry.Size);}catch(OverflowException){throw new IOException("远端用量超出字节范围。");}
+            }
+        }
+        token.ThrowIfCancellationRequested();return new("WebDAV 配置根内文件",used);
+    }
 }

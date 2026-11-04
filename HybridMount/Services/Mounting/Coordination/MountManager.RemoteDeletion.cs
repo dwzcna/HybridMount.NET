@@ -78,12 +78,13 @@ public sealed partial class MountManager
         if(entry is not null&&!clean&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
     }
     /// <summary>在根锁内校验目标及已知父目录；不会为更新任务或远端删除记录自动 MKCOL。</summary>
-    private async Task PrepareUploadDestinationAsync(Runtime root,LocalUpload item,CancellationToken token)
+    private async Task PrepareUploadDestinationAsync(Runtime root,LocalUpload item,CancellationToken token,MountDefinition? capacitySettings=null)
     {
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
+            if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))throw new CapacitySettingsChangedException();
             var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
             UploadRules.ValidateTypes(item,LocalFileState.Read(local));
             var entries=_repository.Entries(root.Definition.Id);
@@ -110,13 +111,14 @@ public sealed partial class MountManager
         finally{root.Gate.Release();}
     }
     /// <summary>快照校验完成后，在根锁内重新核对屏障和任务状态再进入发送阶段；刷新先完成时绝不覆盖其冲突状态。</summary>
-    internal async Task<LocalUpload?> BeginUploadSendAsync(Guid mountId,LocalUpload prepared,CancellationToken token=default)
+    internal async Task<LocalUpload?> BeginUploadSendAsync(Guid mountId,LocalUpload prepared,CancellationToken token=default,MountDefinition? capacitySettings=null)
     {
         await UploadCheckpointAsync("BeforeSend",prepared).ConfigureAwait(false);
         var root=Root(mountId);await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             token.ThrowIfCancellationRequested();if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
+            if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))return null;
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
             if(_repository.HasPendingRemote(mountId,current.SourcePath))throw new SourceConflictException("远端更改尚待核对，未发送旧基线上传。");
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);

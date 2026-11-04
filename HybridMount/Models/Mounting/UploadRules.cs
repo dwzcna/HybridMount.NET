@@ -36,6 +36,6 @@ public static class UploadRules
         =>entries.FirstOrDefault(entry=>entry.RemotePresence==RemotePresence.Deleted&&SourceContains(entry.SourcePath,path));
     public static bool InFlightOrCompleted(LocalUpload? item)=>item is not null&&(InFlight(item)||item.State is "Completed" or "Canceled" or "Ignored");
     /// <summary>重试只恢复可重试状态；已经发送的未知结果和回执仍先核对。</summary>
-    public static bool CanRetry(LocalUpload item)=>item.State is "Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation";
+    public static bool CanRetry(LocalUpload item)=>item.State is "Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation" or "WaitingCapacity";
     public static string RetryState(LocalUpload item)=>item.State=="OutcomeUnknown"?item.State:item.Receipt is not null?"RemoteCommitted":"Queued";
 }
