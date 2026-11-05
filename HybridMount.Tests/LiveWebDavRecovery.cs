@@ -38,7 +38,7 @@ public static class LiveWebDavRecovery
             while(rows.Read())
             {
                 var item=JsonSerializer.Deserialize<RemoteTemporaryItem>(rows.GetString(0))??throw new IOException("临时记录损坏。");
-                foreach(var prefix in new[]{"","mount/"})if(item.Scope==Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root+prefix+"\0"+credentials.UserName)))&&item.Purpose=="probe"&&Regex.IsMatch(item.Path,@"^\.hybridmount-probe-[a-f0-9]{32}$"))journal[prefix+item.Path]=item;
+                foreach(var prefix in new[]{"","mount/"})if(item.Scope==Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root+prefix+"\0"+credentials.UserName)))&&item.Purpose=="probe"&&Regex.IsMatch(item.Path,@"^\.?hybridmount-probe-[a-f0-9]{32}$"))journal[prefix+item.Path]=item;
             }
         }
         if(inventory.Any(x=>!known.Contains(x.Path)&&!journal.ContainsKey(x.Path)))throw new IOException("完整枚举包含未登记的远端项，未删除任何内容。");

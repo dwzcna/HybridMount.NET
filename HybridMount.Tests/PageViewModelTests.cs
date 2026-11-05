@@ -80,6 +80,16 @@ public sealed class PageViewModelTests
         await Assert.ThrowsAsync<ArgumentException>(()=>vm.SaveConnectionAsync(original.Id,original.Name,original.LocalPath,original.AutoConnect,new(FileSourceKind.WebDav,"file:///invalid"),new()));
         Assert.False(vm.IsBusy(original.Id));Assert.Equal(original.Source,vm.FindMount(original.Id)!.Definition.Source);Assert.Equal(2,vm.Items.Count);Assert.Null(MountPathGuard.ReadRoot(original.LocalPath));
     }
+    [Fact]
+    public async Task Task_history_clear_modes_refresh_buttons_and_preserve_pending_states()
+    {
+        await using var area=new Area();
+        foreach(var state in new[]{"Completed","Failed","PartialFailure","Canceled","Running","Waiting","Conflict","OutcomeUnknown"})area.Repository.SaveOperation(new(state,"refresh",state,0,0,[],null));
+        using var vm=new TasksViewModel(area.Manager,area.Ui);Assert.True(vm.CanClearCompleted);Assert.True(vm.CanClearFailed);Assert.True(vm.CanClearAll);
+        await vm.ClearFailedAsync();Assert.False(vm.CanClearFailed);Assert.True(vm.CanClearCompleted);Assert.DoesNotContain(vm.Operations,row=>row.State is "Failed" or "PartialFailure");
+        await vm.ClearCompletedAsync();Assert.False(vm.CanClearCompleted);await vm.ClearAllAsync();Assert.False(vm.CanClearAll);Assert.Equal(3,vm.Operations.Count);Assert.All(vm.Operations,row=>Assert.Contains(row.State,new[]{"Waiting","Conflict","OutcomeUnknown"}));
+        vm.Dispose();area.Repository.SaveOperation(new("late","refresh","Failed",0,0,[],null));await vm.ClearFailedAsync();Assert.Contains(area.Repository.LoadOperations(),row=>row.Id=="late");
+    }
     private sealed class AppearanceStore : IAppearancePreferenceStore
     {
         public AppearancePreferences Value=AppearancePreferences.Default;public bool Fail;public int Writes;

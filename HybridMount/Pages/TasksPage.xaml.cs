@@ -31,6 +31,9 @@ public sealed partial class TasksPage : Page, IDisposable
         try{JobList.SelectedItem=ViewModel.Selected;}finally{_restoring=false;}
         _viewport.Restore(JobList);
     }
+    /// <summary>窄窗口将历史清理放在下一行，避免新增按钮被裁切；不影响任务列表状态。</summary>
+    private void ToolbarSizeChanged(object sender,SizeChangedEventArgs args)
+    {if(_disposed||HistoryToolbar is null)return;var narrow=args.NewSize.Width<840;Grid.SetRow(HistoryToolbar,narrow?1:0);Grid.SetColumn(HistoryToolbar,narrow?0:1);Grid.SetColumnSpan(HistoryToolbar,narrow?2:1);Toolbar.RowSpacing=narrow?8:0;}
     private void CancelJob(object sender,RoutedEventArgs args)=>ViewModel.CancelSelected();
     private void RetryUpload(object sender,RoutedEventArgs args)=>ViewModel.RetrySelected();
     /// <summary>以新相对路径安全创建远端副本，不改变原始冲突文件或远端旧项。</summary>
@@ -50,6 +53,8 @@ public sealed partial class TasksPage : Page, IDisposable
     }
     /// <summary>仅清理已完成历史，实际操作和异常处理由 ViewModel 及应用所有者执行。</summary>
     private async void ClearCompleted(object sender,RoutedEventArgs args)=>await ViewModel.ClearCompletedAsync();
+    private async void ClearFailed(object sender,RoutedEventArgs args)=>await ViewModel.ClearFailedAsync();
+    private async void ClearAll(object sender,RoutedEventArgs args)=>await ViewModel.ClearAllAsync();
     private async void ShowResults(object sender,RoutedEventArgs args)
     {
         var job=ViewModel.BeginResults();if(job is null)return;

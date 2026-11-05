@@ -3,18 +3,15 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:viewmodels="using:HybridMount.ViewModels"
       xmlns:views="using:HybridMount.Views">
-    <Grid Padding="24" RowSpacing="16">
+    <Grid Padding="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <StackPanel Spacing="6">
-            <TextBlock Text="挂载" Style="{ThemeResource TitleTextBlockStyle}"/>
-            <TextBlock Text="打开时按需下载，连接后持续上传新增和修改。本地删除不删除远端。" TextWrapping="Wrap"/>
-        </StackPanel>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="挂载" Style="{ThemeResource TitleTextBlockStyle}"/>
+        <StackPanel Grid.Row="1" Margin="0,16,0,0" Orientation="Horizontal" Spacing="8">
             <Button x:Name="AddButton" Content="新增挂载">
                 <Button.Flyout>
                     <MenuFlyout>
@@ -26,7 +23,7 @@
             <Button x:Name="ExportButton" Content="导出配置" Click="ExportConfigurations"/>
             <Button x:Name="ImportButton" Content="导入配置" Click="ImportConfigurations"/>
         </StackPanel>
-        <ListView x:Name="MountList" Grid.Row="2" ItemsSource="{x:Bind ViewModel.Items}"
+        <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
                   SelectionMode="Single" AutomationProperties.Name="挂载列表"
                   HorizontalContentAlignment="Stretch"
                   ScrollViewer.HorizontalScrollMode="Disabled"
@@ -44,6 +41,6 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
-        <TextBlock Grid.Row="3" Text="{x:Bind ViewModel.Status,Mode=OneWay}" TextWrapping="Wrap" MaxLines="4" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <TextBlock Grid.Row="3" Margin="0,16,0,0" Text="{x:Bind ViewModel.Status,Mode=OneWay}" TextWrapping="Wrap" MaxLines="4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind views:TextVisibility.ForText(ViewModel.Status),Mode=OneWay}"/>
     </Grid>
 </Page>

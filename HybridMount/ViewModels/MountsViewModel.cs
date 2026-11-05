@@ -16,7 +16,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     private int _pending;
     private bool _disposed,_dialogBusy;
     private Guid? _selected;
-    private string _status="本地：实心绿勾；仅远端：云；待脱水：空心绿勾，表示允许回收。自动上传仅提交新增和修改；本地删除不删除远端。";
+    private string _status="";
     public sealed record CapacityDraft(bool Automatic,string Text,string Unit);
     public sealed record DetectionDraft(bool Enabled,double Incremental,double Full);
     public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}

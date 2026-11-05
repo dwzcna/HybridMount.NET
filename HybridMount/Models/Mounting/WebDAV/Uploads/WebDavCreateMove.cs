@@ -46,7 +46,7 @@ public sealed partial class WebDavFileSource
         await using var staged=content.CanSeek?null:new FileStream(Path.Combine(Path.GetTempPath(),"HybridMount-upload-"+Guid.NewGuid().ToString("N")),FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,131072,FileOptions.Asynchronous|FileOptions.DeleteOnClose);
         if(staged is not null){await content.CopyToAsync(staged,token).ConfigureAwait(false);staged.Position=0;content=staged;}
         var position=content.Position;var expected=Convert.ToHexString(await SHA256.HashDataAsync(content,token).ConfigureAwait(false));content.Position=position;
-        var temporary=TrackTemporary((RelativePaths.Parent(path).Length==0?"":RelativePaths.Parent(path)+"/")+".hybridmount-upload-"+Guid.NewGuid().ToString("N"),"upload",[expected]);
+        var temporary=TrackTemporary((RelativePaths.Parent(path).Length==0?"":RelativePaths.Parent(path)+"/")+"hybridmount-upload-"+Guid.NewGuid().ToString("N"),"upload",[expected]);
         try
         {
             using var input=new UploadProgressStream(content,progress);

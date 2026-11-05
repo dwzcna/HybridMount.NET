@@ -30,7 +30,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
                 var editable=model.CanEditRemoteRoot(existing.Id);var source=existing.Source!;
                 NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
                 EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;HttpField.IsChecked=source.AllowHttp;HttpField.IsEnabled=editable;
-                AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;RootNotice.Visibility=editable?Visibility.Collapsed:Visibility.Visible;
+                AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;
                 LoadProtocol(existing,model.ReadCredentials(existing.Id),editable);LoadSqs(existing);SettingsFields.Visibility=Visibility.Visible;
             }
             Title=(existing is null?"新增":"设置 · ")+(existing?.Name??(_kind==FileSourceKind.S3?"S3 挂载":"WebDAV 挂载"));
@@ -61,7 +61,6 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             CapacityAuto.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;CapacityAuto.IsOn=capacity.Automatic;
             MaximumField.Text=capacity.Text;CapacityUnit.SelectedIndex=capacity.Unit=="TB"?1:0;
             MaximumField.IsEnabled=CapacityUnit.IsEnabled=!capacity.Automatic&&!sqsBusy;
-            CapacityScope.Text=_kind==FileSourceKind.S3?"统计整个桶当前对象，包含挂载前缀之外内容；不含历史版本及未完成分片。GB/TB 为十进制单位。":"自动识别采用服务器配额；手动模式统计配置根内文件。GB/TB 为十进制单位。";
             CapacityDescription.Text=mount.CapacityDisplay;RecheckButton.IsEnabled=!sqsBusy&&mount.IsConnected&&CapacityRules.Enabled(settings);
             ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=mount.ThumbnailDisplay;
             RemoteAuto.IsOn=detection.Enabled;IncrementalField.Value=detection.Incremental;FullField.Value=detection.Full;

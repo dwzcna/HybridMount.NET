@@ -25,7 +25,8 @@ public sealed partial class WebDavFileSource
         foreach(var item in repository.TemporaryItems(mount.Id,_temporaryScope))
             if(IsTemporaryPath(item.Path))_temporary[item.Path]=item;
     }
-    private static bool IsTemporaryPath(string path)=>Regex.IsMatch(RelativePaths.Normalize(path).Split('/')[^1],@"^\.hybridmount-(probe|upload)-[a-f0-9]{32}(-(destination|new))?$",RegexOptions.CultureInvariant);
+    /// <summary>接受新普通名称及旧隐藏名称；匹配仅用于读取精确日志，不赋予按前缀清理权限。</summary>
+    private static bool IsTemporaryPath(string path)=>Regex.IsMatch(RelativePaths.Normalize(path).Split('/')[^1],@"^\.?hybridmount-(probe|upload)-[a-f0-9]{32}(-(destination|new))?$",RegexOptions.CultureInvariant);
     private void SaveTemporary(RemoteTemporaryItem item){_temporaryRepository?.SaveTemporary(item);_temporary[item.Path]=item;}
     private string TrackTemporary(string path,string purpose="probe",string[]? hashes=null)
     {

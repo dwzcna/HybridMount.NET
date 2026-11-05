@@ -17,7 +17,7 @@ public sealed class UploadProtocolTests
         var entry=await source.UploadAsync("upload.bin",new MemoryStream([1,2,3]),null);
         Assert.Equal(3,entry.Size);Assert.Equal(CapabilitySupport.Supported,source.WriteCapabilities.CreateOnly);
         Assert.DoesNotContain(fixture.Dav.Server.Requests,r=>r.Method=="MOVE");
-        Assert.DoesNotContain(fixture.Dav.Server.Requests,r=>r.Method=="DELETE"&&!r.Target.Contains(".hybridmount-probe-",StringComparison.Ordinal)&&r.Headers.ContainsKey("If-Match"));
+        Assert.DoesNotContain(fixture.Dav.Server.Requests,r=>r.Method=="DELETE"&&!r.Target.Contains("hybridmount-probe-",StringComparison.Ordinal)&&r.Headers.ContainsKey("If-Match"));
     }
     [Fact]
     public async Task DavBareTagsUseVerifiedLockAndOriginalDigest()

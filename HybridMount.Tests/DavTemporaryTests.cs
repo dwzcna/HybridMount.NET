@@ -14,7 +14,7 @@ public sealed class DavTemporaryTests
         await using var source=fixture.Source();source.AttachTemporaryJournal(mount,repository);await source.ProbeAsync();
         Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method is "PUT" or "MKCOL" or "DELETE" or "LOCK");
         await source.UploadAsync("user.bin",new MemoryStream([1,2,3]),null);
-        Assert.Empty(source.PendingTemporaryItems);Assert.DoesNotContain(fixture.Objects.Keys,k=>k.StartsWith(".hybridmount-",StringComparison.Ordinal));
+        Assert.Empty(source.PendingTemporaryItems);Assert.DoesNotContain(fixture.Objects.Keys,k=>k.StartsWith(".hybridmount-",StringComparison.Ordinal)||k.StartsWith("hybridmount-",StringComparison.Ordinal));
         Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method=="MKCOL");Assert.Equal(new byte[]{1,2,3},fixture.Objects["user.bin"].Bytes);
     }
     [Fact]
@@ -48,7 +48,7 @@ public sealed class DavTemporaryTests
         fixture.Server.Handler=async request=>{var response=await handler(request);if(request.Method=="PUT"&&Interlocked.Increment(ref first)==1){sent.TrySetResult();await release.Task;}return response;};
         await using var source=fixture.Source();using var cancel=new CancellationTokenSource();
         try{var upload=source.UploadAsync("user.bin",new MemoryStream([1,2]),null,cancel.Token);await sent.Task.WaitAsync(TimeSpan.FromSeconds(5));cancel.Cancel();await Assert.ThrowsAsync<SourceOutcomeUnknownException>(()=>upload);
-            Assert.Empty(source.PendingTemporaryItems);Assert.DoesNotContain(fixture.Objects.Keys,k=>k.StartsWith(".hybridmount-",StringComparison.Ordinal));}
+            Assert.Empty(source.PendingTemporaryItems);Assert.DoesNotContain(fixture.Objects.Keys,k=>k.StartsWith(".hybridmount-",StringComparison.Ordinal)||k.StartsWith("hybridmount-",StringComparison.Ordinal));}
         finally{release.TrySetResult();}
     }
     [Fact]

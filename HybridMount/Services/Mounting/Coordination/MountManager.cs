@@ -95,7 +95,7 @@ public sealed partial class MountManager : IAsyncDisposable
         {
             var history=_repository.LoadOperations().ToDictionary(x=>x.Id);
             foreach(var upload in _repository.Uploads())
-                if(upload.State is not("Completed" or "Canceled" or "Ignored")||history.ContainsKey(upload.Id))
+                if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id))
                     history[upload.Id]=UploadSnapshot(upload) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
             foreach(var job in _jobs.Values)
                 if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))
@@ -103,11 +103,18 @@ public sealed partial class MountManager : IAsyncDisposable
             return history.Values.ToArray();
         }
     }
-    /// <summary>后台清除已完成的展示历史并通知页面；由应用持有生命周期，不联网、不删除上传恢复状态或文件。</summary>
-    public Task<int> ClearCompletedOperationsAsync(CancellationToken token=default)
+    /// <summary>保留旧成功历史入口；生命周期和清理规则由统一方法拥有。</summary>
+    public Task<int> ClearCompletedOperationsAsync(CancellationToken token=default)=>ClearOperationHistoryAsync(TaskHistoryClearMode.Completed,token);
+    /// <summary>后台清理展示历史，不联网、不删除恢复记录；退出先取消接纳并等待此所有者。</summary>
+    public Task<int> ClearOperationHistoryAsync(TaskHistoryClearMode mode,CancellationToken token=default)
         =>OwnAsync(cancel=>Task.Run(()=>
         {
-            cancel.ThrowIfCancellationRequested();var count=_repository.ClearCompletedOperations();Notify();return count;
+            cancel.ThrowIfCancellationRequested();
+            // 只把已存在且不属于活动Job的旧ID作为中断历史，不能将新排队任务按原始状态删除。
+            var interrupted=mode==TaskHistoryClearMode.All?_repository.LoadOperations()
+                .Where(row=>row.State=="Interrupted"&&(!_jobs.TryGetValue(row.Id,out var job)||job.Snapshot.State is not("Queued" or "Running")))
+                .Select(row=>row.Id).ToArray():Array.Empty<string>();
+            var count=_repository.ClearOperations(mode,interrupted);Notify();return count;
         },cancel),token);
     private void Notify() { if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }

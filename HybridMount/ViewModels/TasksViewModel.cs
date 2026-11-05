@@ -11,30 +11,37 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private readonly MountManager _manager;
     private readonly IUiDispatcher _dispatcher;
     private int _pending;
-    private bool _disposed,_clearingCompleted,_dialogBusy;
+    private bool _disposed,_clearingHistory,_dialogBusy;
     private string? _selectedJob,_dialogJob;
     private string _copyPath="";
-    private string _status="切换页面或关闭到托盘后，后台任务会继续运行。";
+    private string _status="";
     /// <summary>执行中、排队／等待和历史分组展示，同组使用稳定提交顺序。</summary>
     public ObservableCollection<MountOperationSnapshot> Operations { get; }=[];
     /// <summary>刷新后由页面按任务 ID 恢复选择。</summary>
     public event Action? Refreshing;
     public event Action? Refreshed;
-    /// <summary>仅有成功历史且当前未清理时可操作；当前任务或故障不会因清理丢失。</summary>
-    public bool CanClearCompleted=>!_disposed&&!_clearingCompleted&&Operations.Any(operation=>operation.State=="Completed");
-    /// <summary>清理在应用生命周期内执行；防止重复点击，失败保留页面状态并显示原因。</summary>
-    public async Task ClearCompletedAsync()
+    public bool CanClearCompleted=>CanClear(TaskHistoryClearMode.Completed);
+    public bool CanClearFailed=>CanClear(TaskHistoryClearMode.Failed);
+    public bool CanClearAll=>CanClear(TaskHistoryClearMode.All);
+    private bool CanClear(TaskHistoryClearMode mode)=>!_disposed&&!_manager.IsStopping&&!_clearingHistory&&Operations.Any(operation=>TaskHistoryRules.Matches(mode,operation.State));
+    private void NotifyClearState(){OnPropertyChanged(nameof(CanClearCompleted));OnPropertyChanged(nameof(CanClearFailed));OnPropertyChanged(nameof(CanClearAll));}
+    public Task ClearCompletedAsync()=>ClearHistoryAsync(TaskHistoryClearMode.Completed);
+    public Task ClearFailedAsync()=>ClearHistoryAsync(TaskHistoryClearMode.Failed);
+    public Task ClearAllAsync()=>ClearHistoryAsync(TaskHistoryClearMode.All);
+    /// <summary>三种清理共享防重入；页面离开不取消已接纳工作，失败或退出不产生迟到更新。</summary>
+    private async Task ClearHistoryAsync(TaskHistoryClearMode mode)
     {
-        if(!CanClearCompleted)return;
-        _clearingCompleted=true;OnPropertyChanged(nameof(CanClearCompleted));
+        if(!CanClear(mode))return;
+        _clearingHistory=true;NotifyClearState();
+        var label=mode==TaskHistoryClearMode.Completed?"已完成":mode==TaskHistoryClearMode.Failed?"失败及部分失败":"已结束";
         try
         {
-            var count=await _manager.ClearCompletedOperationsAsync();
-            if(!_disposed)Status=count==0?"没有可清除的已完成任务。":$"已清除 {count} 条已完成任务；其他任务保留。";
+            var count=await _manager.ClearOperationHistoryAsync(mode);
+            if(!_disposed)Status=count==0?$"没有可清除的{label}历史；进行中或待恢复的任务已保留。":$"已清除 {count} 条{label}任务历史；进行中和待处理任务保留。";
         }
         catch(OperationCanceledException)when(_manager.IsStopping){if(!_disposed)Status="程序正在退出，已停止清理。";}
         catch(Exception error){if(!_disposed)Status="清除失败："+error.Message;}
-        finally{_clearingCompleted=false;if(!_disposed){Refresh();OnPropertyChanged(nameof(CanClearCompleted));}}
+        finally{_clearingHistory=false;if(!_disposed){Refresh();NotifyClearState();}}
     }
     /// <summary>当前操作提示。</summary>
     public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
@@ -86,7 +93,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void Refresh()
     {
         if(_disposed)return;
-        try { var snapshots=OperationDisplayOrder.Sort(_manager.Operations);Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);OnPropertyChanged(nameof(CanClearCompleted));Refreshed?.Invoke(); }
+        try { var snapshots=OperationDisplayOrder.Sort(_manager.Operations);Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
         catch(Exception error) { Status=error.Message; }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>

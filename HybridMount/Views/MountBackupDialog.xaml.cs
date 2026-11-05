@@ -53,7 +53,6 @@ public sealed partial class MountBackupDialog : ContentDialog
     {
         InitializeComponent(); _inputPath = inputPath; _importing = inputPath is not null; RowsList.ItemsSource = _rows;
         Title = _importing ? "导入配置" : "导出配置"; PrimaryButtonText = _importing ? "解密并预览" : "导出";
-        HelpText.Text = _importing ? "输入备份密码后预览。导入只新增并保存配置，不覆盖现有挂载，也不立即连接。" : "选择要备份的挂载。配置及账号、密码和密钥将使用备份密码加密，请记住密码。SDK 默认凭据链需在目标机器另行配置。";
         ConfirmPasswordField.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         RowsList.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         if (!_importing)
@@ -102,7 +101,7 @@ public sealed partial class MountBackupDialog : ContentDialog
             }
             finally { _applyingPreview = false; }
             IsPrimaryButtonEnabled = _rows.Any(row => row.Selected && row.CanSelect);
-            ShowStatus("核对本地目录后导入；已有或重叠目录需要跳过或重新选择。", InfoBarSeverity.Informational);
+            StatusBar.IsOpen = false;
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (!App.Current.IsExiting && !_dialogStop.IsCancellationRequested) ShowStatus(error.Message, InfoBarSeverity.Error); }
@@ -150,7 +149,7 @@ public sealed partial class MountBackupDialog : ContentDialog
                 try { foreach (var item in document.Mounts) _rows.Add(new MountBackupRow(item, true)); }
                 finally { _applyingPreview = false; }
                 _decoded = true; PasswordField.Password = ""; PasswordField.Visibility = Visibility.Collapsed; RowsList.Visibility = Visibility.Visible;
-                PrimaryButtonText = "导入选中项"; HelpText.Text = "选择要新增的挂载并确认本地 NTFS 空目录。仅保存配置，之后从挂载列表手动连接；随启动连接与缩略图设置按备份恢复。";
+                PrimaryButtonText = "导入选中项";
             }
             else
             {

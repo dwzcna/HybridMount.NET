@@ -57,18 +57,33 @@ public sealed partial class MountRepository
             using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "INSERT INTO operations VALUES($id,$j) ON CONFLICT(id) DO UPDATE SET json=$j"; cmd.Parameters.AddWithValue("$id", snapshot.Id); cmd.Parameters.AddWithValue("$j", JsonSerializer.Serialize(snapshot)); cmd.ExecuteNonQuery();
         }
     }
-    /// <summary>只清除成功完成的展示历史；保留上传基线、恢复日志和索引，原子排除已经重新入队的同 ID 工作。</summary>
-    /// <returns>本次从整个历史表清除的记录数，包含当前列表历史上限之外的已完成记录。</returns>
-    public int ClearCompletedOperations()
+    /// <summary>兼容原入口；仅清理成功历史，不删除索引、上传证据或远端恢复数据。</summary>
+    public int ClearCompletedOperations()=>ClearOperations(TaskHistoryClearMode.Completed);
+    /// <summary>仓库锁内单条原子清理；重排队上传及未决远端应用阻止清理，已知孤立旧任务由应用提供精确ID。</summary>
+    /// <param name="interruptedIds">仅All使用：已确认不属于本进程活动工作的历史ID，不按状态批量清除真实排队任务。</param>
+    /// <returns>整个历史表内实际清除条数，包含列表上限之外的记录。</returns>
+    public int ClearOperations(TaskHistoryClearMode mode,IReadOnlyCollection<string>? interruptedIds=null)
     {
+        var states=TaskHistoryRules.States(mode);
         lock(_gate)
         {
             using var db=Open();using var command=db.CreateCommand();
-            command.CommandText="""
-                DELETE FROM operations WHERE json_extract(json,'$.State')='Completed'
-                AND NOT EXISTS (SELECT 1 FROM uploads u WHERE u.id=operations.id AND json_extract(u.json,'$.State')<>'Completed')
-                AND NOT EXISTS (SELECT 1 FROM remote_pending r WHERE r.id=operations.id AND json_extract(r.json,'$.State')<>'Completed')
+            var parameters=string.Join(",",states.Select((_,index)=>"$s"+index));
+            command.CommandText=$"""
+                DELETE FROM operations WHERE (
+                    json_extract(json,'$.State') IN ({parameters})
+                    OR ($all=1 AND json_extract(json,'$.State') IN ('Queued','Running')
+                        AND id IN (SELECT value FROM json_each($interrupted))))
+                AND NOT EXISTS (SELECT 1 FROM uploads u WHERE u.id=operations.id
+                    AND COALESCE(json_extract(u.json,'$.State'),'') NOT IN ({parameters}))
+                AND NOT EXISTS (SELECT 1 FROM remote_pending r WHERE r.id=operations.id
+                    AND NOT (COALESCE(json_extract(r.json,'$.State'),'')='Completed' AND $completed=1
+                        OR COALESCE(json_extract(r.json,'$.State'),'') IN ('Completed','Canceled','Superseded') AND $all=1))
                 """;
+            for(var index=0;index<states.Count;index++)command.Parameters.AddWithValue("$s"+index,states[index]);
+            command.Parameters.AddWithValue("$all",mode==TaskHistoryClearMode.All);
+            command.Parameters.AddWithValue("$completed",mode==TaskHistoryClearMode.Completed);
+            command.Parameters.AddWithValue("$interrupted",JsonSerializer.Serialize(interruptedIds??Array.Empty<string>()));
             return command.ExecuteNonQuery();
         }
     }

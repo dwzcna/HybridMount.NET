@@ -60,7 +60,12 @@ public sealed partial class WebDavFileSource
         if (response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
             throw new SourceConflictException("远端版本或目标创建条件不满足。");
         if (response.StatusCode == HttpStatusCode.NotFound) throw new FileNotFoundException("远端条目不存在。");
-        if ((int)response.StatusCode is >=400 and <500)throw new SourceRequestRejectedException((int)response.StatusCode,response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden?"WebDAV 认证或权限不足，请检查账号与应用密码。":$"WebDAV 拒绝请求（HTTP {(int)response.StatusCode}）。",retry);
+        if ((int)response.StatusCode is >=400 and <500)throw new SourceRequestRejectedException((int)response.StatusCode,response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized=>"WebDAV 认证失败（HTTP 401），请检查账号与应用密码。",
+            HttpStatusCode.Forbidden=>"WebDAV 拒绝访问此路径或操作（HTTP 403），请检查权限及服务器访问规则。",
+            _=>$"WebDAV 拒绝请求（HTTP {(int)response.StatusCode}）。"
+        },retry);
         if((int)response.StatusCode>=500)throw new RemoteSyncException((int)response.StatusCode,retryAfter:retry);
         if (!response.IsSuccessStatusCode)
             throw new IOException(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
