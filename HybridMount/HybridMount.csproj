@@ -74,7 +74,7 @@
     <PropertyGroup>
       <_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
       <_ProductManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest'))</_ProductManifestContent>
-      <_ProductManifestContent Condition="'$(HybridMountEnableCloudThumbnails)'=='true'">$(_ProductManifestContent.Replace('&lt;!-- HYBRIDMOUNT_CLOUD_THUMBNAIL --&gt;', '&lt;desktop3:CustomStateHandler /&gt;&lt;desktop3:ThumbnailProviderHandler Clsid=&quot;A65802EB-4D1C-4C7E-A519-34C76B9BB281&quot; /&gt;&lt;desktop3:ExtendedPropertyHandler /&gt;&lt;desktop3:BannersHandler /&gt;&lt;desktop3:CloudFilesContextMenus /&gt;'))</_ProductManifestContent>
+      <_ProductManifestContent Condition="'$(HybridMountEnableCloudThumbnails)'=='true'">$(_ProductManifestContent.Replace('&lt;desktop3:ThumbnailProviderHandler /&gt;', '&lt;desktop3:ThumbnailProviderHandler Clsid=&quot;A65802EB-4D1C-4C7E-A519-34C76B9BB281&quot; /&gt;'))</_ProductManifestContent>
     </PropertyGroup>
     <WriteLinesToFile File="$(_ProductManifest)" Lines="$(_ProductManifestContent)" Overwrite="true" Encoding="UTF-8" WriteOnlyWhenDifferent="true" />
     <ItemGroup><AppxManifest Remove="@(AppxManifest)"/><AppxManifest Include="$(_ProductManifest)"/><FileWrites Include="$(_ProductManifest)"/></ItemGroup>

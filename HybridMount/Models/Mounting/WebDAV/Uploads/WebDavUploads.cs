@@ -143,9 +143,10 @@ public sealed partial class WebDavFileSource
         }
         finally{if(lease is not null)await lease.DisposeAsync().ConfigureAwait(false);}
     }
-    private async Task<string> ReadContentHashAsync(string path,string? lockToken,CancellationToken token)
+    private async Task<string> ReadContentHashAsync(string path,string? lockToken,CancellationToken token,string? expectedTag=null)
     {
         using var request=new HttpRequestMessage(HttpMethod.Get,Address(path));
+        if(expectedTag is not null)request.Headers.IfMatch.ParseAdd(expectedTag);
         if(lockToken is not null)request.Headers.Add("If","(<"+lockToken+">)");
         using var response=await SendAsync(request,token).ConfigureAwait(false);Success(response);
         if(response.StatusCode!=HttpStatusCode.OK)throw new IOException("内容核对需要完整响应。");

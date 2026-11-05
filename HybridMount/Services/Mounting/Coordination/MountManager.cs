@@ -644,8 +644,10 @@ public sealed partial class MountManager : IAsyncDisposable
     public Task<long> EnforceCacheLimitAsync(CancellationToken token=default)=>OwnAsync(EnforceCacheLimitCoreAsync,token);
     private async Task<long> EnforceCacheLimitCoreAsync(CancellationToken token)
     {
-        var limit=CacheLimitBytes;if(limit==0)return 0;
-        var needed=CacheUsageBytes-limit;if(needed<=0)return 0;
+        // UNPINNED是既有释放意图，和按容量自动回收分开；即便关闭软限额也要安全完成。
+        var requested=await CompletePendingUnpinsAsync(token).ConfigureAwait(false);
+        var limit=CacheLimitBytes;if(limit==0)return requested;
+        var needed=CacheUsageBytes-limit;if(needed<=0)return requested;
         long freed=_previews.Trim(needed);
         if(freed<needed)freed+=WholeFileCache.Trim(Path.Combine(_repository.DataDirectory,"RangeCache"),needed-freed);
         foreach(var root in _roots.Values)
@@ -677,6 +679,6 @@ public sealed partial class MountManager : IAsyncDisposable
             }
             finally { root.Gate.Release(); }
         }
-        return freed;
+        return requested+freed;
     }
 }

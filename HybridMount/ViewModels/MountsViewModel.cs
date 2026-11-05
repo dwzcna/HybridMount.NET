@@ -138,6 +138,8 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
         Status=enabled?"远端自动检测已打开。":"远端自动检测已关闭。";
     });
     /// <summary>读取指定行当前完整诊断；不联网、不保存，也不依赖当前页面选择。</summary>
+    /// <summary>完整诊断由应用后台只读生成，旧简要入口保持兼容。</summary>
+    public Task<string> DiagnosticAsync(Guid id)=>_manager.ReadDiagnosticsAsync(id);
     public string Diagnostic(Guid id)=>FindMount(id)?.Detail is {Length:>0} detail?detail:"当前没有诊断信息。";
     public Task SetSelectedThumbnailAsync(bool enabled)=>SelectedMountId is {} id?SetThumbnailAsync(id,enabled):Task.CompletedTask;
     public Task SetThumbnailAsync(Guid mountId,bool enabled)

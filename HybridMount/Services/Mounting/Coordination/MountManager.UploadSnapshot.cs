@@ -59,10 +59,12 @@ public sealed partial class MountManager
         }
         finally{DeleteUploadSnapshot(created);root.Gate.Release();}
     }
+    /// <summary>实例级通知屏障，用于验证数据库、保护句柄和根锁的提交顺序。</summary>
+    internal Action<string>? ShellNotificationForTests {get;set;}
     /// <summary>远端已确认后在根锁内提交；文件改变则只更新远端基线，保留新一代本地保护。</summary>
     private async Task CommitUploadAsync(Runtime root,LocalUpload prepared,CancellationToken token)
     {
-        var receipt=prepared.Receipt??throw new IOException("上传回执缺失。");
+        var receipt=prepared.Receipt??throw new IOException("上传回执缺失。");string? notifyPath=null;
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -85,12 +87,19 @@ public sealed partial class MountManager
             }
             if(committedStamp is not null)await UploadCheckpointAsync("CommitVerified",prepared).ConfigureAwait(false);
             var completed=_repository.CommitUploadedEntry(prepared,entry,receipt,committedStamp,!exists);
+            if(committedStamp is not null&&completed.State=="Completed")notifyPath=path;
             CompleteOwnUploadEcho(root,receipt);
             await UploadCheckpointAsync("Committed",completed).ConfigureAwait(false);
             if(committedStamp is not null&&exists)_previews.Queue(root.Definition,entry);
             PublishUpload(completed);DeleteUploadSnapshot(prepared.SnapshotPath);root.Uploads?.Wake();
         }
-        finally{root.Gate.Release();}
+        finally
+        {
+            root.Gate.Release();
+            if(notifyPath is not null)
+                try{if(ShellNotificationForTests is {} notify)notify(notifyPath);else CloudFilesNative.NotifyItemUpdated(notifyPath);}
+                catch(Exception error){_logger.Queue("Shell状态","Warning","上传已提交，Shell通知失败："+error.GetType().Name);}
+        }
     }
     /// <summary>恢复发送只接受本挂载的暂存文件，不沿快照目录中的联接或符号链接读取。</summary>
     private void ValidateUploadSnapshot(LocalUpload item)

@@ -64,7 +64,8 @@ public sealed partial class MountsPage : Page,IDisposable
     private Task ShowDiagnosticsAsync(Guid id)=>ViewModel.RunDialogAsync(async()=>
     {
         if(ViewModel.FindMount(id) is not {} mount)return;
-        var text=new TextBlock{Text=ViewModel.Diagnostic(id),TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
+        var detail=await ViewModel.DiagnosticAsync(id);if(_disposed||ViewModel.IsStopping)return;
+        var text=new TextBlock{Text=detail,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
         try
         {
             _diagnosticDialog=new(){XamlRoot=XamlRoot,Title="完整诊断 · "+mount.Definition.Name,CloseButtonText="关闭",

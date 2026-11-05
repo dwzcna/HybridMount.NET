@@ -8,7 +8,7 @@
  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
  IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap">
-  <Identity Name="dwzcn.HybridMount.NET" Publisher="CN=dwzcn" Version="0.0.9.2" />
+  <Identity Name="dwzcn.HybridMount.NET" Publisher="CN=dwzcn" Version="0.0.9.3" />
   <Properties><DisplayName>HybridMount.NET</DisplayName><PublisherDisplayName>dwzcn</PublisherDisplayName><Logo>Assets\HybridMountStore.png</Logo></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
   <Resources><Resource Language="zh-CN" /></Resources>
@@ -22,7 +22,11 @@
       <Extensions>
         <desktop3:Extension Category="windows.cloudFiles">
           <desktop3:CloudFiles IconResource="Assets\HybridMount.png">
-            <!-- HYBRIDMOUNT_CLOUD_THUMBNAIL -->
+            <desktop3:CustomStateHandler />
+            <desktop3:ExtendedPropertyHandler />
+            <desktop3:BannersHandler />
+            <desktop3:CloudFilesContextMenus />
+            <desktop3:ThumbnailProviderHandler />
           </desktop3:CloudFiles>
         </desktop3:Extension>
         <desktop:Extension Category="windows.startupTask" Executable="HybridMount.NET.exe" EntryPoint="Windows.FullTrustApplication">

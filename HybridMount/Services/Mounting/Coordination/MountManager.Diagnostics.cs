@@ -1,0 +1,32 @@
+using System.Text;
+using HybridMount.Models.Mounting;
+
+namespace HybridMount.Services.Mounting;
+
+public sealed partial class MountManager
+{
+    /// <summary>应用拥有按需诊断；只读采样三个已知条目，不水合、不联网、不改变当前页面选择。</summary>
+    internal Task<string> ReadDiagnosticsAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>Task.Run(()=>
+    {
+        cancel.ThrowIfCancellationRequested();var root=Root(id);var snapshot=Snapshot(root);
+        var text=new StringBuilder(CloudShellState.EnvironmentDescription()).AppendLine().Append("挂载：").Append(snapshot.Definition.Name)
+            .Append("；连接：").Append(snapshot.IsConnected?"已连接":"已断开").Append("；状态：").AppendLine(snapshot.Status);
+        if(snapshot.Detail.Length>0)text.AppendLine(snapshot.Detail);
+        var uploads=_repository.Uploads(id).GroupBy(item=>item.LocalPath,StringComparer.Ordinal).ToDictionary(group=>group.Key,group=>group.OrderByDescending(item=>item.ChangedUtc).First(),StringComparer.Ordinal);
+        foreach(var entry in _repository.Entries(id).Where(e=>!e.Deleted).OrderByDescending(e=>uploads.ContainsKey(e.LocalPath)).ThenBy(e=>e.LocalPath,StringComparer.Ordinal).Take(3))
+        {
+            cancel.ThrowIfCancellationRequested();var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
+            text.AppendLine().Append("条目：").AppendLine(entry.LocalPath);
+            try
+            {
+                MountPathGuard.ValidateOperation(root.Definition,path);var native=CloudFilesNative.Inspect(path);
+                text.Append("上传：").Append(uploads.GetValueOrDefault(entry.LocalPath)?.State??"无记录").Append("；索引保护：").Append(entry.Protected).AppendLine();
+                text.AppendLine(native is {} value?$"CFAPI：InSync={value.Info.InSyncState}；ModifiedBytes={value.Info.ModifiedSize}；Pin={value.Info.PinState}；OnDiskBytes={value.Info.OnDiskSize}":"CFAPI：非占位或不存在");
+                if(native is {} pending&&pending.Info.PinState==2&&pending.Info.OnDiskSize>0)text.AppendLine("释放空间意图：UNPINNED，仍有本地缓存；等待无修改、无占用及无未决工作的安全脱水。");
+                text.AppendLine(CloudShellState.Read(path).ToString());
+            }
+            catch(Exception error){text.Append("只读查询失败：").AppendLine(error.GetType().Name);}
+        }
+        return text.ToString();
+    },cancel),token);
+}

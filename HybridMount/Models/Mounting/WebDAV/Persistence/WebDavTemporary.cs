@@ -63,24 +63,41 @@ public sealed partial class WebDavFileSource
     {
         foreach(var path in _temporary.Keys.ToArray()){token.ThrowIfCancellationRequested();await CleanupTemporaryAsync(path,token).ConfigureAwait(false);}
     }
+    /// <summary>强验证器最多核对三次；缺失、弱及裸标签只等待，不升级为可靠条件。</summary>
+    private async Task<SourceEntry?> ReadCleanupMetadataAsync(string path,RemoteTemporaryItem item,CancellationToken token)
+    {
+        for(var attempt=0;attempt<3;attempt++)
+        {
+            token.ThrowIfCancellationRequested();
+            var metadata=await TryGetMetadataAsync(path,token).ConfigureAwait(false);
+            if(metadata is null)return null;
+            if(item.Stage=="Planned"||metadata.IsDirectory)throw new SourceConflictException("未发送创建或目标为目录，保留远端内容。");
+            if(Strong(Version(metadata).ETag))return metadata;
+            if(attempt<2)await Task.Delay(attempt==0?250:750,token).ConfigureAwait(false);
+        }
+        throw new IOException("临时项未提供可靠强ETag，保留日志待重连核对。");
+    }
+    /// <summary>五秒总截止覆盖元数据、摘要与条件删除；缺少强版本时保留，不发送无条件DELETE。</summary>
     private async Task CleanupTemporaryAsync(string path,CancellationToken token)
     {
         if(!_temporary.TryGetValue(path,out var item)||item.Stage=="Foreign")return;
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        var cleanup=deadline.Token;
         try
         {
-            var metadata=await TryGetMetadataAsync(path,token).ConfigureAwait(false);
+            var metadata=await ReadCleanupMetadataAsync(path,item,cleanup).ConfigureAwait(false);
             if(metadata is null){CompleteTemporary(path);return;}
-            if(item.Stage=="Planned"||metadata.IsDirectory)throw new SourceConflictException("未发送创建或目标为目录，保留远端内容。");
-            var tag=NormalizeTag(Version(metadata).ETag);
-            var reliable=Strong(item.ETag)&&tag==item.ETag;
-            var digest=reliable?null:await ReadContentHashAsync(path,null,token).ConfigureAwait(false);
-            if(!reliable&&!item.Hashes.Contains(digest,StringComparer.Ordinal))
+            var tag=NormalizeTag(Version(metadata).ETag)!;
+            var digest=await ReadContentHashAsync(path,null,cleanup,tag).ConfigureAwait(false);
+            if(!item.Hashes.Contains(digest,StringComparer.Ordinal))
                 throw new SourceConflictException("临时项内容已改变，保留远端内容。");
-            var after=await TryGetMetadataAsync(path,token).ConfigureAwait(false);
+            var after=await TryGetMetadataAsync(path,cleanup).ConfigureAwait(false);
             if(after is null){CompleteTemporary(path);return;}
-            if(!IsSameVersion(metadata.Version,after.Version))throw new SourceConflictException("临时项核对期间版本变化。");
-            using var request=new HttpRequestMessage(HttpMethod.Delete,Address(path));if(Strong(tag))request.Headers.IfMatch.ParseAdd(tag!);
-            using var response=await SendAsync(request,token,true).ConfigureAwait(false);
+            if(!IsSameVersion(metadata.Version,after.Version)||NormalizeTag(Version(after).ETag)!=tag)
+                throw new SourceConflictException("临时项核对期间版本变化。");
+            using var request=new HttpRequestMessage(HttpMethod.Delete,Address(path));request.Headers.IfMatch.ParseAdd(tag);
+            using var response=await SendAsync(request,cleanup,true).ConfigureAwait(false);
+            if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new SourceConflictException("临时项条件删除时版本变化，保留远端内容。");
             if(!response.IsSuccessStatusCode&&response.StatusCode!=HttpStatusCode.NotFound)throw new IOException($"清理返回 HTTP {(int)response.StatusCode}。");
             CompleteTemporary(path);
         }

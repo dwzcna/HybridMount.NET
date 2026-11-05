@@ -44,10 +44,16 @@ try {
     foreach ($registration in @('windows.cloudFiles','CloudFiles','windows.startupTask','windows.comServer','windows.fileExplorerContextMenus','HybridMountStartup','HybridMount.Ext.dll')) {
         if (-not $text.Contains($registration)) { throw "清单缺少 $registration" }
     }
-    # 正式包保持缩略图启用门槛，实验包须明确声明预期，防止增量构建遗留注册。
+    # 基础状态与属性处理器始终注册；缩略图仍独立门控，核验增量构建未遗留或重复。
+    foreach($handler in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler','CloudFilesContextMenus')){
+        if($manifest.SelectNodes("//*[local-name()='CloudFiles']/*[local-name()='$handler']").Count -ne 1){throw "基础云文件处理器缺失或重复：$handler"}
+    }
+    if($manifest.SelectNodes("//*[local-name()='CloudFiles']/*[local-name()='ThumbnailProviderHandler']").Count -gt 1){throw '云缩略图处理器重复。'}
     $thumbnail=$manifest.SelectSingleNode("//*[local-name()='CloudFiles']/*[local-name()='ThumbnailProviderHandler']")
-    if([bool]$thumbnail -ne $ExpectCloudThumbnails.IsPresent){throw '云缩略图注册与本次构建的启用门槛不一致。'}
-    if($thumbnail -and $thumbnail.Clsid -ne 'A65802EB-4D1C-4C7E-A519-34C76B9BB281'){throw '云缩略图 CLSID 不正确。'}
+    if($null -eq $thumbnail){throw 'SDK要求的系统缩略图节点缺失。'}
+    $customThumbnail=$thumbnail.HasAttribute('Clsid')
+    if([bool]$customThumbnail -ne $ExpectCloudThumbnails.IsPresent){throw '自定义云缩略图注册与本次构建的启用门槛不一致。'}
+    if($customThumbnail -and $thumbnail.Clsid -ne 'A65802EB-4D1C-4C7E-A519-34C76B9BB281'){throw '云缩略图 CLSID 不正确。'}
     if(!$text.Contains('A65802EB-4D1C-4C7E-A519-34C76B9BB281')){throw '包缺少候选缩略图 COM 类。'}
     Write-Host "包验证通过：$Platform / $version / 自包含 / 原生扩展 / 全新资源 / CloudFiles、启动与菜单声明。"
 } finally { $archive.Dispose() }
