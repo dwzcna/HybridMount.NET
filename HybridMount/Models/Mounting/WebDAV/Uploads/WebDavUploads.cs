@@ -80,6 +80,16 @@ public sealed partial class WebDavFileSource
         if((method=="DELETE"?WriteCapabilities.ConditionalDelete:WriteCapabilities.ConditionalMove)!=CapabilitySupport.Supported)
             throw new NotSupportedException("服务器不支持此方法的可靠条件写。");
     }
+    public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)
+    {
+        path=NonRoot(path);var strong=condition.ExpectedVersion is not null&&Strong(System.Text.Json.JsonSerializer.Deserialize<VersionInfo>(condition.ExpectedVersion)?.ETag);
+        if(condition.ExpectedVersion is not null&&!strong&&string.IsNullOrEmpty(condition.BaselineSha256))throw new SourceConflictException("缺少原始远端内容基线，已保留本地修改；请另存副本。");
+        var parent=RelativePaths.Parent(path);await VerifyPutCapabilitiesAsync(parent,token).ConfigureAwait(false);
+        if(condition.ExpectedVersion is null?WriteCapabilities.CreateOnly==CapabilitySupport.Supported:strong&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported)return;
+        try{await VerifyLocksAsync(parent,token).ConfigureAwait(false);}
+        catch(NotSupportedException)when(condition.ExpectedVersion is null){await VerifyCreateMoveAsync(parent,token).ConfigureAwait(false);return;}
+        if(condition.ExpectedVersion is null&&WriteCapabilities.LockCreate!=CapabilitySupport.Supported)throw new NotSupportedException("服务器不能可靠地仅创建新文件。");
+    }
     /// <summary>兼容旧上传调用；缺少可靠 ETag 时，更新必须提供原始内容基线。</summary>
     public Task<SourceEntry> UploadAsync(string path,Stream content,string? expectedVersion,CancellationToken token=default)
         =>UploadWithPreconditionAsync(path,content,new(expectedVersion),null,token);

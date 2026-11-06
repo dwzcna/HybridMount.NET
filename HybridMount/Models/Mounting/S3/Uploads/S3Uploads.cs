@@ -93,6 +93,13 @@ public sealed partial class S3FileSource
         }
         finally{_probeGate.Release();}
     }
+    public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)
+    {
+        path=NonRoot(path);await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);RequirePut(condition.ExpectedVersion is null);
+        await CheckTargetAsync(path,condition.ExpectedVersion,token).ConfigureAwait(false);
+        if(condition.ExpectedVersion is not null)_=RequiredETag(Version(condition.ExpectedVersion));
+        if(contentLength>=_multipartThreshold){var key=Key(path);await VerifyMultipartAsync(key[..(key.LastIndexOf('/')+1)],token).ConfigureAwait(false);}
+    }
     /// <summary>兼容旧调用，结果必须与 PUT 或分片完成回执对应。</summary>
     public Task<SourceEntry> UploadAsync(string path,Stream content,string? expectedVersion,CancellationToken token=default)
         =>UploadWithPreconditionAsync(path,content,new(expectedVersion),null,token);

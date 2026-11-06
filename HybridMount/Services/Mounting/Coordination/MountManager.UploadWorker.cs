@@ -57,6 +57,7 @@ public sealed partial class MountManager
             capacity=await EnterUploadCapacityAsync(root,prepared,token).ConfigureAwait(false);
             await _uploadSlots.WaitAsync(token).ConfigureAwait(false);transferSlot=true;
             await PrepareUploadDestinationAsync(root,prepared,token,capacity.Definition).ConfigureAwait(false);
+            if(!prepared.IsDirectory)await root.Source!.PrepareUploadAsync(prepared.SourcePath,new(prepared.ExpectedVersion,prepared.BaselineSha256),prepared.Total,token).ConfigureAwait(false);
             SourceEntry receipt;
             if(prepared.IsDirectory)
             {
@@ -85,8 +86,8 @@ public sealed partial class MountManager
         }
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
-        catch(SourceRequestRejectedException error){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
-        catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
+        catch(SourceRequestRejectedException error){ChangeUpload(selected.Id,x=>x with{State=!sendingStarted&&error.HttpStatus is 408 or 429 or >=500?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=!sendingStarted&&error.HttpStatus is 408 or 429 or >=500?DateTimeOffset.UtcNow:null});}
+        catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500 and not(408 or 429)&&!error.Diagnostic.Transient){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
         catch(SourceConflictException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
         catch(NotSupportedException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
         catch(Exception error)
@@ -95,11 +96,11 @@ public sealed partial class MountManager
             if(current is not null)
             {
                 if(current.State=="RemoteCommitted")ChangeUpload(selected.Id,x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
-                else if(current.State=="Sending"||error is SourceOutcomeUnknownException)
+                else if(current.State=="Sending")
                     ChangeUpload(selected.Id,x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
                 else if(current.CancelRequested)ChangeUpload(selected.Id,x=>x with{State="Canceled",Error="本代上传已取消。"});
                 else if(error is OperationCanceledException&&stopping.IsCancellationRequested)ChangeUpload(selected.Id,x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
-                else ChangeUpload(selected.Id,x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+                else ChangeUpload(selected.Id,x=>x with{State=error is IOException or System.Net.Http.HttpRequestException||preparing&&error is System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
             }
         }
         finally
@@ -111,7 +112,7 @@ public sealed partial class MountManager
             await canceled.ConfigureAwait(false);
         }
     }
-    /// <summary>未知结果只能用远端内容核对；读取失败保留快照，绝不直接重复发送。</summary>
+    /// <summary>未知结果先核对远端；仅经验证的条件写在安全基线下有限重试。</summary>
     private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)
     {
         if(item.SnapshotPath is null&&!item.IsDirectory){ChangeUpload(item.Id,x=>x with{State="Conflict",Error="结果不明且缺少不可变快照，请保留本地文件并另存副本。"});return;}
@@ -120,7 +121,10 @@ public sealed partial class MountManager
         {
             var metadata=await root.Source!.TryGetMetadataAsync(item.SourcePath,token).ConfigureAwait(false);
             if(metadata is null)
-            {ChangeUpload(item.Id,current=>current with{State="Conflict",Error="发送结果不明且远端目标不存在，无法区分未写入与写入后被删除；请显式重试或另存副本。",LastCheckedUtc=null});return;}
+            {
+                if(!item.IsDirectory&&item.ExpectedVersion is null&&RetryConditionalUpload(root,item,true))return;
+                ChangeUpload(item.Id,current=>current with{State=current.CancelRequested?"Canceled":"Conflict",Error="发送结果不明且远端目标不存在，无法区分未写入与写入后被删除；请显式重试或另存副本。",LastCheckedUtc=null});return;
+            }
             if(item.IsDirectory&&metadata.IsDirectory||!item.IsDirectory&&!metadata.IsDirectory&&metadata.Size==item.Total&&await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.SnapshotSha256)
             {
                 var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,LastCheckedUtc=null})!;
@@ -128,11 +132,23 @@ public sealed partial class MountManager
             }
             var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);
             if(unchanged&&item.BaselineSha256 is not null)unchanged=await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.BaselineSha256;
+            if(unchanged&&!item.IsDirectory&&RetryConditionalUpload(root,item,false))return;
             ChangeUpload(item.Id,x=>x with{State=unchanged?(x.CancelRequested?"Canceled":x.Attention?.RetryRequested==true?"Prepared":"Failed"):"Conflict",Error=unchanged?"远端仍为原始版本，请显式重试后发送。":"远端内容与原始基线、发送快照均不一致，保留两端内容。",LastCheckedUtc=null});
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
         catch(SourceConflictException error){ChangeUpload(item.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
         catch(Exception error){ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="只读核对未完成："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});}
+    }
+    private bool RetryConditionalUpload(Runtime root,LocalUpload item,bool create)
+    {
+        if((create?root.Source!.WriteCapabilities.CreateOnly:root.Source!.WriteCapabilities.ConditionalUpdate)!=CapabilitySupport.Supported)return false;
+        var changed=false;
+        ChangeUpload(item.Id,current=>
+        {
+            if(current.CancelRequested){changed=true;return current with{State="Canceled",LastCheckedUtc=null};}
+            if(current.AutoRetryCount>=5)return current;
+            changed=true;return current with{State="Waiting",AutoRetryCount=current.AutoRetryCount+1,Bytes=0,Error="远端仍为发送前状态，等待条件写自动重试。",LastCheckedUtc=DateTimeOffset.UtcNow};
+        });return changed;
     }
     private static async Task<string> HashRemoteAsync(IFileSource source,SourceEntry metadata,CancellationToken token)
     {
