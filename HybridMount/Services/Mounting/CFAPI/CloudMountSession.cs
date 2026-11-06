@@ -182,6 +182,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             if(!source.IsSameVersion(metadata.Version,entry.Version)) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0 || length<=0 || offset>metadata.Size || length>metadata.Size-offset) throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096; var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));
+            var localStamp=HydrationStamp(entry,metadata);
             var bytes=new byte[256*1024]; var pin=GCHandle.Alloc(bytes,GCHandleType.Pinned);
             try
             {
@@ -206,6 +207,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             }
             finally { pin.Free(); }
             if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);
+            RecordHydrationWrite(entry,metadata,localStamp);
             _localContentReady?.Invoke(entry);
         }
         catch(Exception error)
@@ -251,7 +253,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             if(info is null||marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||info.Value.Info.PinState is not(0 or 2)||IsActive(entry.Id))
                 throw new IOException($"占位刷新保护未满足：Identity={marker?.MountId==_mount.Id&&marker.EntryId==entry.Id}，Modified={info?.Info.ModifiedSize}，InSync={info?.Info.InSyncState}，Pin={info?.Info.PinState}，Active={IsActive(entry.Id)}，Open={_open.GetValueOrDefault(entry.Id)}，Reads={_reading.GetValueOrDefault(entry.Id)}，Fetches={_fetches.Values.Count(x=>x.EntryId==entry.Id)}。");
             if(_mount.RootIdentity!=MountPathGuard.FileIdentity(_mount.LocalPath))throw new SourceConflictException("占位更新前根身份变化。");
-            CloudRemoteUpdate.UpdateMetadata(handle,borrowed,metadata);return true;
+            CloudRemoteUpdate.UpdateMetadata(handle,borrowed,metadata);RecordProtectedWrite(entry,borrowed);return true;
         }
         finally{CloudFilesNative.CfReleaseProtectedHandle(handle);}
         }
@@ -271,6 +273,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             CloudFilesNative.Check(CloudFilesNative.CfCreatePlaceholders(Path.GetDirectoryName(full)!,records,1,1,out var processed));
             CloudFilesNative.Check(records[0].Result); if(processed!=1) throw new IOException("占位创建未完成。");
             _repository.SaveEntry(_mount.Id,entry with{Materialized=true});
+            RecordCreatedWrite(entry,metadata,records[0].CreateUsn);
         }
         finally { pin.Free(); }
     }
