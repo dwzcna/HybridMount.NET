@@ -22,7 +22,7 @@ public sealed partial class MountManager
             foreach(var item in _repository.Uploads(root.Definition.Id).Where(x=>x.State=="Sending"))ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="上次请求已发出，恢复后先核对远端。",LastCheckedUtc=null});
             while(!token.IsCancellationRequested)
             {
-                if(Interlocked.Exchange(ref runtime.Dirty,0)!=0||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
+                if(runtime.TakeScanRequest()||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
                 {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
                 var candidates=_repository.Uploads(root.Definition.Id).Where(x=>
                     x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();

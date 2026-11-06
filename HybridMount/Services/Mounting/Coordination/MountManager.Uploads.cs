@@ -21,7 +21,12 @@ public sealed partial class MountManager
         private readonly object _signalSync=new();
         public UploadRuntime(CancellationToken token)=>Stop=CancellationTokenSource.CreateLinkedTokenSource(token);
         /// <summary>生产者在短锁内合并通知；消费者只递减计数，正常事件风暴不产生异常。</summary>
-        public void Wake(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
+        public void Wake()=>Notify(false);
+        /// <summary>监控或CFAPI变化要求扫描；短锁合并并唤醒，停止后的迟到通知忽略。</summary>
+        public void RequestScan()=>Notify(true);
+        /// <summary>消费者原子取走扫描请求；普通调度唤醒不会设置此标记。</summary>
+        public bool TakeScanRequest()=>Interlocked.Exchange(ref Dirty,0)!=0;
+        private void Notify(bool scan){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;if(scan)Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
         public void CancelRequest(string? id=null){lock(Sync)if((id is null||CurrentId==id)&&Request is {IsCancellationRequested:false} request)RequestCancellation=request.CancelAsync();}
         public void RequestStop(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;_stopping=1;Cancellation=Stop.CancelAsync();}CancelRequest();}
         public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
@@ -33,9 +38,14 @@ public sealed partial class MountManager
         if(root.Uploads is not null||root.Session is null||root.Source is null||root.Definition.RemovalPending||root.RemovalRequested||_stop.IsCancellationRequested)return;
         var runtime=new UploadRuntime(_stop.Token);root.Uploads=runtime;
         var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.Size|NotifyFilters.LastWrite|NotifyFilters.CreationTime};
-        watcher.Changed+=(_,_)=>runtime.Wake();watcher.Created+=(_,_)=>runtime.Wake();watcher.Deleted+=(_,_)=>runtime.Wake();watcher.Renamed+=(_,_)=>runtime.Wake();watcher.Error+=(_,_)=>runtime.Wake();
+        BindUploadWatcher(watcher,runtime.RequestScan);
         runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Work=Task.Run(()=>UploadLoopAsync(root,runtime));
         }
+    }
+    /// <summary>集中适配所有文件系统变化及溢出；回调只请求扫描，不在监控线程读取正文。</summary>
+    internal static void BindUploadWatcher(FileSystemWatcher watcher,Action requestScan)
+    {
+        watcher.Changed+=(_,_)=>requestScan();watcher.Created+=(_,_)=>requestScan();watcher.Deleted+=(_,_)=>requestScan();watcher.Renamed+=(_,_)=>requestScan();watcher.Error+=(_,_)=>requestScan();
     }
     private static void RequestUploadStop(Runtime root){lock(root.ConnectionSync)root.Uploads?.RequestStop();}
     private static async Task StopUploadsAsync(Runtime root)
@@ -131,6 +141,7 @@ public sealed partial class MountManager
             {if(requireComplete)throw new IOException("请先连接挂载，再完整扫描并确认已有改动。");return;}
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             var incomplete=false;var entries=_repository.Entries(root.Definition.Id);var seen=new HashSet<string>(StringComparer.Ordinal);
+            var index=new LocalUploadScanIndex(entries);
             var records=_repository.Uploads(root.Definition.Id).Where(x=>!x.IsCopy).GroupBy(x=>x.LocalPath,StringComparer.Ordinal).ToDictionary(x=>x.Key,x=>x.First(),StringComparer.Ordinal);
             void Scan(string directory)
             {
@@ -143,10 +154,10 @@ public sealed partial class MountManager
                         MountPathGuard.ValidateOperation(root.Definition,path);
                         var relative=Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/');RelativePaths.Normalize(relative);seen.Add(relative);
                         records.TryGetValue(relative,out var prior);
-                        var entry=marker is null?entries.FirstOrDefault(x=>x.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase)&&!x.Deleted):entries.FirstOrDefault(x=>x.Id==marker.EntryId);
-                        entry??=marker is null?UploadRules.LocalReplacementBaseline(entries,relative,prior?.EntryId):null;
+                        var entry=marker is null?index.ActivePath(relative):index.ById(marker.EntryId);
+                        entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
-                        if(UploadRules.DeletedSourceAncestor(entries,relative) is not null)
+                        if(index.DeletedAncestor(relative) is not null)
                         {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(stamp.IsDirectory)Scan(path);continue;}
                         // 修复旧版把同名替换误建为新增的未发送意图；只补历史基线，不清除失败、取消或重排同代内容。
                         if(prior is {ExpectedVersion:null,EntryId:null,Receipt:null,BaselineSha256:null}&&!UploadRules.InFlight(prior)&&

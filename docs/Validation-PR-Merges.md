@@ -16,3 +16,4 @@
 | [#8](https://github.com/dwzcna/HybridMount.NET/pull/8) | 0.0.9.13 | WebDAV临时资源元数据清理 | 35 | 764 | 764 | 通过／仅交叉编译 |
 | [#9](https://github.com/dwzcna/HybridMount.NET/pull/9) | 0.0.9.14 | WebDAV加锁更新减少重复传输 | 31 | 783 | 783 | 通过／仅交叉编译 |
 | [#10](https://github.com/dwzcna/HybridMount.NET/pull/10) | 0.0.9.15 | 上传准备与父目录操作移出根锁 | 125 | 812 | 812 | 通过／仅交叉编译 |
+| [#11](https://github.com/dwzcna/HybridMount.NET/pull/11) | 0.0.9.16 | 本地上传索引与调度唤醒 | 88 | 826 | 826 | 通过／仅交叉编译 |
