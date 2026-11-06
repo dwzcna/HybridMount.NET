@@ -28,8 +28,9 @@ public sealed partial class MountRepository
     {
         lock(_gate)
         {
-            using var db=Open();using var command=db.CreateCommand();
+            using var db=Open();using var transaction=db.BeginTransaction();using var command=db.CreateCommand();command.Transaction=transaction;
             command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;"+string.Concat(_protocolStorage.Select(module=>module.DeleteEntriesSql));command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            RetireRemovedRemoteOperationsCore(db,transaction,item=>item.MountId==mount);transaction.Commit();
         }
     }
     public IReadOnlyList<MountEntry> Entries(Guid mount)

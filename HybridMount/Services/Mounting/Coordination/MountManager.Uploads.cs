@@ -142,11 +142,22 @@ public sealed partial class MountManager
                         if((attributes&FileAttributes.ReparsePoint)!=0&&(info is null||marker?.MountId!=root.Definition.Id))continue;
                         MountPathGuard.ValidateOperation(root.Definition,path);
                         var relative=Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/');RelativePaths.Normalize(relative);seen.Add(relative);
-                        var entry=marker is null?entries.FirstOrDefault(x=>x.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase)&&!x.Deleted):entries.FirstOrDefault(x=>x.Id==marker.EntryId);
                         records.TryGetValue(relative,out var prior);
+                        var entry=marker is null?entries.FirstOrDefault(x=>x.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase)&&!x.Deleted):entries.FirstOrDefault(x=>x.Id==marker.EntryId);
+                        entry??=marker is null?UploadRules.LocalReplacementBaseline(entries,relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
                         if(UploadRules.DeletedSourceAncestor(entries,relative) is not null)
                         {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(stamp.IsDirectory)Scan(path);continue;}
+                        // 修复旧版把同名替换误建为新增的未发送意图；只补历史基线，不清除失败、取消或重排同代内容。
+                        if(prior is {ExpectedVersion:null,EntryId:null,Receipt:null,BaselineSha256:null}&&!UploadRules.InFlight(prior)&&
+                            prior.SourcePath==relative&&entry is {Deleted:true,Materialized:true}&&entry.SourcePath==relative&&prior.IsDirectory==entry.IsDirectory)
+                            prior=ChangeUpload(prior.Id,x=>x with{EntryId=entry.Id,ExpectedVersion=entry.Version,BaselineSha256=_repository.Baseline(x.MountId,x.SourcePath,entry.Version)});
+                        if(prior is null&&entry is not null&&entry.SourcePath==relative&&entry.IsDirectory!=stamp.IsDirectory)
+                        {
+                            SaveUpload(new(Guid.NewGuid().ToString("N"),root.Definition.Id,relative,relative,entry.IsDirectory,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,entry.Id,entry.Version,Error:UploadRules.TypeConflictMessage));
+                            if(!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
+                            if(stamp.IsDirectory)Scan(path);continue;
+                        }
                         if(prior is not null&&(prior.IsDirectory!=stamp.IsDirectory||prior.State=="Conflict"&&prior.Error==UploadRules.TypeConflictMessage))
                         {
                             // 已发出的请求继续核对结果；类型冲突不能被普通扫描重新改成创建请求。

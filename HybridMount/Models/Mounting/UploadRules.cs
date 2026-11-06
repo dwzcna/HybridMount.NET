@@ -18,6 +18,16 @@ public static class UploadRules
         }
     }
 
+    /// <summary>本地删除不删除远端；只有精确同路径、已物化且唯一的旧映射可以给同名替换提供原始基线。</summary>
+    /// <param name="entryId">已有任务绑定的索引身份优先；不能从任意新枚举或歧义历史中选择版本。</param>
+    public static MountEntry? LocalReplacementBaseline(IEnumerable<MountEntry> entries,string path,string? entryId=null)
+    {
+        var candidates=entries.Where(x=>x.Deleted&&x.Materialized&&x.RemotePresence!=RemotePresence.Deleted&&
+            x.LocalPath==path&&x.SourcePath==path).ToArray();
+        if(entryId is not null)return candidates.FirstOrDefault(x=>x.Id==entryId);
+        return candidates.Length==1?candidates[0]:null;
+    }
+
     /// <summary>未纳入的旧改动不会因固定、属性或访问等元数据变化自动获得上传授权。</summary>
     public static bool ContentChanged(string observed,LocalFileStamp current)
     {

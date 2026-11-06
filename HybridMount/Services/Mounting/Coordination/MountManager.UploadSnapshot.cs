@@ -76,7 +76,10 @@ public sealed partial class MountManager
             UploadRules.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
             if(_repository.Upload(prepared.Id)?.Error==UploadRules.TypeConflictMessage)throw new SourceConflictException(UploadRules.TypeConflictMessage);
             // 远端 StableId 可为空且不保证可用；占位身份始终由本产品维护。
-            var mapped=_repository.Entries(prepared.MountId).FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);
+            var entries=_repository.Entries(prepared.MountId);
+            // 本地同名替换沿用原索引身份；提交事务成功时才解除删除／修改保护，避免产生同路径的旧墓碑。
+            var mapped=entries.FirstOrDefault(x=>x.Id==prepared.EntryId&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath)
+                ??entries.FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);
             var entry=new MountEntry(mapped?.Id??prepared.Id,prepared.SourcePath,prepared.LocalPath,receipt.Version,receipt.IsDirectory,Materialized:true);
             if(exists&&!prepared.IsCopy)
             {

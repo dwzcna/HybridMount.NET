@@ -57,10 +57,11 @@ public sealed partial class MountManager : IAsyncDisposable
     public event Action? Changed;
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null)
     {
-        repository.RecoverUploadAttention();
+        var definitions=repository.LoadDefinitions();
+        repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
         _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
-        foreach(var definition in repository.LoadDefinitions())
+        foreach(var definition in definitions)
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
             try { InspectRegistration(root); }
