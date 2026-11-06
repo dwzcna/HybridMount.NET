@@ -99,6 +99,55 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
         finally{response?.Dispose();}
     }
 
+    /// <summary>单个受版本约束的范围请求顺序交付分块；恢复仍验证版本，取消或消费者失败停止，不放宽严格预览。</summary>
+    public async Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
+    {
+        var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();if(length==0)return;
+        if(!Strong(Version(entry).ETag)||Capabilities.RangeRead==CapabilitySupport.Unsupported)
+        {await SequentialRangeTransfer.DefaultAsync(this,entry,offset,length,sink,chunk,token).ConfigureAwait(false);return;}
+        try
+        {
+            for(var attempt=0;attempt<3;attempt++)
+            {
+                token.ThrowIfCancellationRequested();var start=offset+transfer.Consumed;var remaining=length-transfer.Consumed;var before=transfer.Consumed;var completed=false;
+                try
+                {
+                    using var request=new HttpRequestMessage(HttpMethod.Get,Address(entry.Path));request.Headers.Range=new RangeHeaderValue(start,offset+length-1);request.Headers.IfMatch.ParseAdd(NormalizeTag(Version(entry).ETag)!);
+                    HttpResponseMessage response;
+                    try{response=await SendAsync(request,token,strictRead:true).ConfigureAwait(false);}
+                    catch(DavMalformedRangeException){throw new IOException("WebDAV Content-Range 或长度无效。");}
+                    catch(DavRangeIgnoredException)
+                    {
+                        Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+                        await transfer.ReadRangesAsync((position,bytes,cancel)=>CachedReadAsync(entry,offset+position,bytes,null,cancel),token).ConfigureAwait(false);return;
+                    }
+                    using(response)
+                    {
+                        Success(response);MatchResponse(entry,response);
+                        if(response.StatusCode==HttpStatusCode.OK)
+                        {
+                            Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+                            HttpResponseMessage? adopted=response;
+                            await transfer.ReadRangesAsync((position,bytes,cancel)=>
+                            {var existing=adopted;adopted=null;return CachedReadAsync(entry,offset+position,bytes,existing,cancel);},token).ConfigureAwait(false);return;
+                        }
+                        var range=response.Content.Headers.ContentRange;
+                        if(response.StatusCode!=HttpStatusCode.PartialContent||range?.Unit!="bytes"||range.From!=start||range.To!=offset+length-1||range.Length!=entry.Size||response.Content.Headers.ContentLength!=remaining)
+                            throw new IOException("WebDAV Content-Range 或长度无效。");
+                        await using var stream=await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+                        try{await transfer.ReadAsync(stream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return;}
+                        finally{ReadDiagnostic?.Invoke(new("range",transfer.Consumed-before,null,completed));}
+                    }
+                }
+                catch(SourceConnectionException error)when(error.Diagnostic.Transient&&attempt<2)
+                {
+                    var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,ReadRetryDelay.TotalMilliseconds)*(1<<attempt)));
+                    if(!await WaitReadRetryAsync(delay,token).ConfigureAwait(false))token.ThrowIfCancellationRequested();
+                }
+            }
+        }
+        catch(SequentialRangeConsumerException error){System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException!).Throw();throw;}
+    }
     private sealed class ResponseLease(HttpResponseMessage? response) : IDisposable
     {
         private HttpResponseMessage? _response=response;

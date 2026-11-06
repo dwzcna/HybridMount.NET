@@ -185,14 +185,19 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             var bytes=new byte[256*1024]; var pin=GCHandle.Alloc(bytes,GCHandleType.Pinned);
             try
             {
-                while(start<end)
+                if(snapshot is null)
+                    await source.ReadRangeSequentialAsync(metadata,start,end-start,(block,cancel)=>
+                    {
+                        cancel.ThrowIfCancellationRequested();block.CopyTo(bytes);Complete(info,start,block.Length,0,pin.AddrOfPinnedObject(),cancel);start+=block.Length;bytesTransferred+=block.Length;
+                        if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;return ValueTask.CompletedTask;
+                    },bytes.Length,token).ConfigureAwait(false);
+                else while(start<end)
                 {
                     token.ThrowIfCancellationRequested(); var count=(int)Math.Min(bytes.Length,end-start); var read=0;
                     while(read<count)
                     {
                         int n;
-                        if(snapshot is null)n=await source.ReadRangeAsync(metadata,start+read,bytes.AsMemory(read,count-read),token).ConfigureAwait(false);
-                        else{snapshot.Position=start+read;n=await snapshot.ReadAsync(bytes.AsMemory(read,count-read),token).ConfigureAwait(false);}
+                        snapshot.Position=start+read;n=await snapshot.ReadAsync(bytes.AsMemory(read,count-read),token).ConfigureAwait(false);
                         if(n==0)throw new EndOfStreamException();read+=n;
                     }
                     token.ThrowIfCancellationRequested(); Complete(info,start,count,0,pin.AddrOfPinnedObject(),token);start+=count;bytesTransferred+=count;
