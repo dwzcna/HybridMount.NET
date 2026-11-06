@@ -148,5 +148,5 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
             finally { owned?.Dispose();ReadDiagnostic?.Invoke(new("whole_file",received,reason,completed)); }
         }, token, lease);
     }
-    public async ValueTask DisposeAsync() { await _initialReads.DisposeAsync().ConfigureAwait(false);await _cache.DisposeAsync().ConfigureAwait(false);_dav.Dispose();_http.Dispose();_writeProbe.Dispose(); }
+    public async ValueTask DisposeAsync() { await _temporaryStop.CancelAsync().ConfigureAwait(false);await DrainTemporaryCleanupAsync().ConfigureAwait(false);_temporaryStop.Dispose();await _initialReads.DisposeAsync().ConfigureAwait(false);await _cache.DisposeAsync().ConfigureAwait(false);_dav.Dispose();_http.Dispose();_writeProbe.Dispose(); }
 }

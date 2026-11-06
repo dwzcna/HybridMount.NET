@@ -32,7 +32,9 @@ public sealed partial class WebDavFileSource
         try
         {
             var response=await ExecuteDavAsync(request,token).ConfigureAwait(false);
-            if(mutation)ObserveTemporaryResponse(request,response);
+            if(mutation)
+                try{await ObserveTemporaryResponseAsync(request,response,token).ConfigureAwait(false);}
+                catch{response.Dispose();throw;}
             return response;
         }
         catch(SourceConnectionException error)

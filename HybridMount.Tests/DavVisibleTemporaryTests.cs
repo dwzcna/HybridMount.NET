@@ -52,7 +52,7 @@ public sealed class DavVisibleTemporaryTests
         var tracked=prefix+Guid.NewGuid().ToString("N");var untracked=prefix+Guid.NewGuid().ToString("N");
         fixture.Put(tracked,[17,31]);fixture.Put(untracked,[7,8,9]);
         repository.SaveTemporary(new(mount.Id,scope,tracked,"probe","Owned",[Convert.ToHexString(SHA256.HashData(new byte[]{17,31}))]));
-        await using var source=fixture.Source();source.AttachTemporaryJournal(mount,repository);await source.RecoverTemporaryItemsAsync();
+        await using var source=fixture.Source();source.AttachTemporaryJournal(mount,repository);await source.RecoverTemporaryItemsAsync();await source.DrainTemporaryCleanupAsync();
         Assert.Empty(source.PendingTemporaryItems);Assert.Empty(repository.TemporaryItems(mount.Id,scope));
         Assert.False(fixture.Objects.ContainsKey(tracked));Assert.Equal(new byte[]{7,8,9},fixture.Objects[untracked].Bytes);
         Assert.Single(fixture.Server.Requests,request=>request.Method=="DELETE");

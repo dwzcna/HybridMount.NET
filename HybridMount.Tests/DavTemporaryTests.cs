@@ -47,7 +47,7 @@ public sealed class DavTemporaryTests
         await using var fixture=new DavFixture();var handler=fixture.Server.Handler;var sent=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var first=0;
         fixture.Server.Handler=async request=>{var response=await handler(request);if(request.Method=="PUT"&&Interlocked.Increment(ref first)==1){sent.TrySetResult();await release.Task;}return response;};
         await using var source=fixture.Source();using var cancel=new CancellationTokenSource();
-        try{var upload=source.UploadAsync("user.bin",new MemoryStream([1,2]),null,cancel.Token);await sent.Task.WaitAsync(TimeSpan.FromSeconds(5));cancel.Cancel();await Assert.ThrowsAsync<SourceOutcomeUnknownException>(()=>upload);
+        try{var upload=source.UploadAsync("user.bin",new MemoryStream([1,2]),null,cancel.Token);await sent.Task.WaitAsync(TimeSpan.FromSeconds(5));cancel.Cancel();await Assert.ThrowsAsync<SourceOutcomeUnknownException>(()=>upload);await source.DrainTemporaryCleanupAsync();
             Assert.Empty(source.PendingTemporaryItems);Assert.DoesNotContain(fixture.Objects.Keys,k=>k.StartsWith(".hybridmount-",StringComparison.Ordinal)||k.StartsWith("hybridmount-",StringComparison.Ordinal));}
         finally{release.TrySetResult();}
     }

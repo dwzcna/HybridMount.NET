@@ -128,7 +128,7 @@ public sealed partial class WebDavFileSource
     {
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(MetadataDeadline);
         var cancel=deadline.Token;var path=LibraryPath(request.RequestUri!);
-        var common=new DavRequestOptions{IfMatch=Header(request,"If-Match"),IfNoneMatch=Header(request,"If-None-Match"),Conditions=Conditions(request)};
+        var common=new DavRequestOptions{IfMatch=Header(request,"If-Match"),IfNoneMatch=Header(request,"If-None-Match"),IfUnmodifiedSince=request.Headers.IfUnmodifiedSince,Conditions=Conditions(request)};
         var observation=new WireObservation();var previous=_wire.Value;_wire.Value=observation;
         try
         {

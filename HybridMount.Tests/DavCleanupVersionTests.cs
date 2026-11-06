@@ -31,7 +31,7 @@ public sealed class DavCleanupVersionTests
             Assert.True(fixture.Objects.ContainsKey(owned.Path));Assert.Equal("CleanupPending",Assert.Single(source.PendingTemporaryItems).Stage);Assert.Equal(3,reads);
             Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method=="DELETE");
         }
-        fixture.XmlTag=null;await using var recovered=fixture.Source();recovered.AttachTemporaryJournal(owned.Mount,owned.Repository);await recovered.RecoverTemporaryItemsAsync();
+        fixture.XmlTag=null;await using var recovered=fixture.Source();recovered.AttachTemporaryJournal(owned.Mount,owned.Repository);await recovered.RecoverTemporaryItemsAsync();await recovered.DrainTemporaryCleanupAsync();
         Assert.Empty(recovered.PendingTemporaryItems);Assert.False(fixture.Objects.ContainsKey(owned.Path));
         Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method is "PUT" or "MKCOL");
         Assert.Equal(fixture.Server.Requests.Single(r=>r.Method=="DELETE").Headers["If-Match"],fixture.Server.Requests.Last(r=>r.Method=="GET").Headers.GetValueOrDefault("If-Match"));
@@ -41,7 +41,7 @@ public sealed class DavCleanupVersionTests
     {
         await using var fixture=new DavFixture();var owned=Owned(fixture);var reads=0;
         fixture.XmlTag=item=>Interlocked.Increment(ref reads)<=2?null:item.ETag;
-        await using var source=fixture.Source();source.AttachTemporaryJournal(owned.Mount,owned.Repository);await source.RecoverTemporaryItemsAsync();
+        await using var source=fixture.Source();source.AttachTemporaryJournal(owned.Mount,owned.Repository);await source.RecoverTemporaryItemsAsync();await source.DrainTemporaryCleanupAsync();
         Assert.Empty(source.PendingTemporaryItems);Assert.Equal(4,reads);Assert.False(fixture.Objects.ContainsKey(owned.Path));
         Assert.True(fixture.Server.Requests.Single(r=>r.Method=="DELETE").Headers.ContainsKey("If-Match"));
     }
@@ -62,7 +62,7 @@ public sealed class DavCleanupVersionTests
             Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method=="DELETE");
         }
         finally{release.TrySetResult();fixture.Server.Handler=handler;}
-        await source.RecoverTemporaryItemsAsync();Assert.Empty(source.PendingTemporaryItems);
+        await source.RecoverTemporaryItemsAsync();await source.DrainTemporaryCleanupAsync();Assert.Empty(source.PendingTemporaryItems);
     }
     [Theory]
     [InlineData(false)]
@@ -77,7 +77,7 @@ public sealed class DavCleanupVersionTests
             if(!duringDelete&&request.Method=="GET")fixture.Put(owned.Path,[99,98]);
             return response;
         };
-        await using var source=fixture.Source();source.AttachTemporaryJournal(owned.Mount,owned.Repository);await source.RecoverTemporaryItemsAsync();
+        await using var source=fixture.Source();source.AttachTemporaryJournal(owned.Mount,owned.Repository);await source.RecoverTemporaryItemsAsync();await source.DrainTemporaryCleanupAsync();
         Assert.Equal(new byte[]{99,98},fixture.Objects[owned.Path].Bytes);Assert.NotEmpty(source.PendingTemporaryItems);
         if(!duringDelete)Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method=="DELETE");
         else Assert.True(fixture.Server.Requests.Single(r=>r.Method=="DELETE").Headers.ContainsKey("If-Match"));
