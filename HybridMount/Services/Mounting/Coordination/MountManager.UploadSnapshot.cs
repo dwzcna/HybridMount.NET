@@ -53,7 +53,7 @@ public sealed partial class MountManager
                 digest=Convert.ToHexString(hash.GetHashAndReset());stamp=before;
             }
             var previous=item.SnapshotPath;
-            var prepared=ChangeUpload(item.Id,x=>x with{State="Prepared",SnapshotPath=created,SnapshotSha256=digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=x.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,AutoRetryCount=0,
+            var prepared=ChangeUpload(item.Id,x=>x with{State="Prepared",SnapshotPath=created,SnapshotSha256=digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=x.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,AutoRetryCount=0,NextAttemptUtc=null,TransientFailureCount=0,
                 BaselineSha256=x.BaselineSha256??(x.ExpectedVersion is null?null:_repository.Baseline(x.MountId,x.SourcePath,x.ExpectedVersion))});
             created=null;DeleteUploadSnapshot(previous);return prepared;
         }

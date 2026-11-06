@@ -7,3 +7,4 @@
 | PR | 版本 | 内容 | 针对性 | Debug | Release | 双架构包／ARM64交叉编译 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [#1](https://github.com/dwzcna/HybridMount.NET/pull/1) | 0.0.9.6 | 发送前错误分类与条件写有限重试 | 52 | 617 | 617 | 通过／仅交叉编译 |
+| [#2](https://github.com/dwzcna/HybridMount.NET/pull/2) | 0.0.9.7 | 上传指数退避与Retry-After | 76 | 653 | 653 | 通过／仅交叉编译 |
