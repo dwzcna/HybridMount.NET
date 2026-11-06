@@ -38,7 +38,7 @@ public sealed partial class WebDavFileSource
     {
         path = NonRoot(path); destination = NonRoot(destination);
         if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移入自身。");
-        await VerifyMutationAsync("MOVE",token).ConfigureAwait(false);
+        await VerifyMutationAsync("MOVE",RelativePaths.Parent(destination),token).ConfigureAwait(false);
         using var request = new HttpRequestMessage(new HttpMethod("MOVE"), Address(path)); Condition(request, expectedVersion);
         request.Headers.Add("Destination", Address(destination).AbsoluteUri); request.Headers.Add("Overwrite", "F");
         using var response = await SendAsync(request, token, true).ConfigureAwait(false); Success(response);
@@ -47,7 +47,7 @@ public sealed partial class WebDavFileSource
     }
     public async Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default)
     {
-        path = NonRoot(path); await VerifyMutationAsync("DELETE",token).ConfigureAwait(false);
+        path = NonRoot(path); await VerifyMutationAsync("DELETE",RelativePaths.Parent(path),token).ConfigureAwait(false);
         var metadata = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (metadata.IsDirectory)
             await foreach (var _ in ListAsync(path, token).ConfigureAwait(false)) throw new NotSupportedException("首版仅允许删除空远端目录，避免递归条件覆盖不完整。");

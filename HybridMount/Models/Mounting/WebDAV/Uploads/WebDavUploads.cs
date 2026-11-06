@@ -16,7 +16,30 @@ public sealed partial class WebDavFileSource
     /// <summary>使用普通文件名兼容拒绝隐藏路径的服务；创建前仍登记精确意图并验证不存在。</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> _sessionProbePaths=new(StringComparer.Ordinal);
     private bool IsInternalTemporary(string path)=>_temporary.TryGetValue(path,out var item)?item.Stage!="Foreign":_sessionProbePaths.ContainsKey(path);
-    private string ProbePath(string parent = "") => TrackTemporary("hybridmount-probe-"+Guid.NewGuid().ToString("N"));
+    private SourceRequestRejectedException? _rootProbeWriteRejection;
+    private string ProbePath(string parent = "") => TrackTemporary((_rootProbeWriteRejection is not null&&parent.Length>0?parent+"/":"")+"hybridmount-probe-"+Guid.NewGuid().ToString("N"));
+    private async Task<string> CreateProbeAsync(string parent,byte[] bytes,CancellationToken token)
+    {
+        if(_rootProbeWriteRejection is not null&&parent.Length==0)throw _rootProbeWriteRejection;
+        var atRoot=_rootProbeWriteRejection is null;var path=ProbePath(parent);
+        try
+        {
+            while(true)
+            {
+                using var request=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent(bytes)};
+                request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
+                using var response=await SendAsync(request,token,true).ConfigureAwait(false);
+                if(atRoot&&response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                {
+                    try{Success(response);}catch(SourceRequestRejectedException error){_rootProbeWriteRejection=error;}
+                    if(parent.Length==0)throw _rootProbeWriteRejection!;
+                    path=ProbePath(parent);atRoot=false;continue;
+                }
+                Success(response);return path;
+            }
+        }
+        catch{await CleanupProbesAsync(path).ConfigureAwait(false);throw;}
+    }
     private async Task CleanupProbesAsync(params string[] paths)
     {
         using var cleanup=new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -28,14 +51,9 @@ public sealed partial class WebDavFileSource
         if(_writesVerified)return;await _writeProbe.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if(_writesVerified)return;var path=ProbePath(parent);
+            if(_writesVerified)return;var path=await CreateProbeAsync(parent,[17,31],token).ConfigureAwait(false);
             try
             {
-                using(var request=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})
-                {
-                    request.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
-                    using var response=await SendAsync(request,token,true).ConfigureAwait(false);Success(response);
-                }
                 foreach(var create in new[]{true,false})
                 {
                     using var request=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([99])};
@@ -54,7 +72,7 @@ public sealed partial class WebDavFileSource
         finally{_writeProbe.Release();}
     }
     /// <summary>删除、移动各自用独立临时项验证；结果不会禁用已经验证的 PUT。</summary>
-    private async Task VerifyMutationAsync(string method,CancellationToken token)
+    private async Task VerifyMutationAsync(string method,string parent,CancellationToken token)
     {
         if(method=="DELETE"?_deleteVerified:_moveVerified)
         {if((method=="DELETE"?WriteCapabilities.ConditionalDelete:WriteCapabilities.ConditionalMove)!=CapabilitySupport.Supported)throw new NotSupportedException("服务器不支持此方法的可靠条件写。");return;}
@@ -62,11 +80,9 @@ public sealed partial class WebDavFileSource
         try
         {
             if(method=="DELETE"?_deleteVerified:_moveVerified){if((method=="DELETE"?WriteCapabilities.ConditionalDelete:WriteCapabilities.ConditionalMove)!=CapabilitySupport.Supported)throw new NotSupportedException("服务器不支持此方法的可靠条件写。");return;}
-            var path=ProbePath();var destination=TrackTemporary(path+"-destination");
+            var path=await CreateProbeAsync(parent,[17,31],token).ConfigureAwait(false);var destination=TrackTemporary(path+"-destination");
             try
             {
-                using(var create=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})
-                {create.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);using var response=await SendAsync(create,token,true).ConfigureAwait(false);Success(response);}
                 using var request=new HttpRequestMessage(new(method),Address(path));
                 request.Headers.IfMatch.ParseAdd("\"hybridmount-never-match-"+Guid.NewGuid().ToString("N")+"\"");
                 if(method=="MOVE"){request.Headers.Add("Destination",Address(destination).AbsoluteUri);request.Headers.Add("Overwrite","F");}

@@ -126,11 +126,9 @@ public sealed partial class WebDavFileSource
         {
             if(_lockVerified)
             {if(WriteCapabilities.ExclusiveLock!=CapabilitySupport.Supported)throw new NotSupportedException("服务器没有通过独占锁验证。");return;}
-            var path=ProbePath(parent);var empty=TrackTemporary(path+"-new");DavLockLease? lease=null;
+            var path=await CreateProbeAsync(parent,[17,31],token).ConfigureAwait(false);var empty=TrackTemporary(path+"-new");DavLockLease? lease=null;
             try
             {
-                using(var create=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new ByteArrayContent([17,31])})
-                {create.Headers.IfNoneMatch.ParseAdd("*");using var response=await SendAsync(create,token,true).ConfigureAwait(false);Success(response);}
                 // 缺失目标的 If-Match:* 必须被拒绝，防止最终更新 LOCK 复活已删除路径。
                 var existence=false;
                 try{await using var unexpected=await AcquireLockAsync(empty,token,true).ConfigureAwait(false);}

@@ -14,11 +14,30 @@ public sealed partial class S3FileSource
     private void Warn(string message){try{WriteWarning?.Invoke(message);}catch{ /* 通知不改变已提交结果。 */ }}
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> _sessionProbeKeys=new(StringComparer.Ordinal);
     private string TrackProbeKey(string key){_sessionProbeKeys.TryAdd(key,0);return key;}
-    private string ProbeKey(string parent="")=>TrackProbeKey(_prefix+".hybridmount-probe-"+Guid.NewGuid().ToString("N"));
+    private SourceConnectionException? _rootProbeWriteRejection;
+    private string ProbeKey(string parent="",string kind="")=>TrackProbeKey(_prefix+(_rootProbeWriteRejection is not null&&parent.Length>0?parent.TrimEnd('/')+"/":"")+".hybridmount-probe-"+kind+Guid.NewGuid().ToString("N"));
+    private static bool ProbePermissionRejected(SourceConnectionException error)=>error.Diagnostic.HttpStatus is 401 or 403||error.Diagnostic.ServiceCode=="AccessDenied";
     private async Task PutProbeAsync(string key,byte[] bytes,CancellationToken token)
     {
         try{await PutAsync(key,new MemoryStream(bytes),null,token).ConfigureAwait(false);}
         catch(SourceConflictException){_sessionProbeKeys.TryRemove(key,out _);throw;}
+        catch(SourceConnectionException error)when(ProbePermissionRejected(error)){_sessionProbeKeys.TryRemove(key,out _);throw;}
+    }
+    private async Task<string> CreateProbeAsync(string parent,byte[] bytes,CancellationToken token,string kind="",bool cleanupOnFailure=true)
+    {
+        if(_rootProbeWriteRejection is not null&&parent.Length==0)throw _rootProbeWriteRejection;
+        var atRoot=_rootProbeWriteRejection is null;var key=ProbeKey(parent,kind);
+        try
+        {
+            try{await PutProbeAsync(key,bytes,token).ConfigureAwait(false);}
+            catch(SourceConnectionException error)when(atRoot&&ProbePermissionRejected(error))
+            {
+                _rootProbeWriteRejection=error;if(parent.Length==0)throw;
+                key=ProbeKey(parent,kind);await PutProbeAsync(key,bytes,token).ConfigureAwait(false);
+            }
+            return key;
+        }
+        catch{if(cleanupOnFailure)await CleanupProbeKeysAsync(key).ConfigureAwait(false);throw;}
     }
     private async Task CleanupProbeKeysAsync(params string[] keys)
     {
@@ -33,10 +52,9 @@ public sealed partial class S3FileSource
         if(_writesVerified)return;await _probeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if(_writesVerified)return;var key=ProbeKey(parent);var created=false;
+            if(_writesVerified)return;var key=await CreateProbeAsync(parent,[17,31],token,cleanupOnFailure:false).ConfigureAwait(false);
             try
             {
-                await PutProbeAsync(key,[17,31],token).ConfigureAwait(false);created=true;
                 async Task<CapabilitySupport> Check(string? expected)
                 {
                     return await ProbePutAsync(key,new MemoryStream([99]),expected,token).ConfigureAwait(false) is null?CapabilitySupport.Supported:CapabilitySupport.Unsupported;
@@ -47,7 +65,7 @@ public sealed partial class S3FileSource
                 Capabilities=Capabilities with{ConditionalWrite=create==CapabilitySupport.Supported&&update==CapabilitySupport.Supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
                 _writesVerified=true;
             }
-            finally{if(created)await CleanupProbeKeysAsync(key).ConfigureAwait(false);}
+            finally{await CleanupProbeKeysAsync(key).ConfigureAwait(false);}
         }
         finally{_probeGate.Release();}
     }
@@ -56,17 +74,16 @@ public sealed partial class S3FileSource
         if((create?WriteCapabilities.CreateOnly:WriteCapabilities.ConditionalUpdate)!=CapabilitySupport.Supported)
             throw new NotSupportedException(create?"S3 服务不支持可靠的仅创建上传。":"S3 服务不支持可靠的条件更新。");
     }
-    private async Task VerifyDeleteAsync(CancellationToken token)
+    private async Task VerifyDeleteAsync(string parent,CancellationToken token)
     {
         await _probeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if(!_deleteVerified)
             {
-                var key=ProbeKey();
+                var key=await CreateProbeAsync(parent,[17,31],token).ConfigureAwait(false);
                 try
                 {
-                    await PutProbeAsync(key,[17,31],token).ConfigureAwait(false);
                     var supported=await CallCore(()=>_client.DeleteObjectAsync(new(){BucketName=_bucket,Key=key,IfMatch="\"hybridmount-never-match\""},token),token,true,ExpectedResult.PreconditionRejected).ConfigureAwait(false) is null;
                     WriteCapabilities=WriteCapabilities with{ConditionalDelete=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
                     _deleteVerified=true;
@@ -77,15 +94,14 @@ public sealed partial class S3FileSource
         }
         finally{_probeGate.Release();}
     }
-    private async Task VerifyCopyAsync(CancellationToken token)
+    private async Task VerifyCopyAsync(string parent,CancellationToken token)
     {
         if(_copyProbeVerified)return;await _probeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if(_copyProbeVerified)return;var first=ProbeKey();var second=TrackProbeKey(first+"-destination");
+            if(_copyProbeVerified)return;var first=await CreateProbeAsync(parent,[17,31],token).ConfigureAwait(false);var second=TrackProbeKey(first+"-destination");
             try
             {
-                await PutProbeAsync(first,[17,31],token).ConfigureAwait(false);
                 await PutProbeAsync(second,[47],token).ConfigureAwait(false);
                 var head=await HeadAsync(first,token).ConfigureAwait(false);
                 try
