@@ -160,7 +160,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     {
         path = NonRoot(path); destination = NonRoot(destination); if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移动到自身或子目录。");
         await VerifyPutCapabilitiesAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);RequirePut(true);await VerifyCopyAsync(token).ConfigureAwait(false); var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
-        if (entry.Version != expectedVersion) throw new SourceConflictException("S3 移动版本变化。");
+        if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 移动版本变化。");
         if (!entry.IsDirectory) return await MoveFileAsync(entry, destination, token).ConfigureAwait(false);
         var snapshot = new List<SourceEntry>();
         async Task Collect(string parent) { await foreach (var child in ListAsync(parent, token).ConfigureAwait(false)) { snapshot.Add(child); if (child.IsDirectory) await Collect(child.Path).ConfigureAwait(false); } }

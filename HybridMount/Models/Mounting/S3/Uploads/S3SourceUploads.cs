@@ -173,7 +173,7 @@ public sealed partial class S3FileSource
     {
         path = NonRoot(path); await VerifyDeleteAsync(token).ConfigureAwait(false);
         var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
-        if (entry.Version != expectedVersion) throw new SourceConflictException("S3 删除版本变化。");
+        if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 删除版本变化。");
         if (entry.IsDirectory)
         {
             await foreach (var _ in ListAsync(path, token).ConfigureAwait(false)) throw new NotSupportedException("S3 目录非空，拒绝隐式递归删除。");

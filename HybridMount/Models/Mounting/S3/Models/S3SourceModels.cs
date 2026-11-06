@@ -15,6 +15,16 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class S3FileSource
 {
     private sealed record ObjectVersion(string? ETag, string? VersionId, bool Virtual = false);
+    public bool IsSameVersion(string left,string right)
+    {
+        try
+        {
+            var a=Version(left);var b=Version(right);if(a.Virtual!=b.Virtual)return false;if(a.Virtual)return true;
+            if(RequiredETag(a)!=RequiredETag(b))return false;
+            var av=ImmutableVersion(a.VersionId);var bv=ImmutableVersion(b.VersionId);return av is null||bv is null||av==bv;
+        }
+        catch(Exception error)when(error is JsonException or IOException or NotSupportedException){return false;}
+    }
     private sealed record UploadRecord(string Bucket, string Key, string UploadId);
     /// <summary>本地表单提交前校验，错误不持久化成不可编辑的挂载根。</summary>
     public static Uri ValidateOptions(FileSourceConfiguration options)
