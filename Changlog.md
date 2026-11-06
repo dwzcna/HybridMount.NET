@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.8 — 合并PR #3：S3只读请求有限重试（2026-11-06）
+
+- 按用户要求逐个合并到master，本次合并[PR #3](https://github.com/dwzcna/HybridMount.NET/pull/3)，原分支提交d71cbfa；第四段版本由上一版递增一次。保留三个工程和原运行配置。
+- S3只读请求最多三次短退避重试，每次继续验证原范围、长度、ETag与VersionId；调用方取消立即停止，证书／认证／版本冲突不重试。修改请求仍单次发送并保留未知结果分类；补齐实例级重试设置和分类说明。
+- 最小x64编译、针对性56/56、Debug 681/681、Release 681/681、x64／ARM64签名MSIX与ARM64测试交叉编译通过。真实服务、GUI／Explorer、安装升级及ARM64实机按实际边界待测；见 docs/Validation-0.0.9.8.md。本地独立合并提交，不推送。
+
 ## 0.0.9.7 — 合并PR #2：上传指数退避与Retry-After（2026-11-06）
 
 - 按用户要求逐个合并到master，本次合并[PR #2](https://github.com/dwzcna/HybridMount.NET/pull/2)，原分支提交39e5679；第四段版本由上一版递增一次。保留三个工程和原运行配置。

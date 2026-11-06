@@ -95,21 +95,23 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         if (entry.IsDirectory || offset > entry.Size) throw new ArgumentException("S3 读取范围无效。");
         var count = (int)Math.Min(buffer.Length, entry.Size - offset); if (count == 0) return 0;
         var version = Version(entry); var etag = RequiredETag(version);
-        using var response = await Call(() => _client.GetObjectAsync(new() { BucketName = _bucket, Key = Key(entry.Path),
-            VersionId = version.VersionId, EtagToMatch = etag, ByteRange = new ByteRange(offset, offset + count - 1) }, token), token).ConfigureAwait(false);
-        if(response.HttpStatusCode==HttpStatusCode.OK)Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
-        if (response.HttpStatusCode != HttpStatusCode.PartialContent || !ContentRangeHeaderValue.TryParse(response.ContentRange, out var range) ||
-            range.Unit != "bytes" || range.From != offset || range.To != offset + count - 1 || range.Length != entry.Size || response.ContentLength != count ||
-            response.ETag != etag || (version.VersionId is not null && response.VersionId != version.VersionId))
-            throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
-        var received=0;var completed=false;
-        try
+        var result=await Call(async()=>
         {
-            while(received<count){var read=await response.ResponseStream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
-            var extra=await response.ResponseStream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("S3 范围响应包含多余字节。");
-            Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return count;
-        }
-        finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
+            using var response=await _client.GetObjectAsync(new(){BucketName=_bucket,Key=Key(entry.Path),
+                VersionId=version.VersionId,EtagToMatch=etag,ByteRange=new ByteRange(offset,offset+count-1)},token).ConfigureAwait(false);
+            if(response.HttpStatusCode==HttpStatusCode.OK)Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+            if(response.HttpStatusCode!=HttpStatusCode.PartialContent||!ContentRangeHeaderValue.TryParse(response.ContentRange,out var range)||
+                range.Unit!="bytes"||range.From!=offset||range.To!=offset+count-1||range.Length!=entry.Size||response.ContentLength!=count||
+                response.ETag!=etag||(version.VersionId is not null&&response.VersionId!=version.VersionId))throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
+            var received=0;var completed=false;
+            try
+            {
+                while(received<count){var read=await response.ResponseStream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
+                var extra=await response.ResponseStream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("S3 范围响应包含多余字节。");
+                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return Tuple.Create(count);
+            }
+            finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
+        },token).ConfigureAwait(false);return result.Item1;
     }
     /// <summary>复制回执与目标版本一致才允许条件删源；多个请求不构成原子移动。</summary>
     private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token)
