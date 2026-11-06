@@ -18,6 +18,8 @@ public sealed partial class S3FileSource
     /// <summary>只读重试基准间隔；实例级测试可缩短，不影响写入请求的单次发送。</summary>
     internal TimeSpan ReadRetryDelay {get;set;}=TimeSpan.FromMilliseconds(200);
     internal Action? ReadRetryWaiting {get;set;}
+    /// <summary>请求及正文的无进展截止；持续传输会续期，调用方取消仍立即生效。</summary>
+    internal TimeSpan InactivityTimeout {get;set;}=TimeSpan.FromSeconds(120);
     private sealed class ResponseHints { internal string? Region,RequestId; internal bool Certificate; }
     private static readonly AsyncLocal<ResponseHints?> Hints=new();
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
@@ -33,7 +35,7 @@ public sealed partial class S3FileSource
         var config = new AmazonS3Config { ServiceURL = endpoint.AbsoluteUri.TrimEnd('/'), AuthenticationRegion = options.Region,
             ForcePathStyle = options.PathStyle, UseHttp = endpoint.Scheme == "http", MaxErrorRetry = 0,
             RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED, ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
-            HttpClientFactory = new NoRedirectHttpFactory(), CacheHttpClient = false, DisableLogging = true };
+            HttpClientFactory = new NoRedirectHttpFactory(this), CacheHttpClient = false, DisableLogging = true };
         if (options.UseDefaultCredentials) _client = new AmazonS3Client(config);
         else
         {
@@ -43,23 +45,26 @@ public sealed partial class S3FileSource
             _client = new AmazonS3Client(identity, config);
         }
     }
-    private sealed class NoRedirectHttpFactory : Amazon.Runtime.HttpClientFactory
+    private sealed class NoRedirectHttpFactory(S3FileSource owner) : Amazon.Runtime.HttpClientFactory
     {
-        public override HttpClient CreateHttpClient(IClientConfig config) => new(new DiagnosticHandler(new SocketsHttpHandler { AllowAutoRedirect = false,
-            MaxConnectionsPerServer = 4, ConnectTimeout = TimeSpan.FromSeconds(20) })) { Timeout = TimeSpan.FromMinutes(2) };
+        public override HttpClient CreateHttpClient(IClientConfig config) => new(new DiagnosticHandler(owner,new SocketsHttpHandler { AllowAutoRedirect = false,
+            MaxConnectionsPerServer = 4, ConnectTimeout = TimeSpan.FromSeconds(20) })) { Timeout = Timeout.InfiniteTimeSpan };
     }
     /// <summary>仅保留有限的错误字段；区域不通过 SDK 私有字段读取，也不自动改写配置。</summary>
-    private sealed class DiagnosticHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+    private sealed class DiagnosticHandler(S3FileSource owner,HttpMessageHandler inner) : DelegatingHandler(inner)
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
         {
             HttpResponseMessage response;
-            try { response=await base.SendAsync(request,token).ConfigureAwait(false); }
+            using var idle=CancellationTokenSource.CreateLinkedTokenSource(token);idle.CancelAfter(owner.InactivityTimeout);
+            if(request.Content is {} content)request.Content=new S3IdleContent(content,()=>owner.InactivityTimeout,()=>idle.CancelAfter(owner.InactivityTimeout));
+            try { response=await base.SendAsync(request,idle.Token).ConfigureAwait(false); }
             catch(HttpRequestException error)
             {
                 if(Hints.Value is {} failed && (error.HttpRequestError==HttpRequestError.SecureConnectionError || error.InnerException is System.Security.Authentication.AuthenticationException))failed.Certificate=true;
                 throw;
             }
+            response.Content=new S3IdleContent(response.Content,()=>owner.InactivityTimeout);
             if(Hints.Value is {} hints)
             {
                 if(response.Headers.TryGetValues("x-amz-bucket-region",out var regions))hints.Region=regions.FirstOrDefault();
@@ -80,6 +85,47 @@ public sealed partial class S3FileSource
             }
             return response;
         }
+    }
+    /// <summary>包装请求及响应正文；发送进度续期头部等待，正文消费拥有独立的无进展超时。</summary>
+    private sealed class S3IdleContent : HttpContent
+    {
+        private readonly HttpContent _inner;private readonly Func<TimeSpan> _timeout;private readonly Action? _progress;
+        public S3IdleContent(HttpContent inner,Func<TimeSpan> timeout,Action? progress=null)
+        {_inner=inner;_timeout=timeout;_progress=progress;foreach(var header in inner.Headers)Headers.TryAddWithoutValidation(header.Key,header.Value);}
+        protected override bool TryComputeLength(out long length){length=_inner.Headers.ContentLength??0;return _inner.Headers.ContentLength.HasValue;}
+        protected override Task SerializeToStreamAsync(Stream stream,TransportContext? context)=>SerializeToStreamAsync(stream,context,CancellationToken.None);
+        protected override async Task SerializeToStreamAsync(Stream stream,TransportContext? context,CancellationToken token)
+        {
+            if(_progress is not null){using var output=new S3IdleStream(stream,_timeout,token,_progress);await _inner.CopyToAsync(output,context,token).ConfigureAwait(false);}
+            else{await using var input=await CreateContentReadStreamAsync(token).ConfigureAwait(false);await input.CopyToAsync(stream,token).ConfigureAwait(false);}
+        }
+        protected override Task<Stream> CreateContentReadStreamAsync()=>CreateContentReadStreamAsync(CancellationToken.None);
+        protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken token)=>new S3IdleStream(await _inner.ReadAsStreamAsync(token).ConfigureAwait(false),_timeout,token,owned:true);
+        protected override void Dispose(bool disposing){if(disposing)_inner.Dispose();base.Dispose(disposing);}
+    }
+    /// <summary>不接管借用流；每次I/O独立计时，区分调用方取消与无进展失败。</summary>
+    internal sealed class S3IdleStream(Stream inner,Func<TimeSpan> timeout,CancellationToken ownerToken,Action? progress=null,bool owned=false):Stream
+    {
+        public override bool CanRead=>inner.CanRead;public override bool CanSeek=>inner.CanSeek;public override bool CanWrite=>inner.CanWrite;
+        public override long Length=>inner.Length;public override long Position{get=>inner.Position;set=>inner.Position=value;}
+        public override async ValueTask<int> ReadAsync(Memory<byte> bytes,CancellationToken token=default)
+        {
+            using var idle=CancellationTokenSource.CreateLinkedTokenSource(ownerToken,token);idle.CancelAfter(timeout());
+            try{var count=await inner.ReadAsync(bytes,idle.Token).ConfigureAwait(false);if(count>0)progress?.Invoke();return count;}
+            catch(OperationCanceledException)when(!ownerToken.IsCancellationRequested&&!token.IsCancellationRequested){throw new IOException("S3 数据读取长时间无进展。");}
+        }
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> bytes,CancellationToken token=default)
+        {
+            using var idle=CancellationTokenSource.CreateLinkedTokenSource(ownerToken,token);idle.CancelAfter(timeout());
+            try{await inner.WriteAsync(bytes,idle.Token).ConfigureAwait(false);if(bytes.Length>0)progress?.Invoke();}
+            catch(OperationCanceledException)when(!ownerToken.IsCancellationRequested&&!token.IsCancellationRequested){throw new IOException("S3 数据发送长时间无进展。");}
+        }
+        public override int Read(byte[] bytes,int offset,int count)=>ReadAsync(bytes.AsMemory(offset,count)).AsTask().GetAwaiter().GetResult();
+        public override Task<int> ReadAsync(byte[] bytes,int offset,int count,CancellationToken token)=>ReadAsync(bytes.AsMemory(offset,count),token).AsTask();
+        public override void Write(byte[] bytes,int offset,int count)=>WriteAsync(bytes.AsMemory(offset,count)).AsTask().GetAwaiter().GetResult();
+        public override Task WriteAsync(byte[] bytes,int offset,int count,CancellationToken token)=>WriteAsync(bytes.AsMemory(offset,count),token).AsTask();
+        public override long Seek(long offset,SeekOrigin origin)=>inner.Seek(offset,origin);public override void Flush()=>inner.Flush();public override void SetLength(long length)=>inner.SetLength(length);
+        protected override void Dispose(bool disposing){if(disposing&&owned)inner.Dispose();base.Dispose(disposing);}
     }
     /// <summary>不输出 SDK 原始异常、服务端 XML 或 URL；修改请求不自动重试。</summary>
     private async Task<T> Call<T>(Func<Task<T>> action,CancellationToken token,bool mutation=false,[CallerMemberName]string stage="") where T:class

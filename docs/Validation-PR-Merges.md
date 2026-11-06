@@ -11,3 +11,4 @@
 | [#3](https://github.com/dwzcna/HybridMount.NET/pull/3) | 0.0.9.8 | S3只读请求有限重试 | 56 | 681 | 681 | 通过／仅交叉编译 |
 | [#4](https://github.com/dwzcna/HybridMount.NET/pull/4) | 0.0.9.9 | 远端区间单请求流式读取 | 32 | 701 | 701 | 通过／仅交叉编译 |
 | [#5](https://github.com/dwzcna/HybridMount.NET/pull/5) | 0.0.9.10 | S3目录枚举效率与坏条目隔离 | 51 | 719 | 719 | 通过／仅交叉编译 |
+| [#6](https://github.com/dwzcna/HybridMount.NET/pull/6) | 0.0.9.11 | S3分片条件完成与条件PUT回退 | 20 | 729 | 729 | 通过／仅交叉编译 |

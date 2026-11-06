@@ -15,7 +15,7 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class S3FileSource
 {
     private Task<PutObjectResponse> PutAsync(string key, Stream stream, string? etag, CancellationToken token)
-        => Call(() => _client.PutObjectAsync(new() { BucketName = _bucket, Key = key, InputStream = new BorrowedStream(stream),
+        => Call(() => _client.PutObjectAsync(new() { BucketName = _bucket, Key = key, InputStream = new S3IdleStream(stream,()=>InactivityTimeout,token),
             AutoCloseStream = false, AutoResetStreamPosition = false, UseChunkEncoding = false, IfMatch = etag, IfNoneMatch = etag is null ? "*" : null }, token), token, true);
     private Task<PutObjectResponse?> ProbePutAsync(string key,Stream stream,string? etag,CancellationToken token)
         =>CallCore(()=>_client.PutObjectAsync(new(){BucketName=_bucket,Key=key,InputStream=new BorrowedStream(stream),
@@ -46,9 +46,12 @@ public sealed partial class S3FileSource
                 await content.CopyToAsync(spool, token).ConfigureAwait(false); spool.Position = 0;
             }
             var length=input.Length-input.Position;
+            if(length>=_multipartThreshold)await VerifyMultipartAsync(Key(path)[..(Key(path).LastIndexOf('/')+1)],token).ConfigureAwait(false);
+            var multipart=length>=_multipartThreshold&&WriteCapabilities.MultipartComplete==CapabilitySupport.Supported;
+            if(!multipart&&length>5L*1024*1024*1024)throw new NotSupportedException("S3 服务不支持可靠的条件分片完成，超过 5 GiB 的文件不能回退单次 PUT。");
             using var reporting=new UploadProgressStream(input,progress);
             (string? ETag,string? VersionId) receipt;
-            if(length>=_multipartThreshold)receipt=await MultipartAsync(Key(path),reporting,etag,token).ConfigureAwait(false);
+            if(multipart)receipt=await MultipartAsync(Key(path),reporting,etag,token).ConfigureAwait(false);
             else
             {
                 var response=await PutAsync(Key(path),reporting,etag,token).ConfigureAwait(false);
@@ -83,7 +86,7 @@ public sealed partial class S3FileSource
     }
     private async Task VerifyMultipartAsync(string keyParent,CancellationToken token)
     {
-        if (_multipartVerified) return; await _probeGate.WaitAsync(token).ConfigureAwait(false);
+        if (_multipartVerified||WriteCapabilities.MultipartComplete==CapabilitySupport.Unsupported) return; await _probeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if (_multipartVerified) return;
@@ -106,9 +109,16 @@ public sealed partial class S3FileSource
                 }
                 _multipartVerified = true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Supported};
             }
+            catch(Exception error)when(error is NotSupportedException||UnsupportedMultipart(error))
+            {_multipartVerified=true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Unsupported};}
             finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await DeleteKeyAsync(key, null, cleanup.Token).ConfigureAwait(false); }
         }
         finally { _probeGate.Release(); }
+    }
+    private static bool UnsupportedMultipart(Exception error)
+    {
+        var connection=error as SourceConnectionException??error.InnerException as SourceConnectionException;
+        return connection?.Diagnostic.HttpStatus==501||connection?.Diagnostic.HttpStatus is 400 or 405&&connection.Diagnostic.ServiceCode is "NotImplemented" or "NotSupported" or "UnsupportedOperation";
     }
     private async Task<(string? ETag,string? VersionId)> MultipartAsync(string key, Stream input, string? etag, CancellationToken token)
     {
