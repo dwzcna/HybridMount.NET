@@ -17,6 +17,7 @@ public sealed partial class MountManager
         public string? CurrentId,PropertyPath;
         public Task Work=Task.CompletedTask;
         public int Dirty=1;private int _stopping,_disposed;
+        public readonly LocalUploadScanQueue Scans=new();
         public Task Cancellation=Task.CompletedTask,RequestCancellation=Task.CompletedTask;
         private readonly object _signalSync=new();
         public UploadRuntime(CancellationToken token)=>Stop=CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -24,6 +25,8 @@ public sealed partial class MountManager
         public void Wake()=>Notify(false);
         /// <summary>监控或CFAPI变化要求扫描；短锁合并并唤醒，停止后的迟到通知忽略。</summary>
         public void RequestScan()=>Notify(true);
+        /// <summary>无法定位路径的CFAPI变化立即请求全扫；停止后通知仍由原生命周期防护。</summary>
+        public void RequestFullScan(){Scans.RequestFull();RequestScan();}
         /// <summary>消费者原子取走扫描请求；普通调度唤醒不会设置此标记。</summary>
         public bool TakeScanRequest()=>Interlocked.Exchange(ref Dirty,0)!=0;
         private void Notify(bool scan){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;if(scan)Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
@@ -38,14 +41,15 @@ public sealed partial class MountManager
         if(root.Uploads is not null||root.Session is null||root.Source is null||root.Definition.RemovalPending||root.RemovalRequested||_stop.IsCancellationRequested)return;
         var runtime=new UploadRuntime(_stop.Token);root.Uploads=runtime;
         var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.Size|NotifyFilters.LastWrite|NotifyFilters.CreationTime};
-        BindUploadWatcher(watcher,runtime.RequestScan);
+        BindUploadWatcher(watcher,runtime.RequestScan,change=>runtime.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow),runtime.Scans.RequestFull);
         runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Work=Task.Run(()=>UploadLoopAsync(root,runtime));
         }
     }
     /// <summary>集中适配所有文件系统变化及溢出；回调只请求扫描，不在监控线程读取正文。</summary>
-    internal static void BindUploadWatcher(FileSystemWatcher watcher,Action requestScan)
+    internal static void BindUploadWatcher(FileSystemWatcher watcher,Action requestScan,Action<FileSystemEventArgs>? queuePath=null,Action? requestFull=null)
     {
-        watcher.Changed+=(_,_)=>requestScan();watcher.Created+=(_,_)=>requestScan();watcher.Deleted+=(_,_)=>requestScan();watcher.Renamed+=(_,_)=>requestScan();watcher.Error+=(_,_)=>requestScan();
+        void Changed(object sender,FileSystemEventArgs change){queuePath?.Invoke(change);requestScan();}
+        watcher.Changed+=Changed;watcher.Created+=Changed;watcher.Deleted+=Changed;watcher.Renamed+=(_,change)=>Changed(watcher,change);watcher.Error+=(_,_)=>{requestFull?.Invoke();requestScan();};
     }
     private static void RequestUploadStop(Runtime root){lock(root.ConnectionSync)root.Uploads?.RequestStop();}
     private static async Task StopUploadsAsync(Runtime root)
@@ -128,29 +132,33 @@ public sealed partial class MountManager
         catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){return false;}
     }
     /// <summary>扫描不跟随外部链接；仅自己的云占位可递归，已同步占位不打开正文。</summary>
-    private async Task ScanLocalUploadsAsync(Runtime root,CancellationToken token,bool requireComplete=false)
+    private async Task ScanLocalUploadsAsync(Runtime root,CancellationToken token,bool requireComplete=false,LocalUploadScanBatch? batch=null)
     {
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
-        try{ScanLocalUploadsCore(root,token,requireComplete);}
+        try{ScanLocalUploadsCore(root,token,requireComplete,batch);}
         finally{root.Gate.Release();}
     }
     /// <summary>调用方持有根锁；连接或刷新前先记录本地意图，不能以刚枚举的远端版本替换原基线。</summary>
-    private void ScanLocalUploadsCore(Runtime root,CancellationToken token,bool requireComplete=false)
+    private void ScanLocalUploadsCore(Runtime root,CancellationToken token,bool requireComplete=false,LocalUploadScanBatch? batch=null)
     {
             if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null)
             {if(requireComplete)throw new IOException("请先连接挂载，再完整扫描并确认已有改动。");return;}
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
+            var queue=root.Uploads?.Scans;var scan=batch??queue?.StartFull()??LocalUploadScanBatch.Full;
             var incomplete=false;var entries=_repository.Entries(root.Definition.Id);var seen=new HashSet<string>(StringComparer.Ordinal);
             var index=new LocalUploadScanIndex(entries);
             var records=_repository.Uploads(root.Definition.Id).Where(x=>!x.IsCopy).GroupBy(x=>x.LocalPath,StringComparer.Ordinal).ToDictionary(x=>x.Key,x=>x.First(),StringComparer.Ordinal);
             void Scan(string directory)
             {
-                foreach(var path in Directory.EnumerateFileSystemEntries(directory))
-                {
+                foreach(var path in Directory.EnumerateFileSystemEntries(directory))Visit(path,true);
+            }
+            void Visit(string path,bool recursive,bool scopeRoot=false)
+            {
                     token.ThrowIfCancellationRequested();try
                     {
+                        if(scopeRoot)MountPathGuard.ValidateOperation(root.Definition,Path.GetDirectoryName(path)!);
                         var attributes=File.GetAttributes(path);var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-                        if((attributes&FileAttributes.ReparsePoint)!=0&&(info is null||marker?.MountId!=root.Definition.Id))continue;
+                        if((attributes&FileAttributes.ReparsePoint)!=0&&(info is null||marker?.MountId!=root.Definition.Id))return;
                         MountPathGuard.ValidateOperation(root.Definition,path);
                         var relative=Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/');RelativePaths.Normalize(relative);seen.Add(relative);
                         records.TryGetValue(relative,out var prior);
@@ -158,7 +166,7 @@ public sealed partial class MountManager
                         entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
                         if(index.DeletedAncestor(relative) is not null)
-                        {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(stamp.IsDirectory)Scan(path);continue;}
+                        {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(recursive&&stamp.IsDirectory)Scan(path);return;}
                         // 修复旧版把同名替换误建为新增的未发送意图；只补历史基线，不清除失败、取消或重排同代内容。
                         if(prior is {ExpectedVersion:null,EntryId:null,Receipt:null,BaselineSha256:null}&&!UploadRules.InFlight(prior)&&
                             prior.SourcePath==relative&&entry is {Deleted:true,Materialized:true}&&entry.SourcePath==relative&&prior.IsDirectory==entry.IsDirectory)
@@ -167,7 +175,7 @@ public sealed partial class MountManager
                         {
                             SaveUpload(new(Guid.NewGuid().ToString("N"),root.Definition.Id,relative,relative,entry.IsDirectory,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,entry.Id,entry.Version,Error:UploadRules.TypeConflictMessage));
                             if(!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
-                            if(stamp.IsDirectory)Scan(path);continue;
+                            if(recursive&&stamp.IsDirectory)Scan(path);return;
                         }
                         if(prior is not null&&(prior.IsDirectory!=stamp.IsDirectory||prior.State=="Conflict"&&prior.Error==UploadRules.TypeConflictMessage))
                         {
@@ -176,7 +184,7 @@ public sealed partial class MountManager
                                 ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key,Generation=x.Generation+(x.ObservedStamp==stamp.Key?0:1),
                                     State=x.State is "Sending" or "OutcomeUnknown"?x.State:"Conflict",Error=UploadRules.TypeConflictMessage,LastCheckedUtc=null});
                             if(entry is not null&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
-                            if(stamp.IsDirectory)Scan(path);continue;
+                            if(recursive&&stamp.IsDirectory)Scan(path);return;
                         }
                         if(prior is {State:"Ignored"}&&prior.ObservedStamp!=stamp.Key&&!UploadRules.ContentChanged(prior.ObservedStamp,stamp))
                         {ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key});}
@@ -196,15 +204,19 @@ public sealed partial class MountManager
                             else ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key,Generation=x.Generation+1,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:state,ChangedUtc=DateTimeOffset.UtcNow,CancelRequested=false,Error=null});
                             if(entry is not null&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
                         }
-                        if(stamp.IsDirectory)Scan(path);
+                        if(recursive&&stamp.IsDirectory)Scan(path);
                     }
                     catch(Exception e)when(e is FileNotFoundException or DirectoryNotFoundException){}
                     catch(Exception e)when(e is IOException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.COMException){incomplete=true;_logger.Queue("上传扫描","Warning",e.Message);}
-                }
             }
-            Scan(root.Definition.LocalPath);
+            if(scan.IsFull)Scan(root.Definition.LocalPath);
+            else foreach(var scope in scan.Scopes)
+            {
+                if(scope.Path.Length!=0)Visit(RelativePaths.ToLocal(root.Definition.LocalPath,scope.Path),scope.Recursive,true);
+            }
+            queue?.Completed(scan,DateTimeOffset.UtcNow,!incomplete);
             if(requireComplete&&incomplete)throw new IOException("部分本地条目无法读取元数据，首次确认尚未完成；请解除占用或权限问题后重新扫描。");
-            foreach(var item in _repository.Uploads(root.Definition.Id).Where(x=>!x.IsCopy&&!seen.Contains(x.LocalPath)&&x.State is not("Completed" or "Canceled" or "Ignored")))
+            foreach(var item in scan.MissingCandidates(_repository.Uploads(root.Definition.Id),seen))
             {if(!LocalMissing(RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath)))continue;ChangeUpload(item.Id,x=>x with{CancelRequested=true,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:"Canceled",Error="本地项已删除；未传播远端删除。"});root.Uploads?.CancelRequest(item.Id);}
     }
 }
