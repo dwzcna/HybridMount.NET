@@ -45,23 +45,28 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             throw new IOException("S3 存在性查询不完整，不能确认远端删除。");
         return list.S3Objects?.Count>0||list.CommonPrefixes?.Count>0?VirtualDirectory(path):null;
     }
+    /// <summary>完整收齐分页后按列表元数据枚举，不逐项HEAD；坏条目单独诊断，游标不完整仍失败。</summary>
     public async IAsyncEnumerable<SourceEntry> ListAsync(string path, [EnumeratorCancellation] CancellationToken token = default)
     {
         path = RelativePaths.Normalize(path); var prefix = Key(path) + (path.Length == 0 ? "" : "/");
         var candidates = new Dictionary<string, (bool Directory, S3Object? Object)>(StringComparer.Ordinal);
         var folded = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        void Skip(string reason)=>ReadDiagnostic?.Invoke(new("list",0,reason,false));
         void Add(string key, bool directory, S3Object? item)
         {
-            if (!key.StartsWith(prefix, StringComparison.Ordinal)) throw new IOException("S3 枚举越过前缀。");
-            var relative = key[_prefix.Length..].TrimEnd('/');
-            if (relative == path) { if (item?.Size != 0) throw new IOException("S3 目录标记非空。"); return; }
-            RelativePaths.Normalize(relative);
-            if (RelativePaths.Parent(relative) != path) throw new IOException("S3 服务器未遵循 delimiter 深度 1。");
-            if (folded.TryGetValue(relative, out var original) && original != relative) throw new IOException("S3 名称大小写冲突，不能映射到本地。");
+            if (!key.StartsWith(prefix, StringComparison.Ordinal)) {Skip("outside_prefix");return;}
+            var relative = key[_prefix.Length..];if(directory&&relative.EndsWith('/'))relative=relative[..^1];
+            if(directory&&item is not null&&item.Size!=0){Skip("nonempty_marker");return;}
+            if (relative == path) return;
+            try{if(RelativePaths.Normalize(relative)!=relative){Skip("invalid_name");return;}}
+            catch(ArgumentException){Skip("invalid_name");return;}
+            catch(IOException){Skip("invalid_name");return;}
+            if (RelativePaths.Parent(relative) != path) {Skip("invalid_depth");return;}
+            if (folded.TryGetValue(relative, out var original) && original != relative) {Skip("case_collision");return;}
             folded[relative] = relative;
             if (candidates.TryGetValue(relative, out var existing))
             {
-                if (!directory || !existing.Directory) throw new IOException("S3 对象与目录前缀冲突。");
+                if (!directory || !existing.Directory) {Skip("item_collision");return;}
                 if (existing.Object is null && item is not null) candidates[relative] = (true, item);
             }
             else candidates.Add(relative, (directory, item));
@@ -73,21 +78,22 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             foreach (var item in page.S3Objects ?? [])
             {
                 if(item.Key is not null&&_sessionProbeKeys.ContainsKey(item.Key))continue;
-                if (item.Key is null || item.Size is null || item.Size < 0) throw new IOException("S3 枚举缺少对象键或大小。");
+                if (item.Key is null || item.Size is null or <0 || item.LastModified is null || string.IsNullOrEmpty(item.ETag)) {Skip("incomplete_object");continue;}
                 Add(item.Key, item.Key.EndsWith('/'), item);
             }
-            foreach (var directory in page.CommonPrefixes ?? []) Add(directory, true, null);
+            foreach (var directory in page.CommonPrefixes ?? [])
+                if(string.IsNullOrEmpty(directory)||!directory.EndsWith('/'))Skip("invalid_prefix");else Add(directory,true,null);
             if (page.IsTruncated is null) throw new IOException("S3 枚举缺少分页完成标记。");
             continuation = page.IsTruncated.Value ? page.NextContinuationToken : null;
             if (page.IsTruncated.Value && (string.IsNullOrEmpty(continuation) || !tokens.Add(continuation))) throw new IOException("S3 分页游标缺失或重复，快照不完整。");
         } while (continuation is not null);
-        // 所有页面收齐后再输出，单个文件 HEAD 固定 VersionId，拒绝枚举过程中发生的版本变化。
         foreach (var (relative, candidate) in candidates.OrderBy(item => item.Key, StringComparer.Ordinal))
         {
-            if (candidate.Directory && candidate.Object is null) { var directory=await GetMetadataAsync(relative,token).ConfigureAwait(false);if(!directory.IsDirectory)throw new IOException("S3 文件与目录冲突。");yield return directory; continue; }
-            var head = await HeadAsync(Key(relative) + (candidate.Directory ? "/" : ""), token).ConfigureAwait(false);
-            if (head.ETag != candidate.Object!.ETag || head.ContentLength != candidate.Object.Size) throw new SourceConflictException("S3 枚举后对象发生变化，请重扫。");
-            yield return Metadata(relative, head, candidate.Directory);
+            token.ThrowIfCancellationRequested();
+            if(candidate.Object is null){yield return VirtualDirectory(relative);continue;}
+            var item=candidate.Object;
+            yield return new("",relative,candidate.Directory,candidate.Directory?0:item.Size!.Value,
+                new DateTimeOffset(DateTime.SpecifyKind(item.LastModified!.Value,DateTimeKind.Utc)),JsonSerializer.Serialize(new ObjectVersion(item.ETag,null)));
         }
     }
     public async ValueTask<int> ReadRangeAsync(SourceEntry entry, long offset, Memory<byte> buffer, CancellationToken token = default)
@@ -96,35 +102,64 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         if (entry.IsDirectory || offset > entry.Size) throw new ArgumentException("S3 读取范围无效。");
         var count = (int)Math.Min(buffer.Length, entry.Size - offset); if (count == 0) return 0;
         var version = Version(entry); var etag = RequiredETag(version);
-        using var response = await Call(() => _client.GetObjectAsync(new() { BucketName = _bucket, Key = Key(entry.Path),
-            VersionId = version.VersionId, EtagToMatch = etag, ByteRange = new ByteRange(offset, offset + count - 1) }, token), token).ConfigureAwait(false);
-        if(response.HttpStatusCode==HttpStatusCode.OK)Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
-        if (response.HttpStatusCode != HttpStatusCode.PartialContent || !ContentRangeHeaderValue.TryParse(response.ContentRange, out var range) ||
-            range.Unit != "bytes" || range.From != offset || range.To != offset + count - 1 || range.Length != entry.Size || response.ContentLength != count ||
-            response.ETag != etag || (version.VersionId is not null && response.VersionId != version.VersionId))
-            throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
-        var received=0;var completed=false;
+        var result=await Call(async()=>
+        {
+            using var response=await _client.GetObjectAsync(new(){BucketName=_bucket,Key=Key(entry.Path),
+                VersionId=version.VersionId,EtagToMatch=etag,ByteRange=new ByteRange(offset,offset+count-1)},token).ConfigureAwait(false);
+            if(response.HttpStatusCode==HttpStatusCode.OK)Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+            if(response.HttpStatusCode!=HttpStatusCode.PartialContent||!ContentRangeHeaderValue.TryParse(response.ContentRange,out var range)||
+                range.Unit!="bytes"||range.From!=offset||range.To!=offset+count-1||range.Length!=entry.Size||response.ContentLength!=count||
+                response.ETag!=etag||(version.VersionId is not null&&response.VersionId!=version.VersionId))throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
+            var received=0;var completed=false;
+            try
+            {
+                while(received<count){var read=await response.ResponseStream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
+                var extra=await response.ResponseStream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("S3 范围响应包含多余字节。");
+                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return Tuple.Create(count);
+            }
+            finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
+        },token).ConfigureAwait(false);return result.Item1;
+    }
+    /// <summary>单个受版本约束的范围请求顺序交付分块；恢复仍验证版本，取消或消费者失败停止，不放宽严格预览。</summary>
+    public async Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
+    {
+        var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();if(length==0)return;
+        var version=Version(entry);var etag=RequiredETag(version);
         try
         {
-            while(received<count){var read=await response.ResponseStream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
-            var extra=await response.ResponseStream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("S3 范围响应包含多余字节。");
-            Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return count;
+            await Call(async()=>
+            {
+                var start=offset+transfer.Consumed;var remaining=length-transfer.Consumed;var before=transfer.Consumed;var completed=false;
+                using var response=await _client.GetObjectAsync(new(){BucketName=_bucket,Key=Key(entry.Path),VersionId=version.VersionId,EtagToMatch=etag,ByteRange=new ByteRange(start,offset+length-1)},token).ConfigureAwait(false);
+                if(response.HttpStatusCode==HttpStatusCode.OK)Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+                if(response.HttpStatusCode!=HttpStatusCode.PartialContent||!ContentRangeHeaderValue.TryParse(response.ContentRange,out var range)||range.Unit!="bytes"||
+                    range.From!=start||range.To!=offset+length-1||range.Length!=entry.Size||response.ContentLength!=remaining||response.ETag!=etag||
+                    version.VersionId is not null&&response.VersionId!=version.VersionId)throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
+                try{await transfer.ReadAsync(response.ResponseStream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return Tuple.Create(true);}
+                finally{ReadDiagnostic?.Invoke(new("range",transfer.Consumed-before,null,completed));}
+            },token).ConfigureAwait(false);
         }
-        finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
+        catch(SequentialRangeConsumerException error){System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException!).Throw();throw;}
     }
     /// <summary>复制回执与目标版本一致才允许条件删源；多个请求不构成原子移动。</summary>
-    private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token)
+    private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token,string? directoryMoveRoot=null)
     {
-        await CheckTargetAsync(destination,null,token).ConfigureAwait(false);
-        var version=Version(entry);var key=Key(destination);var acknowledged=false;
+        await CheckTargetAsync(destination,null,token,directoryMoveRoot).ConfigureAwait(false);
+        var currentSource=await GetMetadataAsync(entry.Path,token).ConfigureAwait(false);
+        if(currentSource.IsDirectory||!IsSameVersion(entry.Version,currentSource.Version))throw new SourceConflictException("S3 移动版本变化。");
+        entry=currentSource;var version=Version(entry);var key=Key(destination);var acknowledged=false;
         try
         {
             ObjectVersion receipt;
             if(_copyVerified&&entry.Size<=5L*1024*1024*1024)
             {
                 var copied=await Call(()=>_client.CopyObjectAsync(new(){SourceBucket=_bucket,SourceKey=Key(entry.Path),SourceVersionId=version.VersionId,
-                    ETagToMatch=RequiredETag(version),DestinationBucket=_bucket,DestinationKey=key,IfNoneMatch="*"},token),token,true).ConfigureAwait(false);
+                    ETagToMatch=RequiredETag(version),DestinationBucket=_bucket,DestinationKey=key,IfNoneMatch="*",MetadataDirective=S3MetadataDirective.COPY},token),token,true).ConfigureAwait(false);
                 acknowledged=true;receipt=new(copied.ETag,ImmutableVersion(copied.VersionId));
+            }
+            else if(entry.Size>5L*1024*1024*1024)
+            {
+                receipt=await MultipartCopyAsync(entry,key,token).ConfigureAwait(false);acknowledged=true;
             }
             else
             {
@@ -134,7 +169,9 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
                     await using var spool=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,65536,FileOptions.Asynchronous);
                     var bytes=new byte[1024*1024];long offset=0;
                     while(offset<entry.Size){var count=await ReadRangeAsync(entry,offset,bytes,token).ConfigureAwait(false);await spool.WriteAsync(bytes.AsMemory(0,count),token).ConfigureAwait(false);offset+=count;}
-                    spool.Position=0;var uploaded=await UploadAsync(destination,spool,null,token).ConfigureAwait(false);
+                    spool.Position=0;var uploaded=directoryMoveRoot is null
+                        ?await UploadAsync(destination,spool,null,token).ConfigureAwait(false)
+                        :await UploadCoreAsync(destination,spool,null,null,token,directoryMoveRoot).ConfigureAwait(false);
                     acknowledged=true;receipt=Version(uploaded);
                 }
                 finally{File.Delete(path);}
@@ -161,25 +198,66 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     {
         path = NonRoot(path); destination = NonRoot(destination); if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移动到自身或子目录。");
         await VerifyPutCapabilitiesAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);RequirePut(true);await VerifyCopyAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false); var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
-        if (entry.Version != expectedVersion) throw new SourceConflictException("S3 移动版本变化。");
+        if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 移动版本变化。");
         if (!entry.IsDirectory) return await MoveFileAsync(entry, destination, token).ConfigureAwait(false);
         var snapshot = new List<SourceEntry>();
-        async Task Collect(string parent) { await foreach (var child in ListAsync(parent, token).ConfigureAwait(false)) { snapshot.Add(child); if (child.IsDirectory) await Collect(child.Path).ConfigureAwait(false); } }
+        async Task Collect(string parent)
+        {
+            await foreach(var listed in ListAsync(parent,token).ConfigureAwait(false))
+            {
+                // 列表CommonPrefix不能区分显式标记和虚拟目录，只在移动收集时核实，普通浏览仍不逐项HEAD。
+                var child=listed.IsDirectory?await GetMetadataAsync(listed.Path,token).ConfigureAwait(false):listed;
+                if(child.IsDirectory!=listed.IsDirectory)throw new SourceConflictException("S3 源目录在收集移动快照时改变类型，未写入目标。");
+                snapshot.Add(child);if(child.IsDirectory)await Collect(child.Path).ConfigureAwait(false);
+            }
+        }
         await Collect(path).ConfigureAwait(false); var results = new List<MountItemResult>();
+        if(Version(entry).Virtual&&snapshot.All(item=>item.IsDirectory&&Version(item).Virtual))throw new SourceConflictException("S3 虚拟源目录已消失，请重新扫描。");
+        async Task<SourceEntry> EnsureDirectory(SourceEntry directory,string name)
+        {
+            await ValidateTargetParentsAsync(name,token,destination).ConfigureAwait(false);
+            var current=await TryGetMetadataAsync(name,token).ConfigureAwait(false);
+            if(current is not null)return current.IsDirectory?current:throw new SourceConflictException("S3 目标目录名称已被文件占用。");
+            if(Version(directory).Virtual)return VirtualDirectory(name);
+            try
+            {
+                current=await CreateDirectoryAsync(name,token).ConfigureAwait(false);
+                return current.IsDirectory?current:throw new SourceConflictException("S3 目标目录名称已被文件占用。");
+            }
+            catch(SourceConflictException)
+            {
+                current=await TryGetMetadataAsync(name,token).ConfigureAwait(false);
+                if(current is {IsDirectory:true})return current;
+                throw;
+            }
+        }
         try
         {
-            var target = await CreateDirectoryAsync(destination, token).ConfigureAwait(false);
+            var target = await EnsureDirectory(entry,destination).ConfigureAwait(false);
             foreach (var child in snapshot.OrderBy(item => item.Path.Length))
             {
                 var name = destination + child.Path[path.Length..];
-                if (child.IsDirectory) await CreateDirectoryAsync(name, token).ConfigureAwait(false);
-                else await MoveFileAsync(child, name, token).ConfigureAwait(false);
-                results.Add(new(child.Path, "Completed", child.IsDirectory ? "已创建目标目录。" : "已复制并移除源对象。"));
+                if (child.IsDirectory) await EnsureDirectory(child,name).ConfigureAwait(false);
+                else await MoveFileAsync(child, name, token,destination).ConfigureAwait(false);
+                results.Add(new(child.Path, "Completed", child.IsDirectory ? "已确认目标目录。" : "已复制并移除源对象。"));
             }
             foreach (var directory in snapshot.Where(item => item.IsDirectory).Append(entry).OrderByDescending(item => item.Path.Length))
             {
-                try { var current = await GetMetadataAsync(directory.Path, token).ConfigureAwait(false); await DeleteAsync(current.Path, current.Version, token).ConfigureAwait(false); }
+                try
+                {
+                    if(Version(directory).Virtual)
+                    {
+                        if(await TryGetMetadataAsync(directory.Path,token).ConfigureAwait(false) is not null)
+                            Warn($"目标 {destination} 已完成移动；源目录 {directory.Path} 仍有条目，未执行清理，请核对。");
+                    }
+                    else await DeleteAsync(directory.Path,directory.Version,token).ConfigureAwait(false);
+                }
                 catch (FileNotFoundException) { }
+                catch(Exception error)when(error is IOException or NotSupportedException or OperationCanceledException)
+                {
+                    Warn($"目标 {destination} 已完成移动；源目录 {directory.Path} 清理未确认，请核对源和目标。");
+                    if(error is OperationCanceledException)break;
+                }
             }
             return target;
         }

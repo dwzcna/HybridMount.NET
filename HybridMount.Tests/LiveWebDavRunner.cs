@@ -167,7 +167,7 @@ public static partial class LiveWebDavRunner
             await Case("canceled streaming upload preserves explicit outcome",async ct=>{const string path="protocol/canceled.bin";Track(path);using var cancel=CancellationTokenSource.CreateLinkedTokenSource(ct);cancel.CancelAfter(180);await using var slow=new SlowStream(Payload(2*1024*1024,44));try{await _source!.UploadAsync(path,slow,null,cancel.Token);throw new IOException("取消上传未停止。");}catch(Exception error)when(error is OperationCanceledException or SourceOutcomeUnknownException){}},token);
             await Case("temporary recovery has no remote residue",async ct=>
             {
-                await _source!.RecoverTemporaryItemsAsync(ct);
+                await _source!.RecoverTemporaryItemsAsync(ct);await _source.DrainTemporaryCleanupAsync(ct);
                 foreach(var pending in _source.PendingTemporaryItems)
                 {
                     Require(await _source.TryGetMetadataAsync(pending.Path,ct) is null,"协议临时对象仍在服务器，保持证据。");
@@ -274,7 +274,7 @@ public static partial class LiveWebDavRunner
             if(errors.Count==0)Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(_registry,false);
             if(errors.Count!=0)_results.Add(new("local cleanup","Failed",0,"本地清理未全部完成，保留恢复资料。"));
             if(!_created||_source is null)return;
-            await _source.RecoverTemporaryItemsAsync(token);var inventory=new List<SourceEntry>();
+            await _source.RecoverTemporaryItemsAsync(token);await _source.DrainTemporaryCleanupAsync(token);var inventory=new List<SourceEntry>();
             async Task Collect(string parent){await foreach(var item in _source.ListAsync(parent,token)){inventory.Add(item);if(item.IsDirectory)await Collect(item.Path);}}
             await Collect("");var unknown=inventory.Where(x=>!_known.Contains(x.Path)).ToArray();if(unknown.Length!=0)throw new IOException("存在不在本轮清单中的远端项，拒绝递归删除："+string.Join(",",unknown.Select(x=>x.Path).Take(8)));
             foreach(var item in inventory.OrderByDescending(x=>x.Path.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?1:0))await RawDelete(item.Path,token,item.IsDirectory);

@@ -11,6 +11,13 @@ public sealed partial class WebDavFileSource
     private readonly ConcurrentDictionary<string,RemoteTemporaryItem> _temporary=new(StringComparer.Ordinal);
     private MountRepository? _temporaryRepository;
     private Guid _temporaryMount;
+    private readonly CancellationTokenSource _temporaryStop=new();
+    private readonly object _temporaryCleanupSync=new();
+    private readonly HashSet<string> _temporaryCleanupQueued=new(StringComparer.Ordinal);
+    private Task _temporaryCleanupWork=Task.CompletedTask;
+    internal TimeSpan TemporaryRetryDelay {get;set;}=TimeSpan.FromSeconds(30);
+    internal Task DrainTemporaryCleanupAsync(CancellationToken token=default)
+    {lock(_temporaryCleanupSync)return _temporaryCleanupWork.WaitAsync(token);}
     /// <summary>供恢复状态和验收读取的快照，不包含凭据或锁令牌。</summary>
     public IReadOnlyList<RemoteTemporaryItem> PendingTemporaryItems=>_temporary.Values.ToArray();
     private string _temporaryScope="";
@@ -53,13 +60,26 @@ public sealed partial class WebDavFileSource
         {SaveTemporary(item with{Stage="Foreign",Error="创建前远端已存在，未取得清理所有权。"});throw new SourceConflictException("随机临时目标已存在，未覆盖或删除。");}
         SaveTemporary(item with{Stage="Sending"});
     }
-    private void ObserveTemporaryResponse(HttpRequestMessage request,HttpResponseMessage response)
+    private async Task ObserveTemporaryResponseAsync(HttpRequestMessage request,HttpResponseMessage response,CancellationToken token)
     {
         if(request.Method.Method is not("PUT" or "LOCK" or "MOVE"))return;
         var path=TemporaryRequestPath(request.RequestUri);
         if(request.Method.Method=="MOVE"&&request.Headers.TryGetValues("Destination",out var values)&&Uri.TryCreate(values.Single(),UriKind.Absolute,out var destination))path=TemporaryRequestPath(destination);
         if(path is null||!_temporary.TryGetValue(path,out var item))return;
-        if(response.IsSuccessStatusCode)SaveTemporary(item with{Stage="Owned",ETag=NormalizeTag(response.Headers.TryGetValues("ETag",out var tags)?tags.FirstOrDefault():null)});
+        if(response.IsSuccessStatusCode)
+        {
+            item=item with{Stage="Owned",ETag=NormalizeTag(response.Headers.TryGetValues("ETag",out var tags)?tags.FirstOrDefault():null),Size=null,ModifiedUtc=null};SaveTemporary(item);
+            using var capture=CancellationTokenSource.CreateLinkedTokenSource(token);capture.CancelAfter(TimeSpan.FromSeconds(5));
+            try
+            {
+                var metadata=await TryGetMetadataAsync(path,capture.Token).ConfigureAwait(false);if(metadata is null)return;
+                if(metadata.IsDirectory||Strong(item.ETag)&&NormalizeTag(Version(metadata).ETag)!=item.ETag)
+                {SaveTemporary(item with{Stage="Foreign",Error="临时项创建后版本变化，需要人工核对。"});throw new SourceConflictException("临时项创建后版本变化。");}
+                // 后读元数据只能补充提示，不能替代缺失的写回回执取得所有权。
+                SaveTemporary(item with{Size=metadata.Size,ModifiedUtc=metadata.ModifiedUtc==DateTimeOffset.UnixEpoch?null:metadata.ModifiedUtc});
+            }
+            catch(Exception error)when(error is OperationCanceledException||error is IOException and not SourceConflictException){ }
+        }
         else if(item.Stage=="Sending"&&response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             SaveTemporary(item with{Stage="Foreign",Error="首次创建被明确拒绝，未清理目标。"});
     }
@@ -82,31 +102,68 @@ public sealed partial class WebDavFileSource
         }
         throw new IOException("临时项未提供可靠强ETag，保留日志待重连核对。");
     }
-    /// <summary>五秒总截止覆盖元数据、摘要与条件删除；缺少强版本时保留，不发送无条件DELETE。</summary>
+    private async Task DeleteTemporaryAsync(string path,SourceEntry metadata,RemoteTemporaryItem item,CancellationToken token)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Delete,Address(path));var tag=NormalizeTag(Version(metadata).ETag);
+        if(!Strong(tag))throw new IOException("临时项缺少可靠强版本，保留日志待核对。");
+        request.Headers.IfMatch.ParseAdd(tag!);
+        using var response=await SendAsync(request,token,true).ConfigureAwait(false);
+        if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new SourceConflictException("临时项条件删除时版本变化，保留远端内容。");
+        if(!response.IsSuccessStatusCode&&response.StatusCode!=HttpStatusCode.NotFound)throw new IOException($"清理返回 HTTP {(int)response.StatusCode}。");
+        CompleteTemporary(path);
+    }
+    private void TemporaryCleanupFailed(RemoteTemporaryItem item,Exception error)
+    {
+        SaveTemporary(item with{Stage=error is SourceConflictException?"Foreign":"CleanupPending",Error=error is SourceConflictException?"身份或内容变化，需要人工核对。":item.HashAttempts>=5?"摘要核对已达五次，请人工核对临时项。":"清理未完成，将在重连时核对重试。"});Warn("DAV 临时项清理待处理："+item.Path);
+    }
+    private void QueueTemporaryHash(RemoteTemporaryItem item,SourceEntry metadata)
+    {
+        lock(_temporaryCleanupSync)
+        {
+            if(_temporaryStop.IsCancellationRequested||_temporaryCleanupQueued.Contains(item.Path)||item.HashAttempts>=5||item.NextHashAttemptUtc>DateTimeOffset.UtcNow)return;
+            item=item with{Stage="CleanupPending",HashAttempts=item.HashAttempts+1,NextHashAttemptUtc=DateTimeOffset.UtcNow.AddMilliseconds(Math.Min(300000,TemporaryRetryDelay.TotalMilliseconds*(1<<item.HashAttempts))),Error="摘要核对已延后，不影响连接。"};SaveTemporary(item);
+            _temporaryCleanupQueued.Add(item.Path);var previous=_temporaryCleanupWork;
+            _temporaryCleanupWork=Task.Run(async()=>
+            {
+                try
+                {
+                    await previous.ConfigureAwait(false);var token=_temporaryStop.Token;token.ThrowIfCancellationRequested();var tag=NormalizeTag(Version(metadata).ETag)!;
+                    var digest=await ReadContentHashAsync(item.Path,null,token,tag).ConfigureAwait(false);
+                    if(!item.Hashes.Contains(digest,StringComparer.Ordinal))throw new SourceConflictException("临时项内容已改变，保留远端内容。");
+                    var after=await TryGetMetadataAsync(item.Path,token).ConfigureAwait(false);if(after is null){CompleteTemporary(item.Path);return;}
+                    if(!IsSameVersion(metadata.Version,after.Version)||NormalizeTag(Version(after).ETag)!=tag)throw new SourceConflictException("临时项核对期间版本变化。");
+                    item=item with{ETag=tag,Size=after.Size,ModifiedUtc=after.ModifiedUtc};SaveTemporary(item);
+                    await DeleteTemporaryAsync(item.Path,after,item,token).ConfigureAwait(false);
+                }
+                catch(Exception error)when(error is IOException or OperationCanceledException){TemporaryCleanupFailed(item,error);}
+                finally{lock(_temporaryCleanupSync)_temporaryCleanupQueued.Remove(item.Path);}
+            });
+        }
+    }
+    /// <summary>五秒只覆盖元数据及条件删除；旧记录的摘要读取由独立后台工作按无进展超时核对。</summary>
     private async Task CleanupTemporaryAsync(string path,CancellationToken token)
     {
         if(!_temporary.TryGetValue(path,out var item)||item.Stage=="Foreign")return;
+        lock(_temporaryCleanupSync)if(_temporaryCleanupQueued.Contains(path))return;
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(5));
         var cleanup=deadline.Token;
         try
         {
             var metadata=await ReadCleanupMetadataAsync(path,item,cleanup).ConfigureAwait(false);
             if(metadata is null){CompleteTemporary(path);return;}
-            var tag=NormalizeTag(Version(metadata).ETag)!;
-            var digest=await ReadContentHashAsync(path,null,cleanup,tag).ConfigureAwait(false);
-            if(!item.Hashes.Contains(digest,StringComparer.Ordinal))
-                throw new SourceConflictException("临时项内容已改变，保留远端内容。");
-            var after=await TryGetMetadataAsync(path,cleanup).ConfigureAwait(false);
-            if(after is null){CompleteTemporary(path);return;}
-            if(!IsSameVersion(metadata.Version,after.Version)||NormalizeTag(Version(after).ETag)!=tag)
-                throw new SourceConflictException("临时项核对期间版本变化。");
-            using var request=new HttpRequestMessage(HttpMethod.Delete,Address(path));request.Headers.IfMatch.ParseAdd(tag);
-            using var response=await SendAsync(request,cleanup,true).ConfigureAwait(false);
-            if(response.StatusCode==HttpStatusCode.PreconditionFailed)throw new SourceConflictException("临时项条件删除时版本变化，保留远端内容。");
-            if(!response.IsSuccessStatusCode&&response.StatusCode!=HttpStatusCode.NotFound)throw new IOException($"清理返回 HTTP {(int)response.StatusCode}。");
-            CompleteTemporary(path);
+            if(Strong(item.ETag))
+            {
+                if(NormalizeTag(Version(metadata).ETag)!=item.ETag||item.Size is {} size&&size!=metadata.Size)throw new SourceConflictException("临时项版本已改变，保留远端内容。");
+            }
+            else
+            {
+                if(item.Size is {} size&&size!=metadata.Size||item.ModifiedUtc is {} modified&&modified!=metadata.ModifiedUtc)
+                    throw new SourceConflictException("临时项大小或时间已改变，保留远端内容。");
+                QueueTemporaryHash(item,metadata);return;
+            }
+            await DeleteTemporaryAsync(path,metadata,item,cleanup).ConfigureAwait(false);
         }
         catch(Exception error)when(error is IOException or OperationCanceledException)
-        {SaveTemporary(item with{Stage=error is SourceConflictException?"Foreign":"CleanupPending",Error=error is SourceConflictException?"身份或内容变化，需要人工核对。":"清理未完成，将在重连时核对重试。"});Warn("DAV 临时项清理待处理："+path);}
+        {TemporaryCleanupFailed(item,error);}
     }
 }

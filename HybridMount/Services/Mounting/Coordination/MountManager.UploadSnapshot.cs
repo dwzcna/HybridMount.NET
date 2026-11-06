@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
@@ -11,53 +10,64 @@ public sealed partial class MountManager
     /// <summary>网络发送前短暂打开只读共享的文件，复制到挂载根外并核对身份、USN 和摘要。</summary>
     private async Task<LocalUpload?> PrepareUploadAsync(Runtime root,LocalUpload queued,CancellationToken token)
     {
-        await root.Gate.WaitAsync(token).ConfigureAwait(false);
-        string? created=null;
-        try
+        LocalUpload? item=null;LocalFileStamp? stamp=null;MountEntry? mapping=null;string? path=null,created=null,digest=null;
+        var definition=root.Definition;var source=root.Source;var session=root.Session;var hydrate=false;var reuse=false;var published=false;
+        void Validate()
         {
             if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
-            var item=_repository.Upload(queued.Id);if(item is null||item.CancelRequested)return null;
-            if(item.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity")||item.Error==UploadRules.TypeConflictMessage)return null;
-            var path=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
-            var stamp=LocalFileState.Read(path);UploadRules.ValidateTypes(item,stamp);
-            if(item.SnapshotPath is not null&&File.Exists(item.SnapshotPath)&&item.SnapshotStamp==stamp.Key&&item.SnapshotGeneration==item.Generation)
-                return ChangeUpload(item.Id,x=>x with{State="Prepared",LastCheckedUtc=null});
-            var info=CloudFilesNative.Inspect(path);
-            if(!stamp.IsDirectory&&info is not null&&!CloudFilesNative.HasFullContent(path,stamp.Length))
-            {
-                var entry=_repository.Entries(item.MountId).FirstOrDefault(x=>x.Id==item.EntryId);
-                if(entry is null)throw new SourceConflictException("部分占位缺少原始映射，无法安全补齐。");
-                var metadata=await root.Source.GetMetadataAsync(entry.SourcePath,token).ConfigureAwait(false);
-                if(!root.Source.IsSameVersion(metadata.Version,item.ExpectedVersion??entry.Version))throw new SourceConflictException("远端版本变化，无法补齐本地修改过的部分占位；保留文件。");
-                using(var priority=root.Session.PrioritizeDownload(entry.Id))
-                using(var handle=CloudFilesNative.Open(path))await CloudFilesNative.HydrateAsync(handle,token).ConfigureAwait(false);
-                if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new SourceConflictException("修改过的占位尚未完整补齐，未开始上传。");
-                stamp=LocalFileState.Read(path);UploadRules.ValidateTypes(item,stamp);
-            }
-            var directory=Path.Combine(_repository.DataDirectory,"UploadStaging",item.MountId.ToString("N"));Directory.CreateDirectory(directory);
-            string? digest=null;
-            if(!stamp.IsDirectory)
-            {
-                created=Path.Combine(directory,Guid.NewGuid().ToString("N")+".snapshot");
-                await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
-                var before=LocalFileState.Read(input.SafeFileHandle);UploadRules.ValidateTypes(item,before);
-                if(before.Identity!=stamp.Identity||before.Key!=stamp.Key)throw new IOException("文件在准备快照时变化，等待稳定后重试。");
-                using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-                await using(var output=new FileStream(created,FileMode.CreateNew,FileAccess.Write,FileShare.None,131072,FileOptions.Asynchronous|FileOptions.SequentialScan))
-                {
-                    var buffer=new byte[131072];int count;
-                    while((count=await input.ReadAsync(buffer,token).ConfigureAwait(false))!=0){hash.AppendData(buffer,0,count);await output.WriteAsync(buffer.AsMemory(0,count),token).ConfigureAwait(false);}
-                    await output.FlushAsync(token).ConfigureAwait(false);output.Flush(true);
-                }
-                if(LocalFileState.Read(input.SafeFileHandle).Key!=before.Key||LocalFileState.Read(path).Key!=before.Key)throw new IOException("文件在复制时变化，等待稳定后重试。");
-                digest=Convert.ToHexString(hash.GetHashAndReset());stamp=before;
-            }
-            var previous=item.SnapshotPath;
-            var prepared=ChangeUpload(item.Id,x=>x with{State="Prepared",SnapshotPath=created,SnapshotSha256=digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=x.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,
-                BaselineSha256=x.BaselineSha256??(x.ExpectedVersion is null?null:_repository.Baseline(x.MountId,x.SourcePath,x.ExpectedVersion))});
-            created=null;DeleteUploadSnapshot(previous);return prepared;
+            if(root.Definition!=definition||root.Source!=source||root.Session!=session)throw new UploadPreparationChangedException();
         }
-        finally{DeleteUploadSnapshot(created);root.Gate.Release();}
+        return await UploadPreparation.RunAsync(root.Gate,()=>
+        {
+            definition=root.Definition;source=root.Source;session=root.Session;Validate();
+            var current=_repository.Upload(queued.Id);if(current is null||current.CancelRequested)return false;
+            if(current.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity")||current.Error==UploadRules.TypeConflictMessage)return false;
+            path=RelativePaths.ToLocal(definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(definition,path);
+            stamp=LocalFileState.Read(path);UploadRules.ValidateTypes(current,stamp);
+            mapping=_repository.Entries(current.MountId).FirstOrDefault(x=>x.Id==current.EntryId);
+            reuse=current.SnapshotPath is not null&&File.Exists(current.SnapshotPath)&&current.SnapshotStamp==stamp.Key&&current.SnapshotGeneration==current.Generation;
+            hydrate=!stamp.IsDirectory&&!reuse&&CloudFilesNative.Inspect(path) is not null&&!CloudFilesNative.HasFullContent(path,stamp.Length);
+            if(hydrate&&mapping is null)throw new SourceConflictException("部分占位缺少原始映射，无法安全补齐。");
+            var attempt=Guid.NewGuid().ToString("N");
+            var reserved=ChangeUpload(current.Id,x=>x==current?x with{SnapshotAttemptId=attempt}:x);
+            if(reserved?.SnapshotAttemptId!=attempt)return false;
+            item=reserved;return true;
+        },async()=>
+        {
+            if(reuse)return;
+            MountPathGuard.ValidateOperation(definition,path!);
+            if(hydrate)
+            {
+                var metadata=await source!.GetMetadataAsync(mapping!.SourcePath,token).ConfigureAwait(false);
+                if(!source.IsSameVersion(metadata.Version,item!.ExpectedVersion??mapping.Version))throw new SourceConflictException("远端版本变化，无法补齐本地修改过的部分占位；保留文件。");
+                using(var priority=session!.PrioritizeDownload(mapping.Id))
+                using(var handle=CloudFilesNative.Open(path!))await CloudFilesNative.HydrateAsync(handle,token).ConfigureAwait(false);
+                if(!CloudFilesNative.HasFullContent(path!,new FileInfo(path!).Length))throw new SourceConflictException("修改过的占位尚未完整补齐，未开始上传。");
+                return;
+            }
+            if(!stamp!.IsDirectory)
+            {
+                var directory=Path.Combine(_repository.DataDirectory,"UploadStaging",item!.MountId.ToString("N"));Directory.CreateDirectory(directory);
+                created=Path.Combine(directory,item.SnapshotAttemptId+".snapshot");
+                digest=await UploadPreparation.CopyAsync(path!,created,stamp,token,()=>UploadCheckpointAsync("SnapshotCopy",item)).ConfigureAwait(false);
+            }
+            await UploadCheckpointAsync("SnapshotCopied",item!).ConfigureAwait(false);
+        },()=>
+        {
+            Validate();MountPathGuard.ValidateOperation(definition,path!);
+            if(hydrate)return null;
+            if(LocalFileState.Read(path!).Key!=stamp!.Key||_repository.Entries(item!.MountId).FirstOrDefault(x=>x.Id==item.EntryId)!=mapping)return null;
+            if(_repository.HasPendingRemote(item.MountId,item.SourcePath)||UploadRules.DeletedSourceAncestor(_repository.Entries(item.MountId),item.SourcePath) is not null)return null;
+            var prepared=UploadPreparation.PublishAttempt(item,update=>ChangeUpload(item.Id,update),x=>x with
+            {State="Prepared",SnapshotAttemptId=null,SnapshotPath=reuse?x.SnapshotPath:created,SnapshotSha256=reuse?x.SnapshotSha256:digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=item.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,AutoRetryCount=reuse?x.AutoRetryCount:0,NextAttemptUtc=reuse?x.NextAttemptUtc:null,TransientFailureCount=reuse?x.TransientFailureCount:0,
+                BaselineSha256=x.BaselineSha256??(x.ExpectedVersion is null?null:_repository.Baseline(x.MountId,x.SourcePath,x.ExpectedVersion))});
+            published=prepared is not null;return prepared;
+        },()=>
+        {
+            if(published){if(!reuse)DeleteUploadSnapshot(item!.SnapshotPath);}
+            else DeleteUploadSnapshot(created);
+            if(!published&&item is not null)_repository.UpdateUpload(item.Id,x=>x.SnapshotAttemptId==item.SnapshotAttemptId?x with{SnapshotAttemptId=null}:x);
+        },token).ConfigureAwait(false);
     }
     /// <summary>实例级通知屏障，用于验证数据库、保护句柄和根锁的提交顺序。</summary>
     internal Action<string>? ShellNotificationForTests {get;set;}

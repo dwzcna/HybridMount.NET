@@ -103,7 +103,7 @@ public sealed class WebDavTests
         var updated=await source.UploadAsync("new.bin",new MemoryStream([4]),created.Version);
         await source.CreateDirectoryAsync("dir");var moved=await source.MoveAsync("new.bin","dir/moved.bin",updated.Version);
         await source.DeleteAsync(moved.Path,moved.Version);Assert.False(fixture.Objects.ContainsKey("dir/moved.bin"));
-        Assert.DoesNotContain(fixture.Objects.Keys,name=>name.Contains("hybridmount-probe-",StringComparison.Ordinal));
+        await source.DrainTemporaryCleanupAsync();Assert.DoesNotContain(fixture.Objects.Keys,name=>name.Contains("hybridmount-probe-",StringComparison.Ordinal));
         await using var ignoring=new DavFixture{IgnoreConditions=true};await using var unsafeSource=ignoring.Source();
         await unsafeSource.UploadAsync("user-file.bin",Stream.Null,null);
         await Assert.ThrowsAsync<SourceConflictException>(()=>unsafeSource.UploadAsync("user-file.bin",new MemoryStream([99]),null));Assert.Empty(ignoring.Objects["user-file.bin"].Bytes);

@@ -77,38 +77,33 @@ public sealed partial class MountManager
         }
         if(entry is not null&&!clean&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
     }
-    /// <summary>在根锁内校验目标及已知父目录；不会为更新任务或远端删除记录自动 MKCOL。</summary>
+    /// <summary>短暂持锁复核意图；父目录网络操作不占根锁，不恢复已知删除目录。</summary>
     private async Task PrepareUploadDestinationAsync(Runtime root,LocalUpload item,CancellationToken token,MountDefinition? capacitySettings=null)
     {
-        await root.Gate.WaitAsync(token).ConfigureAwait(false);
-        try
+        var source=root.Source;var session=root.Session;var definition=root.Definition;
+        async Task Validate(string? missingParent)
         {
-            if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
-            if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))throw new CapacitySettingsChangedException();
-            var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
-            UploadRules.ValidateTypes(item,LocalFileState.Read(local));
-            var entries=_repository.Entries(root.Definition.Id);
-            if(UploadRules.DeletedSourceAncestor(entries,item.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
-            var known=entries.FirstOrDefault(entry=>entry.SourcePath==item.SourcePath);
-            if(item.ExpectedVersion is not null)
+            await root.Gate.WaitAsync(token).ConfigureAwait(false);
+            try
             {
-                if(await root.Source.TryGetMetadataAsync(item.SourcePath,token).ConfigureAwait(false) is null)throw new SourceConflictException("远端更新目标已删除，不能改为新增；请刷新或另存副本。");
+                token.ThrowIfCancellationRequested();
+                if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
+                if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))throw new CapacitySettingsChangedException();
+                if(root.Source!=source||root.Session!=session||root.Definition!=definition)throw new UploadPreparationChangedException();
+                var current=_repository.Upload(item.Id);
+                if(current is null||current.CancelRequested||current.State!="Prepared"||current.Generation!=item.SnapshotGeneration||current.SnapshotGeneration!=item.SnapshotGeneration||
+                    current.SnapshotPath!=item.SnapshotPath||current.SnapshotAttemptId is not null||current.ExpectedVersion!=item.ExpectedVersion||current.BaselineSha256!=item.BaselineSha256)throw new UploadPreparationChangedException();
+                var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
+                var stamp=LocalFileState.Read(local);UploadRules.ValidateTypes(item,stamp);
+                if(stamp.Key!=item.SnapshotStamp||stamp.Identity!=item.SnapshotIdentity)throw new UploadPreparationChangedException();
+                var entries=_repository.Entries(root.Definition.Id);
+                if(_repository.HasPendingRemote(item.MountId,item.SourcePath)||UploadRules.DeletedSourceAncestor(entries,item.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
+                if(item.ExpectedVersion is null&&!item.IsDirectory&&entries.Any(entry=>entry.SourcePath==item.SourcePath))throw new SourceConflictException("目标已有历史远端基线，本任务不能按新增重新创建；请刷新核对。");
+                if(missingParent is not null&&(item.ExpectedVersion is not null||entries.Any(entry=>entry.SourcePath==missingParent)))throw new SourceConflictException("已知远端父目录已删除，未自动恢复目录。请刷新核对。");
             }
-            else if(known is not null&&!item.IsDirectory)throw new SourceConflictException("目标已有历史远端基线，本任务不能按新增重新创建；请刷新核对。");
-            var parent="";
-            foreach(var part in RelativePaths.Parent(item.SourcePath).Split('/',StringSplitOptions.RemoveEmptyEntries))
-            {
-                parent=parent.Length==0?part:parent+"/"+part;
-                var metadata=await root.Source.TryGetMetadataAsync(parent,token).ConfigureAwait(false);
-                if(metadata is null)
-                {
-                    if(item.ExpectedVersion is not null||entries.Any(entry=>entry.SourcePath==parent))throw new SourceConflictException("已知远端父目录已删除，未自动恢复目录。请刷新核对。");
-                    metadata=await root.Source.CreateDirectoryAsync(parent,token).ConfigureAwait(false);
-                }
-                if(!metadata.IsDirectory)throw new SourceConflictException("远端父路径已是文件，不能创建子项。");
-            }
+            finally{root.Gate.Release();}
         }
-        finally{root.Gate.Release();}
+        await UploadPreparation.PrepareParentsAsync(source!,item,Validate,token).ConfigureAwait(false);
     }
     /// <summary>快照校验完成后，在根锁内重新核对屏障和任务状态再进入发送阶段；刷新先完成时绝不覆盖其冲突状态。</summary>
     internal async Task<LocalUpload?> BeginUploadSendAsync(Guid mountId,LocalUpload prepared,CancellationToken token=default,MountDefinition? capacitySettings=null)
@@ -122,7 +117,7 @@ public sealed partial class MountManager
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
             if(_repository.HasPendingRemote(mountId,current.SourcePath))throw new SourceConflictException("远端更改尚待核对，未发送旧基线上传。");
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
-            if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
+            if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotAttemptId is not null||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
             if(current.Generation!=current.SnapshotGeneration)
             {ChangeUpload(current.Id,item=>item with{State="Queued",Error=null,LastCheckedUtc=null});return null;}
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);

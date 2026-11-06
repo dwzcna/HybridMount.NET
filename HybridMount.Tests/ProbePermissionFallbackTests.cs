@@ -66,7 +66,7 @@ public sealed class ProbePermissionFallbackTests
             var created=await source.GetCollectionChangesAsync("child","urn:test:old",default);Assert.DoesNotContain(created.Entries,entry=>entry.Path==probe);Assert.Contains(created.Entries,entry=>entry.Path==foreign);
         }
         finally{release.TrySetResult();}
-        await upload;Assert.Equal(failCleanup,fixture.Dav.Objects.ContainsKey(probe));Assert.DoesNotContain(await All(source.ListAsync("child")),entry=>entry.Path==probe);
+        await upload;await source.DrainTemporaryCleanupAsync();Assert.Equal(failCleanup,fixture.Dav.Objects.ContainsKey(probe));Assert.DoesNotContain(await All(source.ListAsync("child")),entry=>entry.Path==probe);
         fixture.Report=(_,_)=>SyncDavFixture.Multi("urn:test:deleted",[SyncDavFixture.Resource("/dav/"+probe,404),SyncDavFixture.Resource("/dav/"+foreign,404)]);
         var deleted=await source.GetCollectionChangesAsync("child","urn:test:created",default);Assert.DoesNotContain(probe,deleted.Deleted);Assert.Contains(foreign,deleted.Deleted);Assert.Equal("urn:test:deleted",deleted.NextToken);
         Assert.Single(fixture.Dav.Server.Requests,request=>request.Method=="PUT"&&IsRootDavProbe(DavPath(fixture.Dav,request)));
@@ -129,6 +129,7 @@ public sealed class ProbePermissionFallbackTests
         fixture.Server.Handler=request=>request.Method=="PUT"&&IsRootDavProbe(DavPath(fixture,request))?Task.FromResult(new HttpTestServer.Response(403,[])):original(request);
         await using var source=fixture.Source();var before=await source.GetMetadataAsync("child/delete");await source.DeleteAsync(before.Path,before.Version);
         var entry=await source.UploadAsync("child/file",new MemoryStream([1]),null);await source.MoveAsync(entry.Path,"other/moved",entry.Version);
+        await source.DrainTemporaryCleanupAsync();
         var puts=fixture.Server.Requests.Where(request=>request.Method=="PUT"&&IsProbe(DavPath(fixture,request))).Select(request=>DavPath(fixture,request)).ToArray();Assert.Single(puts,IsRootDavProbe);Assert.Contains(puts,path=>path.StartsWith("other/hybridmount-probe-",StringComparison.Ordinal));Assert.DoesNotContain(fixture.Objects.Keys,IsProbe);
         await using var next=fixture.Source();await next.UploadAsync("child/next",Stream.Null,null);Assert.Equal(2,fixture.Server.Requests.Count(request=>request.Method=="PUT"&&IsRootDavProbe(DavPath(fixture,request))));
     }
@@ -139,7 +140,7 @@ public sealed class ProbePermissionFallbackTests
         fixture.Server.Handler=request=>request.Method=="PUT"&&IsRootDavProbe(DavPath(fixture,request))?Task.FromResult(new HttpTestServer.Response(403,[])):original(request);
         await using var source=fixture.Source();await source.UploadAsync("child/file",new MemoryStream([1]),null);Assert.Equal(new byte[]{1},fixture.Objects["child/file"].Bytes);
         Assert.Single(fixture.Server.Requests,request=>request.Method=="PUT"&&IsRootDavProbe(DavPath(fixture,request)));Assert.Contains(fixture.Server.Requests,request=>request.Method=="MOVE"&&DavPath(fixture,request).StartsWith("child/hybridmount-probe-",StringComparison.Ordinal));
-        Assert.DoesNotContain(fixture.Objects.Keys,IsProbe);
+        await source.DrainTemporaryCleanupAsync();Assert.DoesNotContain(fixture.Objects.Keys,IsProbe);
     }
     [Fact]
     public async Task DavLockProbesUseCachedWritableParent()
