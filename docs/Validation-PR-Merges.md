@@ -13,3 +13,4 @@
 | [#5](https://github.com/dwzcna/HybridMount.NET/pull/5) | 0.0.9.10 | S3目录枚举效率与坏条目隔离 | 51 | 719 | 719 | 通过／仅交叉编译 |
 | [#6](https://github.com/dwzcna/HybridMount.NET/pull/6) | 0.0.9.11 | S3分片条件完成与条件PUT回退 | 20 | 729 | 729 | 通过／仅交叉编译 |
 | [#7](https://github.com/dwzcna/HybridMount.NET/pull/7) | 0.0.9.12 | S3分片日志与隔离恢复 | 41 | 748 | 748 | 通过／仅交叉编译 |
+| [#8](https://github.com/dwzcna/HybridMount.NET/pull/8) | 0.0.9.13 | WebDAV临时资源元数据清理 | 35 | 764 | 764 | 通过／仅交叉编译 |
