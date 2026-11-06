@@ -25,7 +25,7 @@ public static class UploadRules
     }
     public static DateTimeOffset AttemptUtc(LocalUpload item)
     {
-        var checkedAt=item.State=="Waiting"?item.NextAttemptUtc??DateTimeOffset.MinValue:
+        var checkedAt=item.State=="Waiting"&&item.NextAttemptUtc is {} next?next:
             item.LastCheckedUtc is {} last?last+TimeSpan.FromSeconds(item.State is "OutcomeUnknown" or "WaitingCapacity"?60:3):DateTimeOffset.MinValue;
         var stable=item.ChangedUtc+TimeSpan.FromSeconds(2);return checkedAt>stable?checkedAt:stable;
     }

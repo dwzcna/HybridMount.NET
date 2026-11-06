@@ -51,7 +51,9 @@ public sealed class UploadBackoffTests
         Assert.Equal(TimeSpan.FromSeconds(30),UploadRules.UploadWait([future],now,now.AddMinutes(1)));
         Assert.Equal(TimeSpan.FromSeconds(10),UploadRules.UploadWait([future],now,now.AddSeconds(10)));
         Assert.Equal(TimeSpan.FromMinutes(1),UploadRules.UploadWait([],now,now.AddMinutes(1)));Assert.Null(UploadRules.NextUpload([],now));
-        var legacy=Item(now) with{LastCheckedUtc=now};Assert.Same(legacy,UploadRules.NextUpload([legacy],now));
+        var legacy=Item(now) with{LastCheckedUtc=now};Assert.Null(UploadRules.NextUpload([legacy],now));Assert.Null(UploadRules.NextUpload([legacy],now.AddSeconds(3).AddTicks(-1)));
+        Assert.Same(legacy,UploadRules.NextUpload([legacy],now.AddSeconds(3)));Assert.Equal(TimeSpan.FromSeconds(3),UploadRules.UploadWait([legacy],now,now.AddMinutes(1)));
+        var uncheckedItem=Item(now);Assert.Same(uncheckedItem,UploadRules.NextUpload([uncheckedItem],now));
     }
     [Theory]
     [InlineData("Sending",503,false,"Waiting")][InlineData("Sending",425,false,"Waiting")][InlineData("Sending",403,false,"Failed")]

@@ -146,7 +146,8 @@ public sealed partial class MountManager
         {
             if(current.CancelRequested){changed=true;return current with{State="Canceled",LastCheckedUtc=null};}
             if(current.AutoRetryCount>=5)return current;
-            changed=true;return current with{State="Waiting",AutoRetryCount=current.AutoRetryCount+1,Bytes=0,Error="远端仍为发送前状态，等待条件写自动重试。",LastCheckedUtc=DateTimeOffset.UtcNow};
+            var now=DateTimeOffset.UtcNow;var next=now+UploadRules.TransientDelay(current.AutoRetryCount);
+            changed=true;return current with{State="Waiting",AutoRetryCount=current.AutoRetryCount+1,Bytes=0,Error=$"远端仍为发送前状态，下次重试 {next.ToLocalTime():HH:mm:ss}。",LastCheckedUtc=now,NextAttemptUtc=next};
         });return changed;
     }
     private static async Task<string> HashRemoteAsync(IFileSource source,SourceEntry metadata,CancellationToken token)

@@ -57,6 +57,7 @@ public sealed class UploadRetryTests
     }
     [Theory]
     [InlineData(false,CapabilitySupport.Supported,0,false,false,"Waiting")]
+    [InlineData(false,CapabilitySupport.Supported,4,false,false,"Waiting")]
     [InlineData(false,CapabilitySupport.Unsupported,0,false,false,"Conflict")]
     [InlineData(false,CapabilitySupport.Unknown,0,false,false,"Conflict")]
     [InlineData(false,CapabilitySupport.Supported,5,false,false,"Conflict")]
@@ -82,7 +83,14 @@ public sealed class UploadRetryTests
             var type=typeof(MountManager).GetNestedType("Runtime",System.Reflection.BindingFlags.NonPublic)!;var root=Activator.CreateInstance(type,[mount])!;type.GetField("Source")!.SetValue(root,source);
             await (Task)typeof(MountManager).GetMethod("ReconcileUploadAsync",flags)!.Invoke(manager,[root,item,CancellationToken.None])!;
             var result=new MountRepository(repository.DataDirectory,registry).Upload(item.Id)!;Assert.Equal(state,result.State);Assert.Equal(state=="Waiting"?retries+1:retries,result.AutoRetryCount);
-            Assert.Equal(item.SnapshotPath,result.SnapshotPath);if(state=="Waiting")Assert.NotNull(result.LastCheckedUtc);Assert.Equal(0,source.Sends);
+            Assert.Equal(item.SnapshotPath,result.SnapshotPath);
+            if(state=="Waiting")
+            {
+                Assert.NotNull(result.LastCheckedUtc);Assert.NotNull(result.NextAttemptUtc);Assert.True(result.NextAttemptUtc>result.LastCheckedUtc);
+                var delay=(result.NextAttemptUtc!.Value-result.LastCheckedUtc!.Value).TotalSeconds;var basis=3*Math.Pow(2,retries);Assert.InRange(delay,basis*0.8-0.000001,basis*1.2+0.000001);
+                Assert.Contains("下次重试",result.Error);Assert.Null(UploadRules.NextUpload([result],result.LastCheckedUtc.Value));Assert.Same(result,UploadRules.NextUpload([result],result.NextAttemptUtc.Value));
+            }
+            Assert.Equal(0,source.Sends);
         }
         finally{Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);}
     }
