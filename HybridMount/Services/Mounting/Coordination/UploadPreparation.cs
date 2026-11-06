@@ -40,10 +40,12 @@ internal static class UploadPreparation
     }
 
     /// <summary>只读共享句柄复制并核对同一对象的状态戳，返回不可变快照摘要；调用者负责失败清理。</summary>
-    internal static async Task<string> CopyAsync(string path,string snapshot,LocalFileStamp stamp,CancellationToken token,Func<Task>? checkpoint=null)
+    internal static async Task<string> CopyAsync(string path,string snapshot,LocalFileStamp stamp,CancellationToken token,Func<Task>? checkpoint=null,Func<string,ulong>? availableBytes=null)
     {
+        token.ThrowIfCancellationRequested();
         await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
         if(LocalFileState.Read(input.SafeFileHandle).Key!=stamp.Key)throw new IOException("文件在准备快照时变化，等待稳定后重试。");
+        StagingDiskSpace.Require(snapshot,stamp.Length,availableBytes);
         using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         await using(var output=new FileStream(snapshot,FileMode.CreateNew,FileAccess.Write,FileShare.None,131072,FileOptions.Asynchronous|FileOptions.SequentialScan))
         {

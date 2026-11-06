@@ -37,3 +37,4 @@ PR #7没有可靠UploadId的意图保留待核对，自动精确回收仍未实�
 | PR | 版本 | 内容 | 针对性 | Debug | Release | 双架构包／ARM64交叉编译 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [#16](https://github.com/dwzcna/HybridMount.NET/pull/16) | 0.0.9.21 | 协议探测作用域与权限回退 | 150 | 991 | 991 | 通过／仅交叉编译 |
+| [#17](https://github.com/dwzcna/HybridMount.NET/pull/17) | 0.0.9.22 | 暂存磁盘空间检查 | 115 | 1010 | 1010 | 通过／仅交叉编译 |

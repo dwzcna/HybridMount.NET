@@ -89,6 +89,7 @@ public sealed partial class MountManager
         catch(UploadPreparationChangedException){}
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
+        catch(StagingSpaceException error)when(preparing){Fail(x=>StagingDiskSpace.Wait(x,error,DateTimeOffset.UtcNow));}
         catch(SourceConflictException error){Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
         catch(NotSupportedException error){Fail(x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
         catch(Exception error){HandleUploadFailure(selected.Id,error,preparing,stopping,Fail);}

@@ -16,6 +16,7 @@ public sealed partial class MountManager
         public readonly CancellationTokenSource Stop=CancellationTokenSource.CreateLinkedTokenSource(parent);
         public readonly SemaphoreSlim Serial=new(1,1);
         public readonly NetworkFailureLog FailureLog=new();
+        public readonly StagingRetrySchedule StagingRetries=new();
         public readonly SemaphoreSlim Signal=new(0,1);
         public readonly object Sync=new();
         public CancellationTokenSource? Request;
@@ -133,6 +134,7 @@ public sealed partial class MountManager
         {
             var current=_repository.RemotePending(pending.MountId,pending.Scope).FirstOrDefault(x=>x.Id==pending.Id);
             if(!retry&&current?.State=="Canceled"&&pending.State is not("Canceled" or "Completed" or "Superseded"))return current;
+            if(!StagingDiskSpace.IsWaiting(pending.State,pending.Error)&&_roots.TryGetValue(pending.MountId,out var root))root.RemoteSync?.StagingRetries.Reset(pending.Id);
             _repository.SaveRemotePending(pending);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;
         }
     }
