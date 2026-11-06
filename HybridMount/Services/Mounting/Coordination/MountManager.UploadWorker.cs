@@ -9,7 +9,7 @@ public sealed partial class MountManager
     /// <summary>每根串行上传、全局两路；网络传输期间不持有根锁，窗口和读取不被队列阻塞。</summary>
     private async Task UploadLoopAsync(Runtime root,UploadRuntime runtime)
     {
-        var token=runtime.Stop.Token;var scanned=DateTimeOffset.MinValue;
+        var token=runtime.Stop.Token;
         try
         {
             // 旧版本可能遗留同路径的排队记录与已发送记录；先由已发送记录接管，防止恢复时旧队列绕过结果核对。
@@ -22,8 +22,8 @@ public sealed partial class MountManager
             foreach(var item in _repository.Uploads(root.Definition.Id).Where(x=>x.State=="Sending"))ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="上次请求已发出，恢复后先核对远端。",LastCheckedUtc=null});
             while(!token.IsCancellationRequested)
             {
-                if(runtime.TakeScanRequest()||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
-                {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
+                var scan=runtime.Scans.Take(DateTimeOffset.UtcNow,runtime.TakeScanRequest());
+                if(scan is not null)await ScanLocalUploadsAsync(root,token,batch:scan).ConfigureAwait(false);
                 var item=_repository.Uploads(root.Definition.Id).Where(x=>
                     (x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath)))&&
                     DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
