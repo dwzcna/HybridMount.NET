@@ -15,6 +15,8 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class S3FileSource
 {
     private readonly string _diagnosticContext;
+    internal TimeSpan ReadRetryDelay {get;set;}=TimeSpan.FromMilliseconds(200);
+    internal Action? ReadRetryWaiting {get;set;}
     private sealed class ResponseHints { internal string? Region,RequestId; internal bool Certificate; }
     private static readonly AsyncLocal<ResponseHints?> Hints=new();
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
@@ -85,23 +87,45 @@ public sealed partial class S3FileSource
     /// <summary>仅内部探测可将预期的不存在或条件拒绝作为空结果；真实请求保持原异常契约。</summary>
     private async Task<T?> CallCore<T>(Func<Task<T>> action,CancellationToken token,bool mutation,ExpectedResult expected,[CallerMemberName]string stage="") where T:class
     {
-        token.ThrowIfCancellationRequested();
-        var previousHints=Hints.Value;var hints=new ResponseHints();Hints.Value=hints;
-        try { return await action().ConfigureAwait(false); }
-        catch(AmazonS3Exception error) when((expected&ExpectedResult.Missing)!=0&&error.StatusCode==HttpStatusCode.NotFound&&error.ErrorCode!="NoSuchBucket") {return null;}
-        catch(AmazonS3Exception error) when((expected&ExpectedResult.PreconditionRejected)!=0&&error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict) {return null;}
-        catch (AmazonS3Exception error) when (error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
-        { throw new SourceConflictException("S3 对象版本或目标创建条件不满足。"); }
-        catch (AmazonS3Exception error) when (error.StatusCode == HttpStatusCode.NotFound && error.ErrorCode != "NoSuchBucket" && stage != nameof(ProbeAsync))
-        { throw new FileNotFoundException("S3 对象或桶不存在。"); }
-        catch (Exception error) when (error is AmazonServiceException or AmazonClientException or HttpRequestException or IOException or OperationCanceledException)
+        var attempts=mutation?1:3;
+        for(var index=0;index<attempts;index++)
         {
-            if (mutation && (error is not AmazonS3Exception service || (int)service.StatusCode >= 500 || (int)service.StatusCode == 0))
-                throw new SourceOutcomeUnknownException("S3 修改", new SourceConnectionException(Diagnose(error,stage,hints)));
-            if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
-            throw new SourceConnectionException(Diagnose(error,stage,hints));
+            token.ThrowIfCancellationRequested();
+            var previousHints=Hints.Value;var hints=new ResponseHints();Hints.Value=hints;
+            try { return await action().ConfigureAwait(false); }
+            catch(AmazonS3Exception error) when((expected&ExpectedResult.Missing)!=0&&error.StatusCode==HttpStatusCode.NotFound&&error.ErrorCode!="NoSuchBucket") {return null;}
+            catch(AmazonS3Exception error) when((expected&ExpectedResult.PreconditionRejected)!=0&&error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict) {return null;}
+            catch (AmazonS3Exception error) when (error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)
+            { throw new SourceConflictException("S3 对象版本或目标创建条件不满足。"); }
+            catch (AmazonS3Exception error) when (error.StatusCode == HttpStatusCode.NotFound && error.ErrorCode != "NoSuchBucket" && stage != nameof(ProbeAsync))
+            { throw new FileNotFoundException("S3 对象或桶不存在。"); }
+            catch(SourceConflictException){throw;}
+            catch (Exception error) when (error is AmazonServiceException or AmazonClientException or HttpRequestException or IOException or OperationCanceledException or TimeoutException or System.Net.Sockets.SocketException)
+            {
+                if (mutation && (error is not AmazonS3Exception service || (int)service.StatusCode >= 500 || (int)service.StatusCode == 0))
+                    throw new SourceOutcomeUnknownException("S3 修改", new SourceConnectionException(Diagnose(error,stage,hints,index+1)));
+                token.ThrowIfCancellationRequested();
+                if(mutation||index==attempts-1||!TransientRead(error,hints))throw new SourceConnectionException(Diagnose(error,stage,hints,index+1));
+            }
+            finally { Hints.Value=previousHints; }
+            var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,ReadRetryDelay.TotalMilliseconds)*(1<<index)*(0.8+0.4*Random.Shared.NextDouble())));
+            var waiting=Task.Delay(delay,token);ReadRetryWaiting?.Invoke();await waiting.ConfigureAwait(false);
         }
-        finally { Hints.Value=previousHints; }
+        throw new InvalidOperationException("S3 重试状态无效。");
+    }
+    private static bool TransientRead(Exception error,ResponseHints hints)
+    {
+        if(hints.Certificate)return false;
+        for(Exception? nested=error;nested is not null;nested=nested.InnerException)
+            if(nested is System.Security.Authentication.AuthenticationException||nested is HttpRequestException{HttpRequestError:HttpRequestError.SecureConnectionError})return false;
+        if(error is AmazonServiceException service)
+        {
+            if(service.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)return false;
+            return (int)service.StatusCode is 0 or 408 or 429 or 500 or 502 or 503 or 504||service.ErrorCode is "SlowDown" or "RequestTimeout" or "RequestTimeoutException" or "InternalError";
+        }
+        for(Exception? nested=error;nested is not null;nested=nested.InnerException)
+            if(nested is HttpRequestException or IOException or OperationCanceledException or TimeoutException or System.Net.Sockets.SocketException)return true;
+        return false;
     }
     public async Task ProbeAsync(CancellationToken token = default)
     {
@@ -111,7 +135,7 @@ public sealed partial class S3FileSource
 
     }
     /// <summary>将 SDK 错误转换为有限字段；不读取 ResponseBody、Message 或授权信息。</summary>
-    private ConnectionDiagnostic Diagnose(Exception error,string stage,ResponseHints hints)
+    private ConnectionDiagnostic Diagnose(Exception error,string stage,ResponseHints hints,int attempts=1)
     {
         static string? Field(string? value,int max=160) => !string.IsNullOrEmpty(value) && value.Length<=max &&
             value.All(c=>char.IsAsciiLetterOrDigit(c)||c is '-' or '_' or '/' or '+' or '=' or '.')?value:null;
@@ -134,7 +158,7 @@ public sealed partial class S3FileSource
             kind=certificate?ConnectionFailureKind.Certificate:ConnectionFailureKind.Network;
             explanation=certificate?"TLS 或证书验证失败，请核对主机名与证书链。":error is OperationCanceledException?"HTTP 请求超时，请检查网络和服务响应。":"请求未获得 HTTP 响应，请核对网络、DNS、代理及凭据来源。";
         }
-        return new(stage,kind,status==0?null:status,code,Field(service?.RequestId)??Field(hints.RequestId),Field(hints.Region,64),explanation+"；"+_diagnosticContext);
+        return new(stage,kind,status==0?null:status,code,Field(service?.RequestId)??Field(hints.RequestId),Field(hints.Region,64),explanation+"；"+_diagnosticContext,Transient:TransientRead(error,hints),Attempts:attempts);
     }
 
 }
