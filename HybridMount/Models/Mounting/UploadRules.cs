@@ -8,10 +8,17 @@ public static class UploadRules
     {
         SourceRequestRejectedException rejected=>TransientStatus(rejected.HttpStatus),
         SourceConnectionException connection=>connection.Diagnostic.Transient||connection.Diagnostic.Kind is ConnectionFailureKind.Network or ConnectionFailureKind.Timeout||connection.Diagnostic.HttpStatus is {} status&&TransientStatus(status),
-        SourceOutcomeUnknownException=>true,
+        SourceOutcomeUnknownException unknown=>!IsPermanentConnectionFailure(unknown),
         System.Net.Http.HttpRequestException or TimeoutException or OperationCanceledException or System.Net.Sockets.SocketException=>true,
         _=>false
     };
+    /// <summary>逐层识别协议包装内的永久连接诊断；仅作错误分类，已发送写入仍必须先核对结果。</summary>
+    public static bool IsPermanentConnectionFailure(Exception error)
+    {
+        for(Exception? current=error;current is not null;current=current.InnerException)
+            if(current is SourceConnectionException connection)return !IsTransient(connection);
+        return false;
+    }
     private static bool TransientStatus(int status)=>status is 0 or 408 or 425 or 429 or 500 or 502 or 503 or 504;
     /// <summary>客户端指数退避最多五分钟；服务器Retry-After更长时遵循服务器等待，抖动可注入以确定性验证。</summary>
     public static TimeSpan TransientDelay(int failures,TimeSpan? retryAfter=null,double? jitter=null)

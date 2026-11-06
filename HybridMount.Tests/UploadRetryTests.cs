@@ -45,8 +45,8 @@ public sealed class UploadRetryTests
         try
         {
             var repository=new MountRepository(Path.Combine(dav.Area,"data"),registry);await using var logger=new LoggerService(Path.Combine(dav.Area,"logs.db"));await using var manager=new MountManager(repository,logger);
-            var mount=new MountDefinition(Guid.NewGuid(),"发送阶段",dav.Area,Source:dav.Options);var item=new LocalUpload(Guid.NewGuid().ToString("N"),mount.Id,"file","file",false,"stamp",1,"Queued",DateTimeOffset.UtcNow);repository.SaveUpload(item);
-            manager.UploadCheckpointForTests=(_,_)=>{repository.SaveUpload(item with{State=currentState});throw new SourceOutcomeUnknownException("发送前探测",new IOException("模拟网络中断"));};
+            var mount=new MountDefinition(Guid.NewGuid(),"发送阶段",dav.Area,Source:dav.Options);var item=new LocalUpload(Guid.NewGuid().ToString("N"),mount.Id,"file","file",false,"stamp",1,currentState,DateTimeOffset.UtcNow);repository.SaveUpload(item);
+            manager.UploadCheckpointForTests=(_,_)=>throw new SourceOutcomeUnknownException("发送前探测",new IOException("模拟网络中断"));
             const System.Reflection.BindingFlags flags=System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance;
             var root=Activator.CreateInstance(typeof(MountManager).GetNestedType("Runtime",System.Reflection.BindingFlags.NonPublic)!,[mount])!;
             using var runtime=(IDisposable)Activator.CreateInstance(typeof(MountManager).GetNestedType("UploadRuntime",System.Reflection.BindingFlags.NonPublic)!,[CancellationToken.None])!;

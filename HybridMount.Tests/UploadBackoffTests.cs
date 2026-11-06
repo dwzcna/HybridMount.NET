@@ -29,6 +29,33 @@ public sealed class UploadBackoffTests
             "unknown"=>new SourceOutcomeUnknownException("probe",new IOException()),"permission"=>new UnauthorizedAccessException(),_=>new IOException()
         };Assert.Equal(transient,UploadRules.IsTransient(error));
     }
+    /// <summary>协议的结果不明包装不能使发送前的证书或权限故障变为无限瞬时重试。</summary>
+    [Theory]
+    [InlineData(ConnectionFailureKind.Certificate)][InlineData(ConnectionFailureKind.Tls)]
+    [InlineData(ConnectionFailureKind.Authentication)][InlineData(ConnectionFailureKind.Permission)]
+    public void WrappedPermanentConnectionFailureRetainsClassification(ConnectionFailureKind kind)
+    {
+        var diagnostic=new SourceConnectionException(new("probe",kind,null,null,null,null,"永久诊断"));
+        var error=new SourceOutcomeUnknownException("probe",new IOException("包装",diagnostic));
+        Assert.True(UploadRules.IsPermanentConnectionFailure(error));Assert.False(UploadRules.IsTransient(error));
+    }
+    /// <summary>相同永久诊断在发送前失败，已发送时保留未知结果，不丢弃远端核对证据。</summary>
+    [Theory]
+    [InlineData("Prepared",ConnectionFailureKind.Certificate)][InlineData("Prepared",ConnectionFailureKind.Permission)]
+    [InlineData("Sending",ConnectionFailureKind.Certificate)][InlineData("Sending",ConnectionFailureKind.Permission)]
+    public async Task WrappedPermanentFailuresRespectPersistedSendPhase(string state,ConnectionFailureKind kind)
+    {
+        await using var dav=new DavFixture();var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
+        try
+        {
+            var repository=new MountRepository(Path.Combine(dav.Area,"data"),registry);await using var logger=new LoggerService(Path.Combine(dav.Area,"logs.db"));await using var manager=new MountManager(repository,logger);
+            var item=Item(DateTimeOffset.UtcNow) with{State=state,TransientFailureCount=2};repository.SaveUpload(item);
+            var error=new SourceOutcomeUnknownException("probe",new IOException("包装",new SourceConnectionException(new("probe",kind,null,null,null,null,"永久诊断"))));
+            typeof(MountManager).GetMethod("HandleUploadFailure",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(manager,[item.Id,error,true,CancellationToken.None,null]);
+            var result=repository.Upload(item.Id)!;Assert.Equal(state=="Sending"?"OutcomeUnknown":"Failed",result.State);Assert.Null(result.NextAttemptUtc);Assert.Equal(2,result.TransientFailureCount);
+        }
+        finally{Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);}
+    }
     [Fact]
     public void BackoffGrowsWithJitterAndRespectsLongerRetryAfter()
     {
@@ -67,7 +94,7 @@ public sealed class UploadBackoffTests
             var repository=new MountRepository(Path.Combine(dav.Area,"data"),registry);await using var logger=new LoggerService(Path.Combine(dav.Area,"logs.db"));await using var manager=new MountManager(repository,logger);
             var item=Item(DateTimeOffset.UtcNow) with{State=state,TransientFailureCount=2};repository.SaveUpload(item);
             Exception error=status<0?new IOException("永久读写错误"):new SourceRequestRejectedException(status,"服务拒绝",TimeSpan.FromSeconds(60));
-            typeof(MountManager).GetMethod("HandleUploadFailure",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(manager,[item.Id,error,preparing,CancellationToken.None]);
+            typeof(MountManager).GetMethod("HandleUploadFailure",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(manager,[item.Id,error,preparing,CancellationToken.None,null]);
             var result=new MountRepository(repository.DataDirectory,registry).Upload(item.Id)!;Assert.Equal(expected,result.State);
             if(status>=0&&expected=="Waiting")
             {Assert.Equal(3,result.TransientFailureCount);Assert.Equal(TimeSpan.FromSeconds(60),result.NextAttemptUtc-result.LastCheckedUtc);Assert.Contains("下次重试",result.Error);}

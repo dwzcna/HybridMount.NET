@@ -32,7 +32,7 @@ public sealed record LocalUpload(string Id,Guid MountId,string LocalPath,string 
     string? SnapshotStamp=null,string? SnapshotIdentity=null,long SnapshotGeneration=0,long Bytes=0,long Total=0,
     SourceEntry? Receipt=null,string? Error=null,bool ExplicitRequest=false,bool CancelRequested=false,bool IsCopy=false,
     DateTimeOffset? LastCheckedUtc=null,UploadAttention? Attention=null,int AutoRetryCount=0,
-    DateTimeOffset? NextAttemptUtc=null,int TransientFailureCount=0)
+    DateTimeOffset? NextAttemptUtc=null,int TransientFailureCount=0,string? SnapshotAttemptId=null)
 {
     /// <summary>同一上传的界面和持久历史使用相同描述；副本明确显示远端新路径。</summary>
     public MountOperationSnapshot ToSnapshot()=>new(Id,"upload",State,State=="Completed"?1:0,1,

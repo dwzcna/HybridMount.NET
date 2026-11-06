@@ -45,6 +45,7 @@ public sealed partial class MountManager
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         lock(runtime.Sync){if(runtime.PropertyPath is not null)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
+        LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>preparing&&current!=prepared?current:update(current));
         try
         {
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
@@ -85,11 +86,12 @@ public sealed partial class MountManager
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);
             await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);
         }
+        catch(UploadPreparationChangedException){}
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
-        catch(SourceConflictException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
-        catch(NotSupportedException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
-        catch(Exception error){HandleUploadFailure(selected.Id,error,preparing,stopping);}
+        catch(SourceConflictException error){Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
+        catch(NotSupportedException error){Fail(x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
+        catch(Exception error){HandleUploadFailure(selected.Id,error,preparing,stopping,Fail);}
         finally
         {
             if(capacity is not null)
@@ -100,17 +102,18 @@ public sealed partial class MountManager
         }
     }
     /// <summary>上传任务所有者统一落库失败阶段；退出取消与已发送的未知结果优先，真实瞬时拒绝按持久退避调度。</summary>
-    private void HandleUploadFailure(string id,Exception error,bool preparing,CancellationToken stopping)
+    private void HandleUploadFailure(string id,Exception error,bool preparing,CancellationToken stopping,Func<Func<LocalUpload,LocalUpload>,LocalUpload?>? change=null)
     {
+        LocalUpload? Update(Func<LocalUpload,LocalUpload> update)=>change is null?ChangeUpload(id,update):change(update);
         var current=_repository.Upload(id);if(current is null)return;
-        if(current.State=="RemoteCommitted")ChangeUpload(id,x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
-        else if(error is SourceRequestRejectedException)ChangeUpload(id,x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
-        else if(error is SourceConnectionException&&!UploadRules.IsTransient(error))ChangeUpload(id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
-        else if(current.State=="Sending")ChangeUpload(id,x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
-        else if(current.CancelRequested)ChangeUpload(id,x=>x with{State="Canceled",Error="本代上传已取消。"});
-        else if(error is OperationCanceledException&&stopping.IsCancellationRequested)ChangeUpload(id,x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
-        else if(UploadRules.IsTransient(error))ChangeUpload(id,x=>UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow));
-        else ChangeUpload(id,x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow,NextAttemptUtc=preparing&&error is IOException or System.ComponentModel.Win32Exception?DateTimeOffset.UtcNow.AddSeconds(3):null});
+        if(current.State=="RemoteCommitted")Update(x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+        else if(error is SourceRequestRejectedException)Update(x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
+        else if(UploadRules.IsPermanentConnectionFailure(error)&&(error is not SourceOutcomeUnknownException||current.State!="Sending"))Update(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
+        else if(current.State=="Sending")Update(x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
+        else if(current.CancelRequested)Update(x=>x with{State="Canceled",Error="本代上传已取消。"});
+        else if(error is OperationCanceledException&&stopping.IsCancellationRequested)Update(x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
+        else if(UploadRules.IsTransient(error))Update(x=>UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow));
+        else Update(x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow,NextAttemptUtc=preparing&&error is IOException or System.ComponentModel.Win32Exception?DateTimeOffset.UtcNow.AddSeconds(3):null});
     }
     /// <summary>未知结果先核对远端；仅经验证的条件写在安全基线下有限重试。</summary>
     private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)
