@@ -60,7 +60,8 @@ public sealed partial class TasksPage : Page, IDisposable
         {
             var field=new TextBox{Header="远端新文件相对路径",Text=ViewModel.CopyPath,MinWidth=400};
             field.TextChanged+=(_,_)=>ViewModel.CopyPath=field.Text;
-            var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="另存远端副本",Content=field,PrimaryButtonText="上传副本",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            var content=new StackPanel{Spacing=12,MaxWidth=520};content.Children.Add(new TextBlock{Text=ViewModel.CopyContentNotice,TextWrapping=TextWrapping.Wrap});content.Children.Add(field);
+            var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="另存远端副本",Content=content,PrimaryButtonText="上传副本",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
             if(await dialog.ShowAsync()!=ContentDialogResult.Primary)return;
             ViewModel.SubmitCopy();RestoreSelection();
         }
