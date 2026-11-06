@@ -93,7 +93,7 @@ public sealed partial class MountManager
         if(IsStopping)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(!UploadRules.CanRetry(item))return false;
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);
-        ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
+        ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,NextAttemptUtc=null,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
     }
     /// <summary>冲突文件上传到新的相对路径；创建保护保证不覆盖目标，原始冲突和索引不变。</summary>
     public string UploadAsCopy(string id,string destination){lock(_lifetime){ThrowIfStopping();return UploadAsCopyCore(id,destination);}}

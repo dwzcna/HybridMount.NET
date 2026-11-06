@@ -24,12 +24,13 @@ public sealed partial class MountManager
             {
                 if(Interlocked.Exchange(ref runtime.Dirty,0)!=0||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
                 {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
-                var item=_repository.Uploads(root.Definition.Id).Where(x=>
-                    (x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath)))&&
-                    DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
-                    (x.LastCheckedUtc is null||DateTimeOffset.UtcNow-x.LastCheckedUtc>=TimeSpan.FromSeconds(x.State is "OutcomeUnknown" or "WaitingCapacity"?60:3)))
-                    .OrderBy(x=>x.SourcePath.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?0:1).ThenBy(x=>x.ChangedUtc).FirstOrDefault();
-                if(item is null){await runtime.Signal.WaitAsync(500,token).ConfigureAwait(false);continue;}
+                var candidates=_repository.Uploads(root.Definition.Id).Where(x=>
+                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+                var now=DateTimeOffset.UtcNow;var item=UploadRules.NextUpload(candidates,now);
+                if(item is null)
+                {
+                    await runtime.Signal.WaitAsync(UploadRules.UploadWait(candidates,now,scanned+TimeSpan.FromSeconds(60)),token).ConfigureAwait(false);continue;
+                }
                 await RunUploadAsync(root,runtime,item,token).ConfigureAwait(false);
             }
         }
@@ -86,23 +87,9 @@ public sealed partial class MountManager
         }
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
-        catch(SourceRequestRejectedException error){ChangeUpload(selected.Id,x=>x with{State=!sendingStarted&&error.HttpStatus is 408 or 429 or >=500?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=!sendingStarted&&error.HttpStatus is 408 or 429 or >=500?DateTimeOffset.UtcNow:null});}
-        catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500 and not(408 or 429)&&!error.Diagnostic.Transient){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
         catch(SourceConflictException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
         catch(NotSupportedException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
-        catch(Exception error)
-        {
-            var current=_repository.Upload(selected.Id);
-            if(current is not null)
-            {
-                if(current.State=="RemoteCommitted")ChangeUpload(selected.Id,x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
-                else if(current.State=="Sending")
-                    ChangeUpload(selected.Id,x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
-                else if(current.CancelRequested)ChangeUpload(selected.Id,x=>x with{State="Canceled",Error="本代上传已取消。"});
-                else if(error is OperationCanceledException&&stopping.IsCancellationRequested)ChangeUpload(selected.Id,x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
-                else ChangeUpload(selected.Id,x=>x with{State=error is IOException or System.Net.Http.HttpRequestException||preparing&&error is System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
-            }
-        }
+        catch(Exception error){HandleUploadFailure(selected.Id,error,preparing,stopping);}
         finally
         {
             if(capacity is not null)
@@ -111,6 +98,18 @@ public sealed partial class MountManager
             Task canceled;lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;canceled=runtime.RequestCancellation;}
             await canceled.ConfigureAwait(false);
         }
+    }
+    private void HandleUploadFailure(string id,Exception error,bool preparing,CancellationToken stopping)
+    {
+        var current=_repository.Upload(id);if(current is null)return;
+        if(current.State=="RemoteCommitted")ChangeUpload(id,x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+        else if(error is SourceRequestRejectedException)ChangeUpload(id,x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
+        else if(error is SourceConnectionException&&!UploadRules.IsTransient(error))ChangeUpload(id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
+        else if(current.State=="Sending")ChangeUpload(id,x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
+        else if(current.CancelRequested)ChangeUpload(id,x=>x with{State="Canceled",Error="本代上传已取消。"});
+        else if(error is OperationCanceledException&&stopping.IsCancellationRequested)ChangeUpload(id,x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
+        else if(UploadRules.IsTransient(error))ChangeUpload(id,x=>UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow));
+        else ChangeUpload(id,x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow,NextAttemptUtc=preparing&&error is IOException or System.ComponentModel.Win32Exception?DateTimeOffset.UtcNow.AddSeconds(3):null});
     }
     /// <summary>未知结果先核对远端；仅经验证的条件写在安全基线下有限重试。</summary>
     private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)

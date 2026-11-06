@@ -3,6 +3,36 @@ namespace HybridMount.Models.Mounting;
 /// <summary>上传意图、类型、变化与删除屏障的纯规则；不读文件、数据库或原生占位状态。</summary>
 public static class UploadRules
 {
+    public static bool IsTransient(Exception error)=>error switch
+    {
+        SourceRequestRejectedException rejected=>TransientStatus(rejected.HttpStatus),
+        SourceConnectionException connection=>connection.Diagnostic.Transient||connection.Diagnostic.Kind is ConnectionFailureKind.Network or ConnectionFailureKind.Timeout||connection.Diagnostic.HttpStatus is {} status&&TransientStatus(status),
+        SourceOutcomeUnknownException=>true,
+        System.Net.Http.HttpRequestException or TimeoutException or OperationCanceledException or System.Net.Sockets.SocketException=>true,
+        _=>false
+    };
+    private static bool TransientStatus(int status)=>status is 0 or 408 or 425 or 429 or 500 or 502 or 503 or 504;
+    public static TimeSpan TransientDelay(int failures,TimeSpan? retryAfter=null,double? jitter=null)
+    {
+        var seconds=3*Math.Pow(2,Math.Clamp(failures,0,7))*(0.8+0.4*Math.Clamp(jitter??Random.Shared.NextDouble(),0,1));
+        return TimeSpan.FromSeconds(Math.Min(300,Math.Max(seconds,retryAfter?.TotalSeconds??0)));
+    }
+    public static LocalUpload WaitForTransient(LocalUpload item,Exception error,DateTimeOffset now)
+    {
+        var next=now+TransientDelay(item.TransientFailureCount,(error as SourceRequestRejectedException)?.RetryAfter);
+        return item with{State="Waiting",TransientFailureCount=item.TransientFailureCount==int.MaxValue?int.MaxValue:item.TransientFailureCount+1,
+            LastCheckedUtc=now,NextAttemptUtc=next,Error=error.Message+$" 下次重试 {next.ToLocalTime():HH:mm:ss}。"};
+    }
+    public static DateTimeOffset AttemptUtc(LocalUpload item)
+    {
+        var checkedAt=item.State=="Waiting"?item.NextAttemptUtc??DateTimeOffset.MinValue:
+            item.LastCheckedUtc is {} last?last+TimeSpan.FromSeconds(item.State is "OutcomeUnknown" or "WaitingCapacity"?60:3):DateTimeOffset.MinValue;
+        var stable=item.ChangedUtc+TimeSpan.FromSeconds(2);return checkedAt>stable?checkedAt:stable;
+    }
+    public static LocalUpload? NextUpload(IEnumerable<LocalUpload> items,DateTimeOffset now)=>items.Where(item=>AttemptUtc(item)<=now)
+        .OrderBy(item=>item.SourcePath.Count(c=>c=='/')).ThenBy(item=>item.IsDirectory?0:1).ThenBy(item=>item.ChangedUtc).FirstOrDefault();
+    public static TimeSpan UploadWait(IEnumerable<LocalUpload> items,DateTimeOffset now,DateTimeOffset scanDue)
+        =>TimeSpan.FromMilliseconds(Math.Max(1,(items.Select(AttemptUtc).Append(scanDue).Min()-now).TotalMilliseconds));
     /// <summary>类型互换统一冲突；显式重试和扫描共用同一规则及提示。</summary>
     public const string TypeConflictMessage="本地对象、上传意图、快照或远端回执的文件/目录类型不一致；请恢复原类型后重试，或改名后上传。";
     /// <summary>校验当前对象、不可变快照与远端回执的类型；任何不一致均拒绝发送或提交。</summary>
