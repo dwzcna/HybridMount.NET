@@ -29,6 +29,8 @@ public interface IFileSource : IAsyncDisposable
     ValueTask<PreviewRangeResult> TryReadPreviewRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default) => ValueTask.FromResult(new PreviewRangeResult(false,0));
     /// <summary>expectedVersion 为空表示仅创建；更新必须匹配当前版本。</summary>
     Task<SourceEntry> UploadAsync(string path, Stream content, string? expectedVersion, CancellationToken token = default);
+    /// <summary>发送用户内容前验证能力及基线；默认不处理，失败不表示用户写入已发送，令牌覆盖探测。</summary>
+    Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)=>Task.CompletedTask;
     /// <summary>上传不可变快照；失败或取消不代表远端回滚。旧驱动继续使用版本条件，不能忽略额外摘要。</summary>
     Task<SourceEntry> UploadWithPreconditionAsync(string path, Stream content, UploadPrecondition condition,
         IProgress<UploadProgress>? progress = null, CancellationToken token = default)
