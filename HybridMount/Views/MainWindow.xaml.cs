@@ -3,15 +3,15 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
 
 namespace HybridMount.Views;
 
-/// <summary>从 EPaperKit 窗口布局迁移的主导航，负责外观应用及轻量页面缓存。</summary>
+/// <summary>主窗口连接标题栏、侧栏与 Frame，负责外观和页面导航状态。</summary>
 public sealed partial class MainWindow : Window
 {
     private readonly NavigationService _navigation;
-    private bool _syncingSelection;
     private AppearanceBackdrop? _appliedBackdrop;
     /// <summary>原生窗口句柄，用于系统文件选择器。</summary>
     public IntPtr Handle => WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -19,34 +19,36 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _navigation=new NavigationService(ContentFrame,error=>App.Current.Logger.Queue("导航","Error","页面导航失败："+error.GetType().Name));
-        App.Current.Navigation.Bind(_navigation);_navigation.Navigated+=SynchronizeSelection;
+        _navigation=App.Current.Navigation;
+        _navigation.RegisterFrame(ContentFrame,error=>App.Current.Logger.Queue("导航","Error","页面导航失败："+error.GetType().Name));
+        _navigation.Navigated+=SynchronizeSelection;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.Resize(new SizeInt32(1080, 760));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "HybridMount.ico"));
         AppTitleBar.PaneToggleRequested += (_, _) => Navigation.IsPaneOpen = !Navigation.IsPaneOpen;
-        Navigation.SelectionChanged += (_, args) =>
+        AppTitleBar.BackRequested += (_, _) => TryGoBack();
+        Navigation.ItemInvoked += (_, args) =>
         {
-            if(_syncingSelection)return;
-            if(args.SelectedItem is NavigationViewItem item&&item.Tag is string value&&Uri.TryCreate(value,UriKind.Absolute,out var target))
-                if(!Navigate(target)&&_navigation.Current is {} current)SynchronizeSelection(current);
+            if(args.InvokedItemContainer is NavigationViewItem {Tag:ApplicationPage page}&&!_navigation.Navigate(page))
+                DispatcherQueue.TryEnqueue(()=>{if(_navigation.Current is {} current)SynchronizeSelection(current);});
         };
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
         ApplyAppearance();
-        Navigate(ApplicationRoutes.Home);RefreshUploadIssueNotifications();
+        _navigation.Navigate(ApplicationPage.Home);RefreshUploadIssueNotifications();
     }
-    /// <summary>内部 URI 统一入口，实际导航由服务经 Frame.Navigate 执行。</summary>
-    public bool Navigate(Uri target)=>_navigation.Navigate(target);
-    private void SynchronizeSelection(Uri target)
+    /// <summary>成功导航后更新侧栏和标题栏；程序性选中不会触发 ItemInvoked。</summary>
+    private void SynchronizeSelection(ApplicationPage page)
     {
-        if(_syncingSelection)return;_syncingSelection=true;
-        try
-        {
-            var selected=Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>().FirstOrDefault(item=>Equals(item.Tag,target.OriginalString));
-            if(selected is not null&&!ReferenceEquals(Navigation.SelectedItem,selected))Navigation.SelectedItem=selected;
-        }
-        finally{_syncingSelection=false;}
+        var selected=Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>().FirstOrDefault(item=>item.Tag is ApplicationPage target&&target==page);
+        if(selected is not null&&!ReferenceEquals(Navigation.SelectedItem,selected))Navigation.SelectedItem=selected;
+        AppTitleBar.IsBackButtonEnabled=_navigation.CanGoBack;
+    }
+    /// <summary>标题栏与快捷键共用返回入口；对话框或其他弹层打开时保持底层页面。</summary>
+    private bool TryGoBack()=>RootGrid.XamlRoot is {} root&&!VisualTreeHelper.GetOpenPopupsForXamlRoot(root).Any(popup=>popup.IsOpen)&&_navigation.TryGoBack();
+    private void OnBackAcceleratorInvoked(KeyboardAccelerator sender,KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled=true;TryGoBack();
     }
     /// <summary>立即应用已经成功保存的主题和材质；回退不覆盖用户选择。</summary>
     public void ApplyAppearance()
@@ -112,6 +114,6 @@ public sealed partial class MainWindow : Window
     public async Task ReleaseResourcesAsync()
     {
         try{await _navigation.DisposeAsync();}
-        finally{_navigation.Navigated-=SynchronizeSelection;App.Current.Navigation.Unbind(_navigation);SystemBackdrop=null;}
+        finally{_navigation.Navigated-=SynchronizeSelection;SystemBackdrop=null;}
     }
 }

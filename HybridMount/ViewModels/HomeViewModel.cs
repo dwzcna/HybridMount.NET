@@ -4,7 +4,7 @@ namespace HybridMount.ViewModels;
 public sealed class HomeViewModel(string version,INavigationService navigation)
 {
     public string VersionText=>"版本 "+version;
-    public bool OpenMounts()=>navigation.Navigate(ApplicationRoutes.Mounts);
-    public bool OpenSettings()=>navigation.Navigate(ApplicationRoutes.Settings);
-    public bool OpenLogs()=>navigation.Navigate(ApplicationRoutes.Logs);
+    public bool OpenMounts()=>navigation.Navigate(ApplicationPage.Mounts);
+    public bool OpenSettings()=>navigation.Navigate(ApplicationPage.Settings);
+    public bool OpenLogs()=>navigation.Navigate(ApplicationPage.Logs);
 }

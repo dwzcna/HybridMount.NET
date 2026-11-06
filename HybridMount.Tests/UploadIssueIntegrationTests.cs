@@ -3,7 +3,7 @@ using HybridMount.Services.Mounting;
 using HybridMount.ViewModels;
 namespace HybridMount.Tests;
 
-/// <summary>独立持久问题、合并提示、固定URI定位及页面重试／取消联动，所有定义和日志均隔离。</summary>
+/// <summary>独立持久问题、合并提示、任务页面定位及页面重试／取消联动，所有定义和日志均隔离。</summary>
 public sealed class UploadIssueIntegrationTests
 {
     private sealed class Dispatcher : IUiDispatcher
@@ -14,8 +14,10 @@ public sealed class UploadIssueIntegrationTests
     }
     private sealed class Navigation : INavigationService
     {
-        public readonly List<Uri> Requests=[];
-        public bool Navigate(Uri target){Requests.Add(target);return ApplicationRoutes.IsRegistered(target);}
+        public readonly List<ApplicationPage> Requests=[];
+        public bool CanGoBack=>false;
+        public bool TryGoBack()=>false;
+        public bool Navigate(ApplicationPage page){Requests.Add(page);return Enum.IsDefined(page);}
     }
     private sealed class Area : IAsyncDisposable
     {
@@ -43,7 +45,7 @@ public sealed class UploadIssueIntegrationTests
         var queued=area.Repository.Upload(row.Id)!;vm.RetrySelected();Assert.Equal(queued,area.Repository.Upload(row.Id));
         Assert.True(focus.ShowIssues(area.Id,["missing.txt"]));ui.Drain();Assert.Empty(vm.Operations);
         focus.ShowIssues(area.Id);ui.Drain();Assert.Single(vm.Operations);vm.SelectedJobId=row.Id;vm.CancelSelected();ui.Drain();Assert.Empty(vm.Operations);Assert.Empty(area.Manager.UploadIssues);
-        Assert.All(navigation.Requests,uri=>Assert.Equal("hybridmount:///tasks",uri.OriginalString));
+        Assert.All(navigation.Requests,page=>Assert.Equal(ApplicationPage.Tasks,page));
         vm.Dispose();focus.ShowIssues(area.Id);ui.Drain();focus.RequestStop();Assert.False(focus.ShowIssues(area.Id));
     }
     [Fact(Timeout=30000)]

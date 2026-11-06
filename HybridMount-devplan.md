@@ -1,6 +1,6 @@
-# HybridMount.NET 开发计划（0.0.1—0.0.9.24）
+# HybridMount.NET 开发计划（0.0.1—0.0.9.25）
 
-更新日期：2026-11-06。PR #1—#18按编号逐个合并，另核对PR #16更新并独立合并；累计19次双父合并、连续升版0.0.9.6—0.0.9.24。0.0.9.24完成x64 Debug最小编译、相关51/51测试、x64 Release构建、x64／ARM64签名包核验、ARM64测试交叉编译及x64非打包Release构建；本版未重复全量，上一版0.0.9.23的Debug／Release各1033/1033仅作相同代码树的已有证据。按用户后续明确授权，0.0.9.24合并结果已正常推送并核对GitHub和Azure master；新三个GitHub来源已按精确SHA逐个删除，累计18个远程来源及全部本地来源完成清理。最新18个PR均无未合入更新；本次仅补充发布记录，版本和已有验证结果保持。保全正式配置和同步根，不启动或安装中间版本。汇总见docs/Validation-PR-Merges.md。
+更新日期：2026-11-06。0.0.9.25已移除内部URI路由，以页面枚举和单一导航服务连接WinUI Frame原生历史、切换动画、标题栏返回及Alt＋左方向键；保留页面缓存和退出保护。针对性46/46、x64 Debug／Release各1029/1029、x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release通过；隔离实际WinUI运行时62项断言通过并以0退出，正式挂载和配置未加载。视觉动画、实际鼠标／快捷键、安装升级与ARM64实机仍待测。完成后按本次授权独立提交并推送GitHub与Azure，具体发布SHA保存artifacts/validation/00925-publication.json。前批PR合并及分支清理记录继续保留于docs/Validation-PR-Merges.md。
 
 工程限定为 HybridMount、HybridMount.Ext、HybridMount.Tests，主程序 HybridMount.NET.exe、命名空间 HybridMount。使用 WinUI 3／.NET 10／MSIX，最低 Windows 11 21H2，支持 x64／ARM64。本地挂载根仅限 NTFS。用户配置根路径为 `HKCU\Software\HybridMount.NET`，日志和运行索引使用 SQLite。
 
@@ -60,6 +60,13 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 本轮PR #16—#18逐个拉取、合并及分版自动验证预算45–75分钟，真实服务、GUI／Explorer及实机另计。每个PR独立升版、验证和提交后删除本地已合并来源分支；已在GitHub master中的旧来源分支按精确SHA清理，主分支推送仍需明确授权。
 
 ## 已完成
+
+### 0.0.9.25：Frame 原生导航、切换动画与返回
+
+- 删除ApplicationRoutes与NavigationGateway，以ApplicationPage枚举提供五页导航；应用持有单一NavigationService，窗口注册唯一类型映射，ViewModel不接触WinUI页面。生产实际调用Frame.Navigate与EntranceNavigationTransitionInfo，返回调用GoBack，不自行清空或模拟历史。
+- ItemInvoked发起导航，Navigated成功后同步侧栏和标题栏；重复当前页不增加历史，失败可重试。标题栏返回始终可见、无历史禁用；Alt＋左方向键共用入口，ContentDialog等弹层打开时不切换底层页。
+- 五页继续Required缓存及现有页面进入／离开通知，不增加重复生命周期；退出先停止新请求，再停止和释放页面，保留异步等待、迟到页面及失败聚合保护。托盘隐藏保留缓存和历史，任务定位不进入导航参数。
+- 已更新编译登记、版本及本版文档；不修改挂载、协议、IPC v2、SQLite或配置格式。实际测试与未测边界见docs/Validation-0.0.9.25.md。
 
 ### 0.0.9.24：PR #16更新及本批收尾
 
@@ -468,6 +475,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 ## 待测试
 
+- 0.0.9.25：视觉切换动画、真实鼠标侧栏／返回点击及Alt＋左方向键、弹层内键盘输入、导航失败时侧栏回退、MSIX安装升级与ARM64实机。computer-use连续初始化失败，未通过其他桌面控制方式绕过；隔离真实WinUI API断言已经完成，但不代替上述交互和视觉验收。
+
 - 本批PR逐版集成：真实服务兼容性、GUI／Explorer、安装升级与ARM64实机；自动测试仅使用本地服务及隔离NTFS／CFAPI根。既有正式进程不切换到中间版本，不访问已取消NAS；历史Shell及审查待办保持。
 
 - 0.0.9.5：真实WebDAV／S3服务的同名替换、用户原工作簿的显式重试与GUI任务展示、Explorer目视、MSIX安装升级及ARM64实机；不得以本地HTTP回归替代真实服务兼容认证。新非打包版本实际启动和旧历史收尾已验证，原Canceled工作簿未代重试；历史Shell与其他审查待办保持。
@@ -542,6 +551,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 | 0.0.5.2 | 实际托盘及连续退出、正常产品进程退出码 0、包身份下退出时序、调试器／Explorer、安装升级、ARM64 实机和长期网络压力；受控服务停止不能代替 GUI 验收 |
 
 ## 已测试
+
+- 2026-11-06，0.0.9.25，Windows x64：Debug最小编译、导航／页面状态／任务定位针对性46/46、Debug／Release全量各1029/1029通过；x64／ARM64签名MSIX核验、ARM64测试交叉编译和x64非打包Release通过。隔离WinUI运行时62项断言、宿主退出0，实际Frame历史、五页缓存、设置草稿与滚动、ContentDialog返回拦截及退出停止通过；未加载正式挂载。实际Compile185／247，无重复、遗漏，代码无新增参考来源字样。证据见docs/Validation-0.0.9.25.md和artifacts/validation/00925-evidence.json；视觉与实机边界单列待测。
 
 - 2026-11-06，0.0.9.24，Windows x64：0.0.9.24完成x64 Debug最小编译、相关51/51测试、x64 Release构建、x64／ARM64签名包核验、ARM64测试交叉编译及x64非打包Release构建；本版未重复全量，上一版0.0.9.23的Debug／Release各1033/1033仅作相同代码树的已有证据。实际Compile项186／248，相关C#覆盖41／68项，无重复／遗漏；非打包EXE／程序集版本一致，未启动。
 

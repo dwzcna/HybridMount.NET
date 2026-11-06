@@ -24,7 +24,7 @@ public partial class App:Application
     private LifecycleDiagnostics? _lifecycle;
     public new static App Current=>(App)Application.Current;
     public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??"未知版本";
-    public NavigationGateway Navigation{get;}=new();
+    public NavigationService Navigation{get;}=new();
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
     public AppearanceSettingsService Appearance{get;private set;}=null!;

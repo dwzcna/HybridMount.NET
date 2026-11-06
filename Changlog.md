@@ -1,5 +1,14 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.25 — 简化页面导航并启用切换动画与返回（2026-11-06）
+
+- 移除内部 hybridmount URI 路由与 NavigationGateway，改为五值 ApplicationPage 和应用范围唯一 NavigationService；窗口首次创建时注册 Frame，ViewModel 不依赖页面类型，任务定位继续独立传递筛选，IPC v2 不变。
+- 生产导航实际调用 Frame.Navigate(pageType, null, new EntranceNavigationTransitionInfo())，返回使用 Frame.GoBack；不再清空 BackStack／ForwardStack。重复当前页不增加历史，返回后新导航由 Frame 自然处理前进栈。
+- 侧栏使用 ItemInvoked 请求导航，仅在 Frame.Navigated 成功后同步当前页、侧栏和标题栏状态；失败不推进选择，并支持重试。新增始终可见、无历史禁用的标题栏返回按钮与 Alt＋左方向键，ContentDialog 等弹层打开时拦截底层返回。
+- 保留五页 Required 缓存、现有 OnNavigatedTo／From、草稿、选择和滚动恢复；托盘隐藏不清历史，退出先拒绝导航，再统一停止并释放缓存页面，保留迟到回调和重复释放保护。代码及注释未增加参考仓库来源说明。
+- x64 Debug最小编译、针对性46/46、Debug／Release全量各1029/1029通过。x64／ARM64签名MSIX、ARM64测试交叉编译和x64非打包Release通过；实际Compile项185／247，无重复和遗漏。
+- 隔离非打包WinUI宿主通过62项运行时断言并以0退出，覆盖真实Frame历史、缓存、草稿／滚动、ContentDialog返回拦截和退出释放。首次使用dotnet宿主发生WinUI引导失败，补齐SDK apphost及资源后通过；产品入口未改造。视觉动画、真实鼠标／快捷键、MSIX安装升级和ARM64实机未验收；computer-use初始化失败及宿主初次失败证据保留。详见docs/Validation-0.0.9.25.md。完成后独立提交并按本次授权推送GitHub和Azure，发布SHA保存在本版发布审计。
+
 ## 0.0.9.24 — 合并PR #16更新：保留已验证的探测清理等待（2026-11-06）
 
 - PR #16来源a0911b2回并旧master，产品实现已在0.0.9.21合入；新测试等待与当前Drain适配器等价，解决冲突后完整代码／测试树与0.0.9.23一致。保留当前上传及移动后等待，不引入新的产品或测试改动；本次仍独立合并并递增第四段版本。

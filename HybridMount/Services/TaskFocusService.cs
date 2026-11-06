@@ -1,7 +1,7 @@
 using HybridMount.Services.Mounting;
 namespace HybridMount.Services;
 
-/// <summary>独立于页面模型的任务定位状态；路由固定为tasks，筛选不进入URI或IPC任务队列。</summary>
+/// <summary>独立于页面模型的任务定位状态；只请求任务页面，筛选不进入导航参数或IPC任务队列。</summary>
 public sealed class TaskFocusService(INavigationService navigation)
 {
     private readonly object _gate=new();
@@ -18,7 +18,7 @@ public sealed class TaskFocusService(INavigationService navigation)
             if(_stopping)return false;
             _focus=new(mount,Array.AsReadOnly((paths??[]).Select(RelativePaths.Normalize).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()),++_revision);
         }
-        Changed?.Invoke();return navigation.Navigate(ApplicationRoutes.Tasks);
+        Changed?.Invoke();return navigation.Navigate(ApplicationPage.Tasks);
     }
     public void RequestStop(){lock(_gate)_stopping=true;}
 }

@@ -26,11 +26,10 @@
     <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\SingleInstanceService.cs"/>
     <Compile Include="..\HybridMount\ViewModels\**\*.cs" Link="Production\ViewModels\%(RecursiveDir)%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Models\StartupState.cs" Link="Production\StartupState.cs"/>
-    <Compile Include="..\HybridMount\Models\ApplicationRoutes.cs" Link="Production\ApplicationRoutes.cs"/>
+    <Compile Include="..\HybridMount\Models\ApplicationPage.cs" Link="Production\ApplicationPage.cs"/>
     <Compile Include="..\HybridMount\Common\INavigationService.cs" Link="Production\INavigationService.cs"/>
     <Compile Include="..\HybridMount\Services\NavigationService.cs" Link="Production\NavigationService.cs"/>
     <Compile Include="..\HybridMount\Services\TaskFocusService.cs" Link="Production\TaskFocusService.cs"/>
-    <Compile Include="..\HybridMount\Services\NavigationGateway.cs" Link="Production\NavigationGateway.cs"/>
     <Compile Include="..\HybridMount\Common\IStartupService.cs" Link="Production\IStartupService.cs"/>
     <Compile Include="..\HybridMount\Common\IUiDispatcher.cs" Link="Production\IUiDispatcher.cs"/>
     <Compile Include="..\HybridMount\Services\ApplicationPreferencesService.cs" Link="Production\ApplicationPreferencesService.cs"/>
