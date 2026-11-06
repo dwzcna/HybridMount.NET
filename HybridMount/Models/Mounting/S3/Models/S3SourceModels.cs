@@ -15,7 +15,7 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class S3FileSource
 {
     private sealed record ObjectVersion(string? ETag, string? VersionId, bool Virtual = false);
-    private sealed record UploadRecord(string Bucket, string Key, string UploadId);
+    private sealed record UploadRecord(string Bucket,string Key,string? UploadId=null,string? ClientToken=null,DateTimeOffset? StartedUtc=null);
     /// <summary>本地表单提交前校验，错误不持久化成不可编辑的挂载根。</summary>
     public static Uri ValidateOptions(FileSourceConfiguration options)
     {
