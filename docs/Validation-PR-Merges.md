@@ -18,3 +18,4 @@
 | [#10](https://github.com/dwzcna/HybridMount.NET/pull/10) | 0.0.9.15 | 上传准备与父目录操作移出根锁 | 125 | 812 | 812 | 通过／仅交叉编译 |
 | [#11](https://github.com/dwzcna/HybridMount.NET/pull/11) | 0.0.9.16 | 本地上传索引与调度唤醒 | 88 | 826 | 826 | 通过／仅交叉编译 |
 | [#12](https://github.com/dwzcna/HybridMount.NET/pull/12) | 0.0.9.17 | Watcher增量扫描与全量兜底 | 114 | 852 | 852 | 通过／仅交叉编译 |
+| [#13](https://github.com/dwzcna/HybridMount.NET/pull/13) | 0.0.9.18 | S3移动删除的语义版本比较 | 58 | 880 | 880 | 通过／仅交叉编译 |
