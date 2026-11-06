@@ -78,6 +78,7 @@ public sealed partial class WebDavFileSource
             {
                 var path=HrefPath(resource.Hrefs.Single(),Address(collection,true));
                 if(!seen.Add(path)||path!=collection&&RelativePaths.Parent(path)!=collection)throw new IOException("DAV 同步响应包含越界或重复路径。");
+                if(path!=collection&&IsInternalTemporary(path))continue;
                 if(resource.StatusCode==507&&path==collection)continue;
                 if(resource.StatusCode==404)
                 {if(syncToken is null||path==collection)throw new IOException("DAV 初始基线或集合自身不能作为删除事件。");deleted.Add(path);continue;}
@@ -87,7 +88,7 @@ public sealed partial class WebDavFileSource
                 if(!directory&&(!long.TryParse(Property(resource,"getcontentlength")?.Value,NumberStyles.None,CultureInfo.InvariantCulture,out size)||size<0))throw new IOException("DAV 同步文件缺少长度。");
                 var modified=DateTimeOffset.TryParse(Property(resource,"getlastmodified")?.Value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)?date.ToUniversalTime():DateTimeOffset.UnixEpoch;
                 var tag=NormalizeTag(Property(resource,"getetag")?.Value);
-                if(path!=collection&&(!_temporary.TryGetValue(path,out var temporary)||temporary.Stage=="Foreign"))
+                if(path!=collection)
                     entries.Add(ObserveMetadata(new("",path,directory,size,modified,JsonSerializer.Serialize(new VersionInfo(tag,size,modified.UtcTicks)))));
             }
             if(result.HasMore&&result.SyncToken==syncToken)throw new IOException("DAV 续批令牌未前进，拒绝无限循环。");

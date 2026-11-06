@@ -87,8 +87,8 @@ public sealed partial class S3FileSource
         try
         {
             if (_multipartVerified) return;
-            var key = keyParent + ".hybridmount-probe-multipart-" + Guid.NewGuid().ToString("N");
-            await PutAsync(key, new MemoryStream([17]), null, token).ConfigureAwait(false);
+            var key = TrackProbeKey(_prefix+".hybridmount-probe-multipart-"+Guid.NewGuid().ToString("N"));
+            await PutProbeAsync(key,[17],token).ConfigureAwait(false);
             try
             {
                 foreach (var createOnly in new[] { true, false })

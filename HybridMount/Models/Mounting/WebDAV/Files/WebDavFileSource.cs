@@ -34,7 +34,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     public async IAsyncEnumerable<SourceEntry> ListAsync(string path, [EnumeratorCancellation] CancellationToken token = default)
     {
         var entries = await PropFindAsync(path, 1, token).ConfigureAwait(false);
-        foreach (var entry in entries) if (entry.Path != path&&(!_temporary.TryGetValue(entry.Path,out var temporary)||temporary.Stage=="Foreign")) yield return entry;
+        foreach (var entry in entries) if (entry.Path != path&&!IsInternalTemporary(entry.Path)) yield return entry;
     }
     public async Task<SourceEntry> GetMetadataAsync(string path, CancellationToken token = default)
         => (await PropFindAsync(path, 0, token).ConfigureAwait(false)).Single(entry => entry.Path == path);

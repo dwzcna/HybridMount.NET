@@ -14,7 +14,9 @@ public sealed partial class WebDavFileSource
     public event Action<string>? WriteWarning;
     private void Warn(string message) { try { WriteWarning?.Invoke(message); } catch { /* 通知不能改变已提交的网络结果。 */ } }
     /// <summary>使用普通文件名兼容拒绝隐藏路径的服务；创建前仍登记精确意图并验证不存在。</summary>
-    private string ProbePath(string parent = "") => TrackTemporary((parent.Length==0?"":parent+"/")+"hybridmount-probe-"+Guid.NewGuid().ToString("N"));
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> _sessionProbePaths=new(StringComparer.Ordinal);
+    private bool IsInternalTemporary(string path)=>_temporary.TryGetValue(path,out var item)?item.Stage!="Foreign":_sessionProbePaths.ContainsKey(path);
+    private string ProbePath(string parent = "") => TrackTemporary("hybridmount-probe-"+Guid.NewGuid().ToString("N"));
     private async Task CleanupProbesAsync(params string[] paths)
     {
         using var cleanup=new CancellationTokenSource(TimeSpan.FromSeconds(20));

@@ -72,6 +72,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             var page = await Call(() => _client.ListObjectsV2Async(new() { BucketName = _bucket, Prefix = prefix, Delimiter = "/", ContinuationToken = continuation, MaxKeys = 1000 }, token), token).ConfigureAwait(false);
             foreach (var item in page.S3Objects ?? [])
             {
+                if(item.Key is not null&&_sessionProbeKeys.ContainsKey(item.Key))continue;
                 if (item.Key is null || item.Size is null || item.Size < 0) throw new IOException("S3 枚举缺少对象键或大小。");
                 Add(item.Key, item.Key.EndsWith('/'), item);
             }
