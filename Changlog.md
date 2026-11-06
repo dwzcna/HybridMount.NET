@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.10 — 合并PR #5：S3目录枚举效率与坏条目隔离（2026-11-06）
+
+- 按用户要求逐个合并到master，本次合并[PR #5](https://github.com/dwzcna/HybridMount.NET/pull/5)，原分支提交9c3f493；第四段版本由上一版递增一次。保留三个工程和原运行配置。
+- S3目录列表使用分页返回元数据，移除逐文件HEAD；分页完成和游标校验保持，坏条目单独报告。版本比较兼容列表缺少VersionId，移动前重新核实源对象的真实版本；读取和写入仍执行各自的ETag／VersionId保护，补齐枚举与版本契约说明。
+- 最小x64编译、针对性51/51、Debug 719/719、Release 719/719、x64／ARM64签名MSIX与ARM64测试交叉编译通过。真实服务、GUI／Explorer、安装升级及ARM64实机按实际边界待测；见 docs/Validation-0.0.9.10.md。本地独立合并提交，不推送。
+
 ## 0.0.9.9 — 合并PR #4：远端区间单请求流式读取（2026-11-06）
 
 - 按用户要求逐个合并到master，本次合并[PR #4](https://github.com/dwzcna/HybridMount.NET/pull/4)，原分支提交6fab3d0；第四段版本由上一版递增一次。保留三个工程和原运行配置。

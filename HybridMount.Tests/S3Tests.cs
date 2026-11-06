@@ -29,7 +29,8 @@ public sealed class S3Tests
     {
         await using var fixture=new S3Fixture();await using var source=fixture.Source();
         fixture.RepeatToken=true;await Assert.ThrowsAsync<IOException>(()=>WebDavTests.All(source.ListAsync("")));fixture.RepeatToken=false;
-        fixture.Put("remote/conflict",[1]);fixture.Put("remote/conflict/child",[2]);await Assert.ThrowsAsync<IOException>(()=>WebDavTests.All(source.ListAsync("")));
+        fixture.Put("remote/conflict",[1]);fixture.Put("remote/conflict/child",[2]);var diagnostics=new List<SourceReadDiagnostic>();source.ReadDiagnostic+=diagnostics.Add;
+        var entries=await WebDavTests.All(source.ListAsync(""));Assert.Single(entries,item=>item.Path=="conflict");Assert.Contains(entries,item=>item.Path=="文件.bin");Assert.Contains(diagnostics,item=>item.Strategy=="list"&&item.FallbackReason=="item_collision");
         fixture.Objects.TryRemove("remote/conflict",out _);fixture.Objects.TryRemove("remote/conflict/child",out _);
         var file=await source.GetMetadataAsync("文件.bin");fixture.BadRange=true;
         await Assert.ThrowsAsync<SourceConflictException>(async()=>await source.ReadRangeAsync(file,4,new byte[3]));
