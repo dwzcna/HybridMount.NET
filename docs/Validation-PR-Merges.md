@@ -39,3 +39,15 @@ PR #7没有可靠UploadId的意图保留待核对，自动精确回收仍未实�
 | [#16](https://github.com/dwzcna/HybridMount.NET/pull/16) | 0.0.9.21 | 协议探测作用域与权限回退 | 150 | 991 | 991 | 通过／仅交叉编译 |
 | [#17](https://github.com/dwzcna/HybridMount.NET/pull/17) | 0.0.9.22 | 暂存磁盘空间检查 | 115 | 1010 | 1010 | 通过／仅交叉编译 |
 | [#18](https://github.com/dwzcna/HybridMount.NET/pull/18) | 0.0.9.23 | 冲突副本使用不可变快照 | 92 | 1033 | 1033 | 通过／仅交叉编译 |
+
+## 第二批收尾与PR #16更新
+
+PR #16来源a0911b2回并旧master，产品实现已在0.0.9.21合入；新测试等待与当前Drain适配器等价，解决冲突后完整代码／测试树与0.0.9.23一致。保留当前上传及移动后等待，不引入新的产品或测试改动；本次仍独立合并并递增第四段版本。
+
+| 更新 | 版本 | 针对性 | Debug／Release | 包及构建 |
+| --- | --- | --- | --- | --- |
+| [PR #16更新](https://github.com/dwzcna/HybridMount.NET/pull/16)，a0911b2 | 0.0.9.24 | 51/51 | 本版编译通过；全量未重复，0.0.9.23各1033/1033保留为上版证据 | 双架构签名包、ARM64测试交叉编译、x64非打包通过 |
+
+累计18个PR、19次真实双父合并和连续第四段升版0.0.9.6—0.0.9.24；PR #16两次来源均保留，不将更新伪称新PR。最终实际Compile项主工程186、无头测试248，41／68个本批相关文件无遗漏及重复；WinUI页面仅纳入主工程。最终非打包EXE和程序集均为0.0.9.24，仅构建未启动或安装。版本链、来源祖先、干净工作区和包摘要核验见artifacts/validation/pr-merges-final-audit-round2.json，逐版结果及限制见Validation-0.0.9.24.md。
+
+本地来源分支逐个合并后删除；GitHub上已发布旧15个来源已按精确SHA租约删除，#16—#18三个新来源暂留至master发布。当前GitHub master仍为807d554；本批未推送master，也不推Azure origin。GUI／Explorer、真实服务、安装升级及ARM64实机未执行；PR7缺少可靠UploadId时的自动精确回收仍未实现。
