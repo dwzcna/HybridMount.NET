@@ -4,10 +4,13 @@ using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
 
+/// <summary>准备期间会话或根定义已替换；丢弃本次结果，保留新会话状态。</summary>
 internal sealed class UploadPreparationChangedException:Exception;
 
+/// <summary>在根锁内捕获和发布准备意图，正文复制与远端父目录请求在锁外执行；取消和失败总会清理本次暂存。</summary>
 internal static class UploadPreparation
 {
+    /// <summary>短锁捕获、锁外工作、短锁条件发布；退出及捕获失败也执行清理，不持锁等待网络。</summary>
     internal static async Task<T?> RunAsync<T>(SemaphoreSlim gate,Func<bool> capture,Func<Task> work,Func<T?> publish,Action cleanup,CancellationToken token) where T:class
     {
         try
@@ -20,9 +23,11 @@ internal static class UploadPreparation
         }
         finally{cleanup();}
     }
+    /// <summary>仅当前代次、取消状态及实例尝试均一致时允许发布。</summary>
     internal static bool SameAttempt(LocalUpload current,LocalUpload captured)
         =>captured.SnapshotAttemptId is not null&&!current.CancelRequested&&current==captured;
 
+    /// <summary>以仓库原子更新再次核对捕获记录；不覆盖较新编辑或取消。</summary>
     internal static LocalUpload? PublishAttempt(LocalUpload captured,Func<Func<LocalUpload,LocalUpload>,LocalUpload?> update,Func<LocalUpload,LocalUpload> publish)
     {
         var accepted=false;
@@ -34,6 +39,7 @@ internal static class UploadPreparation
         return accepted?result:null;
     }
 
+    /// <summary>只读共享句柄复制并核对同一对象的状态戳，返回不可变快照摘要；调用者负责失败清理。</summary>
     internal static async Task<string> CopyAsync(string path,string snapshot,LocalFileStamp stamp,CancellationToken token,Func<Task>? checkpoint=null)
     {
         await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
@@ -52,6 +58,7 @@ internal static class UploadPreparation
         if(LocalFileState.Read(input.SafeFileHandle).Key!=stamp.Key||LocalFileState.Read(path).Key!=stamp.Key)throw new IOException("文件在复制时变化，等待稳定后重试。");
         return Convert.ToHexString(hash.GetHashAndReset());
     }
+    /// <summary>每次远端父目录操作前后重新核对挂载、上传意图及删除屏障，已知更新目标不自动恢复。</summary>
     internal static async Task PrepareParentsAsync(IFileSource source,LocalUpload item,Func<string?,Task> validate,CancellationToken token)
     {
         await validate(null).ConfigureAwait(false);

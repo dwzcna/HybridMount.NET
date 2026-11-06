@@ -124,7 +124,7 @@ public sealed class ConnectionTests
         try
         {
             await manager.ConnectAsync(id);Assert.Equal("已连接",Assert.Single(manager.Mounts).Status);
-            Assert.Contains("恢复失败",Assert.Single(manager.Mounts).Detail);
+            Assert.False(File.Exists(Path.Combine(work,"broken.multipart.json")));Assert.True(File.Exists(Path.Combine(work,"broken.multipart.json.bad")));
             var bytes=await Task.Run(()=>File.ReadAllBytes(Path.Combine(local,"文件.bin"))).WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(fixture.Objects["remote/文件.bin"].Bytes,bytes);
         }

@@ -27,7 +27,7 @@ public sealed class WebDavPathTests
         Assert.Null(await source.TryGetMetadataAsync("目录/missing.bin"));
         var directory=await source.GetMetadataAsync("目录");Assert.True(directory.IsDirectory);
         var listed=new List<string>();await foreach(var item in source.ListAsync("目录"))listed.Add(item.Path);
-        Assert.Contains(path,listed);Assert.Empty(source.PendingTemporaryItems);
+        Assert.Contains(path,listed);await source.DrainTemporaryCleanupAsync();Assert.Empty(source.PendingTemporaryItems);
         var bytes=new byte[size];Assert.Equal(size,await source.ReadRangeAsync(uploaded,0,bytes));Assert.Equal(data,bytes);
         Assert.Contains(fixture.Server.Requests,request=>request.Method=="PROPFIND"&&request.Headers.GetValueOrDefault("Depth")=="1"&&request.Target.EndsWith('/'));
     }

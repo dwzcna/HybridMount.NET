@@ -75,7 +75,7 @@ public sealed partial class MountManager
             if(LocalFileState.Read(path!).Key!=stamp!.Key||_repository.Entries(item!.MountId).FirstOrDefault(x=>x.Id==item.EntryId)!=mapping)return null;
             if(_repository.HasPendingRemote(item.MountId,item.SourcePath)||UploadRules.DeletedSourceAncestor(_repository.Entries(item.MountId),item.SourcePath) is not null)return null;
             var prepared=UploadPreparation.PublishAttempt(item,update=>ChangeUpload(item.Id,update),x=>x with
-            {State="Prepared",SnapshotAttemptId=null,SnapshotPath=reuse?x.SnapshotPath:created,SnapshotSha256=reuse?x.SnapshotSha256:digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=item.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,
+            {State="Prepared",SnapshotAttemptId=null,SnapshotPath=reuse?x.SnapshotPath:created,SnapshotSha256=reuse?x.SnapshotSha256:digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=item.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,AutoRetryCount=reuse?x.AutoRetryCount:0,NextAttemptUtc=reuse?x.NextAttemptUtc:null,TransientFailureCount=reuse?x.TransientFailureCount:0,
                 BaselineSha256=x.BaselineSha256??(x.ExpectedVersion is null?null:_repository.Baseline(x.MountId,x.SourcePath,x.ExpectedVersion))});
             published=prepared is not null;return prepared;
         },()=>

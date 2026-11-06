@@ -80,6 +80,17 @@ public sealed partial class WebDavFileSource
         if((method=="DELETE"?WriteCapabilities.ConditionalDelete:WriteCapabilities.ConditionalMove)!=CapabilitySupport.Supported)
             throw new NotSupportedException("服务器不支持此方法的可靠条件写。");
     }
+    /// <summary>发送前按连接验证条件写与所需回退能力；可取消，探测失败保留用户目标和原上传意图。</summary>
+    public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)
+    {
+        path=NonRoot(path);var strong=condition.ExpectedVersion is not null&&Strong(System.Text.Json.JsonSerializer.Deserialize<VersionInfo>(condition.ExpectedVersion)?.ETag);
+        if(condition.ExpectedVersion is not null&&!strong&&string.IsNullOrEmpty(condition.BaselineSha256))throw new SourceConflictException("缺少原始远端内容基线，已保留本地修改；请另存副本。");
+        var parent=RelativePaths.Parent(path);await VerifyPutCapabilitiesAsync(parent,token).ConfigureAwait(false);
+        if(condition.ExpectedVersion is null?WriteCapabilities.CreateOnly==CapabilitySupport.Supported:strong&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported)return;
+        try{await VerifyLocksAsync(parent,token).ConfigureAwait(false);}
+        catch(NotSupportedException)when(condition.ExpectedVersion is null){await VerifyCreateMoveAsync(parent,token).ConfigureAwait(false);return;}
+        if(condition.ExpectedVersion is null&&WriteCapabilities.LockCreate!=CapabilitySupport.Supported)throw new NotSupportedException("服务器不能可靠地仅创建新文件。");
+    }
     /// <summary>兼容旧上传调用；缺少可靠 ETag 时，更新必须提供原始内容基线。</summary>
     public Task<SourceEntry> UploadAsync(string path,Stream content,string? expectedVersion,CancellationToken token=default)
         =>UploadWithPreconditionAsync(path,content,new(expectedVersion),null,token);
@@ -94,7 +105,7 @@ public sealed partial class WebDavFileSource
         await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);
         var direct=condition.ExpectedVersion is null?WriteCapabilities.CreateOnly==CapabilitySupport.Supported:
             strong&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported;
-        DavLockLease? lease=null;
+        DavLockLease? lease=null;var weakUpdate=condition.ExpectedVersion is not null&&!strong;
         try
         {
             if(!direct)
@@ -110,6 +121,7 @@ public sealed partial class WebDavFileSource
                 lease.Start();
                 if(condition.ExpectedVersion is not null)
                 {
+                    // 弱标签、长度和时间相同仍可能是锁建立前的外部编辑，必须核对原始摘要。
                     var actual=await ReadContentHashAsync(path,lease.Token,lease.Cancellation).ConfigureAwait(false);
                     if(!string.Equals(actual,condition.BaselineSha256,StringComparison.OrdinalIgnoreCase))throw new SourceConflictException("远端内容已变化，保留两端文件，请处理冲突。");
                 }
@@ -124,11 +136,13 @@ public sealed partial class WebDavFileSource
             {
                 var metadata=await GetMetadataAsync(path,lease?.Cancellation??token).ConfigureAwait(false);
                 if(metadata.IsDirectory||metadata.Size!=input.BytesRead)throw new IOException("上传后类型或长度不符。");
+                if(weakUpdate&&lease is not null)lease.Cancellation.ThrowIfCancellationRequested();
                 if(Strong(receipt))
                 {
                     if(NormalizeTag(Version(metadata).ETag)!=receipt)throw new IOException("上传回执与当前远端版本不同。");
                 }
-                else
+                else if(!(weakUpdate&&lease is not null&&WriteCapabilities.ExclusiveLock==CapabilitySupport.Supported&&
+                    Strong(Version(metadata).ETag)))
                 {
                     var readback=await ReadContentHashAsync(path,lease?.Token,lease?.Cancellation??token).ConfigureAwait(false);
                     if(readback!=digest)throw new IOException("上传后内容摘要不符。");

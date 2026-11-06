@@ -29,14 +29,14 @@ public sealed class DavVisibleTemporaryTests
         await using var source=fixture.Source();
         var bytes=new byte[]{1,2,3};var receipt=await source.UploadAsync("new.bin",new MemoryStream(bytes),null);
         Assert.Equal(bytes.Length,receipt.Size);Assert.Equal(bytes,fixture.Objects["new.bin"].Bytes);
-        Assert.Empty(source.PendingTemporaryItems);
+        await source.DrainTemporaryCleanupAsync();Assert.Empty(source.PendingTemporaryItems);
         Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="MKCOL");
         Assert.DoesNotContain(fixture.Server.Requests,request=>Uri.UnescapeDataString(new Uri(fixture.Server.Address,request.Target).AbsolutePath).Split('/').Any(segment=>segment.StartsWith(".",StringComparison.Ordinal)));
         Assert.Equal(new[]{"","new.bin","文件.bin","空目录"},fixture.Objects.Keys.Order(StringComparer.Ordinal).ToArray());
         if(fallback)Assert.Contains(fixture.Server.Requests,request=>request.Method=="MOVE"&&request.Headers.GetValueOrDefault("Overwrite")=="F");
         else Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="MOVE");
         await Assert.ThrowsAsync<SourceConflictException>(()=>source.UploadAsync("new.bin",new MemoryStream([9]),null));
-        Assert.Equal(bytes,fixture.Objects["new.bin"].Bytes);Assert.Empty(source.PendingTemporaryItems);
+        Assert.Equal(bytes,fixture.Objects["new.bin"].Bytes);await source.DrainTemporaryCleanupAsync();Assert.Empty(source.PendingTemporaryItems);
     }
 
     [Theory]
@@ -52,7 +52,7 @@ public sealed class DavVisibleTemporaryTests
         var tracked=prefix+Guid.NewGuid().ToString("N");var untracked=prefix+Guid.NewGuid().ToString("N");
         fixture.Put(tracked,[17,31]);fixture.Put(untracked,[7,8,9]);
         repository.SaveTemporary(new(mount.Id,scope,tracked,"probe","Owned",[Convert.ToHexString(SHA256.HashData(new byte[]{17,31}))]));
-        await using var source=fixture.Source();source.AttachTemporaryJournal(mount,repository);await source.RecoverTemporaryItemsAsync();
+        await using var source=fixture.Source();source.AttachTemporaryJournal(mount,repository);await source.RecoverTemporaryItemsAsync();await source.DrainTemporaryCleanupAsync();
         Assert.Empty(source.PendingTemporaryItems);Assert.Empty(repository.TemporaryItems(mount.Id,scope));
         Assert.False(fixture.Objects.ContainsKey(tracked));Assert.Equal(new byte[]{7,8,9},fixture.Objects[untracked].Bytes);
         Assert.Single(fixture.Server.Requests,request=>request.Method=="DELETE");
@@ -65,7 +65,7 @@ public sealed class DavVisibleTemporaryTests
         var failure=await Assert.ThrowsAsync<SourceRequestRejectedException>(()=>source.UploadAsync(".user.bin",new MemoryStream([4,5]),null));
         Assert.Equal(403,failure.HttpStatus);Assert.False(fixture.Objects.ContainsKey(".user.bin"));
         Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method is "MOVE" or "LOCK");
-        Assert.Empty(source.PendingTemporaryItems);
+        await source.DrainTemporaryCleanupAsync();Assert.Empty(source.PendingTemporaryItems);
     }
 
     [Fact(Timeout=120000)]
