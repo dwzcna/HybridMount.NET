@@ -93,9 +93,12 @@ public sealed partial class MountManager
                 var current=_repository.Upload(item.Id);
                 if(current is null||current.CancelRequested||current.State!="Prepared"||current.Generation!=item.SnapshotGeneration||current.SnapshotGeneration!=item.SnapshotGeneration||
                     current.SnapshotPath!=item.SnapshotPath||current.SnapshotAttemptId is not null||current.ExpectedVersion!=item.ExpectedVersion||current.BaselineSha256!=item.BaselineSha256)throw new UploadPreparationChangedException();
-                var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
-                var stamp=LocalFileState.Read(local);UploadRules.ValidateTypes(item,stamp);
-                if(stamp.Key!=item.SnapshotStamp||stamp.Identity!=item.SnapshotIdentity)throw new UploadPreparationChangedException();
+                if(!current.IsCopy)
+                {
+                    var local=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);MountPathGuard.ValidateOperation(root.Definition,local);
+                    var stamp=LocalFileState.Read(local);UploadRules.ValidateTypes(item,stamp);
+                    if(stamp.Key!=item.SnapshotStamp||stamp.Identity!=item.SnapshotIdentity)throw new UploadPreparationChangedException();
+                }
                 var entries=_repository.Entries(root.Definition.Id);
                 if(_repository.HasPendingRemote(item.MountId,item.SourcePath)||UploadRules.DeletedSourceAncestor(entries,item.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
                 if(item.ExpectedVersion is null&&!item.IsDirectory&&entries.Any(entry=>entry.SourcePath==item.SourcePath))throw new SourceConflictException("目标已有历史远端基线，本任务不能按新增重新创建；请刷新核对。");
@@ -120,8 +123,11 @@ public sealed partial class MountManager
             if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotAttemptId is not null||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;
             if(current.Generation!=current.SnapshotGeneration)
             {ChangeUpload(current.Id,item=>item with{State="Queued",Error=null,LastCheckedUtc=null});return null;}
-            var path=RelativePaths.ToLocal(root.Definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
-            UploadRules.ValidateTypes(current,LocalFileState.Read(path));
+            if(!current.IsCopy)
+            {
+                var path=RelativePaths.ToLocal(root.Definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
+                UploadRules.ValidateTypes(current,LocalFileState.Read(path));
+            }
             return ChangeUpload(current.Id,item=>item with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null});
         }
         finally{root.Gate.Release();}

@@ -10,6 +10,22 @@ public sealed partial class MountManager
     /// <summary>网络发送前短暂打开只读共享的文件，复制到挂载根外并核对身份、USN 和摘要。</summary>
     private async Task<LocalUpload?> PrepareUploadAsync(Runtime root,LocalUpload queued,CancellationToken token)
     {
+        if(queued.IsCopy)
+        {
+            await root.Gate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
+                var current=_repository.Upload(queued.Id);
+                if(current is null||!current.IsCopy||current.CancelRequested||current.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity"))return null;
+                if(current.SnapshotPath is not null)
+                {
+                    var frozen=UploadCopySnapshot.Prepare(current,ValidateUploadSnapshot);
+                    var result=ChangeUpload(current.Id,x=>x==current?frozen:x);return result==frozen?result:null;
+                }
+            }
+            finally{root.Gate.Release();}
+        }
         LocalUpload? item=null;LocalFileStamp? stamp=null;MountEntry? mapping=null;string? path=null,created=null,digest=null;
         var definition=root.Definition;var source=root.Source;var session=root.Session;var hydrate=false;var reuse=false;var published=false;
         void Validate()
@@ -128,7 +144,7 @@ public sealed partial class MountManager
         }
     }
     /// <summary>只清理本程序根外快照目录中的文件；未知结果仍引用的快照由持久记录保留。</summary>
-    private void DeleteUploadSnapshot(string? path)
+    private void DeleteUploadSnapshot(string? path,bool forget=false)
     {
         if(path is null||!MountPathGuard.IsUnder(Path.Combine(_repository.DataDirectory,"UploadStaging"),path))return;
         try
@@ -139,7 +155,7 @@ public sealed partial class MountManager
                 if((File.GetAttributes(cursor)&FileAttributes.ReparsePoint)!=0)return;
                 if(cursor.Equals(staging,StringComparison.OrdinalIgnoreCase))break;
             }
-            File.Delete(path);
+            _repository.DeleteUnreferencedUploadSnapshot(path,()=>File.Delete(path),forget);
         }
         catch(IOException){}catch(UnauthorizedAccessException){}
     }

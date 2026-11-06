@@ -530,7 +530,7 @@ public sealed partial class MountManager : IAsyncDisposable
     { root.Definition=root.Definition with{RemovalStage=MountRemovalStage.Unregistering};_repository.SaveDefinition(root.Definition); }
     private void Forget(Runtime root)
     {
-        foreach(var upload in _repository.Uploads(root.Definition.Id))DeleteUploadSnapshot(upload.SnapshotPath);
+        foreach(var upload in _repository.Uploads(root.Definition.Id))DeleteUploadSnapshot(upload.SnapshotPath,forget:true);
         foreach(var pending in RemotePendingFor(root))DeleteRemoteSnapshot(pending.SnapshotPath);
         new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);FileSourceFactory.DeleteAdditionalCredentials(root.Definition,_repository.DataDirectory);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
         _roots.TryRemove(root.Definition.Id,out _);Notify();

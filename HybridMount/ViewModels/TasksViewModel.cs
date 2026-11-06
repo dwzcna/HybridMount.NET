@@ -72,6 +72,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
     public MountOperationSnapshot? Selected=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
     public string CopyPath {get=>_copyPath;set{if(!_disposed)SetProperty(ref _copyPath,value);}}
+    public string CopyContentNotice=>"已有上传快照时，副本使用该快照，后续本地编辑不会改变副本。没有快照时，将使用上传准备时的当前本地内容，而不是冲突时的内容。";
     public void CancelSelected()
     {
         if(_disposed||_manager.IsStopping)return;
