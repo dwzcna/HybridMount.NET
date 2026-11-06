@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text.Json;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
@@ -83,6 +84,14 @@ public sealed partial class WebDavFileSource
     /// <summary>兼容旧上传调用；缺少可靠 ETag 时，更新必须提供原始内容基线。</summary>
     public Task<SourceEntry> UploadAsync(string path,Stream content,string? expectedVersion,CancellationToken token=default)
         =>UploadWithPreconditionAsync(path,content,new(expectedVersion),null,token);
+    private static bool MatchesLockedBaseline(string expectedVersion,SourceEntry metadata)
+    {
+        using var document=JsonDocument.Parse(expectedVersion);var root=document.RootElement;
+        if(root.ValueKind!=JsonValueKind.Object||!root.TryGetProperty("Size",out var size)||!size.TryGetInt64(out var length)||length<0||
+            !root.TryGetProperty("ModifiedTicks",out var modified)||!modified.TryGetInt64(out var ticks)||ticks<=0||ticks==DateTimeOffset.UnixEpoch.UtcTicks)return false;
+        var expected=JsonSerializer.Deserialize<VersionInfo>(expectedVersion);var current=Version(metadata);
+        return !metadata.IsDirectory&&expected is not null&&current.Size==length&&current.ModifiedTicks==ticks&&current.Observation==expected.Observation&&NormalizeTag(current.ETag)==NormalizeTag(expected.ETag);
+    }
     /// <summary>上传调用者的不可变流；条件失败保留远端，提交后的核对失败报告结果不明。</summary>
     public async Task<SourceEntry> UploadWithPreconditionAsync(string path,Stream content,UploadPrecondition condition,
         IProgress<UploadProgress>? progress=null,CancellationToken token=default)
@@ -94,7 +103,7 @@ public sealed partial class WebDavFileSource
         await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);
         var direct=condition.ExpectedVersion is null?WriteCapabilities.CreateOnly==CapabilitySupport.Supported:
             strong&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported;
-        DavLockLease? lease=null;
+        DavLockLease? lease=null;SourceEntry? beforePut=null;var weakUpdate=condition.ExpectedVersion is not null&&!strong;
         try
         {
             if(!direct)
@@ -110,8 +119,16 @@ public sealed partial class WebDavFileSource
                 lease.Start();
                 if(condition.ExpectedVersion is not null)
                 {
-                    var actual=await ReadContentHashAsync(path,lease.Token,lease.Cancellation).ConfigureAwait(false);
-                    if(!string.Equals(actual,condition.BaselineSha256,StringComparison.OrdinalIgnoreCase))throw new SourceConflictException("远端内容已变化，保留两端文件，请处理冲突。");
+                    if(weakUpdate)
+                    {
+                        beforePut=await GetMetadataAsync(path,lease.Cancellation).ConfigureAwait(false);lease.Cancellation.ThrowIfCancellationRequested();
+                        if(beforePut.IsDirectory)throw new SourceConflictException("锁定目标已是目录，拒绝覆盖。");
+                    }
+                    if(!weakUpdate||WriteCapabilities.ExclusiveLock!=CapabilitySupport.Supported||!MatchesLockedBaseline(condition.ExpectedVersion,beforePut!))
+                    {
+                        var actual=await ReadContentHashAsync(path,lease.Token,lease.Cancellation).ConfigureAwait(false);
+                        if(!string.Equals(actual,condition.BaselineSha256,StringComparison.OrdinalIgnoreCase))throw new SourceConflictException("远端内容已变化，保留两端文件，请处理冲突。");
+                    }
                 }
             }
             using var input=new UploadProgressStream(content,progress);
@@ -124,11 +141,13 @@ public sealed partial class WebDavFileSource
             {
                 var metadata=await GetMetadataAsync(path,lease?.Cancellation??token).ConfigureAwait(false);
                 if(metadata.IsDirectory||metadata.Size!=input.BytesRead)throw new IOException("上传后类型或长度不符。");
+                if(weakUpdate&&lease is not null)lease.Cancellation.ThrowIfCancellationRequested();
                 if(Strong(receipt))
                 {
                     if(NormalizeTag(Version(metadata).ETag)!=receipt)throw new IOException("上传回执与当前远端版本不同。");
                 }
-                else
+                else if(!(weakUpdate&&lease is not null&&WriteCapabilities.ExclusiveLock==CapabilitySupport.Supported&&
+                    (Strong(Version(metadata).ETag)||beforePut is not null&&beforePut.ModifiedUtc!=DateTimeOffset.UnixEpoch&&metadata.ModifiedUtc!=DateTimeOffset.UnixEpoch&&metadata.ModifiedUtc!=beforePut.ModifiedUtc)))
                 {
                     var readback=await ReadContentHashAsync(path,lease?.Token,lease?.Cancellation??token).ConfigureAwait(false);
                     if(readback!=digest)throw new IOException("上传后内容摘要不符。");
