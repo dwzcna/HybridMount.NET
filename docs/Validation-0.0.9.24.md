@@ -25,7 +25,7 @@
 ## 分支与发布
 
 - PR #1—#18及本次#16更新的来源提交均由独立合并保留，第四段版本连续0.0.9.6—0.0.9.24。
-- 本地来源分支在完成提交后逐个删除；已在GitHub master的旧15个远端来源已删除，证据pr01-15-github-branch-cleanup.json。新三个远端来源在master尚未发布前保留，当前GitHub master为807d554；本批仅本地提交，不推送master或Azure origin。
+- 本地来源分支在完成提交后逐个删除；旧15个远端来源清理证据为pr01-15-github-branch-cleanup.json。2026-11-06用户追加授权后，master合并提交01b275b已正常推送并读回核对GitHub和Azure；新三个GitHub来源按精确SHA租约逐个删除，证据pr-publication-master-push.json及pr16-18-github-branch-cleanup.json。累计18个远程来源清理完成，GitHub仅剩master。
 - 最终版本链／祖先／工作区／包摘要审计为pr-merges-final-audit-round2.json；本版独立机器证据为pr16-followup1-evidence.json。
 
 ## 产物
@@ -36,3 +36,7 @@
 | ARM64 | artifacts/packages/ARM64/HybridMount_0.0.9.24_arm64_Test/HybridMount_0.0.9.24_arm64.msix | F813E815EAD2B1CF1D56D097BAAB2CC05634E406BF66E8DC72040622EEADDA04 |
 
 真实服务、GUI／Explorer、安装升级和ARM64实机未执行，不访问已取消NAS，不操作正式挂载、配置和用户文件。PR7无可靠UploadId自动精确回收仍未实现，日志保留待核对；不猜测中止外部上传。
+
+## 双远端发布收尾
+
+最新GitHub PR仍为#1—#18，全部来源已合入；没有新增合并，保持0.0.9.24。双远端普通推送及远程清理已实际核验；发布记录单独提交后再同步到两个master，最终SHA及干净工作区证据见artifacts/validation/pr-publication-final-audit.json。仅更新文档，沿用本页实际测试结果，不把推送核对记作新增产品测试。

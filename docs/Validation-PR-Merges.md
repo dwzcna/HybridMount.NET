@@ -50,4 +50,13 @@ PR #16来源a0911b2回并旧master，产品实现已在0.0.9.21合入；新测�
 
 累计18个PR、19次真实双父合并和连续第四段升版0.0.9.6—0.0.9.24；PR #16两次来源均保留，不将更新伪称新PR。最终实际Compile项主工程186、无头测试248，41／68个本批相关文件无遗漏及重复；WinUI页面仅纳入主工程。最终非打包EXE和程序集均为0.0.9.24，仅构建未启动或安装。版本链、来源祖先、干净工作区和包摘要核验见artifacts/validation/pr-merges-final-audit-round2.json，逐版结果及限制见Validation-0.0.9.24.md。
 
-本地来源分支逐个合并后删除；GitHub上已发布旧15个来源已按精确SHA租约删除，#16—#18三个新来源暂留至master发布。当前GitHub master仍为807d554；本批未推送master，也不推Azure origin。GUI／Explorer、真实服务、安装升级及ARM64实机未执行；PR7缺少可靠UploadId时的自动精确回收仍未实现。
+本地来源分支逐个合并后删除；GitHub上已发布旧15个来源已按精确SHA租约删除，#16—#18三个新来源暂留至master发布。上述合并记录完成时GitHub master为807d554，尚无推送授权；后续双远端发布及来源清理结果见下节。GUI／Explorer、真实服务、安装升级及ARM64实机未执行；PR7缺少可靠UploadId时的自动精确回收仍未实现。
+
+## 双远端发布与远程分支清理（2026-11-06）
+
+用户后续明确授权将master推送到GitHub和Azure，并删除已合并的远程来源。重新核对GitHub最新18个PR后，所有来源都已包含在0.0.9.24合并提交01b275b中，没有新的PR或来源更新，因此不重复合并和升版。
+
+- GitHub及Azure master均以普通推送执行，并读回核对为01b275b；未强推master或其他引用。
+- PR #16、#17、#18的GitHub来源逐个核验SHA及master祖先关系后，使用精确SHA租约删除；新增提交会拒绝删除。累计18个已合并GitHub来源清理完成，远端仅保留master。
+- 本次只更新发布记录，产品、测试、版本、配置和数据库保持；已有构建及回归结果沿用原版证据，不重复计数。发布记录独立提交后再同步两端。
+- 证据：artifacts/validation/pr-publication-preflight.json、pr-publication-master-push.json、pr16-18-github-branch-cleanup.json；最终两端一致性和工作区审计为pr-publication-final-audit.json。
