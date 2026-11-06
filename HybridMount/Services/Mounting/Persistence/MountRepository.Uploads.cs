@@ -85,6 +85,14 @@ public sealed partial class MountRepository
         }
     }
     /// <summary>明确提交远端版本、映射和上传日志；只有已验证的当前代次才解除本地保护。</summary>
+    internal LocalUpload? TryCommitUploadedEntry(LocalUpload captured,LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false)
+    {
+        lock(_gate)
+        {
+            if(Upload(prepared.Id)!=captured)return null;
+            return CommitUploadedEntry(prepared,entry,receipt,committedStamp,missing);
+        }
+    }
     public LocalUpload CommitUploadedEntry(LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false)
     {
         lock(_gate)
