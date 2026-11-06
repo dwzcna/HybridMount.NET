@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.12 — 合并PR #7：S3分片日志与隔离恢复（2026-11-06）
+
+- 按用户要求逐个合并到master，本次合并[PR #7](https://github.com/dwzcna/HybridMount.NET/pull/7)，原分支提交47069f7；第四段版本由上一版递增一次。保留三个工程和原运行配置。
+- 初始化前持久写入意图、记录UploadId后按精确ID恢复，损坏记录隔离且逐条失败不阻挡读取。对象树冲突同时保留PR5语义版本比较。集成复现发现原时间窗猜测会中止同键外部上传（pr07-foreign-before及details证据）；已取消这类猜测，无UploadId意图保留待核对并限频告警，已知UploadId仍独立恢复。无ID自动精确回收未实现，列入未完成；不将时间相近视作所有权。
+- 最小x64编译、针对性41/41、Debug 748/748、Release 748/748、x64／ARM64签名MSIX与ARM64测试交叉编译通过。真实服务、GUI／Explorer、安装升级及ARM64实机按实际边界待测；见 docs/Validation-0.0.9.12.md。本地独立合并提交，不推送。
+
 ## 0.0.9.11 — 合并PR #6：S3分片条件完成与条件PUT回退（2026-11-06）
 
 - 按用户要求逐个合并到master，本次合并[PR #6](https://github.com/dwzcna/HybridMount.NET/pull/6)，原分支提交f9e6a8e；第四段版本由上一版递增一次。保留三个工程和原运行配置。

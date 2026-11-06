@@ -26,7 +26,8 @@ public sealed partial class S3FileSource
         }
         catch(Exception error)when(error is JsonException or IOException or NotSupportedException){return false;}
     }
-    private sealed record UploadRecord(string Bucket, string Key, string UploadId);
+    /// <summary>初始化前先落意图；无UploadId表示归属未确认，客户端令牌不能由S3列表反证。</summary>
+    private sealed record UploadRecord(string Bucket,string Key,string? UploadId=null,string? ClientToken=null,DateTimeOffset? StartedUtc=null);
     /// <summary>本地表单提交前校验，错误不持久化成不可编辑的挂载根。</summary>
     public static Uri ValidateOptions(FileSourceConfiguration options)
     {
