@@ -122,8 +122,12 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             if(_copyVerified&&entry.Size<=5L*1024*1024*1024)
             {
                 var copied=await Call(()=>_client.CopyObjectAsync(new(){SourceBucket=_bucket,SourceKey=Key(entry.Path),SourceVersionId=version.VersionId,
-                    ETagToMatch=RequiredETag(version),DestinationBucket=_bucket,DestinationKey=key,IfNoneMatch="*"},token),token,true).ConfigureAwait(false);
+                    ETagToMatch=RequiredETag(version),DestinationBucket=_bucket,DestinationKey=key,IfNoneMatch="*",MetadataDirective=S3MetadataDirective.COPY},token),token,true).ConfigureAwait(false);
                 acknowledged=true;receipt=new(copied.ETag,ImmutableVersion(copied.VersionId));
+            }
+            else if(entry.Size>5L*1024*1024*1024)
+            {
+                receipt=await MultipartCopyAsync(entry,key,token).ConfigureAwait(false);acknowledged=true;
             }
             else
             {

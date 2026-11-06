@@ -79,11 +79,17 @@ public sealed partial class S3FileSource
         }
         finally{File.Delete(temporary);}
     }
-    private async Task<(UploadRecord Record,string Journal)> BeginUploadAsync(string key, CancellationToken token)
+    private async Task<(UploadRecord Record,string Journal)> BeginUploadAsync(string key, CancellationToken token,GetObjectMetadataResponse? sourceMetadata=null)
     {
         Directory.CreateDirectory(_work);var client=Guid.NewGuid().ToString("N");var record=new UploadRecord(_bucket,key,ClientToken:client,StartedUtc:DateTimeOffset.UtcNow);
         var journal=Path.Combine(_work,client+".multipart.json");await SaveUploadJournalAsync(journal,record,token).ConfigureAwait(false);MultipartJournalPending?.Invoke(journal);
-        var response = await Call(() => _client.InitiateMultipartUploadAsync(new() { BucketName = _bucket, Key = key }, token), token, true).ConfigureAwait(false);
+        var request=new InitiateMultipartUploadRequest{BucketName=_bucket,Key=key};
+        if(sourceMetadata is not null)
+        {
+            request.ContentType=sourceMetadata.Headers.ContentType;
+            foreach(var name in sourceMetadata.Metadata.Keys)request.Metadata.Add(name,sourceMetadata.Metadata[name]);
+        }
+        var response = await Call(() => _client.InitiateMultipartUploadAsync(request, token), token, true).ConfigureAwait(false);
         if (string.IsNullOrEmpty(response.UploadId)) throw new SourceOutcomeUnknownException("S3 分片初始化", new IOException("服务器未返回 UploadId。"));
         record=record with{UploadId=response.UploadId};
         try{await SaveUploadJournalAsync(journal,record,token).ConfigureAwait(false);}
