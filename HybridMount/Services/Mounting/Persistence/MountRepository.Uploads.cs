@@ -97,7 +97,7 @@ public sealed partial class MountRepository
             var next=current with{EntryId=entry.Id,ExpectedVersion=receipt.Version,BaselineSha256=prepared.SnapshotSha256,
                 ObservedStamp=clean?committedStamp!.Key:current.ObservedStamp,
                 State=completed?"Completed":current.CancelRequested?"Canceled":"Queued",Receipt=null,SnapshotPath=null,SnapshotSha256=null,
-                SnapshotStamp=null,SnapshotIdentity=null,SnapshotGeneration=0,Bytes=completed?prepared.Total:0,Total=completed?prepared.Total:0,
+                SnapshotStamp=null,SnapshotIdentity=null,SnapshotGeneration=0,Bytes=completed?prepared.Total:0,Total=completed?prepared.Total:0,AutoRetryCount=0,NextAttemptUtc=null,TransientFailureCount=0,
                 Error=missing?"远端已经上传；本地项已移除，未传播删除。":clean||current.IsCopy?null:"上传期间本地再次变化，保留新一代更改。",ExplicitRequest=false,LastCheckedUtc=null};
             using var db=Open();using var transaction=db.BeginTransaction();
             if(!current.IsCopy)

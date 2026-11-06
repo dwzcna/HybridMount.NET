@@ -31,10 +31,10 @@ public sealed class P1S3MoveTests
         fixture.Server.Handler=async request=>
         {
             var target=new Uri(fixture.Server.Address,request.Target).AbsolutePath=="/test-bucket/remote/moved.bin";
-            if(target&&written&&request.Method=="HEAD"&&++heads==(fallback?2:1))
+            if(target&&written&&request.Method=="HEAD"&&++heads>=(fallback?2:1))
             {
                 if(failure=="HeadFailure")return HttpTestServer.Response.Text(503,"<Error><Code>ServiceUnavailable</Code><RequestId>test</RequestId></Error>");
-                if(failure=="Cancel")cancel.Cancel();
+                if(failure=="Cancel"&&heads==(fallback?2:1))cancel.Cancel();
             }
             var response=await handler(request);
             if(target&&request.Method=="PUT"&&response.Status==200)
@@ -75,6 +75,26 @@ public sealed class P1S3MoveTests
         Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="DELETE"&&new Uri(fixture.Server.Address,request.Target).AbsolutePath=="/test-bucket/remote/source.bin");
         if(failure=="Content"){Assert.True(changed);Assert.Equal(new byte[]{9,8,7},fixture.Objects["remote/moved.bin"].Bytes);}
         if(failure=="Version")Assert.Equal("concurrent-version",fixture.Objects["remote/moved.bin"].VersionId);
+        if(failure=="HeadFailure")Assert.Equal(fallback?4:3,heads);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TransientDestinationVerificationHeadRecoversAndCompletesMove(bool fallback)
+    {
+        await using var fixture=new S3Fixture{IgnoreCopyConditions=fallback};fixture.Put("remote/source.bin",[1,2,3]);
+        var handler=fixture.Server.Handler;var written=false;var heads=0;
+        fixture.Server.Handler=async request=>
+        {
+            var target=new Uri(fixture.Server.Address,request.Target).AbsolutePath=="/test-bucket/remote/moved.bin";
+            if(target&&written&&request.Method=="HEAD"&&++heads==(fallback?2:1))
+                return HttpTestServer.Response.Text(503,"<Error><Code>ServiceUnavailable</Code><RequestId>test</RequestId></Error>");
+            var response=await handler(request);if(target&&request.Method=="PUT"&&response.Status==200)written=true;return response;
+        };
+        await using var source=fixture.Source();var entry=await source.GetMetadataAsync("source.bin");var moved=await source.MoveAsync(entry.Path,"moved.bin",entry.Version);
+        Assert.Equal("moved.bin",moved.Path);Assert.Equal(fallback?3:2,heads);Assert.Equal(new byte[]{1,2,3},fixture.Objects["remote/moved.bin"].Bytes);Assert.False(fixture.Objects.ContainsKey("remote/source.bin"));
+        Assert.Single(fixture.Server.Requests,request=>request.Method=="DELETE"&&new Uri(fixture.Server.Address,request.Target).AbsolutePath=="/test-bucket/remote/source.bin");
     }
 
     /// <summary>目标已确认但服务忽略条件删除时，明确报告能力限制，保留源且不发送用户源 DELETE。</summary>

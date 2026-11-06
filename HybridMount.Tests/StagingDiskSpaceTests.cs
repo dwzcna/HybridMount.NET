@@ -74,6 +74,21 @@ public sealed class StagingDiskSpaceTests
         var now=DateTimeOffset.UtcNow;var retries=new StagingRetrySchedule();var pending=new RemotePendingChange("one",Guid.NewGuid(),"scope","file",null,State:"Waiting",Error:StagingDiskSpace.ErrorPrefix+"磁盘空间不足");retries.Defer(pending.Id,now);
         for(var i=0;i<100;i++)Assert.True(retries.ShouldWait(pending,now.AddMilliseconds(i)));Assert.False(retries.ShouldWait(pending,now.AddMinutes(1)));Assert.False(retries.ShouldWait(pending with{Id="other-version"},now));Assert.False(retries.ShouldWait(pending with{State="Pending",Error=null},now));Assert.False(retries.ShouldWait(pending,now));retries.Defer(pending.Id,now);retries.Reset(pending.Id);Assert.False(retries.ShouldWait(pending,now));
     }
+    [Fact]
+    public async Task RemoteStagingPreservesSingleSequentialTransfer()
+    {
+        using var files=new Files();await using var fixture=new S3Fixture();fixture.Put("remote/staged",new byte[1024*1024]);await using var source=fixture.Source();var metadata=await source.GetMetadataAsync("staged");
+        await RemoteStaging.DownloadAsync(source,metadata,files.Snapshot,default,availableBytes:_=>ulong.MaxValue);
+        Assert.Single(fixture.Server.Requests,request=>request.Method=="GET");Assert.Equal(metadata.Size,new FileInfo(files.Snapshot).Length);
+    }
+    [Fact]
+    public void SpaceWaitingUsesPersistedSchedulerDeadlineWithoutDelayingFullScan()
+    {
+        var now=DateTimeOffset.UtcNow;var waiting=StagingDiskSpace.Wait(Item(),new("不足"),now);waiting=JsonSerializer.Deserialize<LocalUpload>(JsonSerializer.Serialize(waiting))!;
+        Assert.Equal(now.AddMinutes(1),waiting.NextAttemptUtc);Assert.Null(UploadRules.NextUpload([waiting],now.AddSeconds(59)));
+        Assert.Equal(waiting,UploadRules.NextUpload([waiting],now.AddMinutes(1)));Assert.Equal(TimeSpan.FromSeconds(15),UploadRules.UploadWait([waiting],now,now.AddSeconds(15)));
+        Assert.Equal(waiting with{State="Queued",LastCheckedUtc=null,NextAttemptUtc=null},UploadRules.NextUpload([waiting with{State="Queued",LastCheckedUtc=null,NextAttemptUtc=null}],now.AddSeconds(3)));
+    }
     private static LocalUpload Item()=>new("id",Guid.NewGuid(),"file","file",false,"stamp",1,"Queued",DateTimeOffset.UtcNow,SnapshotPath:"prior.snapshot",SnapshotSha256:"keep");
     private sealed class Files:IDisposable
     {

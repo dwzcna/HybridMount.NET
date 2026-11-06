@@ -15,7 +15,7 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class S3FileSource
 {
     private Task<PutObjectResponse> PutAsync(string key, Stream stream, string? etag, CancellationToken token)
-        => Call(() => _client.PutObjectAsync(new() { BucketName = _bucket, Key = key, InputStream = new BorrowedStream(stream),
+        => Call(() => _client.PutObjectAsync(new() { BucketName = _bucket, Key = key, InputStream = new S3IdleStream(stream,()=>InactivityTimeout,token),
             AutoCloseStream = false, AutoResetStreamPosition = false, UseChunkEncoding = false, IfMatch = etag, IfNoneMatch = etag is null ? "*" : null }, token), token, true);
     private Task<PutObjectResponse?> ProbePutAsync(string key,Stream stream,string? etag,CancellationToken token)
         =>CallCore(()=>_client.PutObjectAsync(new(){BucketName=_bucket,Key=key,InputStream=new BorrowedStream(stream),
@@ -23,18 +23,36 @@ public sealed partial class S3FileSource
     private Task<DeleteObjectResponse> DeleteKeyAsync(string key, string? etag, CancellationToken token)
         => Call(() => _client.DeleteObjectAsync(new() { BucketName = _bucket, Key = key, IfMatch = etag }, token), token, true);
     /// <summary>在条件请求之外核对目录映射；对象键与同名前缀不能同时作为可写目标。</summary>
-    private async Task CheckTargetAsync(string path,string? expectedVersion,CancellationToken token)
+    private async Task ValidateTargetParentsAsync(string path,CancellationToken token,string? directoryMoveRoot=null)
     {
         var parent=RelativePaths.Parent(path);
-        if(parent.Length>0 && !(await GetMetadataAsync(parent,token).ConfigureAwait(false)).IsDirectory)throw new SourceConflictException("S3 父项是文件，不能创建子项。");
+        if(directoryMoveRoot is null)
+        {
+            if(parent.Length>0 && !(await GetMetadataAsync(parent,token).ConfigureAwait(false)).IsDirectory)throw new SourceConflictException("S3 父项是文件，不能创建子项。");
+        }
+        else
+        {
+            directoryMoveRoot=NonRoot(directoryMoveRoot);
+            while(parent.Length>0)
+            {
+                var ancestor=await TryGetMetadataAsync(parent,token).ConfigureAwait(false);
+                if(ancestor is {IsDirectory:false})throw new SourceConflictException("S3 父项是文件，不能创建子项。");
+                if(ancestor is null&&parent!=directoryMoveRoot&&!parent.StartsWith(directoryMoveRoot+"/",StringComparison.Ordinal))throw new FileNotFoundException("S3 移动目标之外的父目录不存在。");
+                parent=RelativePaths.Parent(parent);
+            }
+        }
+    }
+    private async Task CheckTargetAsync(string path,string? expectedVersion,CancellationToken token,string? directoryMoveRoot=null)
+    {
+        await ValidateTargetParentsAsync(path,token,directoryMoveRoot).ConfigureAwait(false);
         var current=await TryGetMetadataAsync(path,token).ConfigureAwait(false);
         if(current is null){if(expectedVersion is not null)throw new SourceConflictException("S3 更新目标已不存在。");return;}
-        if(current.IsDirectory||expectedVersion is null||current.Version!=expectedVersion)throw new SourceConflictException("S3 目标已存在、是目录或版本不匹配。");
+        if(current.IsDirectory||expectedVersion is null||!IsSameVersion(current.Version,expectedVersion))throw new SourceConflictException("S3 目标已存在、是目录或版本不匹配。");
     }
-    private async Task<SourceEntry> UploadCoreAsync(string path, Stream content, string? expectedVersion,IProgress<UploadProgress>? progress,CancellationToken token)
+    private async Task<SourceEntry> UploadCoreAsync(string path, Stream content, string? expectedVersion,IProgress<UploadProgress>? progress,CancellationToken token,string? directoryMoveRoot=null)
     {
         path = NonRoot(path);
-        await CheckTargetAsync(path,expectedVersion,token).ConfigureAwait(false);
+        await CheckTargetAsync(path,expectedVersion,token,directoryMoveRoot).ConfigureAwait(false);
         var etag = expectedVersion is null ? null : RequiredETag(Version(expectedVersion));
         string? temporary = null; Stream input = content;
         try
@@ -46,9 +64,12 @@ public sealed partial class S3FileSource
                 await content.CopyToAsync(spool, token).ConfigureAwait(false); spool.Position = 0;
             }
             var length=input.Length-input.Position;
+            if(length>=_multipartThreshold)await VerifyMultipartAsync(Key(path)[..(Key(path).LastIndexOf('/')+1)],token).ConfigureAwait(false);
+            var multipart=length>=_multipartThreshold&&WriteCapabilities.MultipartComplete==CapabilitySupport.Supported;
+            if(!multipart&&length>5L*1024*1024*1024)throw new NotSupportedException("S3 服务不支持可靠的条件分片完成，超过 5 GiB 的文件不能回退单次 PUT。");
             using var reporting=new UploadProgressStream(input,progress);
             (string? ETag,string? VersionId) receipt;
-            if(length>=_multipartThreshold)receipt=await MultipartAsync(Key(path),reporting,etag,token).ConfigureAwait(false);
+            if(multipart)receipt=await MultipartAsync(Key(path),reporting,etag,token).ConfigureAwait(false);
             else
             {
                 var response=await PutAsync(Key(path),reporting,etag,token).ConfigureAwait(false);
@@ -67,11 +88,39 @@ public sealed partial class S3FileSource
         }
         finally { if (input != content) await input.DisposeAsync().ConfigureAwait(false); if (temporary is not null) File.Delete(temporary); }
     }
-    private async Task<string> BeginUploadAsync(string key, CancellationToken token)
+    internal Action<string>? MultipartJournalPending {get;set;}
+    private static async Task SaveUploadJournalAsync(string path,UploadRecord record,CancellationToken token)
     {
-        var response = await Call(() => _client.InitiateMultipartUploadAsync(new() { BucketName = _bucket, Key = key }, token), token, true).ConfigureAwait(false);
+        var temporary=path+".tmp";
+        try
+        {
+            await using(var output=new FileStream(temporary,FileMode.Create,FileAccess.Write,FileShare.None,4096,FileOptions.Asynchronous|FileOptions.WriteThrough))
+            {await JsonSerializer.SerializeAsync(output,record,cancellationToken:token).ConfigureAwait(false);await output.FlushAsync(token).ConfigureAwait(false);output.Flush(true);}
+            File.Move(temporary,path,true);
+        }
+        finally{File.Delete(temporary);}
+    }
+    private async Task<(UploadRecord Record,string Journal)> BeginUploadAsync(string key, CancellationToken token,GetObjectMetadataResponse? sourceMetadata=null)
+    {
+        Directory.CreateDirectory(_work);var client=Guid.NewGuid().ToString("N");var record=new UploadRecord(_bucket,key,ClientToken:client,StartedUtc:DateTimeOffset.UtcNow);
+        var journal=Path.Combine(_work,client+".multipart.json");await SaveUploadJournalAsync(journal,record,token).ConfigureAwait(false);MultipartJournalPending?.Invoke(journal);
+        var request=new InitiateMultipartUploadRequest{BucketName=_bucket,Key=key};
+        if(sourceMetadata is not null)
+        {
+            request.ContentType=sourceMetadata.Headers.ContentType;
+            foreach(var name in sourceMetadata.Metadata.Keys)request.Metadata.Add(name,sourceMetadata.Metadata[name]);
+        }
+        var response = await Call(() => _client.InitiateMultipartUploadAsync(request, token), token, true).ConfigureAwait(false);
         if (string.IsNullOrEmpty(response.UploadId)) throw new SourceOutcomeUnknownException("S3 分片初始化", new IOException("服务器未返回 UploadId。"));
-        return response.UploadId;
+        record=record with{UploadId=response.UploadId};
+        try{await SaveUploadJournalAsync(journal,record,token).ConfigureAwait(false);}
+        catch(Exception error)when(error is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            try{using var cleanup=new CancellationTokenSource(TimeSpan.FromSeconds(20));await AbortAsync(record,cleanup.Token).ConfigureAwait(false);File.Delete(journal);}
+            catch(Exception cleanup)when(cleanup is IOException or UnauthorizedAccessException or OperationCanceledException){ }
+            throw;
+        }
+        return(record,journal);
     }
     private async Task<UploadPartResponse> PartAsync(string key, string id, int part, byte[] bytes, int count, CancellationToken token)
         => await Call(() => _client.UploadPartAsync(new() { BucketName = _bucket, Key = key, UploadId = id, PartNumber = part, PartSize = count,
@@ -83,7 +132,7 @@ public sealed partial class S3FileSource
     }
     private async Task VerifyMultipartAsync(string keyParent,CancellationToken token)
     {
-        if (_multipartVerified) return; await _probeGate.WaitAsync(token).ConfigureAwait(false);
+        if (_multipartVerified||WriteCapabilities.MultipartComplete==CapabilitySupport.Unsupported) return; await _probeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if (_multipartVerified) return;
@@ -93,7 +142,7 @@ public sealed partial class S3FileSource
             {
                 foreach (var createOnly in new[] { true, false })
                 {
-                    var id = await BeginUploadAsync(key, token).ConfigureAwait(false);
+                    var (record,journal)=await BeginUploadAsync(key,token).ConfigureAwait(false);var id=record.UploadId!;
                     try
                     {
                         var part = await PartAsync(key, id, 1, [31], 1, token).ConfigureAwait(false);
@@ -102,26 +151,28 @@ public sealed partial class S3FileSource
                         if(probe is null)continue;
                         throw new NotSupportedException("S3 分片完成接口未通过条件写验证。");
                     }
-                    finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await AbortAsync(new(_bucket, key, id), cleanup.Token).ConfigureAwait(false); }
+                    finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await AbortAsync(record,cleanup.Token).ConfigureAwait(false);File.Delete(journal); }
                 }
                 _multipartVerified = true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Supported};
             }
+            catch(Exception error)when(error is NotSupportedException||UnsupportedMultipart(error))
+            {_multipartVerified=true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Unsupported};}
             finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await DeleteKeyAsync(key, null, cleanup.Token).ConfigureAwait(false); }
         }
         finally { _probeGate.Release(); }
     }
+    private static bool UnsupportedMultipart(Exception error)
+    {
+        var connection=error as SourceConnectionException??error.InnerException as SourceConnectionException;
+        return connection?.Diagnostic.HttpStatus==501||connection?.Diagnostic.HttpStatus is 400 or 405&&connection.Diagnostic.ServiceCode is "NotImplemented" or "NotSupported" or "UnsupportedOperation";
+    }
     private async Task<(string? ETag,string? VersionId)> MultipartAsync(string key, Stream input, string? etag, CancellationToken token)
     {
         await VerifyMultipartAsync(key[..(key.LastIndexOf('/')+1)],token).ConfigureAwait(false);
-        var id = await BeginUploadAsync(key, token).ConfigureAwait(false); var record = new UploadRecord(_bucket, key, id);
-        var journal = Path.Combine(_work, Guid.NewGuid().ToString("N") + ".multipart.json");
+        var (record,journal)=await BeginUploadAsync(key,token).ConfigureAwait(false);var id=record.UploadId!;
         var completed = false;
         try
         {
-            Directory.CreateDirectory(_work);
-            var journalTemporary=journal+".tmp";
-            try { await File.WriteAllTextAsync(journalTemporary,JsonSerializer.Serialize(record),token).ConfigureAwait(false);File.Move(journalTemporary,journal,true); }
-            finally{File.Delete(journalTemporary);}
             var length = input.Length - input.Position;
             var partSize = (int)Math.Min(128L * 1024 * 1024, Math.Max(8L * 1024 * 1024, (length + 9999) / 10000));
             if ((length + partSize - 1) / partSize > 10000) throw new NotSupportedException("对象超过首版分片大小限制。");
@@ -151,17 +202,6 @@ public sealed partial class S3FileSource
             }
         }
     }
-    /// <summary>单独恢复本程序已知分片；读取连接可在恢复失败时继续，探测绝不调用此方法。</summary>
-    public async Task RecoverKnownUploadsAsync(CancellationToken token=default)
-    {
-        if (!Directory.Exists(_work)) return;
-        foreach (var path in Directory.EnumerateFiles(_work, "*.multipart.json"))
-        {
-            var record = JsonSerializer.Deserialize<UploadRecord>(await File.ReadAllTextAsync(path, token).ConfigureAwait(false)) ?? throw new IOException("分片恢复记录损坏。");
-            if (record.Bucket != _bucket || !record.Key.StartsWith(_prefix, StringComparison.Ordinal) || !Path.GetFileName(path).EndsWith(".multipart.json")) throw new IOException("分片恢复范围不匹配。");
-            await AbortAsync(record, token).ConfigureAwait(false); File.Delete(path);
-        }
-    }
     public async Task<SourceEntry> CreateDirectoryAsync(string path, CancellationToken token = default)
     {
         path = NonRoot(path); await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);RequirePut(true);
@@ -173,7 +213,7 @@ public sealed partial class S3FileSource
     {
         path = NonRoot(path); await VerifyDeleteAsync(token).ConfigureAwait(false);
         var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
-        if (entry.Version != expectedVersion) throw new SourceConflictException("S3 删除版本变化。");
+        if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 删除版本变化。");
         if (entry.IsDirectory)
         {
             await foreach (var _ in ListAsync(path, token).ConfigureAwait(false)) throw new NotSupportedException("S3 目录非空，拒绝隐式递归删除。");

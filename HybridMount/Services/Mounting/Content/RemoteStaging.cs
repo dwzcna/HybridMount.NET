@@ -10,12 +10,11 @@ internal static class RemoteStaging
     {
         token.ThrowIfCancellationRequested();StagingDiskSpace.Require(path,metadata.Size,availableBytes);
         await using var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None,262144,FileOptions.Asynchronous|FileOptions.WriteThrough);
-        using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);var bytes=new byte[262144];long offset=0;
-        while(offset<metadata.Size)
+        using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);long offset=0;
+        await source.ReadRangeSequentialAsync(metadata,0,metadata.Size,async(bytes,cancel)=>
         {
-            var read=await source.ReadRangeAsync(metadata,offset,bytes.AsMemory(0,(int)Math.Min(bytes.Length,metadata.Size-offset)),token).ConfigureAwait(false);
-            if(read<=0)throw new EndOfStreamException();hash.AppendData(bytes,0,read);await output.WriteAsync(bytes.AsMemory(0,read),token).ConfigureAwait(false);offset+=read;progress?.Invoke(offset);
-        }
+            hash.AppendData(bytes.Span);await output.WriteAsync(bytes,cancel).ConfigureAwait(false);offset+=bytes.Length;progress?.Invoke(offset);
+        },262144,token).ConfigureAwait(false);
         var after=await source.GetMetadataAsync(metadata.Path,token).ConfigureAwait(false);
         if(!source.IsSameVersion(metadata.Version,after.Version)||metadata.Size!=after.Size)throw new SourceConflictException("远端快照下载期间版本变化，未应用本地。");
         await output.FlushAsync(token).ConfigureAwait(false);output.Flush(true);token.ThrowIfCancellationRequested();

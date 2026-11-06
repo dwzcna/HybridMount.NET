@@ -14,7 +14,7 @@ internal static class StagingDiskSpace
     internal static readonly TimeSpan RecheckDelay=TimeSpan.FromMinutes(1);
     internal static bool IsWaiting(string state,string? error)=>state=="Waiting"&&error?.StartsWith(ErrorPrefix,StringComparison.Ordinal)==true;
     internal static bool CanRecheck(LocalUpload item,DateTimeOffset now)=>!IsWaiting(item.State,item.Error)||item.LastCheckedUtc is null||now-item.LastCheckedUtc>=RecheckDelay;
-    internal static LocalUpload Wait(LocalUpload item,StagingSpaceException error,DateTimeOffset now)=>item with{State=item.CancelRequested?"Canceled":"Waiting",Error=error.Message,LastCheckedUtc=now};
+    internal static LocalUpload Wait(LocalUpload item,StagingSpaceException error,DateTimeOffset now)=>item with{State=item.CancelRequested?"Canceled":"Waiting",Error=error.Message,LastCheckedUtc=now,NextAttemptUtc=item.CancelRequested?null:now+RecheckDelay};
     internal static void Require(string target,long size,Func<string,ulong>? availableBytes=null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(size);ulong available;

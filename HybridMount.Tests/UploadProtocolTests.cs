@@ -9,6 +9,27 @@ namespace HybridMount.Tests;
 /// <summary>验证上传的条件保护、锁排他和结果核对，不借助真实账号。</summary>
 public sealed class UploadProtocolTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5242880)]
+    public async Task S3PreparationVerifiesWithoutSendingUserContent(long length)
+    {
+        await using var fixture=new S3Fixture();await using var source=fixture.Source();
+        await source.PrepareUploadAsync("prepared.bin",new(null),length);
+        Assert.Equal(CapabilitySupport.Supported,source.WriteCapabilities.CreateOnly);if(length>0)Assert.Equal(CapabilitySupport.Supported,source.WriteCapabilities.MultipartComplete);
+        Assert.DoesNotContain(fixture.Server.Requests,r=>r.Method=="PUT"&&r.Target.Contains("prepared.bin",StringComparison.Ordinal));Assert.Null(await source.TryGetMetadataAsync("prepared.bin"));
+        var writes=fixture.Server.Requests.Count(r=>r.Method=="PUT"||r.Method=="POST");await source.PrepareUploadAsync("prepared.bin",new(null),length);Assert.Equal(writes,fixture.Server.Requests.Count(r=>r.Method=="PUT"||r.Method=="POST"));
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DavPreparationVerifiesWithoutCreatingUserTarget(bool locks)
+    {
+        await using var fixture=new DavLockFixture();fixture.Dav.IgnoreConditions=locks;await using var source=fixture.Dav.Source();
+        await source.PrepareUploadAsync("prepared.bin",new(null),0);Assert.Null(await source.TryGetMetadataAsync("prepared.bin"));
+        Assert.DoesNotContain(fixture.Dav.Server.Requests,r=>r.Target.EndsWith("prepared.bin",StringComparison.Ordinal)&&r.Method is "PUT" or "LOCK" or "MOVE");
+        var writes=fixture.Dav.Server.Requests.Count(r=>r.Method=="PUT"||r.Method=="LOCK");await source.PrepareUploadAsync("prepared.bin",new(null),0);Assert.Equal(writes,fixture.Dav.Server.Requests.Count(r=>r.Method=="PUT"||r.Method=="LOCK"));
+    }
     [Fact]
     public async Task DavUploadDoesNotRequireConditionalDeleteOrMove()
     {
