@@ -11,7 +11,7 @@ namespace HybridMount.Pages;
 public sealed partial class TasksPage : Page, IDisposable
 {
     /// <summary>UI 线程上的任务快照集合。</summary>
-    public TasksViewModel ViewModel { get; }=new(App.Current.Mounts,App.Current.UiDispatcher);
+    public TasksViewModel ViewModel { get; }=new(App.Current.Mounts,App.Current.UiDispatcher,App.Current.TaskFocus);
     private bool _restoring,_disposed;
     private readonly PageScrollBookmark _viewport=new();
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
@@ -33,7 +33,23 @@ public sealed partial class TasksPage : Page, IDisposable
     }
     /// <summary>窄窗口将历史清理放在下一行，避免新增按钮被裁切；不影响任务列表状态。</summary>
     private void ToolbarSizeChanged(object sender,SizeChangedEventArgs args)
-    {if(_disposed||HistoryToolbar is null)return;var narrow=args.NewSize.Width<840;Grid.SetRow(HistoryToolbar,narrow?1:0);Grid.SetColumn(HistoryToolbar,narrow?0:1);Grid.SetColumnSpan(HistoryToolbar,narrow?2:1);Toolbar.RowSpacing=narrow?8:0;}
+    {if(_disposed||HistoryToolbar is null)return;var narrow=args.NewSize.Width<980;Grid.SetRow(HistoryToolbar,narrow?1:0);Grid.SetColumn(HistoryToolbar,narrow?0:1);Grid.SetColumnSpan(HistoryToolbar,narrow?2:1);Toolbar.RowSpacing=narrow?8:0;}
+    private void ClearIssueFilter(object sender,RoutedEventArgs args)=>ViewModel.ClearIssueFilter();
+    /// <summary>文件存在时由Shell选中；已移除文件打开最近仍存在的父目录，不连接服务或自动上传。</summary>
+    private async void OpenLocation(object sender,RoutedEventArgs args)
+    {
+        if(ViewModel.SelectedLocation() is not {} path)return;
+        try
+        {
+            var folder=Path.GetDirectoryName(path)!;while(!Directory.Exists(folder)&&Path.GetDirectoryName(folder) is {} parent)folder=parent;
+            var storage=await Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder);if(_disposed||App.Current.IsExiting)return;
+            var options=new Windows.System.FolderLauncherOptions();
+            if(File.Exists(path))options.ItemsToSelect.Add(await Windows.Storage.StorageFile.GetFileFromPathAsync(path));
+            else if(Directory.Exists(path))options.ItemsToSelect.Add(await Windows.Storage.StorageFolder.GetFolderFromPathAsync(path));
+            if(!_disposed&&!App.Current.IsExiting)await Windows.System.Launcher.LaunchFolderAsync(storage,options);
+        }
+        catch(Exception error){if(!_disposed)ViewModel.Status=error.Message;}
+    }
     private void CancelJob(object sender,RoutedEventArgs args)=>ViewModel.CancelSelected();
     private void RetryUpload(object sender,RoutedEventArgs args)=>ViewModel.RetrySelected();
     /// <summary>以新相对路径安全创建远端副本，不改变原始冲突文件或远端旧项。</summary>
@@ -61,7 +77,7 @@ public sealed partial class TasksPage : Page, IDisposable
         try
         {
             var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,MinWidth=400,SelectionMode=ListViewSelectionMode.None};
-            await new ContentDialog{XamlRoot=XamlRoot,Title=job.DisplayOperation+"："+job.DisplayState,Content=list,CloseButtonText="关闭"}.ShowAsync();
+            await new ContentDialog{XamlRoot=XamlRoot,Title=job.DisplayOperation+"："+job.DisplayState,Content=ViewModel.IssuesOnly?new ScrollViewer{MaxHeight=460,Content=new TextBlock{Text=job.IssueDetails,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MinWidth=360,MaxWidth=580}}:list,CloseButtonText="关闭"}.ShowAsync();
         }
         catch(Exception error) { ViewModel.Status=error.Message; }
         finally { ViewModel.EndDialog(); }

@@ -43,7 +43,29 @@ public static class CloudRootRegistration
             if (!string.IsNullOrEmpty(other) && (MountPathGuard.IsUnder(other,mount.LocalPath) || MountPathGuard.IsUnder(mount.LocalPath,other)))
                 throw new IOException("目标与已有同步根重叠，不能注册。");
         }
-        var info = new StorageProviderSyncRootInfo
+        var info=await CreateDescriptorAsync(mount);
+        AddIssueDefinition(info);
+        token.ThrowIfCancellationRequested();
+        if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("注册前根身份发生变化，保留配置。");
+        StorageProviderSyncRootManager.Register(info);
+        MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+    }
+    /// <summary>在已有根上更新同一注册描述符；不注销、不转换文件或改变根身份。旧WinRT查询不可见时用本程序的原策略重建描述符。</summary>
+    internal static async Task EnsureIssueDefinitionAsync(MountDefinition mount,CancellationToken token)
+    {
+        if(!IsOwnedRoot(mount))throw new IOException("不能为未注册的根发布同步问题。");
+        var info=StorageProviderSyncRootManager.GetCurrentSyncRoots().FirstOrDefault(x=>x.Id==Id(mount));
+        if(info?.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudUploadIssueProperty.PropertyId)==true)return;
+        info??=await CreateDescriptorAsync(mount);
+        AddIssueDefinition(info);
+        token.ThrowIfCancellationRequested();MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+        StorageProviderSyncRootManager.Register(info);
+        MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+    }
+    /// <summary>本产品新旧根共用相同描述符，升级不改变路径、Context或CFAPI策略。</summary>
+    private static async Task<StorageProviderSyncRootInfo> CreateDescriptorAsync(MountDefinition mount)
+    {
+        return new StorageProviderSyncRootInfo
         {
             Id = Id(mount), Path = await StorageFolder.GetFolderFromPathAsync(mount.LocalPath),
             DisplayNameResource = mount.Name, IconResource = Path.Combine(AppContext.BaseDirectory,"HybridMount.NET.exe")+",0",
@@ -54,10 +76,11 @@ public static class CloudRootRegistration
             HardlinkPolicy = StorageProviderHardlinkPolicy.None, Version = typeof(MountManager).Assembly.GetName().Version!.ToString(), ShowSiblingsAsGroup = false,
             Context = CryptographicBuffer.CreateFromByteArray(MountPathGuard.RootBytes(mount.Id))
         };
-        token.ThrowIfCancellationRequested();
-        if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("注册前根身份发生变化，保留配置。");
-        StorageProviderSyncRootManager.Register(info);
-        MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+    }
+    private static void AddIssueDefinition(StorageProviderSyncRootInfo info)
+    {
+        if(!info.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudUploadIssueProperty.PropertyId))
+            info.StorageProviderItemPropertyDefinitions.Add(new(){Id=CloudUploadIssueProperty.PropertyId,DisplayNameResource="同步问题"});
     }
     public static void Unregister(MountDefinition mount)
     {

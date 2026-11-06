@@ -10,7 +10,7 @@
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/>
     <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
-  <ItemGroup><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+  <ItemGroup><Content Include="..\HybridMount\Assets\SyncIssue.png" Link="Assets\SyncIssue.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\Models\AppearancePreferences.cs" Link="Production\AppearancePreferences.cs"/>
     <Compile Include="..\HybridMount\Models\IpcMessages.cs" Link="Production\IpcMessages.cs"/>
@@ -29,6 +29,7 @@
     <Compile Include="..\HybridMount\Models\ApplicationRoutes.cs" Link="Production\ApplicationRoutes.cs"/>
     <Compile Include="..\HybridMount\Common\INavigationService.cs" Link="Production\INavigationService.cs"/>
     <Compile Include="..\HybridMount\Services\NavigationService.cs" Link="Production\NavigationService.cs"/>
+    <Compile Include="..\HybridMount\Services\TaskFocusService.cs" Link="Production\TaskFocusService.cs"/>
     <Compile Include="..\HybridMount\Services\NavigationGateway.cs" Link="Production\NavigationGateway.cs"/>
     <Compile Include="..\HybridMount\Common\IStartupService.cs" Link="Production\IStartupService.cs"/>
     <Compile Include="..\HybridMount\Common\IUiDispatcher.cs" Link="Production\IUiDispatcher.cs"/>

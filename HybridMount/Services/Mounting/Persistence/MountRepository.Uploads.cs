@@ -26,11 +26,27 @@ public sealed partial class MountRepository
             return command.ExecuteScalar() is string json?JsonSerializer.Deserialize<LocalUpload>(json):null;
         }
     }
-    private static void WriteUpload(SqliteConnection db,LocalUpload upload,SqliteTransaction? transaction=null)
+    private static LocalUpload WriteUpload(SqliteConnection db,LocalUpload upload,SqliteTransaction? transaction=null)
     {
+        upload=UploadAttentionRules.Normalize(upload);
         using var command=db.CreateCommand();command.Transaction=transaction;
         command.CommandText="INSERT INTO uploads VALUES($id,$m,$p,$j) ON CONFLICT(id) DO UPDATE SET json=$j,path=$p";
-        command.Parameters.AddWithValue("$id",upload.Id);command.Parameters.AddWithValue("$m",upload.MountId.ToString("N"));command.Parameters.AddWithValue("$p",upload.LocalPath);command.Parameters.AddWithValue("$j",JsonSerializer.Serialize(upload));command.ExecuteNonQuery();
+        command.Parameters.AddWithValue("$id",upload.Id);command.Parameters.AddWithValue("$m",upload.MountId.ToString("N"));command.Parameters.AddWithValue("$p",upload.LocalPath);command.Parameters.AddWithValue("$j",JsonSerializer.Serialize(upload));command.ExecuteNonQuery();return upload;
+    }
+    /// <summary>兼容旧JSON并只补问题记录，不重建展示历史、改变任务状态或启动上传。</summary>
+    internal void RecoverUploadAttention()
+    {
+        lock(_gate)
+        {
+            using var db=Open();using var tx=db.BeginTransaction();
+            foreach(var item in Uploads())
+            {
+                var recovered=UploadAttentionRules.Normalize(item,true);
+                if(recovered.Attention is {ResolvedUtc:null,ShellState:"Published"} attention)recovered=recovered with{Attention=attention with{ShellState="Pending"}};
+                if(recovered!=item)WriteUpload(db,recovered,tx);
+            }
+            tx.Commit();
+        }
     }
     public void SaveUpload(LocalUpload upload){lock(_gate){using var db=Open();WriteUpload(db,upload);}}
     /// <summary>在同一锁内读取并变换最新状态；返回空值表示任务已被移除。</summary>
@@ -46,7 +62,7 @@ public sealed partial class MountRepository
                 var archived=current.ToSnapshot() with{Id=Guid.NewGuid().ToString("N")};using var history=db.CreateCommand();history.Transaction=transaction;
                 history.CommandText="INSERT INTO operations SELECT $id,$j WHERE EXISTS (SELECT 1 FROM operations WHERE id=$previous AND json_extract(json,'$.State')='Completed')";history.Parameters.AddWithValue("$id",archived.Id);history.Parameters.AddWithValue("$j",JsonSerializer.Serialize(archived));history.Parameters.AddWithValue("$previous",current.Id);history.ExecuteNonQuery();
             }
-            WriteUpload(db,next,transaction);transaction.Commit();return next;
+            next=WriteUpload(db,next,transaction);transaction.Commit();return next;
         }
     }
     /// <summary>同一不透明版本只能绑定第一份已验证摘要；后续差异不能悄悄覆盖基线。</summary>
@@ -102,7 +118,7 @@ public sealed partial class MountRepository
                 presence.CommandText="INSERT INTO remote_presence VALUES($m,$id,$p) ON CONFLICT(mount,id) DO UPDATE SET presence=$p";
                 presence.Parameters.AddWithValue("$m",prepared.MountId.ToString("N"));presence.Parameters.AddWithValue("$id",entry.Id);presence.Parameters.AddWithValue("$p",(int)RemotePresence.Present);presence.ExecuteNonQuery();
             }
-            WriteUpload(db,next,transaction);
+            next=WriteUpload(db,next,transaction);
             if(prepared.SnapshotSha256 is not null)
             {
                 using var baseline=db.CreateCommand();baseline.Transaction=transaction;baseline.CommandText="INSERT INTO content_baselines VALUES($m,$p,$v,$s) ON CONFLICT(mount,path,version) DO NOTHING";

@@ -22,7 +22,7 @@ using namespace Microsoft::WRL;
 HMODULE g_module = nullptr;
 std::atomic<long> g_objects{ 0 };
 namespace {
-	enum class Operation { Root, FreeSpace, KeepOnDevice };
+	enum class Operation { Root, FreeSpace, KeepOnDevice, ShowSyncIssues };
 /// <summary>只读取本机 CFAPI 根身份；不访问服务或水合内容，未知或畸形信息隐藏菜单。</summary>
 bool OwnedRoot(const std::wstring& path, GUID& mount) {
     if (path.size() < 3 || path[1] != L':' || PathIsUNCW(path.c_str())) return false;
@@ -75,7 +75,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		CommandEnumerator(IUnknown* site, ULONG index = 0) : _index(index), _site(site) {}
 		IFACEMETHODIMP Next(ULONG count, IExplorerCommand** commands, ULONG* fetched) override;
 		IFACEMETHODIMP Skip(ULONG count) override {
-			const auto available = 2 - _index;
+			const auto available = 3 - _index;
 			_index += count < available ? count : available;
 			return count <= available ? S_OK : S_FALSE;
 		}
@@ -110,7 +110,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		if (SUCCEEDED(status)) { result = path; CoTaskMemFree(path); }
 		return status;
 	}
-	/// <summary>根菜单与两个占位子命令；所有文件系统目标只在 Invoke 中复制。</summary>
+	/// <summary>根菜单与缓存和问题定位子命令；所有文件系统目标只在 Invoke 中复制。</summary>
 	class Command final : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>, private ModuleLifetime {
 		Operation _operation;
 		ComPtr<IUnknown> _site;
@@ -118,7 +118,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		Command(Operation operation, IUnknown* site = nullptr) : _operation(operation), _site(site) {}
 		IFACEMETHODIMP GetTitle(IShellItemArray*, PWSTR* title) override {
 			if (!title) return E_POINTER;
-			return SHStrDupW(_operation == Operation::Root ? L"HybridMount.NET" : _operation == Operation::FreeSpace ? L"释放空间" : L"始终保留在设备上", title);
+			return SHStrDupW(_operation == Operation::Root ? L"HybridMount.NET" : _operation == Operation::FreeSpace ? L"释放空间" : _operation == Operation::KeepOnDevice ? L"始终保留在设备上" : L"查看同步问题", title);
 		}
 		IFACEMETHODIMP GetIcon(IShellItemArray*, PWSTR* icon) override {
 			if (!icon) return E_POINTER;
@@ -135,7 +135,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		}
 		IFACEMETHODIMP GetToolTip(IShellItemArray*, PWSTR* text) override {
 			if (!text) return E_POINTER;
-			return SHStrDupW(L"管理此挂载的离线缓存；本地修改会受到保护。", text);
+			return SHStrDupW(_operation == Operation::ShowSyncIssues ? L"在应用中定位此文件或目录的同步问题；不会自动上传。" : L"管理此挂载的离线缓存；本地修改会受到保护。", text);
 		}
 		IFACEMETHODIMP GetCanonicalName(GUID* name) override {
 			if (!name) return E_POINTER;
@@ -184,7 +184,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 					if (FAILED(status)) return status;
 					paths.push_back(std::move(background));
 				}
-				return QueuePlaceholderRequest(_operation == Operation::KeepOnDevice, std::move(paths));
+				return _operation == Operation::ShowSyncIssues ? QueueSyncIssuesRequest(std::move(paths)) : QueuePlaceholderRequest(_operation == Operation::KeepOnDevice, std::move(paths));
 			}
 			catch (...) { return E_OUTOFMEMORY; }
 		}
@@ -212,8 +212,8 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		if (fetched) *fetched = 0;
 		for (ULONG index = 0; index < count; ++index) commands[index] = nullptr;
 		ULONG written = 0;
-		while (written < count && _index < 2) {
-			auto command = Make<Command>(_index == 0 ? Operation::FreeSpace : Operation::KeepOnDevice, _site.Get());
+		while (written < count && _index < 3) {
+			auto command = Make<Command>(_index == 0 ? Operation::FreeSpace : _index == 1 ? Operation::KeepOnDevice : Operation::ShowSyncIssues, _site.Get());
 			if (!command) {
 				for (ULONG index = 0; index < written; ++index) { commands[index]->Release(); commands[index] = nullptr; }
 				_index -= written;

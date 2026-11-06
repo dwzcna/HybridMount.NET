@@ -1,6 +1,6 @@
 # 只调用本产品的用户／会话管道，不连接网络；v2 文件命令返回异步任务 ID，支持查询和取消。
 [CmdletBinding()]
-param([ValidateSet('ping','showWindow','freeSpace','keepOnDevice','getOperation','cancelOperation')][string]$Operation='ping',[string[]]$Paths=@(),[string]$JobId)
+param([ValidateSet('ping','showWindow','freeSpace','keepOnDevice','getOperation','cancelOperation','showSyncIssues')][string]$Operation='ping',[string[]]$Paths=@(),[string]$JobId)
 $ErrorActionPreference='Stop'
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $session=[Diagnostics.Process]::GetCurrentProcess().SessionId

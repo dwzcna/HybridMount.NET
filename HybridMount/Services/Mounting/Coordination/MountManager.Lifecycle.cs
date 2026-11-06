@@ -66,6 +66,7 @@ public sealed partial class MountManager
         Task[] foreground;lock(_lifetime)foreground=_foreground.ToArray();
         await Step("Foreground",()=>Task.WhenAll(foreground)).ConfigureAwait(false);
         await Step("Jobs",()=>Task.WhenAll(_jobs.Values.Select(job=>job.Work))).ConfigureAwait(false);
+        if(_issuePublishing is not null)await Step("IssuePublishing",()=>_issuePublishing).ConfigureAwait(false);
         if(_maintenance is not null)await Step("Maintenance",()=>_maintenance).ConfigureAwait(false);
         await Step("RemoteSync",()=>Task.WhenAll(_roots.Values.Select(StopRemoteAsync))).ConfigureAwait(false);
         await Step("Capacity",()=>Task.WhenAll(_roots.Values.Select(StopCapacityAsync))).ConfigureAwait(false);
@@ -81,7 +82,7 @@ public sealed partial class MountManager
                 finally{root.Gate.Release();}
             }).ConfigureAwait(false);
         }
-        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_capacities.Dispose();_configurationGate.Dispose();_stop.Dispose();
+        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_stop.Dispose();
         ObserveStop(errors.Count==0?"Stopped":"StoppedWithErrors",null);
         if(errors.Count!=0)throw new AggregateException("挂载停止时有资源未正常释放。",errors);
     }

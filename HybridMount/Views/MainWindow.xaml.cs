@@ -34,7 +34,7 @@ public sealed partial class MainWindow : Window
         };
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
         ApplyAppearance();
-        Navigate(ApplicationRoutes.Home);
+        Navigate(ApplicationRoutes.Home);RefreshUploadIssueNotifications();
     }
     /// <summary>内部 URI 统一入口，实际导航由服务经 Frame.Navigate 执行。</summary>
     public bool Navigate(Uri target)=>_navigation.Navigate(target);
@@ -95,6 +95,17 @@ public sealed partial class MainWindow : Window
         NotificationBar.Message = args.Message;
         NotificationBar.Severity = args.Severity;
         NotificationBar.IsOpen = true;
+    }
+    /// <summary>每挂载一条可关闭的应用内提示；关闭只解除提示，点击使用独立定位服务。</summary>
+    public void RefreshUploadIssueNotifications()
+    {
+        if(App.Current.IsExiting)return;IssueNotifications.Children.Clear();
+        foreach(var notice in App.Current.IssueNotifications.Pending)
+        {
+            var button=new Button{Content="查看同步问题"};button.Click+=(_,_)=>App.Current.TaskFocus.ShowIssues(notice.MountId);
+            var bar=new InfoBar{Title=notice.MountName,Message=$"{notice.Count} 个上传问题需要处理",Severity=InfoBarSeverity.Warning,IsOpen=true,IsClosable=true,ActionButton=button};
+            bar.Closed+=(_,_)=>App.Current.IssueNotifications.Dismiss(notice.MountId);IssueNotifications.Children.Add(bar);
+        }
     }
     /// <summary>只在真正退出停止 Frame 缓存页；一级导航不会释放页面 VM。</summary>
     public void StopPages()=>_navigation.StopPages();

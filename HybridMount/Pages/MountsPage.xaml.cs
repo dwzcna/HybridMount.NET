@@ -53,7 +53,8 @@ public sealed partial class MountsPage : Page,IDisposable
                 case "refresh":case "keepOnDevice":case "freeSpace":ViewModel.QueueMount(args.MountId,args.Action);break;
                 case "capacity":await ViewModel.RecheckCapacityAsync(args.MountId);break;
                 case "remove":await RemoveAsync(args.MountId);break;
-                case "diagnostics":await ShowDiagnosticsAsync(args.MountId);break;
+                case "diagnostics":if(ViewModel.FindMount(args.MountId)?.UploadIssueCount>0)App.Current.TaskFocus.ShowIssues(args.MountId);else await ShowDiagnosticsAsync(args.MountId);break;
+                case "fullDiagnostics":await ShowDiagnosticsAsync(args.MountId);break;
                 case "thumbnails":if(args.Value is {} thumbnails)await ViewModel.SetThumbnailAsync(args.MountId,thumbnails);break;
                 case "remoteDetection":if(args.Value is {} detection)await ViewModel.SetRemoteDetectionEnabledAsync(args.MountId,detection);break;
                 case "open":await ViewModel.RunDialogAsync(async()=>{if(ViewModel.FindMount(args.MountId) is not {} mount)return;var folder=await StorageFolder.GetFolderFromPathAsync(mount.Definition.LocalPath);if(!ViewModel.IsStopping)await Windows.System.Launcher.LaunchFolderAsync(folder);});break;

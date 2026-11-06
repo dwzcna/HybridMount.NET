@@ -46,21 +46,22 @@ public sealed class NativeExtensionTests
         /// <summary>每个枚举器独立从首项开始，Clone 从当前位置继续。</summary>
         internal void VerifyEnumeration()
         {
-            var first = Enumerate(); var second = Enumerate(); nint clone = 0, free = 0, freeAgain = 0, keep = 0;
+            var first = Enumerate(); var second = Enumerate(); nint clone = 0, free = 0, freeAgain = 0, keep = 0, issues=0;
             try
             {
                 free = Next(first); freeAgain = Next(second);
                 Assert.Equal("释放空间", Title(free)); Assert.Equal("释放空间", Title(freeAgain));
                 Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint*,int>)Table(first)[6])(first, &clone));
                 keep = Next(clone); Assert.Equal("始终保留在设备上", Title(keep));
+                issues=Next(clone);Assert.Equal("查看同步问题",Title(issues));
                 uint state = 99;
                 Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(free)[7])(free, 0, 1, &state));
                 Assert.NotEqual(0u, state);
             }
-            finally { Release(keep); Release(freeAgain); Release(free); Release(clone); Release(second); Release(first); }
+            finally { Release(issues);Release(keep); Release(freeAgain); Release(free); Release(clone); Release(second); Release(first); }
         }
         /// <summary>调用真实子命令，仅向生产格式的当前用户管道发消息。</summary>
-        internal void Invoke(string path, bool keep)
+        internal void Invoke(string path, bool keep,bool issues=false)
         {
             var itemId = new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");
             var arrayId = new Guid("B63EA76D-1F85-456F-A19C-48159EFA858B");
@@ -70,7 +71,8 @@ public sealed class NativeExtensionTests
             {
                 Assert.Equal(0, SHCreateShellItemArrayFromShellItem(item, in arrayId, out array));
                 command = Next(enumerator);
-                if (keep) { Release(command); command = Next(enumerator); }
+                if (keep||issues) { Release(command); command = Next(enumerator); }
+                if(issues){Release(command);command=Next(enumerator);}
                 Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint,nint,int>)Table(command)[8])(command, array, 0));
             }
             finally { Release(command); Release(enumerator); Release(array); Release(item); }
@@ -84,7 +86,7 @@ public sealed class NativeExtensionTests
         [DllImport("shell32.dll", CharSet=CharSet.Unicode)] private static extern int SHCreateItemFromParsingName(string path, nint context, in Guid iid, out nint item);
         [DllImport("shell32.dll")] private static extern int SHCreateShellItemArrayFromShellItem(nint item, in Guid iid, out nint array);
     }
-    /// <summary>两个原生命令正确发送中文、引号和反斜杠，选择的文件内容不变。</summary>
+    /// <summary>三个原生命令正确发送中文、引号和反斜杠，选择的文件内容不变。</summary>
     [Fact]
     public async Task NativeComAndPipeRoundTrip()
     {
@@ -107,6 +109,7 @@ public sealed class NativeExtensionTests
                 Assert.Equal(keep ? "keepOnDevice" : "freeSpace",request.Operation);
                 Assert.Equal(file, Assert.Single(request.Paths));
             }
+            extension.Invoke(file,false,true);var issue=await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("showSyncIssues",issue.Operation);Assert.Equal(file,Assert.Single(issue.Paths));
             Assert.Equal("original", await File.ReadAllTextAsync(file));
         }
         finally { Directory.Delete(directory,true); }

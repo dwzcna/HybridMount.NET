@@ -13,6 +13,10 @@ public sealed class MountListItem(MountSnapshot snapshot) : ObservableObject
     public string SourceAndPath=>_snapshot.SourceDisplay+"  "+_snapshot.Definition.LocalPath;
     public bool IsSelected=>_selected;
     public MountActionState Actions=>MountActionState.From(_snapshot,_busy,_stopping);
+    public int UploadIssueCount=>_snapshot.UploadIssueCount;
+    public string IssueBadge=>UploadIssueCount>99?"99+":UploadIssueCount.ToString(CultureInfo.CurrentCulture);
+    public bool HasUploadIssues=>UploadIssueCount>0;
+    public string DiagnosticTooltip=>HasUploadIssues?$"{UploadIssueCount} 个同步问题；点击查看，右键打开完整诊断":"完整诊断";
     public bool CanOpen=>Actions.CanOpen&&!_dialogBusy;
     public bool CanInspect=>!_stopping&&!_dialogBusy;
     public bool CanEdit=>Actions.CanEdit&&!_dialogBusy;

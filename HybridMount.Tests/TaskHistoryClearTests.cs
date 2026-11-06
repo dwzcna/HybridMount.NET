@@ -21,7 +21,7 @@ public sealed class TaskHistoryClearTests
     public async Task All_keeps_upload_evidence_snapshots_and_baselines_and_does_not_restore_cleared_failure()
     {
         await using var dav=new DavFixture();var repository=Repository(dav.Area);var path=Path.Combine(dav.Area,"immutable.snapshot");await File.WriteAllTextAsync(path,"evidence");
-        var failed=Upload("failed-upload","Failed") with{SnapshotPath=path,SnapshotSha256=new string('B',64)};repository.SaveUpload(failed);repository.SaveOperation(failed.ToSnapshot());
+        var failed=Upload("failed-upload","Failed") with{SnapshotPath=path,SnapshotSha256=new string('B',64)};repository.SaveUpload(failed);failed=repository.Upload(failed.Id)!;repository.SaveOperation(failed.ToSnapshot());
         var entry=new MountEntry("entry",failed.SourcePath,failed.LocalPath,"baseline",false,Protected:true);repository.SaveEntry(failed.MountId,entry);repository.SaveBaseline(failed.MountId,new(failed.SourcePath,"baseline",new string('C',64)));
         foreach(var state in new[]{"Completed","PartialFailure","Canceled","Interrupted","Ignored","Superseded"})repository.SaveOperation(Row(state,state));
         repository.SaveOperation(Row("conflict","Conflict"));repository.SaveOperation(Row("unknown","OutcomeUnknown"));
@@ -36,7 +36,7 @@ public sealed class TaskHistoryClearTests
         await using var dav=new DavFixture();var repository=Repository(dav.Area);
         foreach(var state in new[]{"Queued","Prepared","Sending","RemoteCommitted","WaitingCapacity","Conflict","OutcomeUnknown","Unrecognized"})
         {
-            var upload=Upload(state,state);repository.SaveUpload(upload);repository.SaveOperation(Row(upload.Id,"Failed"));
+            var upload=Upload(state,state);repository.SaveUpload(upload);upload=repository.Upload(upload.Id)!;repository.SaveOperation(Row(upload.Id,"Failed"));
             Assert.Equal(0,repository.ClearOperations(TaskHistoryClearMode.Failed));Assert.Equal(0,repository.ClearOperations(TaskHistoryClearMode.All));Assert.Equal(upload,repository.Upload(upload.Id));
         }
         Assert.Equal(8,repository.LoadOperations().Count);

@@ -41,7 +41,7 @@ public sealed class CompletedTaskHistoryTests
     public async Task Stale_completed_history_cannot_remove_current_unfinished_upload(string state)
     {
         await using var dav=new DavFixture();var repository=Repository(dav.Area);
-        var upload=Upload("same-id",Guid.NewGuid(),state);repository.SaveUpload(upload);repository.SaveOperation(TaskRow(upload.Id,"Completed"));
+        var upload=Upload("same-id",Guid.NewGuid(),state);repository.SaveUpload(upload);upload=repository.Upload(upload.Id)!;repository.SaveOperation(TaskRow(upload.Id,"Completed"));
         Assert.Equal(0,repository.ClearCompletedOperations());Assert.Equal(upload,repository.Upload(upload.Id));Assert.Single(repository.LoadOperations());
     }
     [Fact]

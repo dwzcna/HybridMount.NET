@@ -31,6 +31,8 @@ public partial class App:Application
     public ApplicationPreferencesService Preferences{get;private set;}=null!;
     public IStartupService Startup{get;private set;}=null!;
     public IUiDispatcher UiDispatcher{get;private set;}=null!;
+    public TaskFocusService TaskFocus{get;private set;}=null!;
+    public UploadIssueNotificationService IssueNotifications{get;private set;}=null!;
     public MountManager Mounts{get;private set;}=null!;
     public App()=>InitializeComponent();
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
@@ -55,6 +57,7 @@ public partial class App:Application
             Appearance=new AppearanceSettingsService();
             Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
             Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger){StopObserver=RecordMountStop};
+            TaskFocus=new(Navigation);IssueNotifications=new(Mounts);IssueNotifications.Changed+=OnUploadIssueNotifications;
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}
             catch(Exception error){Logger.Queue("托盘","Error",error.Message);}
@@ -86,6 +89,12 @@ public partial class App:Application
         if(legacy)return new(1,request.RequestId,"notImplemented","旧版菜单未执行文件操作，请更新扩展后重试。");
         try
         {
+            if(request.Operation=="showSyncIssues")
+            {
+                var focus=Mounts.LocateUploadIssues(request.Paths);
+                var queued=_dispatcher?.TryEnqueue(()=>{if(_exiting)return;RestoreWindow();TaskFocus.ShowIssues(focus.MountId,focus.Paths);})==true;
+                return new(2,request.RequestId,queued?"accepted":"stopping",queued?"已定位同步问题。":"程序正在退出。");
+            }
             if(request.Operation=="getPreview")
             {
                 var png=Mounts.GetPreview(request.Paths[0],request.PreviewSize!.Value);
@@ -103,6 +112,7 @@ public partial class App:Application
         }
         catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview"))Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview"?"":error.Message);}
     }
+    private void OnUploadIssueNotifications()=>_dispatcher?.TryEnqueue(()=>{if(!_exiting)MainWindow?.RefreshUploadIssueNotifications();});
     private void OnAppearanceChanged(object? sender,EventArgs args)=>MainWindow?.ApplyAppearance();
     private void OnNotification(object? sender,LogNotificationEventArgs args)=>MainWindow?.ShowNotification(args);
     public void RestoreWindow()
@@ -141,10 +151,12 @@ public partial class App:Application
         stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
         stages.Run("SignalLegacyIpc",()=>{_ = _legacyIpc?.RequestStop();});
         stages.Run("SignalMounts",()=>Mounts?.RequestStop());
+        stages.Run("SignalTaskFocus",()=>TaskFocus?.RequestStop());
         stages.Run("SignalNavigation",()=>Navigation.RequestStop());
         stages.Run("SignalPages",()=>MainWindow?.StopPages());
         await stages.RunAsync("IpcStop",()=>_ipc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);
+        await stages.RunAsync("IssueNotificationsStop",async()=>{if(IssueNotifications is not null){IssueNotifications.Changed-=OnUploadIssueNotifications;await IssueNotifications.DisposeAsync();}});
         await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
         stages.Run("UiSubscriptions",()=>{if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;if(Logger is not null)Logger.NotificationRequested-=OnNotification;});
         await stages.RunAsync("WindowResources",()=>MainWindow?.ReleaseResourcesAsync()??Task.CompletedTask);

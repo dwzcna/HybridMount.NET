@@ -118,7 +118,7 @@ namespace {
 		Check(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process) != FALSE);
 		CloseHandle(process.hThread); CloseHandle(process.hProcess);
 	}
-	struct Work { bool keep; std::vector<std::wstring> paths; HMODULE module; };
+	struct Work { std::wstring operation; std::vector<std::wstring> paths; HMODULE module; };
 	/// <summary>只执行命名管道通信；响应必须匹配版本和请求 ID，不读写所选文件。</summary>
 	void Send(const Work& work) {
 		const auto pipeName = PipeName();
@@ -143,7 +143,7 @@ namespace {
 		Check(SUCCEEDED(CoCreateGuid(&guid)));
 		wchar_t id[40]{};
 		Check(StringFromGUID2(guid, id, ARRAYSIZE(id)) > 0);
-		std::wstring json = L"{\"version\":2,\"requestId\":" + Quote(id) + L",\"operation\":\"" + (work.keep ? L"keepOnDevice" : L"freeSpace") + L"\",\"paths\":[";
+		std::wstring json = L"{\"version\":2,\"requestId\":" + Quote(id) + L",\"operation\":\"" + work.operation + L"\",\"paths\":[";
 		for (size_t index = 0; index < work.paths.size(); ++index) { if (index) json += L','; json += Quote(work.paths[index]); }
 		json += L"]}";
 		auto bytes = Utf8(json);
@@ -180,11 +180,12 @@ namespace {
 		FreeLibraryAndExitThread(module, 0);
 	}
 }
-HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> paths) noexcept {
+/// <summary>复制固定操作和路径，后台线程持有模块引用；所有菜单命令共用同一有界IPC传输。</summary>
+static HRESULT QueueMenuRequest(const wchar_t* operation, std::vector<std::wstring> paths) noexcept {
 	HMODULE hold = nullptr;
-	if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&QueuePlaceholderRequest), &hold)) return HRESULT_FROM_WIN32(GetLastError());
+	if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&QueueMenuRequest), &hold)) return HRESULT_FROM_WIN32(GetLastError());
 	try {
-		auto work = std::make_unique<Work>(keepOnDevice, std::move(paths), hold);
+		auto work = std::make_unique<Work>(operation, std::move(paths), hold);
 		Handle thread(CreateThread(nullptr, 0, RunWork, work.get(), 0, nullptr));
 		if (!thread.value) { const auto error = HRESULT_FROM_WIN32(GetLastError()); FreeLibrary(hold); return error; }
 		work.release();
@@ -192,6 +193,9 @@ HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> pat
 	}
 	catch (...) { FreeLibrary(hold); return E_OUTOFMEMORY; }
 }
+
+HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> paths) noexcept { return QueueMenuRequest(keepOnDevice ? L"keepOnDevice" : L"freeSpace", std::move(paths)); }
+HRESULT QueueSyncIssuesRequest(std::vector<std::wstring> paths) noexcept { return QueueMenuRequest(L"showSyncIssues", std::move(paths)); }
 
 static bool QueryPreview(const std::wstring& path,UINT size,std::vector<BYTE>& png,const wchar_t* operation,ULONGLONG deadline) noexcept {
     // 预览不复用菜单的重试／启动路径；旧版本、不响应或管道忙时立即回退。

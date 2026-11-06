@@ -10,7 +10,12 @@
     </Page.Resources>
     <Grid Padding="28">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <TextBlock Text="任务" Style="{ThemeResource TitleTextBlockStyle}"/>
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Text="任务" Style="{ThemeResource TitleTextBlockStyle}"/>
+            <ToggleButton Content="同步问题" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" VerticalAlignment="Center" ToolTipService.ToolTip="查看独立保存的未解决上传问题"/>
+            <TextBlock Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" VerticalAlignment="Center" Visibility="{x:Bind views:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
+            <Button Content="全部挂载" Click="ClearIssueFilter" Visibility="{x:Bind views:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
+        </StackPanel>
         <Grid x:Name="Toolbar" Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="8" SizeChanged="ToolbarSizeChanged">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -19,6 +24,7 @@
                 <Button Content="查看结果" Click="ShowResults"/>
                 <Button Content="重试上传" Click="RetryUpload"/>
                 <Button Content="另存副本" Click="SaveUploadCopy"/>
+                <Button Content="打开所在位置" Click="OpenLocation"/>
             </StackPanel>
             <StackPanel x:Name="HistoryToolbar" Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Content="清除已完成" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" ToolTipService.ToolTip="清除成功完成的任务历史，保留其他任务及同步数据。"/>
@@ -36,8 +42,10 @@
                             <TextBlock Text="{x:Bind ProgressText}" ToolTipService.ToolTip="{x:Bind ProgressDetail}" AutomationProperties.HelpText="{x:Bind ProgressDetail}"/>
                         </StackPanel>
                         <TextBlock Text="{x:Bind DisplayTarget}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{x:Bind IssueTimeText}" Visibility="{x:Bind views:TextVisibility.ForText(IssueTimeText),Mode=OneTime}"/>
+                        <TextBlock Text="{x:Bind IssueStage}" Visibility="{x:Bind views:TextVisibility.ForText(IssueStage),Mode=OneTime}"/>
                         <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ProgressPercent}"/>
-                        <TextBlock Text="{x:Bind Error}" TextWrapping="Wrap" Visibility="{x:Bind views:TextVisibility.ForText(Error),Mode=OneTime}"/>
+                        <TextBlock Text="{x:Bind DisplayIssueReason}" TextWrapping="Wrap" Visibility="{x:Bind views:TextVisibility.ForText(DisplayIssueReason),Mode=OneTime}"/>
                     </StackPanel>
                 </DataTemplate>
             </ListView.ItemTemplate>

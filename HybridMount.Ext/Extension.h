@@ -20,6 +20,9 @@ struct ModuleLifetime {
 /// <summary>异步发送占位请求；输入已复制，不在工作线程使用 Explorer 的 COM 对象。</summary>
 HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> paths) noexcept;
 
+/// <summary>异步只读定位同步问题；菜单回调不联网、不修改文件、不启动上传。</summary>
+HRESULT QueueSyncIssuesRequest(std::vector<std::wstring> paths) noexcept;
+
 inline constexpr CLSID HybridMountThumbnailId{0xa65802eb,0x4d1c,0x4c7e,{0xa5,0x19,0x34,0xc7,0x6b,0x9b,0xb2,0x81}};
 /// <summary>缓存查询共用 150 毫秒截止时间；服务缺失时直接失败，绝不激活主程序。</summary>
 bool QueryCachedPreview(const std::wstring& path,UINT size,std::vector<BYTE>& png) noexcept;

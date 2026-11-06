@@ -18,6 +18,7 @@
       <NavigationView.FooterMenuItems><NavigationViewItem Content="设置" Tag="hybridmount:///settings" AutomationProperties.Name="设置"><NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon></NavigationViewItem></NavigationView.FooterMenuItems>
       <Frame x:Name="ContentFrame" />
     </NavigationView>
+    <StackPanel x:Name="IssueNotifications" Grid.Row="1" Spacing="8" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Top"/>
     <InfoBar x:Name="NotificationBar" Grid.Row="1" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsClosable="True" />
   </Grid>
 </Window>

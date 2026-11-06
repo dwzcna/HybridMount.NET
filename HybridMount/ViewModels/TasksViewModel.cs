@@ -11,6 +11,11 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private readonly MountManager _manager;
     private readonly IUiDispatcher _dispatcher;
     private int _pending;
+    private readonly TaskFocusService? _focus;
+    private long _focusRevision;
+    private bool _issuesOnly;
+    private Guid? _filterMount;
+    private IReadOnlyList<string> _filterPaths=[];
     private bool _disposed,_clearingHistory,_dialogBusy;
     private string? _selectedJob,_dialogJob;
     private string _copyPath="";
@@ -23,7 +28,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public bool CanClearCompleted=>CanClear(TaskHistoryClearMode.Completed);
     public bool CanClearFailed=>CanClear(TaskHistoryClearMode.Failed);
     public bool CanClearAll=>CanClear(TaskHistoryClearMode.All);
-    private bool CanClear(TaskHistoryClearMode mode)=>!_disposed&&!_manager.IsStopping&&!_clearingHistory&&Operations.Any(operation=>TaskHistoryRules.Matches(mode,operation.State));
+    private bool CanClear(TaskHistoryClearMode mode)=>!_disposed&&!_manager.IsStopping&&!_clearingHistory&&_manager.Operations.Any(operation=>TaskHistoryRules.Matches(mode,operation.State));
     private void NotifyClearState(){OnPropertyChanged(nameof(CanClearCompleted));OnPropertyChanged(nameof(CanClearFailed));OnPropertyChanged(nameof(CanClearAll));}
     public Task ClearCompletedAsync()=>ClearHistoryAsync(TaskHistoryClearMode.Completed);
     public Task ClearFailedAsync()=>ClearHistoryAsync(TaskHistoryClearMode.Failed);
@@ -45,6 +50,25 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     }
     /// <summary>当前操作提示。</summary>
     public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
+    public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value))Refresh();}}
+    public string IssueViewTitle=>_filterMount is {} id?"同步问题 · "+(_manager.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??"挂载"):"同步问题";
+    public bool HasIssueFilter=>_filterMount is not null||_filterPaths.Count>0;
+    public void ClearIssueFilter(){_filterMount=null;_filterPaths=[];Refresh();}
+    public string? SelectedLocation()
+    {
+        if(_disposed||_manager.IsStopping||Selected is not {Operation:"upload"} selected){Status="请先选择上传问题。";return null;}
+        try{return _manager.UploadIssueLocalPath(selected.Id);}catch(Exception error){Status=error.Message;return null;}
+    }
+    private void FocusChanged()
+    {
+        if(_disposed)return;_dispatcher.TryEnqueue(()=>{if(!_disposed)ApplyFocus();});
+    }
+    private void ApplyFocus()
+    {
+        if(_focus?.Current is not {} focus||focus.Revision==_focusRevision)return;
+        _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=true;
+        OnPropertyChanged(nameof(IssuesOnly));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
+    }
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
     public MountOperationSnapshot? Selected=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
     public string CopyPath {get=>_copyPath;set{if(!_disposed)SetProperty(ref _copyPath,value);}}
@@ -79,12 +103,12 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_disposed||_manager.IsStopping||_dialogBusy)return null;
         if(Selected is not {} selected){Status="请先选择任务。";return null;}
-        try{var result=_manager.GetOperation(selected.Id)??selected;_dialogBusy=true;return result;}
+        try{var result=IssuesOnly?selected:_manager.GetOperation(selected.Id)??selected;_dialogBusy=true;return result;}
         catch(Exception error){Status=error.Message;return null;}
     }
     public void EndDialog(){_dialogBusy=false;_dialogJob=null;}
     /// <summary>在 UI 线程订阅应用级任务；释放时解除订阅。</summary>
-    public TasksViewModel(MountManager manager,IUiDispatcher dispatcher) { _dispatcher=dispatcher;_manager=manager;_manager.Changed+=Changed;Refresh(); }
+    public TasksViewModel(MountManager manager,IUiDispatcher dispatcher,TaskFocusService? focus=null) { _dispatcher=dispatcher;_manager=manager;_focus=focus;_manager.Changed+=Changed;if(focus is not null)focus.Changed+=FocusChanged;Refresh();ApplyFocus(); }
     private void Changed()
     {
         if(_disposed || Interlocked.Exchange(ref _pending,1)!=0)return;
@@ -93,9 +117,10 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void Refresh()
     {
         if(_disposed)return;
-        try { var snapshots=OperationDisplayOrder.Sort(_manager.Operations);Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
+        try { var source=_issuesOnly?_manager.UploadIssues.Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_manager.Operations;
+            var snapshots=OperationDisplayOrder.Sort(source);OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
         catch(Exception error) { Status=error.Message; }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>
-    public void Dispose() { _disposed=true;_manager.Changed-=Changed; }
+    public void Dispose() { _disposed=true;_manager.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
 }

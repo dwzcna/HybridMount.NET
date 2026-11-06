@@ -28,7 +28,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public RemoteCapacitySnapshot? CapacityStatus;
         public string? CapacityScope;
         public int CapacityForce;
-        public bool SchedulingEnabled=true;
+        public bool SchedulingEnabled=true,IssueDefinitionReady;
         // 导入在本进程只保存；重启重新加载后恢复配置中的自动连接选择。
         public bool SkipStartupConnection;
         public Action<SourceContentBaseline>? BaselineObserver;
@@ -57,6 +57,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public event Action? Changed;
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null)
     {
+        repository.RecoverUploadAttention();
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
         _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in repository.LoadDefinitions())
@@ -87,8 +88,10 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         lock(root.ConnectionSync)return new(root.Definition,root.Status,root.Detail,root.Detection,root.Session is not null,
             root.Connecting is not null,root.ConnectionStops>0,
-            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus);
+            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,_repository.Uploads(root.Definition.Id).Count(UploadAttentionRules.NeedsAttention));
     }
+    /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
+    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(x=>x.ToSnapshot()).ToArray();
     public IReadOnlyList<MountOperationSnapshot> Operations
     {
         get
@@ -116,10 +119,10 @@ public sealed partial class MountManager : IAsyncDisposable
                 .Select(row=>row.Id).ToArray():Array.Empty<string>();
             var count=_repository.ClearOperations(mode,interrupted);Notify();return count;
         },cancel),token);
-    private void Notify() { if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
+    private void Notify() { NotifyIssues();if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
     private Task? _startup;
-    public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
+    public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);_issuePublishing??=Task.Run(PublishIssueLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
     private async Task InitializeAsync()
     {
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))

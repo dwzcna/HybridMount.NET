@@ -25,7 +25,7 @@ public sealed partial class MountManager
                 if(Interlocked.Exchange(ref runtime.Dirty,0)!=0||DateTimeOffset.UtcNow-scanned>TimeSpan.FromSeconds(60))
                 {await ScanLocalUploadsAsync(root,token).ConfigureAwait(false);scanned=DateTimeOffset.UtcNow;}
                 var item=_repository.Uploads(root.Definition.Id).Where(x=>
-                    (x.State is "RemoteCommitted" or "OutcomeUnknown"||(x.State is "Queued" or "Waiting" or "Prepared" or "WaitingCapacity"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath)))&&
+                    (x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath)))&&
                     DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
                     (x.LastCheckedUtc is null||DateTimeOffset.UtcNow-x.LastCheckedUtc>=TimeSpan.FromSeconds(x.State is "OutcomeUnknown" or "WaitingCapacity"?60:3)))
                     .OrderBy(x=>x.SourcePath.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?0:1).ThenBy(x=>x.ChangedUtc).FirstOrDefault();
@@ -42,7 +42,7 @@ public sealed partial class MountManager
     private async Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
     {
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
-        lock(runtime.Sync){runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
+        lock(runtime.Sync){if(runtime.PropertyPath is not null)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
         try
         {
@@ -128,7 +128,7 @@ public sealed partial class MountManager
             }
             var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);
             if(unchanged&&item.BaselineSha256 is not null)unchanged=await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.BaselineSha256;
-            ChangeUpload(item.Id,x=>x with{State=unchanged?(x.CancelRequested?"Canceled":"Prepared"):"Conflict",Error=unchanged?"远端仍为原始版本，可安全重试。":"远端内容与原始基线、发送快照均不一致，保留两端内容。",LastCheckedUtc=null});
+            ChangeUpload(item.Id,x=>x with{State=unchanged?(x.CancelRequested?"Canceled":x.Attention?.RetryRequested==true?"Prepared":"Failed"):"Conflict",Error=unchanged?"远端仍为原始版本，请显式重试后发送。":"远端内容与原始基线、发送快照均不一致，保留两端内容。",LastCheckedUtc=null});
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
         catch(SourceConflictException error){ChangeUpload(item.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}

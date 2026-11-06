@@ -14,7 +14,7 @@ public sealed partial class MountManager
         public readonly object Sync=new();
         public FileSystemWatcher? Watcher;
         public CancellationTokenSource? Request;
-        public string? CurrentId;
+        public string? CurrentId,PropertyPath;
         public Task Work=Task.CompletedTask;
         public int Dirty=1;private int _stopping,_disposed;
         public Task Cancellation=Task.CompletedTask,RequestCancellation=Task.CompletedTask;
@@ -59,7 +59,7 @@ public sealed partial class MountManager
     /// <summary>上传记录与普通任务共享任务页；持久阶段优先于旧任务历史的中断转换。</summary>
     private static MountOperationSnapshot UploadSnapshot(LocalUpload item)=>item.ToSnapshot();
     private void PublishUpload(LocalUpload? item)
-    {if(item is null)return;_repository.SaveOperation(UploadSnapshot(item));Notify();}
+    {if(item is null)return;item=_repository.Upload(item.Id)??item;_repository.SaveOperation(UploadSnapshot(item));Notify();}
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
     private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change){var item=_repository.UpdateUpload(id,change);PublishUpload(item);return item;}
     /// <summary>首次启用仅扫描本地元数据；不读取干净占位的正文，也不提交远端写入。</summary>
@@ -93,7 +93,7 @@ public sealed partial class MountManager
         if(IsStopping)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(!UploadRules.CanRetry(item))return false;
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);
-        ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null});root.Uploads?.Wake();return true;
+        ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
     }
     /// <summary>冲突文件上传到新的相对路径；创建保护保证不覆盖目标，原始冲突和索引不变。</summary>
     public string UploadAsCopy(string id,string destination){lock(_lifetime){ThrowIfStopping();return UploadAsCopyCore(id,destination);}}
@@ -107,7 +107,7 @@ public sealed partial class MountManager
     }
     private bool CancelUpload(string id)
     {
-        var item=_repository.Upload(id);if(item is null||item.State is "Completed" or "Canceled" or "Ignored" or "Conflict" or "Failed")return false;
+        var item=_repository.Upload(id);if(item is null||item.State is "Completed" or "Canceled" or "Ignored")return false;
         ChangeUpload(id,x=>x with{CancelRequested=true,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:"Canceled",Error="已取消本代内容；再次修改或显式重试后恢复。"});
         if(_roots.TryGetValue(item.MountId,out var root))root.Uploads?.CancelRequest(id);return true;
     }
@@ -158,6 +158,13 @@ public sealed partial class MountManager
                         }
                         if(prior is {State:"Ignored"}&&prior.ObservedStamp!=stamp.Key&&!UploadRules.ContentChanged(prior.ObservedStamp,stamp))
                         {ChangeUpload(prior.Id,x=>x with{ObservedStamp=stamp.Key});}
+                        else if(prior?.Attention?.ShellOriginalStamp==prior?.ObservedStamp&&prior?.Attention?.ShellOriginalStamp is not null&&
+                            prior.ObservedStamp!=stamp.Key&&!UploadRules.ContentChanged(prior.ObservedStamp,stamp))
+                        {
+                            // 中断发生在属性写入与日志确认之间；只吸收已记录意图的元数据变化，正文变化仍建立新代次。
+                            ChangeUpload(prior.Id,x=>x.Generation!=prior.Generation||x.ObservedStamp!=prior.ObservedStamp?x:x with
+                            {ObservedStamp=stamp.Key,SnapshotStamp=x.SnapshotStamp==x.ObservedStamp&&x.SnapshotGeneration==x.Generation?stamp.Key:x.SnapshotStamp});
+                        }
                         else if(!clean&&(prior is null||prior.ObservedStamp!=stamp.Key||prior.State=="Completed"))
                         {
                             var sourcePath=relative;var samePath=entry is not null&&entry.LocalPath.Equals(relative,StringComparison.Ordinal)&&entry.SourcePath.Equals(relative,StringComparison.Ordinal);

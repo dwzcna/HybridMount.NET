@@ -5,6 +5,8 @@ namespace HybridMount.Views;
 /// <summary>供视图编译绑定使用的纯可见性规则；只折叠空反馈，不修改状态或拥有后台任务。</summary>
 public static class TextVisibility
 {
+    /// <summary>布尔状态为真时显示；用于问题徽标及实际筛选状态。</summary>
+    public static Visibility ForFlag(bool value)=>value?Visibility.Visible:Visibility.Collapsed;
     /// <summary>在 UI 线程求值；非空文字显示，空值或空字符串折叠，调用无副作用。</summary>
     /// <param name="text">原始状态或结果文字，不替换、截断或过滤内容。</param>
     /// <returns>文字区域的可见性；折叠后不占布局空间。</returns>

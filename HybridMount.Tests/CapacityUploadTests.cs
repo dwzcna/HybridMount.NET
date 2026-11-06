@@ -15,7 +15,7 @@ public sealed class CapacityUploadTests
         await test.Wait("a-exact.bin");var denied=await test.Wait("b-denied.bin","WaitingCapacity");await test.Wait("c-zero.bin");
         Assert.Contains("容量不足",denied.Error);Assert.False(test.Dav.Objects.ContainsKey("b-denied.bin"));
         Assert.DoesNotContain(test.Dav.Server.Requests,r=>r.Target.EndsWith("b-denied.bin",StringComparison.Ordinal)&&r.Method is "PUT" or "MKCOL");
-        await test.Manager.SetCapacityAsync(test.Id,false,test.Dav.Bytes.Length+5);await test.Wait("b-denied.bin");
+        await test.Manager.SetCapacityAsync(test.Id,false,test.Dav.Bytes.Length+5);Assert.True(test.Manager.RetryUpload(denied.Id));await test.Wait("b-denied.bin");
     }
     [Fact(Timeout=120000)]
     public async Task Over_limit_shrink_is_allowed_and_next_growth_waits()
@@ -32,8 +32,8 @@ public sealed class CapacityUploadTests
         bool Quota(HttpTestServer.Request request)=>request.Method=="PROPFIND"&&Encoding.UTF8.GetString(request.Body).Contains("quota-",StringComparison.Ordinal);
         Assert.DoesNotContain(test.Dav.Server.Requests,Quota);
         await test.Manager.SetCapacityAsync(test.Id,true,null);await File.WriteAllBytesAsync(Path.Combine(test.Local,"quota.bin"),[1,2]);await test.Manager.SetSchedulingForTestsAsync(test.Id,true);
-        await test.Wait("quota.bin","WaitingCapacity");Assert.False(test.Dav.Objects.ContainsKey("quota.bin"));Assert.Contains(test.Dav.Server.Requests,Quota);
-        await test.Manager.SetCapacityAsync(test.Id,false,test.Dav.Bytes.Length+2);var count=test.Dav.Server.Requests.Count(Quota);await test.Wait("quota.bin");Assert.Equal(count,test.Dav.Server.Requests.Count(Quota));
+        var waiting=await test.Wait("quota.bin","WaitingCapacity");Assert.False(test.Dav.Objects.ContainsKey("quota.bin"));Assert.Contains(test.Dav.Server.Requests,Quota);
+        await test.Manager.SetCapacityAsync(test.Id,false,test.Dav.Bytes.Length+2);var count=test.Dav.Server.Requests.Count(Quota);Assert.True(test.Manager.RetryUpload(waiting.Id));await test.Wait("quota.bin");Assert.Equal(count,test.Dav.Server.Requests.Count(Quota));
     }
     [Fact(Timeout=120000)]
     public async Task Canceled_capacity_wait_remains_canceled_across_restart_and_retry_checks_again()
@@ -42,7 +42,7 @@ public sealed class CapacityUploadTests
         await File.WriteAllBytesAsync(Path.Combine(test.Local,"cancel.bin"),[1,2]);var waiting=await test.Wait("cancel.bin","WaitingCapacity");Assert.True(test.Manager.Cancel(waiting.Id));
         await test.Manager.DisposeAsync();test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);await Task.Delay(2300);
         Assert.Equal("Canceled",test.Repository.Upload(waiting.Id)!.State);Assert.False(test.Dav.Objects.ContainsKey("cancel.bin"));
-        Assert.True(test.Manager.RetryUpload(waiting.Id));await test.Wait("cancel.bin","WaitingCapacity");await test.Manager.SetCapacityAsync(test.Id,false,null);await test.Wait("cancel.bin");
+        Assert.True(test.Manager.RetryUpload(waiting.Id));await test.Wait("cancel.bin","WaitingCapacity");await test.Manager.SetCapacityAsync(test.Id,false,null);Assert.True(test.Manager.RetryUpload(waiting.Id));await test.Wait("cancel.bin");
     }
     [Fact(Timeout=120000)]
     public async Task Unknown_write_keeps_capacity_reserved_until_readonly_reconciliation()
@@ -52,7 +52,7 @@ public sealed class CapacityUploadTests
         {var response=await handler(request);if(!dropped&&request.Method=="PUT"&&request.Target.EndsWith("a-lost.bin",StringComparison.Ordinal)){dropped=true;throw new IOException("response lost");}return response;};
         await File.WriteAllBytesAsync(Path.Combine(test.Local,"a-lost.bin"),[1,2,3]);var unknown=await test.Wait("a-lost.bin","OutcomeUnknown");
         await File.WriteAllBytesAsync(Path.Combine(test.Local,"b-wait.bin"),[4,5,6]);var waiting=await test.Wait("b-wait.bin","WaitingCapacity");Assert.Contains("结果待核对",waiting.Error);
-        Assert.True(test.Manager.RetryUpload(unknown.Id));await test.Wait("a-lost.bin");await test.Wait("b-wait.bin");
+        Assert.True(test.Manager.RetryUpload(unknown.Id));await test.Wait("a-lost.bin");Assert.True(test.Manager.RetryUpload(waiting.Id));await test.Wait("b-wait.bin");
         Assert.Single(test.Dav.Server.Requests,r=>r.Method=="PUT"&&r.Target.EndsWith("a-lost.bin",StringComparison.Ordinal));
     }
     [Fact(Timeout=120000)]
