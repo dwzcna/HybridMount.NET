@@ -23,18 +23,36 @@ public sealed partial class S3FileSource
     private Task<DeleteObjectResponse> DeleteKeyAsync(string key, string? etag, CancellationToken token)
         => Call(() => _client.DeleteObjectAsync(new() { BucketName = _bucket, Key = key, IfMatch = etag }, token), token, true);
     /// <summary>在条件请求之外核对目录映射；对象键与同名前缀不能同时作为可写目标。</summary>
-    private async Task CheckTargetAsync(string path,string? expectedVersion,CancellationToken token)
+    private async Task ValidateTargetParentsAsync(string path,CancellationToken token,string? directoryMoveRoot=null)
     {
         var parent=RelativePaths.Parent(path);
-        if(parent.Length>0 && !(await GetMetadataAsync(parent,token).ConfigureAwait(false)).IsDirectory)throw new SourceConflictException("S3 父项是文件，不能创建子项。");
+        if(directoryMoveRoot is null)
+        {
+            if(parent.Length>0 && !(await GetMetadataAsync(parent,token).ConfigureAwait(false)).IsDirectory)throw new SourceConflictException("S3 父项是文件，不能创建子项。");
+        }
+        else
+        {
+            directoryMoveRoot=NonRoot(directoryMoveRoot);
+            while(parent.Length>0)
+            {
+                var ancestor=await TryGetMetadataAsync(parent,token).ConfigureAwait(false);
+                if(ancestor is {IsDirectory:false})throw new SourceConflictException("S3 父项是文件，不能创建子项。");
+                if(ancestor is null&&parent!=directoryMoveRoot&&!parent.StartsWith(directoryMoveRoot+"/",StringComparison.Ordinal))throw new FileNotFoundException("S3 移动目标之外的父目录不存在。");
+                parent=RelativePaths.Parent(parent);
+            }
+        }
+    }
+    private async Task CheckTargetAsync(string path,string? expectedVersion,CancellationToken token,string? directoryMoveRoot=null)
+    {
+        await ValidateTargetParentsAsync(path,token,directoryMoveRoot).ConfigureAwait(false);
         var current=await TryGetMetadataAsync(path,token).ConfigureAwait(false);
         if(current is null){if(expectedVersion is not null)throw new SourceConflictException("S3 更新目标已不存在。");return;}
         if(current.IsDirectory||expectedVersion is null||current.Version!=expectedVersion)throw new SourceConflictException("S3 目标已存在、是目录或版本不匹配。");
     }
-    private async Task<SourceEntry> UploadCoreAsync(string path, Stream content, string? expectedVersion,IProgress<UploadProgress>? progress,CancellationToken token)
+    private async Task<SourceEntry> UploadCoreAsync(string path, Stream content, string? expectedVersion,IProgress<UploadProgress>? progress,CancellationToken token,string? directoryMoveRoot=null)
     {
         path = NonRoot(path);
-        await CheckTargetAsync(path,expectedVersion,token).ConfigureAwait(false);
+        await CheckTargetAsync(path,expectedVersion,token,directoryMoveRoot).ConfigureAwait(false);
         var etag = expectedVersion is null ? null : RequiredETag(Version(expectedVersion));
         string? temporary = null; Stream input = content;
         try

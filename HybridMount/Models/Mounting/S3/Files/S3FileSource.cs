@@ -112,9 +112,9 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
     }
     /// <summary>复制回执与目标版本一致才允许条件删源；多个请求不构成原子移动。</summary>
-    private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token)
+    private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token,string? directoryMoveRoot=null)
     {
-        await CheckTargetAsync(destination,null,token).ConfigureAwait(false);
+        await CheckTargetAsync(destination,null,token,directoryMoveRoot).ConfigureAwait(false);
         var version=Version(entry);var key=Key(destination);var acknowledged=false;
         try
         {
@@ -133,7 +133,9 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
                     await using var spool=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,65536,FileOptions.Asynchronous);
                     var bytes=new byte[1024*1024];long offset=0;
                     while(offset<entry.Size){var count=await ReadRangeAsync(entry,offset,bytes,token).ConfigureAwait(false);await spool.WriteAsync(bytes.AsMemory(0,count),token).ConfigureAwait(false);offset+=count;}
-                    spool.Position=0;var uploaded=await UploadAsync(destination,spool,null,token).ConfigureAwait(false);
+                    spool.Position=0;var uploaded=directoryMoveRoot is null
+                        ?await UploadAsync(destination,spool,null,token).ConfigureAwait(false)
+                        :await UploadCoreAsync(destination,spool,null,null,token,directoryMoveRoot).ConfigureAwait(false);
                     acknowledged=true;receipt=Version(uploaded);
                 }
                 finally{File.Delete(path);}
@@ -165,20 +167,52 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         var snapshot = new List<SourceEntry>();
         async Task Collect(string parent) { await foreach (var child in ListAsync(parent, token).ConfigureAwait(false)) { snapshot.Add(child); if (child.IsDirectory) await Collect(child.Path).ConfigureAwait(false); } }
         await Collect(path).ConfigureAwait(false); var results = new List<MountItemResult>();
+        if(Version(entry).Virtual&&snapshot.All(item=>item.IsDirectory&&Version(item).Virtual))throw new SourceConflictException("S3 虚拟源目录已消失，请重新扫描。");
+        async Task<SourceEntry> EnsureDirectory(SourceEntry directory,string name)
+        {
+            await ValidateTargetParentsAsync(name,token,destination).ConfigureAwait(false);
+            var current=await TryGetMetadataAsync(name,token).ConfigureAwait(false);
+            if(current is not null)return current.IsDirectory?current:throw new SourceConflictException("S3 目标目录名称已被文件占用。");
+            if(Version(directory).Virtual)return VirtualDirectory(name);
+            try
+            {
+                current=await CreateDirectoryAsync(name,token).ConfigureAwait(false);
+                return current.IsDirectory?current:throw new SourceConflictException("S3 目标目录名称已被文件占用。");
+            }
+            catch(SourceConflictException)
+            {
+                current=await TryGetMetadataAsync(name,token).ConfigureAwait(false);
+                if(current is {IsDirectory:true})return current;
+                throw;
+            }
+        }
         try
         {
-            var target = await CreateDirectoryAsync(destination, token).ConfigureAwait(false);
+            var target = await EnsureDirectory(entry,destination).ConfigureAwait(false);
             foreach (var child in snapshot.OrderBy(item => item.Path.Length))
             {
                 var name = destination + child.Path[path.Length..];
-                if (child.IsDirectory) await CreateDirectoryAsync(name, token).ConfigureAwait(false);
-                else await MoveFileAsync(child, name, token).ConfigureAwait(false);
-                results.Add(new(child.Path, "Completed", child.IsDirectory ? "已创建目标目录。" : "已复制并移除源对象。"));
+                if (child.IsDirectory) await EnsureDirectory(child,name).ConfigureAwait(false);
+                else await MoveFileAsync(child, name, token,destination).ConfigureAwait(false);
+                results.Add(new(child.Path, "Completed", child.IsDirectory ? "已确认目标目录。" : "已复制并移除源对象。"));
             }
             foreach (var directory in snapshot.Where(item => item.IsDirectory).Append(entry).OrderByDescending(item => item.Path.Length))
             {
-                try { var current = await GetMetadataAsync(directory.Path, token).ConfigureAwait(false); await DeleteAsync(current.Path, current.Version, token).ConfigureAwait(false); }
+                try
+                {
+                    if(Version(directory).Virtual)
+                    {
+                        if(await TryGetMetadataAsync(directory.Path,token).ConfigureAwait(false) is not null)
+                            Warn($"目标 {destination} 已完成移动；源目录 {directory.Path} 仍有条目，未执行清理，请核对。");
+                    }
+                    else await DeleteAsync(directory.Path,directory.Version,token).ConfigureAwait(false);
+                }
                 catch (FileNotFoundException) { }
+                catch(Exception error)when(error is IOException or NotSupportedException or OperationCanceledException)
+                {
+                    Warn($"目标 {destination} 已完成移动；源目录 {directory.Path} 清理未确认，请核对源和目标。");
+                    if(error is OperationCanceledException)break;
+                }
             }
             return target;
         }
