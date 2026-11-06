@@ -10,6 +10,7 @@ public sealed partial class S3FileSource : IRemoteHintSource
     {
         foreach(var hint in journal.PendingRemoteHints(mount,scope))
         {
+            if(_sessionProbeKeys.ContainsKey(Key(hint.Path))){token.ThrowIfCancellationRequested();yield return new(hint.Id,[],[]);continue;}
             token.ThrowIfCancellationRequested();var metadata=await TryGetMetadataAsync(hint.Path,token).ConfigureAwait(false);var entries=new List<SourceEntry>();
             if(metadata is not null)
             {

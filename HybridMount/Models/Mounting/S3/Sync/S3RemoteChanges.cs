@@ -23,6 +23,7 @@ public sealed partial class S3FileSource
             var page=await Call(()=>_client.ListObjectsV2Async(new(){BucketName=_bucket,Prefix=_prefix,ContinuationToken=continuation,MaxKeys=1000},token),token).ConfigureAwait(false);
             foreach(var item in page.S3Objects??[])
             {
+                if(item.Key is not null&&_sessionProbeKeys.ContainsKey(item.Key))continue;
                 if(item.Key is null||!item.Key.StartsWith(_prefix,StringComparison.Ordinal)||item.Size is null or <0||item.LastModified is null||string.IsNullOrEmpty(item.ETag)||!objects.TryAdd(item.Key,item))
                     throw new IOException("S3 快照含越界、重复或不完整对象，未提交扫描。");
                 if(objects.Count>1000000)throw new IOException("S3 完整快照超过安全数量限制。");

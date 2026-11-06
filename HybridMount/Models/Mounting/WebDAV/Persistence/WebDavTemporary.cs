@@ -30,7 +30,11 @@ public sealed partial class WebDavFileSource
     {
         _temporaryMount=mount.Id;_temporaryRepository=repository;
         foreach(var item in repository.TemporaryItems(mount.Id,_temporaryScope))
-            if(IsTemporaryPath(item.Path))_temporary[item.Path]=item;
+            if(IsTemporaryPath(item.Path))
+            {
+                _temporary[item.Path]=item;
+                if(item.Purpose=="probe")_sessionProbePaths.TryAdd(item.Path,0);
+            }
     }
     /// <summary>接受新普通名称及旧隐藏名称；匹配仅用于读取精确日志，不赋予按前缀清理权限。</summary>
     private static bool IsTemporaryPath(string path)=>Regex.IsMatch(RelativePaths.Normalize(path).Split('/')[^1],@"^\.?hybridmount-(probe|upload)-[a-f0-9]{32}(-(destination|new))?$",RegexOptions.CultureInvariant);
@@ -38,6 +42,7 @@ public sealed partial class WebDavFileSource
     private string TrackTemporary(string path,string purpose="probe",string[]? hashes=null)
     {
         path=RelativePaths.Normalize(path);if(!IsTemporaryPath(path))throw new IOException("临时项路径不符合本次操作规则。");
+        if(purpose=="probe")_sessionProbePaths.TryAdd(path,0);
         if(!_temporary.ContainsKey(path))SaveTemporary(new(_temporaryMount,_temporaryScope,path,purpose,"Planned",hashes??ProbeHashes));return path;
     }
     private void CompleteTemporary(string path){_temporaryRepository?.CompleteTemporary(_temporaryMount,_temporaryScope,path);_temporary.TryRemove(path,out _);}

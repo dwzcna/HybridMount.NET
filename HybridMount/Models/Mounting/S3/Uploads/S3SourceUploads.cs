@@ -136,8 +136,7 @@ public sealed partial class S3FileSource
         try
         {
             if (_multipartVerified) return;
-            var key = keyParent + ".hybridmount-probe-multipart-" + Guid.NewGuid().ToString("N");
-            await PutAsync(key, new MemoryStream([17]), null, token).ConfigureAwait(false);
+            var key = await CreateProbeAsync(keyParent[_prefix.Length..].TrimEnd('/'),[17],token,"multipart-",cleanupOnFailure:false).ConfigureAwait(false);
             try
             {
                 foreach (var createOnly in new[] { true, false })
@@ -211,7 +210,7 @@ public sealed partial class S3FileSource
     }
     public async Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default)
     {
-        path = NonRoot(path); await VerifyDeleteAsync(token).ConfigureAwait(false);
+        path = NonRoot(path); await VerifyDeleteAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);
         var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 删除版本变化。");
         if (entry.IsDirectory)

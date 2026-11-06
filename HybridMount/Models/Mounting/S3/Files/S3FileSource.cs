@@ -77,6 +77,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             var page = await Call(() => _client.ListObjectsV2Async(new() { BucketName = _bucket, Prefix = prefix, Delimiter = "/", ContinuationToken = continuation, MaxKeys = 1000 }, token), token).ConfigureAwait(false);
             foreach (var item in page.S3Objects ?? [])
             {
+                if(item.Key is not null&&_sessionProbeKeys.ContainsKey(item.Key))continue;
                 if (item.Key is null || item.Size is null or <0 || item.LastModified is null || string.IsNullOrEmpty(item.ETag)) {Skip("incomplete_object");continue;}
                 Add(item.Key, item.Key.EndsWith('/'), item);
             }
@@ -196,7 +197,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
     public async Task<SourceEntry> MoveAsync(string path, string destination, string expectedVersion, CancellationToken token = default)
     {
         path = NonRoot(path); destination = NonRoot(destination); if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移动到自身或子目录。");
-        await VerifyPutCapabilitiesAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);RequirePut(true);await VerifyCopyAsync(token).ConfigureAwait(false); var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
+        await VerifyPutCapabilitiesAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);RequirePut(true);await VerifyCopyAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false); var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 移动版本变化。");
         if (!entry.IsDirectory) return await MoveFileAsync(entry, destination, token).ConfigureAwait(false);
         var snapshot = new List<SourceEntry>();

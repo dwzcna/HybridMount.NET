@@ -29,3 +29,11 @@
 最终x64非打包Release构建通过且未启动，EXE与程序集均为0.0.9.20；主工程182／测试240个实际编译项无重复，本批相关28／52文件无遗漏。提交后版本链、父节点、来源祖先、工作区及全部包摘要核对证据保存为artifacts/validation/pr-merges-final-audit.json。三个工程、正式配置及同步根保全，本批未切换运行程序、安装或推送，也未访问已取消NAS。
 
 PR #7没有可靠UploadId的意图保留待核对，自动精确回收仍未实现；不允许按键名和时间猜测并中止外部上传。真实服务、GUI／Explorer、安装升级及ARM64实机均未执行。大对象分片复制以本地协议夹具验证，不作为真实5 GiB传输或兼容性认证。
+
+## 第二批：PR #16—#18
+
+2026-11-06，从0.0.9.20继续逐个拉取、合并及单次递增第四段版本，预计开发及自动验证45–75分钟。已合入本地和GitHub master的旧15个本地／GitHub来源分支精确清理，提交仍保留在master；证据见artifacts/validation/pr01-15-local-branch-cleanup.json及pr01-15-github-branch-cleanup.json。主分支未推送，正式配置和运行模式不切换。
+
+| PR | 版本 | 内容 | 针对性 | Debug | Release | 双架构包／ARM64交叉编译 |
+| --- | --- | --- | --- | --- | --- | --- |
+| [#16](https://github.com/dwzcna/HybridMount.NET/pull/16) | 0.0.9.21 | 协议探测作用域与权限回退 | 150 | 991 | 991 | 通过／仅交叉编译 |

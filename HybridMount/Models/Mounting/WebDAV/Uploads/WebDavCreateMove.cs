@@ -19,10 +19,10 @@ public sealed partial class WebDavFileSource
         {
             if(_createMoveVerified)
             {if(WriteCapabilities.MoveCreate!=CapabilitySupport.Supported)throw new NotSupportedException("服务器没有可验证的防覆盖创建方式。");return;}
-            var first=ProbePath(parent);var second=TrackTemporary(first+"-destination");var third=TrackTemporary(first+"-new");
+            var first=await CreateProbeAsync(parent,[17,31],token).ConfigureAwait(false);var second=TrackTemporary(first+"-destination");var third=TrackTemporary(first+"-new");
             try
             {
-                foreach(var item in new[]{(Path:first,Bytes:new byte[]{17,31}),(Path:second,Bytes:new byte[]{47})})
+                foreach(var item in new[]{(Path:second,Bytes:new byte[]{47})})
                 {
                     using var request=new HttpRequestMessage(HttpMethod.Put,Address(item.Path)){Content=new ByteArrayContent(item.Bytes)};request.Headers.IfNoneMatch.ParseAdd("*");
                     using var response=await SendAsync(request,token,true).ConfigureAwait(false);Success(response);
