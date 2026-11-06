@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
@@ -16,6 +15,7 @@ public sealed partial class MountManager
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
+            if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow))continue;
             using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
             lock(runtime.Sync){runtime.CurrentId=prior.Id;runtime.Request=request;}
             var current=prior;
@@ -38,6 +38,7 @@ public sealed partial class MountManager
                 var latest=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==prior.Id);
                 // 已开始本地提交必须保留原阶段及证据，不能转为新下载或覆盖失败。
                 var state=latest.State is "Committing" or "Hydrating"?latest.State:error is SourceConflictException?"Conflict":"Waiting";
+                if(error is StagingSpaceException&&state=="Waiting")runtime.StagingRetries.Defer(latest.Id,DateTimeOffset.UtcNow);
                 SaveRemote(latest with{State=state,Error=error.Message});
             }
             finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
@@ -190,22 +191,11 @@ public sealed partial class MountManager
         try
         {
             ValidateRemoteSnapshot(pending);DeleteRemoteSnapshot(path);
-            await using(var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None,262144,FileOptions.Asynchronous|FileOptions.WriteThrough))
-            {
-                using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);var bytes=new byte[262144];long offset=0;var last=DateTimeOffset.MinValue;
-                while(offset<metadata.Size)
-                {
-                    var read=await runtime.Source.ReadRangeAsync(metadata,offset,bytes.AsMemory(0,(int)Math.Min(bytes.Length,metadata.Size-offset)),token).ConfigureAwait(false);
-                    if(read<=0)throw new EndOfStreamException();hash.AppendData(bytes,0,read);await output.WriteAsync(bytes.AsMemory(0,read),token).ConfigureAwait(false);offset+=read;
-                    if(DateTimeOffset.UtcNow-last>TimeSpan.FromMilliseconds(200)){_repository.SaveOperation(RemoteTask(pending,offset));Notify();last=DateTimeOffset.UtcNow;}
-                }
-                var after=await runtime.Source.GetMetadataAsync(metadata.Path,token).ConfigureAwait(false);
-                if(!runtime.Source.IsSameVersion(metadata.Version,after.Version)||metadata.Size!=after.Size)throw new SourceConflictException("远端快照下载期间版本变化，未应用本地。");
-                await output.FlushAsync(token).ConfigureAwait(false);output.Flush(true);token.ThrowIfCancellationRequested();
-                var digest=Convert.ToHexString(hash.GetHashAndReset());
-                _repository.SaveBaseline(root.Definition.Id,new(metadata.Path,metadata.Version,digest));
-                pending=SaveRemote(pending with{Sha256=digest,State="Prepared"});
-            }
+            var last=DateTimeOffset.MinValue;
+            var digest=await RemoteStaging.DownloadAsync(runtime.Source,metadata,path,token,offset=>
+            {if(DateTimeOffset.UtcNow-last>TimeSpan.FromMilliseconds(200)){_repository.SaveOperation(RemoteTask(pending,offset));Notify();last=DateTimeOffset.UtcNow;}}).ConfigureAwait(false);
+            _repository.SaveBaseline(root.Definition.Id,new(metadata.Path,metadata.Version,digest));
+            pending=SaveRemote(pending with{Sha256=digest,State="Prepared"});
             return pending;
         }
         catch{DeleteRemoteSnapshot(path);SaveRemote(pending with{SnapshotPath=null,Sha256=null});throw;}

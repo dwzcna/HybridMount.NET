@@ -34,10 +34,11 @@ internal static class UploadPreparation
         return accepted?result:null;
     }
 
-    internal static async Task<string> CopyAsync(string path,string snapshot,LocalFileStamp stamp,CancellationToken token,Func<Task>? checkpoint=null)
+    internal static async Task<string> CopyAsync(string path,string snapshot,LocalFileStamp stamp,CancellationToken token,Func<Task>? checkpoint=null,Func<string,ulong>? availableBytes=null)
     {
         await using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
         if(LocalFileState.Read(input.SafeFileHandle).Key!=stamp.Key)throw new IOException("文件在准备快照时变化，等待稳定后重试。");
+        StagingDiskSpace.Require(snapshot,stamp.Length,availableBytes);
         using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         await using(var output=new FileStream(snapshot,FileMode.CreateNew,FileAccess.Write,FileShare.None,131072,FileOptions.Asynchronous|FileOptions.SequentialScan))
         {

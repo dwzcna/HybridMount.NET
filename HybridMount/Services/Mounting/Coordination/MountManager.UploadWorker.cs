@@ -27,6 +27,7 @@ public sealed partial class MountManager
                 var item=_repository.Uploads(root.Definition.Id).Where(x=>
                     (x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath)))&&
                     DateTimeOffset.UtcNow-x.ChangedUtc>=TimeSpan.FromSeconds(2)&&
+                    StagingDiskSpace.CanRecheck(x,DateTimeOffset.UtcNow)&&
                     (x.LastCheckedUtc is null||DateTimeOffset.UtcNow-x.LastCheckedUtc>=TimeSpan.FromSeconds(x.State is "OutcomeUnknown" or "WaitingCapacity"?60:3)))
                     .OrderBy(x=>x.SourcePath.Count(c=>c=='/')).ThenBy(x=>x.IsDirectory?0:1).ThenBy(x=>x.ChangedUtc).FirstOrDefault();
                 if(item is null){await runtime.Signal.WaitAsync(500,token).ConfigureAwait(false);continue;}
@@ -87,6 +88,7 @@ public sealed partial class MountManager
         catch(UploadPreparationChangedException){}
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
+        catch(StagingSpaceException error)when(preparing){Fail(x=>StagingDiskSpace.Wait(x,error,DateTimeOffset.UtcNow));}
         catch(SourceRequestRejectedException error){Fail(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
         catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500){Fail(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
         catch(SourceConflictException error){Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
