@@ -136,8 +136,8 @@ public sealed partial class MountManager
     }
     private static async Task<string> HashRemoteAsync(IFileSource source,SourceEntry metadata,CancellationToken token)
     {
-        using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);var buffer=new byte[131072];long offset=0;
-        while(offset<metadata.Size){var count=await source.ReadRangeAsync(metadata,offset,buffer.AsMemory(0,(int)Math.Min(buffer.Length,metadata.Size-offset)),token).ConfigureAwait(false);if(count<=0)throw new IOException("远端核对提前结束。");hash.AppendData(buffer,0,count);offset+=count;}
+        using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        await source.ReadRangeSequentialAsync(metadata,0,metadata.Size,(bytes,cancel)=>{cancel.ThrowIfCancellationRequested();hash.AppendData(bytes.Span);return ValueTask.CompletedTask;},131072,token).ConfigureAwait(false);
         var after=await source.GetMetadataAsync(metadata.Path,token).ConfigureAwait(false);if(!source.IsSameVersion(metadata.Version,after.Version))throw new SourceConflictException("远端核对期间版本发生变化。");
         return Convert.ToHexString(hash.GetHashAndReset());
     }

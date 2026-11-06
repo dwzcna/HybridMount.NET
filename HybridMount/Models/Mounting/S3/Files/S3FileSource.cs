@@ -113,6 +113,26 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
             finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
         },token).ConfigureAwait(false);return result.Item1;
     }
+    public async Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
+    {
+        var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();if(length==0)return;
+        var version=Version(entry);var etag=RequiredETag(version);
+        try
+        {
+            await Call(async()=>
+            {
+                var start=offset+transfer.Consumed;var remaining=length-transfer.Consumed;var before=transfer.Consumed;var completed=false;
+                using var response=await _client.GetObjectAsync(new(){BucketName=_bucket,Key=Key(entry.Path),VersionId=version.VersionId,EtagToMatch=etag,ByteRange=new ByteRange(start,offset+length-1)},token).ConfigureAwait(false);
+                if(response.HttpStatusCode==HttpStatusCode.OK)Capabilities=Capabilities with{RangeRead=CapabilitySupport.Unsupported};
+                if(response.HttpStatusCode!=HttpStatusCode.PartialContent||!ContentRangeHeaderValue.TryParse(response.ContentRange,out var range)||range.Unit!="bytes"||
+                    range.From!=start||range.To!=offset+length-1||range.Length!=entry.Size||response.ContentLength!=remaining||response.ETag!=etag||
+                    version.VersionId is not null&&response.VersionId!=version.VersionId)throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
+                try{await transfer.ReadAsync(response.ResponseStream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return Tuple.Create(true);}
+                finally{ReadDiagnostic?.Invoke(new("range",transfer.Consumed-before,null,completed));}
+            },token).ConfigureAwait(false);
+        }
+        catch(SequentialRangeConsumerException error){System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException!).Throw();throw;}
+    }
     /// <summary>复制回执与目标版本一致才允许条件删源；多个请求不构成原子移动。</summary>
     private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token)
     {

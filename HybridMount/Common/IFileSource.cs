@@ -25,6 +25,9 @@ public interface IFileSource : IAsyncDisposable
     async Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)
     {try{return await GetMetadataAsync(path,token).ConfigureAwait(false);}catch(FileNotFoundException){return null;}}
     ValueTask<int> ReadRangeAsync(SourceEntry entry, long offset, Memory<byte> buffer, CancellationToken token = default);
+    /// <summary>顺序传递完整分块（末块可短）；缓冲仅在 sink 返回前有效，消费者异常不得重试。</summary>
+    Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
+        => SequentialRangeTransfer.DefaultAsync(this,entry,offset,length,sink,chunk,token);
     /// <summary>严格预览范围读取；默认不支持，不允许整文件退化或触发 CFAPI 水合。</summary>
     ValueTask<PreviewRangeResult> TryReadPreviewRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default) => ValueTask.FromResult(new PreviewRangeResult(false,0));
     /// <summary>expectedVersion 为空表示仅创建；更新必须匹配当前版本。</summary>
@@ -36,4 +39,65 @@ public interface IFileSource : IAsyncDisposable
     Task<SourceEntry> CreateDirectoryAsync(string path, CancellationToken token = default);
     Task<SourceEntry> MoveAsync(string path, string destination, string expectedVersion, CancellationToken token = default);
     Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default);
+}
+
+internal sealed class SequentialRangeConsumerException(Exception inner):Exception("顺序读取消费者失败。",inner);
+
+internal sealed class SequentialRangeTransfer
+{
+    private readonly byte[] _buffer;
+    private readonly Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> _sink;
+    private int _filled;
+    public long Length {get;}
+    public long Consumed {get;private set;}
+    public SequentialRangeTransfer(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);ArgumentOutOfRangeException.ThrowIfNegative(length);ArgumentOutOfRangeException.ThrowIfNegativeOrZero(chunk);ArgumentNullException.ThrowIfNull(sink);
+        if(entry.IsDirectory||offset>entry.Size||length>entry.Size-offset)throw new ArgumentException("顺序读取范围无效。");
+        Length=length;_sink=sink;_buffer=new byte[(int)Math.Min(chunk,length)];
+    }
+    private async ValueTask DeliverAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        try{await _sink(_buffer.AsMemory(0,_filled),token).ConfigureAwait(false);}
+        catch(Exception error){throw new SequentialRangeConsumerException(error);}
+        _filled=0;
+    }
+    public async Task ReadAsync(Stream stream,CancellationToken token)
+    {
+        while(Consumed<Length)
+        {
+            token.ThrowIfCancellationRequested();var target=(int)Math.Min(_buffer.Length,Length-(Consumed-_filled));
+            var read=await stream.ReadAsync(_buffer.AsMemory(_filled,target-_filled),token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException("远端区间提前结束。");
+            Consumed+=read;_filled+=read;
+            if(_filled==target&&Consumed<Length)await DeliverAsync(token).ConfigureAwait(false);
+        }
+        try{if(await stream.ReadAsync(new byte[1],token).ConfigureAwait(false)!=0)throw new IOException("远端区间包含多余字节。");}
+        catch(Exception error){throw new SequentialRangeConsumerException(error);}
+        if(_filled>0)await DeliverAsync(token).ConfigureAwait(false);
+    }
+    public async Task ReadRangesAsync(Func<long,Memory<byte>,CancellationToken,ValueTask<int>> readRange,CancellationToken token)
+    {
+        while(Consumed<Length)
+        {
+            token.ThrowIfCancellationRequested();var target=(int)Math.Min(_buffer.Length,Length-(Consumed-_filled));
+            var read=await readRange(Consumed,_buffer.AsMemory(_filled,target-_filled),token).ConfigureAwait(false);
+            if(read<=0||read>target-_filled)throw new EndOfStreamException("远端区间提前结束。");Consumed+=read;_filled+=read;
+            if(_filled==target)await DeliverAsync(token).ConfigureAwait(false);
+        }
+    }
+    public static async Task DefaultAsync(IFileSource source,SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk,CancellationToken token)
+    {
+        var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();var bytes=transfer._buffer;long total=0;
+        while(total<length)
+        {
+            var count=(int)Math.Min(bytes.Length,length-total);var filled=0;
+            while(filled<count)
+            {
+                token.ThrowIfCancellationRequested();var read=await source.ReadRangeAsync(entry,offset+total+filled,bytes.AsMemory(filled,count-filled),token).ConfigureAwait(false);
+                if(read<=0||read>count-filled)throw new EndOfStreamException("远端区间提前结束。");filled+=read;
+            }
+            token.ThrowIfCancellationRequested();await sink(bytes.AsMemory(0,count),token).ConfigureAwait(false);total+=count;
+        }
+    }
 }
