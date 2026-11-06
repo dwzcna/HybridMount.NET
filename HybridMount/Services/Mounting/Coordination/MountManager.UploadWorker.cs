@@ -44,6 +44,7 @@ public sealed partial class MountManager
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         lock(runtime.Sync){if(runtime.PropertyPath is not null)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
+        LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>preparing&&current!=prepared?current:update(current));
         try
         {
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
@@ -83,23 +84,24 @@ public sealed partial class MountManager
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);
             await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);
         }
+        catch(UploadPreparationChangedException){}
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
-        catch(SourceRequestRejectedException error){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
-        catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500){ChangeUpload(selected.Id,x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
-        catch(SourceConflictException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
-        catch(NotSupportedException error){ChangeUpload(selected.Id,x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
+        catch(SourceRequestRejectedException error){Fail(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
+        catch(SourceConnectionException error)when(error.Diagnostic.HttpStatus is >=400 and <500){Fail(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null});}
+        catch(SourceConflictException error){Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
+        catch(NotSupportedException error){Fail(x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
         catch(Exception error)
         {
             var current=_repository.Upload(selected.Id);
             if(current is not null)
             {
-                if(current.State=="RemoteCommitted")ChangeUpload(selected.Id,x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+                if(current.State=="RemoteCommitted")Fail(x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
                 else if(current.State=="Sending"||error is SourceOutcomeUnknownException)
-                    ChangeUpload(selected.Id,x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
-                else if(current.CancelRequested)ChangeUpload(selected.Id,x=>x with{State="Canceled",Error="本代上传已取消。"});
-                else if(error is OperationCanceledException&&stopping.IsCancellationRequested)ChangeUpload(selected.Id,x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
-                else ChangeUpload(selected.Id,x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+                    Fail(x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
+                else if(current.CancelRequested)Fail(x=>x with{State="Canceled",Error="本代上传已取消。"});
+                else if(error is OperationCanceledException&&stopping.IsCancellationRequested)Fail(x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
+                else Fail(x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
             }
         }
         finally
