@@ -67,6 +67,8 @@ public sealed class ExePreviewCache : IAsyncDisposable
     }
     public void ResumeMount(Guid mount){_blocked.TryRemove(mount,out _);foreach(var row in _failed.Where(row=>row.Value.Mount==mount))_failed.TryRemove(row.Key,out _);}
     public string State(MountDefinition mount,MountEntry entry)=>!mount.ThumbnailsEnabled?"disabled":_pending.ContainsKey(CacheKey(mount,entry,256))?"queued":_failed.TryGetValue(CacheKey(mount,entry,256),out var failed)&&failed.Until>DateTime.UtcNow?"unsupported":"notFound";
+    /// <summary>只读队列和负缓存状态，诊断不排队、不读取远端。</summary>
+    internal string Describe(Guid mount)=>$"待处理={_pending.Values.Count(x=>x.Mount.Id==mount)}；暂缓={_failed.Values.Count(x=>x.Mount==mount&&x.Until>DateTime.UtcNow)}；停止接收={_blocked.ContainsKey(mount)}";
     /// <summary>有界本机查询；缓存不存在、失效或被回收均返回空值，不启动提取。</summary>
     public byte[]? Get(MountDefinition mount,MountEntry entry,int size)
     {

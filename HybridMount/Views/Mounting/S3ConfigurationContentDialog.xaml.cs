@@ -62,7 +62,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             MaximumField.Text=capacity.Text;CapacityUnit.SelectedIndex=capacity.Unit=="TB"?1:0;
             MaximumField.IsEnabled=CapacityUnit.IsEnabled=!capacity.Automatic&&!sqsBusy;
             CapacityDescription.Text=mount.CapacityDisplay;RecheckButton.IsEnabled=!sqsBusy&&mount.IsConnected&&CapacityRules.Enabled(settings);
-            ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=mount.ThumbnailDisplay;
+            ThumbnailToggle.Visibility=_model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=_model.CanConfigureThumbnails?mount.ThumbnailDisplay:"";
             RemoteAuto.IsOn=detection.Enabled;IncrementalField.Value=detection.Incremental;FullField.Value=detection.Full;
             IncrementalField.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
             DetectionDescription.Text=mount.RemoteDetectionDisplay;SqsDescription.Text=mount.SqsDisplay;

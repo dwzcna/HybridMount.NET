@@ -9,6 +9,8 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     private readonly MountManager _manager;
     private readonly IUiDispatcher _dispatcher;
     private readonly LoggerService? _logger;
+    public ShellThumbnailCapability ThumbnailCapability {get;}
+    public bool CanConfigureThumbnails=>ThumbnailCapability.Available;
     private readonly HashSet<Guid> _busyMounts=[],_cancelingConnections=[];
     private readonly Dictionary<Guid,DetectionDraft> _drafts=[];
     private readonly Dictionary<Guid,bool> _thumbnailDrafts=[];
@@ -53,8 +55,8 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     }
     public ObservableCollection<MountSnapshot> Mounts {get;}=[];
     public ObservableCollection<MountListItem> Items {get;}=[];
-    public MountsViewModel(MountManager manager,IUiDispatcher dispatcher,LoggerService? logger=null)
-    {_manager=manager;_dispatcher=dispatcher;_logger=logger;_manager.Changed+=Changed;Refresh();}
+    public MountsViewModel(MountManager manager,IUiDispatcher dispatcher,LoggerService? logger=null,ShellThumbnailCapability? thumbnailCapability=null)
+    {ThumbnailCapability=thumbnailCapability??CloudShellState.ThumbnailCapability();_manager=manager;_dispatcher=dispatcher;_logger=logger;_manager.Changed+=Changed;Refresh();}
     private void Changed()
     {
         if(_disposed||Interlocked.Exchange(ref _pending,1)!=0)return;
@@ -70,12 +72,12 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
     {
         var previous=Items.ToDictionary(x=>x.Id);var rows=snapshots.Select(snapshot=>previous.GetValueOrDefault(snapshot.Definition.Id)??new MountListItem(snapshot)).ToArray();
-        foreach(var row in rows)row.Update(snapshots.First(x=>x.Definition.Id==row.Id),row.Id==_selected,IsBusy(row.Id),IsStopping,DialogBusy,IsCanceling(row.Id));
+        foreach(var row in rows)row.Update(snapshots.First(x=>x.Definition.Id==row.Id),row.Id==_selected,IsBusy(row.Id),IsStopping,DialogBusy,IsCanceling(row.Id),CanConfigureThumbnails);
         SnapshotCollections.Reconcile(Items,rows,x=>x.Id);
     }
     private void NotifyStateChanged()
     {
-        foreach(var row in Items)row.Update(row.Snapshot,row.Id==_selected,IsBusy(row.Id),IsStopping,DialogBusy,IsCanceling(row.Id));
+        foreach(var row in Items)row.Update(row.Snapshot,row.Id==_selected,IsBusy(row.Id),IsStopping,DialogBusy,IsCanceling(row.Id),CanConfigureThumbnails);
         if(!_disposed)StateChanged?.Invoke();
     }
     public MountSnapshot? FindMount(Guid id)=>Mounts.FirstOrDefault(x=>x.Definition.Id==id);

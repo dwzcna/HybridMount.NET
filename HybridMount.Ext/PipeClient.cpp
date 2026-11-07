@@ -38,7 +38,13 @@ namespace {
 		DWORD session = 0;
 		Check(ProcessIdToSessionId(GetCurrentProcessId(), &session) != FALSE);
         auto name=L"\\\\.\\pipe\\HybridMount.NET.v2."+sid+L"."+std::to_wstring(session);
-#ifdef HYBRIDMOUNT_ISOLATED_TEST_PIPE
+#ifdef HYBRIDMOUNT_SHELL_PROBE_TAG
+#define HM_STRING2(value) #value
+#define HM_STRING(value) HM_STRING2(value)
+#define HM_WIDE2(value) L##value
+#define HM_WIDE(value) HM_WIDE2(value)
+        name+=L".shell-probe." HM_WIDE(HM_STRING(HYBRIDMOUNT_SHELL_PROBE_TAG));
+#elif defined(HYBRIDMOUNT_ISOLATED_TEST_PIPE)
         name+=L".test."+std::to_wstring(GetCurrentProcessId());
 #endif
         return name;

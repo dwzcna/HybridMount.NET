@@ -53,22 +53,21 @@ public sealed partial class MountCard : UserControl
         if(!_initialized)return;
         FrameworkElement[] buttons=[ConnectionButton,SettingsButton,ScanButton,DetectButton,ThumbnailButton,RemoteDetectionButton,KeepButton,FreeButton,CapacityButton,RemoveButton];
         FrameworkElement[] overflow=[ConnectionOverflow,SettingsOverflow,ScanOverflow,DetectOverflow,ThumbnailOverflow,RemoteDetectionOverflow,KeepOverflow,FreeOverflow,CapacityOverflow,RemoveOverflow];
-        // 分隔符也计入实际宽度：每增加一条线，比原按钮间距多占 1+6 DIP。
         int[] boundaries=[2,4,6,9];
-        double RequiredWidth(int count,bool menu)=>count==0?(menu?48:0):count*36+(count-1)*6+boundaries.Count(boundary=>count>boundary)*7+(menu?54:0);
-        var showAll=width>=RequiredWidth(buttons.Length,false);
-        var visible=showAll?buttons.Length:buttons.Length-1;
+        var active=Enumerable.Range(0,buttons.Length).Where(index=>index!=4||Item?.CanConfigureThumbnails==true).ToArray();
+        double RequiredWidth(int count,bool menu)=>count==0?(menu?48:0):count*36+(count-1)*6+boundaries.Count(boundary=>active.Take(count).Any(x=>x<boundary)&&active.Take(count).Any(x=>x>=boundary))*7+(menu?54:0);
+        var showAll=width>=RequiredWidth(active.Length,false);var visible=showAll?active.Length:active.Length-1;
         while(!showAll&&visible>0&&RequiredWidth(visible,true)>Math.Max(0,width))visible--;
-        if(showAll)MoreButton.Flyout?.Hide();
-        MoreButton.Visibility=showAll?Visibility.Collapsed:Visibility.Visible;
-        for(var index=0;index<buttons.Length;index++)
-        {buttons[index].Visibility=index<visible?Visibility.Visible:Visibility.Collapsed;overflow[index].Visibility=index<visible?Visibility.Collapsed:Visibility.Visible;}
+        if(showAll)MoreButton.Flyout?.Hide();MoreButton.Visibility=showAll?Visibility.Collapsed:Visibility.Visible;
+        foreach(var control in buttons.Concat(overflow))control.Visibility=Visibility.Collapsed;
+        for(var index=0;index<active.Length;index++){var item=active[index];buttons[item].Visibility=index<visible?Visibility.Visible:Visibility.Collapsed;overflow[item].Visibility=index<visible?Visibility.Collapsed:Visibility.Visible;}
         Border[] separators=[ConnectionSeparator,ManualSeparator,OptionsSeparator,StorageSeparator];
         MenuFlyoutSeparator[] menuSeparators=[ConnectionOverflowSeparator,ManualOverflowSeparator,OverflowSeparator,StorageOverflowSeparator];
         for(var index=0;index<boundaries.Length;index++)
         {
-            separators[index].Visibility=visible>boundaries[index]?Visibility.Visible:Visibility.Collapsed;
-            menuSeparators[index].Visibility=visible<boundaries[index]?Visibility.Visible:Visibility.Collapsed;
+            var boundary=boundaries[index];
+            separators[index].Visibility=active.Take(visible).Any(x=>x<boundary)&&active.Take(visible).Any(x=>x>=boundary)?Visibility.Visible:Visibility.Collapsed;
+            menuSeparators[index].Visibility=active.Skip(visible).Any(x=>x<boundary)&&active.Skip(visible).Any(x=>x>=boundary)?Visibility.Visible:Visibility.Collapsed;
         }
     }
 

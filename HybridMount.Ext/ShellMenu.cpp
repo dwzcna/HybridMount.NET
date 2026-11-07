@@ -234,7 +234,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 			if (!result) return E_POINTER;
 			*result = nullptr;
 			if (outer) return CLASS_E_NOAGGREGATION;
-            if(_thumbnail)return CreateThumbnailHandler(iid,result);
+            if(_thumbnail){TraceShellProbe(L"CreateInstance");return CreateThumbnailHandler(iid,result);}
 			auto command = Make<Command>(Operation::Root);
 			return command ? command.CopyTo(iid, result) : E_OUTOFMEMORY;
 		}
@@ -247,6 +247,7 @@ BOOL WINAPI DllMain(HINSTANCE module, DWORD reason, LPVOID) {
 }
 STDAPI DllCanUnloadNow() { return g_objects.load() == 0 ? S_OK : S_FALSE; }
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** result) {
+    TraceShellProbe(L"DllGetClassObject");
 	if (!result) return E_POINTER;
 	*result = nullptr;
 	if (clsid != HybridMountCommandId && clsid != HybridMountThumbnailId) return CLASS_E_CLASSNOTAVAILABLE;

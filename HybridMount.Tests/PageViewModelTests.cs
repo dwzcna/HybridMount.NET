@@ -39,6 +39,26 @@ public sealed class PageViewModelTests
         }
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }
+    [Theory]
+    [InlineData(false,false)]
+    [InlineData(true,false)]
+    [InlineData(false,true)]
+    public async Task Missing_thumbnail_entry_hides_controls_without_rewriting_saved_preference(bool packaged,bool queryFailed)
+    {
+        await using var area=new Area();var other=area.B;var saved=area.A with{ThumbnailsEnabled=true};area.Store.SaveDefinition(saved);
+        await using var manager=new MountManager(area.Repository,area.Logger);
+        using var vm=new MountsViewModel(manager,area.Ui,thumbnailCapability:ShellThumbnailCapability.From(packaged,false,queryFailed));
+        var row=vm.Items.Single(x=>x.Id==saved.Id);vm.SelectedMountId=saved.Id;vm.RefreshNow();vm.SelectedMountId=other.Id;vm.RefreshNow();
+        Assert.False(vm.CanConfigureThumbnails);Assert.False(row.CanConfigureThumbnails);Assert.True(row.ThumbnailsEnabled);Assert.True(vm.ThumbnailDraft(saved));Assert.Equal(saved,area.Store.Items.Single(x=>x.Id==saved.Id));
+        Assert.Empty(manager.Operations);Assert.False(string.IsNullOrWhiteSpace(vm.ThumbnailCapability.Reason));
+    }
+    [Fact]
+    public async Task Unpackaged_backend_with_registered_entry_can_edit_only_selected_thumbnail_preference()
+    {
+        await using var area=new Area();var a=area.A;var b=area.B;using var vm=new MountsViewModel(area.Manager,area.Ui,thumbnailCapability:ShellThumbnailCapability.From(false,true));
+        vm.SelectedMountId=b.Id;var row=vm.Items.Single(x=>x.Id==a.Id);Assert.True(vm.CanConfigureThumbnails);Assert.True(row.CanConfigureThumbnails);
+        await vm.SetThumbnailAsync(a.Id,true);Assert.True(vm.FindMount(a.Id)!.Definition.ThumbnailsEnabled);Assert.False(vm.FindMount(b.Id)!.Definition.ThumbnailsEnabled);Assert.Equal(b.Id,vm.SelectedMountId);
+    }
     [Fact]
     public async Task Capacity_drafts_survive_selection_and_save_failure_rolls_back_only_selected_mount()
     {

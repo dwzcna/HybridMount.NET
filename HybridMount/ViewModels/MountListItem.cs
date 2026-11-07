@@ -25,6 +25,7 @@ public sealed class MountListItem(MountSnapshot snapshot) : ObservableObject
     public bool CanRecheck=>CanRun&&CapacityRules.Enabled(_snapshot.Definition);
     public string RemoveText=>Actions.RemoveText;
     public bool IsConnected=>_snapshot.IsConnected;
+    public bool CanConfigureThumbnails {get;private set;}=true;
     public bool ThumbnailsEnabled=>_snapshot.Definition.ThumbnailsEnabled;
     public bool RemoteDetectionEnabled=>_snapshot.Definition.RemoteAutoDetectEnabled;
     public string ThumbnailText=>ThumbnailsEnabled?"不显示缩略图":"显示缩略图（实验性）";
@@ -50,9 +51,9 @@ public sealed class MountListItem(MountSnapshot snapshot) : ObservableObject
         return value.ToString("0.00",CultureInfo.CurrentCulture)+" "+units[index];
     }
     /// <summary>UI线程一次更新所有派生属性；虚拟化重用对象，保持选择和滚动，不增加事件订阅。</summary>
-    internal void Update(MountSnapshot value,bool selected,bool busy,bool stopping,bool dialogBusy,bool canceling)
+    internal void Update(MountSnapshot value,bool selected,bool busy,bool stopping,bool dialogBusy,bool canceling,bool thumbnailsAvailable=true)
     {
-        if(_snapshot==value&&(_selected,_busy,_stopping,_dialogBusy,_canceling)==(selected,busy,stopping,dialogBusy,canceling))return;
-        _snapshot=value;(_selected,_busy,_stopping,_dialogBusy,_canceling)=(selected,busy,stopping,dialogBusy,canceling);OnPropertyChanged(string.Empty);
+        if(CanConfigureThumbnails==thumbnailsAvailable&&_snapshot==value&&(_selected,_busy,_stopping,_dialogBusy,_canceling)==(selected,busy,stopping,dialogBusy,canceling))return;
+        CanConfigureThumbnails=thumbnailsAvailable;_snapshot=value;(_selected,_busy,_stopping,_dialogBusy,_canceling)=(selected,busy,stopping,dialogBusy,canceling);OnPropertyChanged(string.Empty);
     }
 }

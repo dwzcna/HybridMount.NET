@@ -12,6 +12,8 @@ public sealed partial class MountManager
         var text=new StringBuilder(CloudShellState.EnvironmentDescription()).AppendLine().Append("挂载：").Append(snapshot.Definition.Name)
             .Append("；连接：").Append(snapshot.IsConnected?"已连接":"已断开").Append("；状态：").AppendLine(snapshot.Status);
         if(snapshot.Detail.Length>0)text.AppendLine(snapshot.Detail);
+        text.AppendLine(CloudShellState.RootDescription(root.Definition));
+        text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));
         text.Append("挂载缩略图开关：").AppendLine(root.Definition.ThumbnailsEnabled?"已开启":"已关闭");
         text.Append("远端检测模式：").AppendLine(snapshot.Detection?.Mode??"尚未检测");
         if(root.ChangeSession.Fallback is {} fallback)

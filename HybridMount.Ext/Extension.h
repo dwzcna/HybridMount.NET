@@ -8,6 +8,19 @@
 #include <vector>
 
 inline constexpr CLSID HybridMountCommandId{ 0xf4a8fd0b,0x4055,0x4f23,{0x8c,0xc0,0x91,0xb7,0x36,0xb3,0xe4,0x91} };
+/// <summary>仅隔离Shell试验记录无路径的原生阶段；正式DLL无注册表写入或追踪副作用。</summary>
+inline void TraceShellProbe(const wchar_t* stage) noexcept {
+#ifdef HYBRIDMOUNT_SHELL_PROBE_TAG
+#define HM_PSTRING2(value) #value
+#define HM_PSTRING(value) HM_PSTRING2(value)
+#define HM_PWIDE2(value) L##value
+#define HM_PWIDE(value) HM_PWIDE2(value)
+    HKEY key{};
+    if(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\HybridMount.NET.Tests\\ShellProbe\\" HM_PWIDE(HM_PSTRING(HYBRIDMOUNT_SHELL_PROBE_TAG)),0,nullptr,0,KEY_SET_VALUE,nullptr,&key,nullptr)==ERROR_SUCCESS){DWORD pid=GetCurrentProcessId();RegSetValueExW(key,stage,0,REG_DWORD,reinterpret_cast<const BYTE*>(&pid),sizeof(pid));RegCloseKey(key);}
+#else
+    UNREFERENCED_PARAMETER(stage);
+#endif
+}
 extern HMODULE g_module;
 extern std::atomic<long> g_objects;
 /// <summary>所有 COM 对象共享模块存活计数，后台线程另外持有系统模块引用。</summary>
@@ -23,7 +36,12 @@ HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> pat
 /// <summary>异步只读定位同步问题；菜单回调不联网、不修改文件、不启动上传。</summary>
 HRESULT QueueSyncIssuesRequest(std::vector<std::wstring> paths) noexcept;
 
+// 真实Shell自动选择测试使用本轮独立CLSID，不改变正式已安装类的激活解析。
+#ifdef HYBRIDMOUNT_SHELL_PROBE_ID
+inline constexpr CLSID HybridMountThumbnailId{HYBRIDMOUNT_SHELL_PROBE_ID,0x4d1c,0x4c7e,{0xa5,0x19,0x34,0xc7,0x6b,0x9b,0xb2,0x81}};
+#else
 inline constexpr CLSID HybridMountThumbnailId{0xa65802eb,0x4d1c,0x4c7e,{0xa5,0x19,0x34,0xc7,0x6b,0x9b,0xb2,0x81}};
+#endif
 /// <summary>缓存查询共用 150 毫秒截止时间；服务缺失时直接失败，绝不激活主程序。</summary>
 bool QueryCachedPreview(const std::wstring& path,UINT size,std::vector<BYTE>& png) noexcept;
 /// <summary>验证本机根身份，不打开文件内容；异常视为不归属。</summary>

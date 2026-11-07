@@ -51,18 +51,18 @@ namespace {
         std::wstring _path;
     public:
         IFACEMETHODIMP Initialize(IShellItem* item,DWORD mode) override {
-            UNREFERENCED_PARAMETER(mode);if(!item)return E_INVALIDARG;if(!_path.empty())return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
+            TraceShellProbe(L"Initialize");UNREFERENCED_PARAMETER(mode);if(!item)return E_INVALIDARG;if(!_path.empty())return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
             PWSTR path=nullptr;auto status=item->GetDisplayName(SIGDN_FILESYSPATH,&path);if(FAILED(status))return status;
             try{_path=path;CoTaskMemFree(path);return S_OK;}catch(...){CoTaskMemFree(path);return E_OUTOFMEMORY;}
         }
         IFACEMETHODIMP GetThumbnail(UINT size,HBITMAP* bitmap,WTS_ALPHATYPE* alpha) override {
-            if(!bitmap||!alpha)return E_POINTER;*bitmap=nullptr;*alpha=WTSAT_UNKNOWN;
+            TraceShellProbe(L"GetThumbnail");if(!bitmap||!alpha)return E_POINTER;*bitmap=nullptr;*alpha=WTSAT_UNKNOWN;
             if(_path.empty()||size==0)return E_INVALIDARG;
             const auto extension=PathFindExtensionW(_path.c_str());bool supported=false;
             for(const auto candidate:{L".exe",L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".mp4"})supported|=_wcsicmp(extension,candidate)==0;
             if(!supported)return E_NOTIMPL;
             GUID mount{};if(!IsOwnedMountPath(_path,mount))return E_NOTIMPL;
-            try {
+            TraceShellProbe(L"Owned");try {
                 const auto bounded=std::clamp(size,16u,256u);std::vector<BYTE> png;
                 auto status=E_FAIL;
                 if(QueryCachedPreview(_path,bounded,png))status=Decode(png,bitmap);
