@@ -35,15 +35,25 @@ public static class MountPathGuard
     }
     public static void ValidateOperation(MountDefinition mount,string path)
     {
+        if(!TryValidateOperation(mount,path))throw new FileNotFoundException("目标路径不存在。",path);
+    }
+    /// <summary>从根向目标逐段核对边界、根身份和重解析点；正常缺失返回false，权限或身份错误仍抛出。只查询属性，不打开正文。</summary>
+    internal static bool TryValidateOperation(MountDefinition mount,string path)
+    {
         if (!IsUnder(mount.LocalPath,path) || mount.RootIdentity!=FileIdentity(mount.LocalPath)) throw new IOException("挂载路径或卷身份发生变化。");
-        var full=Path.GetFullPath(path);
-        for (var cursor=full; !cursor.Equals(mount.LocalPath,StringComparison.OrdinalIgnoreCase); cursor=Path.GetDirectoryName(cursor)!)
+        var full=Path.GetFullPath(path);var pending=new Stack<string>();
+        for(var cursor=full;!cursor.Equals(mount.LocalPath,StringComparison.OrdinalIgnoreCase);cursor=Path.GetDirectoryName(cursor)!)pending.Push(cursor);
+        var existing=mount.LocalPath;var exists=true;
+        while(pending.TryPop(out var candidate))
         {
-            var attributes=File.GetAttributes(cursor);
-            if ((attributes & FileAttributes.ReparsePoint)!=0 && !CloudFilesNative.IsCloudPath(cursor)) throw new IOException("不允许穿越重解析点。");
+            var metadata=LocalFileMetadata.TryRead(candidate);
+            if(metadata is null){exists=false;break;}
+            if ((metadata.Value.Attributes & FileAttributes.ReparsePoint)!=0 && !CloudFilesNative.IsCloudPath(candidate)) throw new IOException("不允许穿越重解析点。");
+            existing=candidate;
         }
-        var identity=ReadRoot(full);
+        var identity=ReadRoot(existing);
         if (identity?.MountId!=mount.Id || identity.Owner!=System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value) throw new IOException("目标不属于当前用户的本产品同步根。");
+        return exists;
     }
     /// <summary>检查残余云文件；即使同步根注册已丢失也检查重解析标签，不穿越联接或符号链接。</summary>
     public static bool ContainsCloudPlaceholders(string directory)

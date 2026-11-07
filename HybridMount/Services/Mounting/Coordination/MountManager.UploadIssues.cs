@@ -7,7 +7,7 @@ public sealed partial class MountManager
     internal Func<string,Task>? IssuePropertyReleasedForTests {get;set;}
     private Task? _issuePublishing;
     private readonly SemaphoreSlim _issuePublishGate=new(1,1);
-    private readonly Dictionary<string,DateTimeOffset> _issuePublicationRetry=[];
+    private readonly Dictionary<string,(long Generation,UploadAttention Attention,DateTimeOffset Next)> _issuePublicationRetry=[];
     /// <summary>问题变化使用独立只读快照；清除任务历史不影响此事件和持久状态。</summary>
     public event Action? UploadIssuesChanged;
     private void NotifyIssues()
@@ -41,22 +41,37 @@ public sealed partial class MountManager
         foreach(var selected in _repository.Uploads().Where(x=>x.Attention?.ShellState is "Pending" or "ClearPending" or "Publishing" or "Clearing"))
         {
             token.ThrowIfCancellationRequested();
-            if(selected.Attention is {ResolvedUtc:null}&&_issuePublicationRetry.TryGetValue(selected.Id,out var next)&&next>DateTimeOffset.UtcNow)continue;
+            if(_issuePublicationRetry.TryGetValue(selected.Id,out var retry)&&retry.Generation==selected.Generation&&retry.Attention==selected.Attention&&retry.Next>DateTimeOffset.UtcNow)continue;
             if(!_roots.TryGetValue(selected.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)continue;
-            await root.Gate.WaitAsync(token).ConfigureAwait(false);UploadRuntime? runtime=null;var reserved=false;var updated=false;string? notify=null;
+            await root.Gate.WaitAsync(token).ConfigureAwait(false);UploadRuntime? runtime=null;var reserved=false;var updated=false;string? notify=null;var attempted=selected;UploadAttention? journal=null;
             try
             {
                 if(IsStopping||root.RemovalRequested||root.Definition.RemovalPending)continue;
                 var item=_repository.Upload(selected.Id);if(item?.Attention is not {} a||a.ShellState is not("Pending" or "ClearPending" or "Publishing" or "Clearing"))continue;
+                attempted=item;
                 lock(root.ConnectionSync)
                 {
                     runtime=root.Uploads;
                     if(runtime is not null)lock(runtime.Sync)
                     {if(runtime.CurrentId is not null||runtime.PropertyPath is not null)continue;runtime.PropertyPath=item.LocalPath;reserved=true;}
                 }
+                // 缺失文件无需调用Shell；只有已解决的问题才能结束清理，未解决原因继续保留。
+                if(!MountPathGuard.TryValidateOperation(root.Definition,RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath)))
+                {
+                    if(a.ResolvedUtc is null)updated=RecordIssuePublicationFailure(item,null,"Explorer提示未发布：本地文件不存在，保留同步问题。");
+                    else
+                    {
+                        _repository.UpdateUpload(item.Id,current=>
+                        {
+                            if(current.Generation!=item.Generation||current.Attention!=a)return current;
+                            updated=true;return current with{Attention=a with{ShellState="Cleared",ShellError=null,ShellOriginalStamp=null}};
+                        });
+                        _issuePublicationRetry.Remove(item.Id);
+                    }
+                    continue;
+                }
                 using var limit=CancellationTokenSource.CreateLinkedTokenSource(token);limit.CancelAfter(TimeSpan.FromSeconds(3));
                 if(!root.IssueDefinitionReady){await CloudRootRegistration.EnsureIssueDefinitionAsync(root.Definition,limit.Token).ConfigureAwait(false);root.IssueDefinitionReady=true;}
-                UploadAttention? journal=null;
                 await CloudUploadIssueProperty.SetAsync(root.Definition,item,before=>
                 {
                     var accepted=false;
@@ -81,10 +96,7 @@ public sealed partial class MountManager
             catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
             catch(Exception error)
             {
-                var reason="Explorer提示未发布："+error.Message;var previous=_repository.Upload(selected.Id)?.Attention;
-                _repository.UpdateUpload(selected.Id,current=>current.Generation==selected.Generation&&(current.Attention==selected.Attention||current.Attention?.ShellOriginalStamp is not null)?current with{Attention=current.Attention! with{ShellError=reason}}:current);
-                _issuePublicationRetry[selected.Id]=DateTimeOffset.UtcNow.AddSeconds(30);
-                updated=previous?.ShellError!=reason;if(updated)_logger.Queue("同步问题提示","Warning",reason);
+                updated=RecordIssuePublicationFailure(attempted,journal,"Explorer提示未发布："+error.Message);
             }
             finally
             {
@@ -92,6 +104,22 @@ public sealed partial class MountManager
                 root.Gate.Release();if(notify is not null)CloudFilesNative.NotifyItemUpdated(notify);if(notify is not null||updated)Notify();
             }
         }
+    }
+    /// <summary>仅为本次捕获或已写日志的同代问题保存失败及30秒退避；新问题、成功或取消不继承旧等待和迟到错误。</summary>
+    private bool RecordIssuePublicationFailure(LocalUpload attempted,UploadAttention? journal,string reason)
+    {
+        var accepted=false;var changed=false;
+        var saved=_repository.UpdateUpload(attempted.Id,current=>
+        {
+            if(current.Generation!=attempted.Generation||current.Attention is not {} attention||(attention!=attempted.Attention&&attention!=journal))return current;
+            accepted=true;changed=attention.ShellError!=reason;return current with{Attention=attention with{ShellError=reason}};
+        });
+        if(accepted&&saved?.Attention is {} failed)
+        {
+            _issuePublicationRetry[attempted.Id]=(saved.Generation,failed,DateTimeOffset.UtcNow.AddSeconds(30));
+            if(changed)_logger.Queue("同步问题提示","Warning",reason);
+        }
+        return changed;
     }
     /// <summary>只解析本程序根内的IPC目标；不连接、不读取正文、不创建上传或任务。</summary>
     public (Guid MountId,IReadOnlyList<string> Paths) LocateUploadIssues(IReadOnlyList<string> paths)

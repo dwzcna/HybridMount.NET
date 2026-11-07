@@ -1,6 +1,6 @@
-# HybridMount.NET 开发计划（0.0.1—0.0.9.27）
+# HybridMount.NET 开发计划（0.0.1—0.0.9.28）
 
-更新日期：2026-11-07。本批已按#19→#20逐个合并，并依次升至0.0.9.26、0.0.9.27；当前最新为0.0.9.27；针对性130/130、x64 Debug／Release各1084/1084、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release通过。主工程／测试实际Compile项188／252无重复遗漏。正式程序、配置及同步根不切换，真实服务、GUI／Explorer、安装升级及ARM64实机仍待测。按本次授权逐版独立提交，最终普通推送GitHub、Azure并精确删除已合并来源；进度与发布实证见docs/Validation-PR-Merges.md及artifacts/validation/pr-round3-publication.json。
+更新日期：2026-11-07。当前0.0.9.28修复已删除文件的问题提示清理循环及失败退避；最小x64编译、针对性95/95、Debug／Release各1096/1096、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。另对已重新启动的0.0.9.28正式进程只读复核：遗留Canceled条目自动Cleared、连续70秒CLR异常0。GUI／Explorer目视、MSIX安装升级、非打包Release启动及ARM64实机待测。本版独立本地提交、不推送；此前PR #19／#20的GitHub及Azure发布结果保留于docs/Validation-PR-Merges.md。
 
 工程限定为 HybridMount、HybridMount.Ext、HybridMount.Tests，主程序 HybridMount.NET.exe、命名空间 HybridMount。使用 WinUI 3／.NET 10／MSIX，最低 Windows 11 21H2，支持 x64／ARM64。本地挂载根仅限 NTFS。用户配置根路径为 `HKCU\Software\HybridMount.NET`，日志和运行索引使用 SQLite。
 
@@ -59,7 +59,14 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 本轮PR #16—#18逐个拉取、合并及分版自动验证预算45–75分钟，真实服务、GUI／Explorer及实机另计。每个PR独立升版、验证和提交后删除本地已合并来源分支；已在GitHub master中的旧来源分支按精确SHA清理，主分支推送仍需明确授权。
 
+0.0.9.28范围为正常缺失文件的提示清理、双向失败退避与迟到错误保护，开发及自动验证预算30–60分钟；GUI／实机等待另计。诊断正式进程只读采样及查询，自动回归使用隔离根，工具不重启正式实例。
+
 ## 已完成
+
+### 0.0.9.28：缺失文件的问题提示收尾
+
+- 已删除文件的Explorer问题属性清理不再循环抛出FileNotFoundException；发布和清除共享按问题快照隔离的30秒退避，新问题、成功及取消不继承旧等待，迟到失败不能覆盖新问题。已解决且缺失的条目只结束匹配代次的问题属性清理，不改上传结果、文件戳及基线；未解决的问题和原因继续保留。路径核验保持根身份、用户归属、边界及重解析点保护；数据库和配置格式不变。
+- 新增12项隔离回归，版本、程序集、清单及三个工程统一；代码完成与实际测试分别见docs/Validation-0.0.9.28.md。正式配置及任务未手改；对随后启动的0.0.9.28只读确认已取消条目自动Cleared及70秒采样异常0。独立本地提交、不推送。
 
 ### 0.0.9.27：PR #20——一次性文件戳过滤水合及占位自事件
 
@@ -485,6 +492,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 ## 待测试
 
+- 0.0.9.28：GUI／Explorer目视、MSIX安装升级、生成的非打包Release启动及ARM64实机。正式Debug进程的遗留ClearPending收尾和70秒运行采样已实测，不以有限采样覆盖其他场景。
+
 - 0.0.9.27／PR #20：真实服务兼容性、GUI／Explorer、正式根升级、MSIX安装及ARM64实机；本地自动回归不能替代这些验收。不访问已取消NAS，不操作正式用户文件。
 
 - 0.0.9.26／PR #19：真实服务兼容性、GUI／Explorer、正式根升级、MSIX安装及ARM64实机；本地自动回归不能替代这些验收。不访问已取消NAS，不操作正式用户文件。
@@ -565,6 +574,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 | 0.0.5.2 | 实际托盘及连续退出、正常产品进程退出码 0、包身份下退出时序、调试器／Explorer、安装升级、ARM64 实机和长期网络压力；受控服务停止不能代替 GUI 验收 |
 
 ## 已测试
+
+- 2026-11-07，0.0.9.28，Windows x64：最小Debug主／测试编译、针对性95/95、Debug／Release全量各1096/1096通过；新增12项缺失属性、退避和迟到结果保护回归。x64／ARM64签名包、ARM64测试交叉编译及x64非打包Release构建通过；实际Compile项188／253、无重复遗漏。原0.0.9.27进程70秒采样确认87次原始抛出及87次异步重抛，仅作为问题来源证据。随后检测到新启动的0.0.9.28进程，原Canceled／代次1条目自动Cleared、70秒CLR采样异常0；工具未启动或结束正式进程。见docs/Validation-0.0.9.28.md及artifacts/validation/00928-evidence.json、00928-runtime-proof.json。
 
 - 2026-11-07，0.0.9.27，PR #20：最小x64编译、针对性130/130、Debug 1084/1084、Release 1084/1084通过；x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。实际Compile项188／252及本PR相关文件无重复遗漏，未启动正式程序；详见docs/Validation-0.0.9.27.md与artifacts/validation/pr20-evidence.json。
 
