@@ -90,6 +90,7 @@ internal static class MountContentCleaner
         }
     }
     /// <summary>在原生注销和每根注册收尾期间持有祖先及根的仅属性租约，阻止目录被移动或换成链接；不读取正文。</summary>
+    internal static IDisposable HoldRoot(MountDefinition mount)=>new PathLease(mount);
     internal static IDisposable HoldEmptyRoot(MountDefinition mount)
     {
         var lease=new PathLease(mount);

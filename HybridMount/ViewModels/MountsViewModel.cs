@@ -50,7 +50,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     public async Task<OrphanedMountResult> ClearRecoveryRootAsync(OrphanedMountCandidate root,CancellationToken token,Action<string>? progress=null)
     {
         var result=await _manager.ClearOrphanedMountAsync(root,token,progress);if(IsStopping)return result;
-        Status=result.Completed?"遗留挂载已清空并注销："+root.LocalPath:"遗留挂载尚未移除："+string.Join("；",result.Errors);
+        Status=result.Completed?(root.ShellOnly?"遗留入口已移除：":"遗留挂载已清空并注销：")+root.LocalPath:"遗留挂载尚未移除："+string.Join("；",result.Errors);
         if(result.Completed){RecoveryRoots.Remove(root);SelectedRecoveryRoot=null;}return result;
     }
     public ObservableCollection<MountSnapshot> Mounts {get;}=[];

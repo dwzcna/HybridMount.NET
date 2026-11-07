@@ -52,6 +52,20 @@ public sealed partial class MountManager : IAsyncDisposable
     private readonly ILocalUploadCommitter _uploadCommitter;
     private readonly IAsyncDisposable _remoteEvents;
     private readonly LoggerService _logger;
+    private readonly IRecoveryShellRegistration _removalShell=RecoveryShellRegistration.Create();
+    internal IRecoveryShellRegistration? RemovalShellForTests {get;set;}
+    internal Action<string>? RemovalStageForTests {get;set;}
+    private MountRemovalCompletion RemovalCompletion()=>new(Path.Combine(_repository.DataDirectory,"Recovery"),RemovalShellForTests??_removalShell,ThrowIfStopping){StageForTests=RemovalStageForTests};
+    private void RecordRemovalFailure(Guid id,Exception failure)
+    {
+        try{if(RemovalCompletion().Read(id) is {} journal)RemovalCompletion().Failure(journal,failure);}
+        catch(Exception error){_logger.Queue("移除恢复记录","Error","无法保存失败阶段："+error.Message);}
+    }
+    private void RemovalStatus(Runtime root)
+    {
+        var journal=RemovalCompletion().Read(root.Definition.Id);
+        Status(root,"移除未完成",(journal?.Description??"请继续已选择的移除方式；不会自动重放删除操作。")+(journal?.Error is {} error?"；"+error:""));
+    }
     private readonly IFileSourceFactory _factory;
     private Task? _maintenance;
     private readonly ConcurrentDictionary<Guid,Runtime> _roots=new();
@@ -70,6 +84,8 @@ public sealed partial class MountManager : IAsyncDisposable
             var root=new Runtime(definition);_roots[definition.Id]=root;
             try { InspectRegistration(root); }
             catch(Exception error) { root.Status="需要恢复";root.Detail=error.Message; }
+            if(definition.RemovalPending)
+                try{RemovalStatus(root);}catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;}
         }
     }
     private sealed class PreviewLease(SemaphoreSlim gate) : IDisposable
@@ -515,13 +531,18 @@ public sealed partial class MountManager : IAsyncDisposable
                 Update(job,job.Snapshot.Results.Any(item=>item.Status=="Failed")?"PartialFailure":"Completed");
             }
             catch(OperationCanceledException)when(job.Cancel.IsCancellationRequested){Update(job,"Canceled");}
-            catch(Exception error){Update(job,"Failed",error.Message);_logger.Queue("挂载任务","Error",error.Message);}
+            catch(Exception error)
+            {
+                if(removing)RecordRemovalFailure(id,error);
+                Update(job,"Failed",error.Message);_logger.Queue("挂载任务","Error",error.Message);
+            }
             finally
             {
                 if(held)
                 {
-                    if(root.Definition.RemovalPending && _roots.ContainsKey(id))Status(root,"移除未完成",root.Definition.RemovalMode==MountRemovalMode.ClearContents?"清空尚未完成；已删内容不会恢复，请重试清空并移除。":"请继续下载并移除，以保留本地文件。");
-                    root.Gate.Release();
+                    try{if(root.Definition.RemovalPending && _roots.ContainsKey(id))RemovalStatus(root);}
+                    catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;}
+                    finally{root.Gate.Release();}
                 }
                 foreach(var path in changedPaths)NotifyFileState(path);
                 if(removing)lock(root.ConnectionSync)
@@ -546,40 +567,47 @@ public sealed partial class MountManager : IAsyncDisposable
         new CredentialStore(_repository.DataDirectory).Delete(root.Definition.Id);FileSourceFactory.DeleteAdditionalCredentials(root.Definition,_repository.DataDirectory);_repository.DeleteEntries(root.Definition.Id);_repository.DeleteDefinition(root.Definition.Id);
         _roots.TryRemove(root.Definition.Id,out _);Notify();
     }
-    /// <summary>清空本地目录；保留 CFAPI 删除确认，不读取或删除源内容。失败／取消保留意图供显式重试。</summary>
+    /// <summary>先保存精确备份与根身份；只有未完成内容处理的日志才允许清空，原生注销后只继续注册收尾。</summary>
+    private MountRemovalJournal PrepareRemoval(Runtime root,MountRemovalMode mode)
+    {
+        var mount=root.Definition;var candidate=new OrphanedMountCandidate(mount.Id,mount.LocalPath,mount.RootIdentity??"",CloudRootRegistration.Id(mount),false);
+        MountRemovalCompletion.VerifyLocal(candidate);var native=CloudFilesNative.RootIdentity(mount.LocalPath,true);
+        if(native is not null)MountRemovalCompletion.ValidateNative(candidate);
+        else if(MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))throw new IOException("注册已丢失且残留云占位，保留现场。");
+        var completion=RemovalCompletion();var journal=completion.Begin(candidate with{Registered=native is not null},mode);MarkRemoval(root,mode);
+        if(!journal.ContentCompleted&&mount.RemovalPending&&mount.RemovalStage==MountRemovalStage.Unregistering)journal=completion.ContentComplete(journal);
+        return journal;
+    }
+    private async Task CompleteRemovalAsync(Runtime root,MountRemovalJournal journal,CancellationToken token)
+    {
+        MarkUnregistering(root);await DisconnectCoreAsync(root).ConfigureAwait(false);
+        RemovalCompletion().Finish(journal,token);Forget(root);
+    }
+    /// <summary>清空本地目录，不读取或删除远端；失败／取消保留已删结果，内容完成以后不重复清空。</summary>
     private async Task<bool> ClearAndRemoveAsync(Runtime root,Job job)
     {
-        var mount=root.Definition;
-        var registered=InspectRegistration(root);
-        if(registered)MountPathGuard.ValidateOperation(mount,mount.LocalPath);
-        MarkRemoval(root,MountRemovalMode.ClearContents);Status(root,"清空中","删除全部本地内容，保留空根目录及文件源内容。");
-        if(registered && root.Session is null)
-        {
-            // 离线清空不依赖模拟源数据库或内容文件，不播种、不下载。
-            root.Session=new CloudMountSession(root.Definition,null,_repository,_logger,blockHydration:true);root.Session.Connect();
-        }
+        var journal=PrepareRemoval(root,MountRemovalMode.ClearContents);
+        if(journal.ContentCompleted){await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return true;}
+        var registered=journal.Root.Registered;Status(root,"清空中");
+        if(registered&&root.Session is null){root.Session=new CloudMountSession(root.Definition,null,_repository,_logger,blockHydration:true);root.Session.Connect();}
         if(root.Session is not null)await root.Session.BeginClearAsync().ConfigureAwait(false);
         job.Cancel.Token.ThrowIfCancellationRequested();
         var failures=MountContentCleaner.Clear(root.Definition,registered,job.Cancel.Token,
-            count=>{job.Snapshot=job.Snapshot with{Total=job.Snapshot.Total+count};Save(job);},
-            (path,status,message)=>Result(job,path,status,message));
-        if(failures>0)return false;
-        if(!MountContentCleaner.IsEmpty(root.Definition))throw new IOException("目录出现新内容，保留配置以供重试。");
-        job.Cancel.Token.ThrowIfCancellationRequested();MarkUnregistering(root);
-        await DisconnectCoreAsync(root).ConfigureAwait(false);
-        if(registered)CloudRootRegistration.Unregister(root.Definition);
-        if(!MountContentCleaner.IsEmpty(root.Definition))throw new IOException("注销后目录出现新内容，保留清空状态以供重试。");
-        Forget(root);return true;
+            count=>{job.Snapshot=job.Snapshot with{Total=job.Snapshot.Total+count};Save(job);},(path,status,message)=>Result(job,path,status,message));
+        if(failures>0){RemovalCompletion().Failure(journal,new IOException(job.Snapshot.Results.LastOrDefault(x=>x.Status=="Failed")?.Message??"内容清空未完成。"));return false;}
+        journal=RemovalCompletion().ContentComplete(journal);job.Cancel.Token.ThrowIfCancellationRequested();
+        await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return true;
     }
     private async Task RemoveAsync(Runtime root,Job job)
     {
         var mount=root.Definition;
-        var registered=InspectRegistration(root);
-        MarkRemoval(root,MountRemovalMode.PreserveFiles);
+        var journal=PrepareRemoval(root,MountRemovalMode.PreserveFiles);
+        if(journal.ContentCompleted){await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return;}
+        var registered=journal.Root.Registered;
         if(!registered)
         {
-            job.Cancel.Token.ThrowIfCancellationRequested();
-            await DisconnectCoreAsync(root).ConfigureAwait(false);Forget(root);return;
+            journal=RemovalCompletion().ContentComplete(journal);
+            await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return;
         }
         MountPathGuard.ValidateOperation(root.Definition,mount.LocalPath);
         if(root.Session is null)
@@ -614,8 +642,8 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         job.Cancel.Token.ThrowIfCancellationRequested();
         if(MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))throw new IOException("仍有未解除的云文件，保留配置和注册以供恢复。");
-        MarkUnregistering(root);await DisconnectCoreAsync(root).ConfigureAwait(false);
-        CloudRootRegistration.Unregister(root.Definition);Forget(root);
+        journal=RemovalCompletion().ContentComplete(journal);
+        await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);
     }
     private void Result(Job job,string path,string status,string message)
     {job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,Results=job.Snapshot.Results.Append(new(path,status,message)).ToArray()};Save(job);}

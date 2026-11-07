@@ -5,10 +5,11 @@
  xmlns:desktop3="http://schemas.microsoft.com/appx/manifest/desktop/windows10/3"
  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+ xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
- IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap">
-  <Identity Name="dwzcn.HybridMount.NET" Publisher="CN=dwzcn" Version="0.0.9.32" />
+ IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap uap10">
+  <Identity Name="dwzcn.HybridMount.NET" Publisher="CN=dwzcn" Version="0.0.9.33" />
   <Properties><DisplayName>HybridMount.NET</DisplayName><PublisherDisplayName>dwzcn</PublisherDisplayName><Logo>Assets\HybridMountStore.png</Logo></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
   <Resources><Resource Language="zh-CN" /></Resources>
@@ -44,6 +45,10 @@
           <desktop5:ItemType Type="Directory\Background"><desktop5:Verb Id="HybridMountBackground" Clsid="F4A8FD0B-4055-4F23-8CC0-91B736B3E491" /></desktop5:ItemType>
         </desktop4:FileExplorerContextMenus></desktop4:Extension>
       </Extensions>
+    </Application>
+    <Application Id="ShellMaintenance" Executable="HybridMount.NET.exe" uap10:RuntimeBehavior="win32App" uap10:TrustLevel="mediumIL">
+      <uap:VisualElements AppListEntry="none" DisplayName="HybridMount.NET" Description="当前用户 Shell 注册维护" BackgroundColor="transparent"
+       Square150x150Logo="Assets\HybridMountSquare150.png" Square44x44Logo="Assets\HybridMountSquare44.png" />
     </Application>
   </Applications>
   <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>

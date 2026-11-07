@@ -126,7 +126,7 @@ public sealed partial class MountsPage : Page,IDisposable
             var choose=new Button{Content="选择旧挂载目录"};
             var panel=new StackPanel{Spacing=12};panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(feedback);
             _recoveryDialog=new(){XamlRoot=XamlRoot,Title="遗留挂载",Content=panel,PrimaryButtonText="清空并注销",CloseButtonText="关闭",DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};
-            list.SelectionChanged+=(_,_)=>{ViewModel.SelectedRecoveryRoot=list.SelectedItem as OrphanedMountCandidate;if(_recoveryDialog is {} dialog)dialog.IsPrimaryButtonEnabled=ViewModel.SelectedRecoveryRoot?.CanRemove==true;};
+            list.SelectionChanged+=(_,_)=>{ViewModel.SelectedRecoveryRoot=list.SelectedItem as OrphanedMountCandidate;if(_recoveryDialog is {} dialog){dialog.IsPrimaryButtonEnabled=ViewModel.SelectedRecoveryRoot?.CanRemove==true;dialog.PrimaryButtonText=ViewModel.SelectedRecoveryRoot?.ActionText??"清空并注销";}};
             choose.Click+=async(_,_)=>
             {
                 choose.IsEnabled=false;
@@ -140,7 +140,7 @@ public sealed partial class MountsPage : Page,IDisposable
                 finally{if(!ViewModel.IsStopping)choose.IsEnabled=true;}
             };
             var selected=await _recoveryDialog.ShowAsync();if(selected!=ContentDialogResult.Primary||ViewModel.SelectedRecoveryRoot is not {} root||ViewModel.IsStopping)return;
-            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="确认清空遗留挂载",Content=root.LocalPath+"\n\n全部本地内容（包括本地修改和新建文件）将永久删除，已删内容不会回滚。离线注销同步根，保留空目录及远端内容。无法从旧根恢复服务器配置或凭据。",PrimaryButtonText="清空并注销",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title=root.ShellOnly?"确认移除遗留入口":"确认清空遗留挂载",Content=root.ShellOnly?root.LocalPath+"\n\n仅移除当前用户的 Explorer 遗留入口，保留目录和全部文件。":root.LocalPath+"\n\n全部本地内容（包括本地修改和新建文件）将永久删除，已删内容不会回滚。离线注销同步根，保留空目录及远端内容。无法从旧根恢复服务器配置或凭据。",PrimaryButtonText=root.ActionText,CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
             if(await _recoveryDialog.ShowAsync()!=ContentDialogResult.Primary||ViewModel.IsStopping)return;
             var progress=new TextBlock{Text="正在重新核对根身份…",TextWrapping=TextWrapping.Wrap,MaxWidth=620};
             _recoveryDialog=new(){XamlRoot=XamlRoot,Title="处理遗留挂载",Content=progress,CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
@@ -148,7 +148,7 @@ public sealed partial class MountsPage : Page,IDisposable
             try
             {
                 var result=await ViewModel.ClearRecoveryRootAsync(root,cancel.Token,line=>App.Current.UiDispatcher.TryEnqueue(()=>{if(!_disposed&&!ViewModel.IsStopping)progress.Text=line;}));
-                if(!ViewModel.IsStopping){progress.Text=result.Completed?"已清空并注销，空目录已保留。":result.Stage+"\n"+string.Join("\n",result.Errors);_recoveryDialog.CloseButtonText="关闭";}
+                if(!ViewModel.IsStopping){progress.Text=result.Completed?(root.ShellOnly?"遗留入口已移除，目录和文件已保留。":"已清空并注销，空目录已保留。"):result.Stage+"\n"+string.Join("\n",result.Errors);_recoveryDialog.CloseButtonText="关闭";}
             }
             catch(OperationCanceledException){if(!ViewModel.IsStopping)ViewModel.Status="遗留挂载处理已取消，已完成的删除不回滚，可再次显式核对并继续。";}
             catch(Exception error){if(!ViewModel.IsStopping){ViewModel.Status=error.Message;progress.Text=error.Message;_recoveryDialog.CloseButtonText="关闭";}}
@@ -162,8 +162,8 @@ public sealed partial class MountsPage : Page,IDisposable
         var unregistered=mount.RegistrationStage==MountRegistrationStage.NotRegistered;
         var message=mount.LocalPath+"\n\n下载并移除：完整下载后保留为普通本地目录。\n\n清空并移除：永久删除目录内全部内容，包括本地修改和新建文件，保留空根目录；不删除文件源内容。";
         if(unregistered)message=mount.LocalPath+"\n\n移除挂载：保留本地文件，不连接远端。\n\n清空并移除：永久删除根目录内全部本地内容，保留空根目录及远端数据。";
-        if(mount.RemovalPending)message+="\n\n上次移除尚未完成，请继续相同的移除方式。";
-        var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="移除挂载",Content=message,PrimaryButtonText=unregistered?"移除挂载（保留本地文件）":"下载并移除",SecondaryButtonText="清空并移除",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close,
+        if(mount.RemovalPending)message+="\n\n"+selected.Detail+(mount.RemovalStage==MountRemovalStage.Unregistering?"\n内容处理已经完成，只继续注销和 Explorer 入口收尾。":"\n请继续相同的移除方式。");
+        var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="移除挂载",Content=message,PrimaryButtonText=mount.RemovalPending&&mount.RemovalStage==MountRemovalStage.Unregistering?"继续移除收尾":unregistered?"移除挂载（保留本地文件）":"下载并移除",SecondaryButtonText=mount.RemovalPending&&mount.RemovalStage==MountRemovalStage.Unregistering?"继续移除收尾":"清空并移除",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close,
             IsPrimaryButtonEnabled=!mount.RemovalPending||mount.RemovalMode==MountRemovalMode.PreserveFiles,
             IsSecondaryButtonEnabled=!mount.RemovalPending||mount.RemovalMode==MountRemovalMode.ClearContents};
         var result=await dialog.ShowAsync();

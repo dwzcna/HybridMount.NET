@@ -20,6 +20,18 @@ try {
     $binaryVersion=if(([version]$version).Revision -lt 0) { "$version.0" } else { $version }
     if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NET') { throw 'MSIX 产品身份或版本不一致。' }
     if ($manifest.Package.Identity.ProcessorArchitecture -ne $Platform.ToLowerInvariant()) { throw '包声明架构不正确。' }
+    # 主入口保持既有虚拟化；隐藏维护入口必须独立使用经隔离验证的win32App／mediumIL组合。
+    $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")
+    $main=@($apps|Where-Object {$_.Id -eq 'App'})
+    $maintenance=@($apps|Where-Object {$_.Id -eq 'ShellMaintenance'})
+    if($apps.Count -ne 2 -or $main.Count -ne 1 -or $maintenance.Count -ne 1){throw '应用及隐藏维护入口缺失或重复。'}
+    $runtimeNamespace='http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
+    $entry=$maintenance[0]
+    if($main[0].EntryPoint -ne 'Windows.FullTrustApplication' -or $entry.HasAttribute('EntryPoint') -or
+       $entry.Executable -ne 'HybridMount.NET.exe' -or $entry.GetAttribute('RuntimeBehavior',$runtimeNamespace) -ne 'win32App' -or
+       $entry.GetAttribute('TrustLevel',$runtimeNamespace) -ne 'mediumIL' -or $entry.VisualElements.AppListEntry -ne 'none'){
+        throw '隐藏维护入口运行行为不正确，不能据此进行真实Shell清理。'
+    }
     $expectedMachine = if ($Platform -eq 'ARM64') { 0xaa64 } else { 0x8664 }
     foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','coreclr.dll')) {
         $bytes = Read-Bytes $entryName

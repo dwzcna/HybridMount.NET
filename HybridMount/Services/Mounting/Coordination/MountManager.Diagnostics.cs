@@ -13,6 +13,18 @@ public sealed partial class MountManager
             .Append("；连接：").Append(snapshot.IsConnected?"已连接":"已断开").Append("；状态：").AppendLine(snapshot.Status);
         if(snapshot.Detail.Length>0)text.AppendLine(snapshot.Detail);
         text.AppendLine(CloudShellState.RootDescription(root.Definition));
+        try
+        {
+            if(RemovalCompletion().Read(id) is {} removal)
+            {
+                text.Append("移除阶段：").AppendLine(removal.Description).Append("最近失败阶段：").AppendLine(removal.FailedStage??"无")
+                    .Append("HRESULT：").AppendLine(removal.HResult is {} result?$"0x{result:X8}":"无")
+                    .Append("移除错误：").AppendLine(removal.Error??"无").Append("最近包外核验：").AppendLine(removal.ExternalVerified?"无残留":"尚未确认完成");
+                var remaining=(RemovalShellForTests??_removalShell).Verify(removal.Root,removal.Shell);
+                text.Append("当前真实视图及包内残项：").AppendLine(remaining.Length==0?"无":string.Join("；",remaining));
+            }
+        }
+        catch(Exception error){text.Append("移除注册只读核验失败：").Append(error.Message).Append("；HRESULT=0x").AppendLine(error.HResult.ToString("X8"));}
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));
         text.Append("挂载缩略图开关：").AppendLine(root.Definition.ThumbnailsEnabled?"已开启":"已关闭");
         text.Append("远端检测模式：").AppendLine(snapshot.Detection?.Mode??"尚未检测");
@@ -34,12 +46,13 @@ public sealed partial class MountManager
                         .Append("Explorer提示：").Append(issue.ShellState).Append("；").AppendLine(issue.ShellError);
             try
             {
+                if(root.Definition.RemovalPending&&LocalFileMetadata.TryRead(path) is null){text.AppendLine("本地已删除");continue;}
                 MountPathGuard.ValidateOperation(root.Definition,path);var native=CloudFilesNative.Inspect(path);
                 text.AppendLine(native is {} value?$"CFAPI：InSync={value.Info.InSyncState}；ModifiedBytes={value.Info.ModifiedSize}；Pin={value.Info.PinState}；OnDiskBytes={value.Info.OnDiskSize}":"CFAPI：非占位或不存在");
                 if(native is {} pending&&pending.Info.PinState==2&&pending.Info.OnDiskSize>0)text.AppendLine("释放空间意图：UNPINNED，仍有本地缓存；等待无修改、无占用及无未决工作的安全脱水。");
                 text.AppendLine(CloudShellState.Read(path).ToString());
             }
-            catch(Exception error){text.Append("只读查询失败：").AppendLine(error.GetType().Name);}
+            catch(Exception error){text.Append("只读查询失败：").Append(error.GetType().Name).Append("；").Append(error.Message).Append("；HRESULT=0x").AppendLine(error.HResult.ToString("X8"));}
         }
         return text.ToString();
     },cancel),token);
