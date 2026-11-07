@@ -31,6 +31,26 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     public event Action? Refreshing;
     public event Action? Refreshed;
     public event Action? StateChanged;
+    public ObservableCollection<OrphanedMountCandidate> RecoveryRoots {get;}=[];
+    public OrphanedMountCandidate? SelectedRecoveryRoot {get;set;}
+    /// <summary>遗留列表与选择属于挂载页状态；应用服务只返回本地身份快照。</summary>
+    public async Task DiscoverRecoveryRootsAsync(CancellationToken token)
+    {
+        var roots=await _manager.DiscoverOrphanedMountsAsync(token);if(IsStopping)return;
+        SnapshotCollections.Reconcile(RecoveryRoots,roots,x=>x.LocalPath);SelectedRecoveryRoot=null;
+    }
+    public async Task AddRecoveryRootAsync(string path,CancellationToken token)
+    {
+        var root=await _manager.InspectOrphanedMountAsync(path,token);if(IsStopping)return;
+        var previous=RecoveryRoots.FirstOrDefault(x=>x.LocalPath.Equals(root.LocalPath,StringComparison.OrdinalIgnoreCase));if(previous is not null)RecoveryRoots.Remove(previous);
+        RecoveryRoots.Add(root);SelectedRecoveryRoot=root;
+    }
+    public async Task<OrphanedMountResult> ClearRecoveryRootAsync(OrphanedMountCandidate root,CancellationToken token,Action<string>? progress=null)
+    {
+        var result=await _manager.ClearOrphanedMountAsync(root,token,progress);if(IsStopping)return result;
+        Status=result.Completed?"遗留挂载已清空并注销："+root.LocalPath:"遗留挂载尚未移除："+string.Join("；",result.Errors);
+        if(result.Completed){RecoveryRoots.Remove(root);SelectedRecoveryRoot=null;}return result;
+    }
     public ObservableCollection<MountSnapshot> Mounts {get;}=[];
     public ObservableCollection<MountListItem> Items {get;}=[];
     public MountsViewModel(MountManager manager,IUiDispatcher dispatcher,LoggerService? logger=null)

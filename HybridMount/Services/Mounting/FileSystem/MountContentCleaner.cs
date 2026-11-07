@@ -89,6 +89,13 @@ internal static class MountContentCleaner
             return failures;
         }
     }
+    /// <summary>在原生注销和每根注册收尾期间持有祖先及根的仅属性租约，阻止目录被移动或换成链接；不读取正文。</summary>
+    internal static IDisposable HoldEmptyRoot(MountDefinition mount)
+    {
+        var lease=new PathLease(mount);
+        try{if(Directory.EnumerateFileSystemEntries(mount.LocalPath).Any())throw new IOException("目录不为空，停止注销。");return lease;}
+        catch{lease.Dispose();throw;}
+    }
     /// <summary>在锁住根路径时检查是否清空；身份或链接变化会拒绝完成移除。</summary>
     internal static bool IsEmpty(MountDefinition mount)
     { using var lease=new PathLease(mount);return !Directory.EnumerateFileSystemEntries(mount.LocalPath).Any(); }

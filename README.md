@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.30**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.31**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部；使用页面枚举和 Frame.Navigate 切换，采用内置淡入与上移动画，并保留原生返回历史。标题栏返回按钮与 Alt＋左方向键共用返回入口；无历史时按钮禁用，弹层打开时保持底层页面。五页缓存各自的草稿、选择和滚动。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -63,7 +63,7 @@ Visual Studio 调试选择：
 
 Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=None`，可直接运行 EXE；扩展、测试工程在 Unpackaged 配置中复用对应 Debug／Release 构建。输出按架构、配置、Packaged／Unpackaged 隔离。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.30`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.30`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.31`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.31`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -89,7 +89,7 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 同时注册菜单和 StartupTask；不需要手工使用 regsvr32。未打包开发运行不注册 Explorer 菜单，登录启动使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.30.md](docs/Validation-0.0.9.30.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版验证细节及待测项目见 [docs/Validation-0.0.9.31.md](docs/Validation-0.0.9.31.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 本版真实自动同步验收可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

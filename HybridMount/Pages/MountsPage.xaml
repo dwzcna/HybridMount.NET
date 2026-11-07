@@ -22,6 +22,7 @@
             </Button>
             <Button x:Name="ExportButton" Content="导出配置" Click="ExportConfigurations"/>
             <Button x:Name="ImportButton" Content="导入配置" Click="ImportConfigurations"/>
+            <Button x:Name="RecoveryButton" Content="遗留挂载" Click="RecoverOrphanedMounts"/>
         </StackPanel>
         <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
                   SelectionMode="Single" AutomationProperties.Name="挂载列表"

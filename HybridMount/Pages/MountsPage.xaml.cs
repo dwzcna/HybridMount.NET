@@ -16,7 +16,8 @@ public sealed partial class MountsPage : Page,IDisposable
     private bool _restoringSelection,_disposed;
     private MountBackupDialog? _backupDialog;
     private IMountConfigurationDialog? _configurationDialog;
-    private ContentDialog? _diagnosticDialog;
+    private ContentDialog? _diagnosticDialog,_recoveryDialog;
+    private CancellationTokenSource? _recoveryCancel;
     private readonly PageScrollBookmark _viewport=new();
     public MountsPage()
     {
@@ -38,7 +39,7 @@ public sealed partial class MountsPage : Page,IDisposable
         try{MountList.SelectedItem=ViewModel.Items.FirstOrDefault(x=>x.Id==ViewModel.SelectedMountId);}finally{_restoringSelection=false;}
         UpdatePageState();_viewport.Restore(MountList);
     }
-    private void UpdatePageState(){if(_disposed)return;AddButton.IsEnabled=ExportButton.IsEnabled=ImportButton.IsEnabled=!ViewModel.DialogBusy&&!ViewModel.IsStopping;}
+    private void UpdatePageState(){if(_disposed)return;AddButton.IsEnabled=ExportButton.IsEnabled=ImportButton.IsEnabled=RecoveryButton.IsEnabled=!ViewModel.DialogBusy&&!ViewModel.IsStopping;}
     /// <summary>按钮携带本行身份；点击未选中行的打开或诊断不会改写当前选择。</summary>
     private async void CardAction(object? sender,MountCardActionEventArgs args)
     {
@@ -113,6 +114,48 @@ public sealed partial class MountsPage : Page,IDisposable
         }
         finally { _backupDialog=null; }
     });
+    /// <summary>页面只适配列表、目录选择和两次确认；清理及取消由应用拥有，关闭页面不会丢失已完成阶段。</summary>
+    private async void RecoverOrphanedMounts(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
+    {
+        using var cancel=new CancellationTokenSource();_recoveryCancel=cancel;
+        try
+        {
+            await ViewModel.DiscoverRecoveryRootsAsync(cancel.Token);if(ViewModel.IsStopping)return;
+            var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,DisplayMemberPath="Display",SelectionMode=ListViewSelectionMode.Single,MinWidth=360,MaxWidth=620,MaxHeight=360};
+            var feedback=new TextBlock{Text=ViewModel.RecoveryRoots.Count==0?"未发现可核对的遗留挂载。":"",TextWrapping=TextWrapping.Wrap};
+            var choose=new Button{Content="选择旧挂载目录"};
+            var panel=new StackPanel{Spacing=12};panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(feedback);
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="遗留挂载",Content=panel,PrimaryButtonText="清空并注销",CloseButtonText="关闭",DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};
+            list.SelectionChanged+=(_,_)=>{ViewModel.SelectedRecoveryRoot=list.SelectedItem as OrphanedMountCandidate;if(_recoveryDialog is {} dialog)dialog.IsPrimaryButtonEnabled=ViewModel.SelectedRecoveryRoot?.CanRemove==true;};
+            choose.Click+=async(_,_)=>
+            {
+                choose.IsEnabled=false;
+                try
+                {
+                    var picker=new Windows.Storage.Pickers.FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+                    var folder=await picker.PickSingleFolderAsync();if(folder is null||cancel.IsCancellationRequested||ViewModel.IsStopping)return;
+                    await ViewModel.AddRecoveryRootAsync(folder.Path,cancel.Token);if(!ViewModel.IsStopping){list.SelectedItem=ViewModel.SelectedRecoveryRoot;feedback.Text="";}
+                }
+                catch(Exception error){if(!ViewModel.IsStopping)feedback.Text=error.Message;}
+                finally{if(!ViewModel.IsStopping)choose.IsEnabled=true;}
+            };
+            var selected=await _recoveryDialog.ShowAsync();if(selected!=ContentDialogResult.Primary||ViewModel.SelectedRecoveryRoot is not {} root||ViewModel.IsStopping)return;
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="确认清空遗留挂载",Content=root.LocalPath+"\n\n全部本地内容（包括本地修改和新建文件）将永久删除，已删内容不会回滚。离线注销同步根，保留空目录及远端内容。无法从旧根恢复服务器配置或凭据。",PrimaryButtonText="清空并注销",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            if(await _recoveryDialog.ShowAsync()!=ContentDialogResult.Primary||ViewModel.IsStopping)return;
+            var progress=new TextBlock{Text="正在重新核对根身份…",TextWrapping=TextWrapping.Wrap,MaxWidth=620};
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="处理遗留挂载",Content=progress,CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            _recoveryDialog.CloseButtonClick+=(_,_)=>cancel.Cancel();var shown=_recoveryDialog.ShowAsync().AsTask();
+            try
+            {
+                var result=await ViewModel.ClearRecoveryRootAsync(root,cancel.Token,line=>App.Current.UiDispatcher.TryEnqueue(()=>{if(!_disposed&&!ViewModel.IsStopping)progress.Text=line;}));
+                if(!ViewModel.IsStopping){progress.Text=result.Completed?"已清空并注销，空目录已保留。":result.Stage+"\n"+string.Join("\n",result.Errors);_recoveryDialog.CloseButtonText="关闭";}
+            }
+            catch(OperationCanceledException){if(!ViewModel.IsStopping)ViewModel.Status="遗留挂载处理已取消，已完成的删除不回滚，可再次显式核对并继续。";}
+            catch(Exception error){if(!ViewModel.IsStopping){ViewModel.Status=error.Message;progress.Text=error.Message;_recoveryDialog.CloseButtonText="关闭";}}
+            await shown;
+        }
+        finally{_recoveryDialog=null;_recoveryCancel=null;}
+    });
     private Task RemoveAsync(Guid id)=>ViewModel.RunForMountAsync(id,async selected=>await ViewModel.RunDialogAsync(async()=>
     {
         var mount=selected.Definition;
@@ -136,7 +179,7 @@ public sealed partial class MountsPage : Page,IDisposable
     /// <summary>真正释放才取消对话框和视图订阅；导航离页不停止后台挂载。</summary>
     public void Dispose()
     {
-        if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();_diagnosticDialog?.Hide();_configurationDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();
+        if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();_diagnosticDialog?.Hide();_recoveryCancel?.Cancel();_recoveryDialog?.Hide();_configurationDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();
         ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.StateChanged-=UpdatePageState;ViewModel.Dispose();
     }
 }
