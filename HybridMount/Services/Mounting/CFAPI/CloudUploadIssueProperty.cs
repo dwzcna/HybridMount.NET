@@ -27,16 +27,28 @@ internal static class CloudUploadIssueProperty
         if(!begin(before))return;
         var text=message;
         text=text.Replace('\r',' ').Replace('\n',' ');if(text.Length>180)text=text[..177]+"…";
-        // 指定唯一属性ID；空值只清除此ID，不提交空集合清除其他提供程序属性。
-        var property=new StorageProviderItemProperty{Id=PropertyId,Value=text,IconResource=text.Length==0?"":new Uri(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png")).AbsoluteUri};
-        IStorageItem item=before.IsDirectory?await StorageFolder.GetFolderFromPathAsync(path).AsTask(token):await StorageFile.GetFileFromPathAsync(path).AsTask(token);
-        await StorageProviderItemProperties.SetAsync(item,[property]).AsTask(token);
+        // Windows会把空文字/图标丢出向量却保留编号；真正移除本程序编号，并保全其他完整属性。
+        var stored=CloudCustomStateReader.Read(path);
+        var change=stored.Replace(PropertyId,text,text.Length==0?"":new Uri(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png")).AbsoluteUri);
+        if((change.Changed||text.Length>0)&&stored.Ids.Count>0&&stored.ProviderId!=CloudRootRegistration.Id(mount))throw new IOException("自定义状态来源不属于本同步根，未修改属性。");
+        if(change.Changed)
+        {
+            IStorageItem item=before.IsDirectory?await StorageFolder.GetFolderFromPathAsync(path).AsTask(token):await StorageFile.GetFileFromPathAsync(path).AsTask(token);
+            await StorageProviderItemProperties.SetAsync(item,change.Properties.Select(x=>new StorageProviderItemProperty{Id=x.Id,Value=x.Value,IconResource=x.Icon})).AsTask(token);
+        }
         // 普通文件关闭时会再产生USN；在保护内先生成close记录，避免释放后的元数据被误当新编辑。
-        if(!WriteClose(borrowed,0x000900ef,0,0,new byte[8],8,out _,0))throw new Win32Exception(Marshal.GetLastWin32Error());
+        if(change.Changed&&!WriteClose(borrowed,0x000900ef,0,0,new byte[8],8,out _,0))throw new Win32Exception(Marshal.GetLastWin32Error());
         var after=LocalFileState.Read(borrowed);var final=Inspect(path);
         if(before.Identity!=after.Identity||before.IsDirectory!=after.IsDirectory||before.Length!=after.Length||before.LastWriteTime!=after.LastWriteTime||
             native?.Info.InSyncState!=final?.Info.InSyncState||native?.Info.PinState!=final?.Info.PinState||native?.Info.OnDiskSize!=final?.Info.OnDiskSize||
             !SameIdentity(native?.Identity,final?.Identity))throw new IOException($"提示写入后的内容或占位状态不一致，未吸收观察状态。before={before.Key}; after={after.Key}; native={native?.Info.InSyncState}/{native?.Info.PinState}/{native?.Info.OnDiskSize}; final={final?.Info.InSyncState}/{final?.Info.PinState}/{final?.Info.OnDiskSize}");
+        if(change.Changed)
+        {
+            var actual=CloudCustomStateReader.Read(path);
+            if(actual.ProviderId!=CloudRootRegistration.Id(mount)||actual.Ids.Count!=change.Properties.Count||actual.Values.Count!=actual.Ids.Count||actual.Icons.Count!=actual.Ids.Count||
+                actual.Ids.Where((x,i)=>x!=change.Properties[i].Id.ToString(System.Globalization.CultureInfo.InvariantCulture)||actual.Values[i]!=change.Properties[i].Value||actual.Icons[i]!=change.Properties[i].Icon).Any())
+                throw new IOException("自定义状态写后核对未通过，保留恢复记录。");
+        }
         if(written is not null)await written().ConfigureAwait(false);
         commit(before,after);
     }

@@ -8,6 +8,7 @@ public sealed partial class MountManager
     private Task? _issuePublishing;
     private readonly SemaphoreSlim _issuePublishGate=new(1,1);
     private readonly Dictionary<string,(long Generation,UploadAttention Attention,DateTimeOffset Next)> _issuePublicationRetry=[];
+    private bool _legacyIssueClearsQueued;
     /// <summary>问题变化使用独立只读快照；清除任务历史不影响此事件和持久状态。</summary>
     public event Action? UploadIssuesChanged;
     private void NotifyIssues()
@@ -38,6 +39,17 @@ public sealed partial class MountManager
     }
     private async Task PublishUploadIssuesLockedAsync(CancellationToken token)
     {
+        // 旧版Cleared可能仍有空白编号；每次应用会话只检查一遍，继续走原身份、路径预留和恢复日志。
+        if(!_legacyIssueClearsQueued)
+        {
+            foreach(var legacy in _repository.Uploads().Where(x=>x.Attention is {ResolvedUtc:not null,ShellState:"Cleared"}))
+            {
+                token.ThrowIfCancellationRequested();var attention=legacy.Attention!;
+                _repository.UpdateUpload(legacy.Id,current=>current.Generation!=legacy.Generation||current.Attention!=attention?current:
+                    current with{Attention=attention with{ShellState="ClearPending",ShellError=null}});
+            }
+            _legacyIssueClearsQueued=true;
+        }
         foreach(var selected in _repository.Uploads().Where(x=>x.Attention?.ShellState is "Pending" or "ClearPending" or "Publishing" or "Clearing"))
         {
             token.ThrowIfCancellationRequested();

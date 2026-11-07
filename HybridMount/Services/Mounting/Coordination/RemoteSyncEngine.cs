@@ -3,11 +3,13 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>只负责只读发现和持久事件；应用本地变更由根协调器执行。单实例调用串行，网络不持根锁。</summary>
-internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSource source,IRemoteChangeSource changes,MountRepository repository)
+internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSource source,IRemoteChangeSource changes,MountRepository repository,RemoteChangeSessionState? session=null)
 {
     private readonly SemaphoreSlim _poll=new(1,1);
     public string Scope=>scope;
     public string Mode {get;private set;}="尚未检测";
+    private readonly RemoteChangeSessionState _session=session??new();
+    internal RemoteChangeFallback? Fallback=>_session.Fallback;
     public async Task PollAsync(bool forceFull,TimeSpan fullInterval,CancellationToken token)
     {
         await _poll.WaitAsync(token).ConfigureAwait(false);
@@ -15,37 +17,54 @@ internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSour
         {
             changes.RestoreObservations(repository.RemoteShadow(mount,scope));
             if(source is IRemoteSnapshotSource snapshot){await SnapshotAsync(snapshot,forceFull,fullInterval,token).ConfigureAwait(false);return;}
-            var visited=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var queue=new Queue<string>();queue.Enqueue("");
-            while(queue.Count!=0)
+            try{await CollectionsAsync(forceFull,fullInterval,token).ConfigureAwait(false);}
+            catch(InvalidRemoteChangeResponseException error)
             {
-                token.ThrowIfCancellationRequested();var path=queue.Dequeue();if(!visited.Add(path))continue;
-                if(visited.Count>1000000)throw new IOException("远端集合数量超过安全限制。");
-                var checkpoint=repository.RemoteCollections(mount,scope).FirstOrDefault(x=>x.Path==path)??new(path);
-                if(checkpoint.Mode=="Unknown")
-                {
-                    checkpoint=checkpoint with{Mode=await changes.SupportsCollectionSyncAsync(path,token).ConfigureAwait(false)?"RFC6578":"Full"};
-                }
-                if(forceFull)checkpoint=checkpoint with{Token=null,BuildingBaseline=false,Baseline=null};
-                if(checkpoint.Mode=="RFC6578")
-                {
-                    try
-                    {
-                        try{await SyncAsync(checkpoint,token).ConfigureAwait(false);}
-                        catch(RemoteChangeFailure error)when(error.InvalidCheckpoint)
-                        {await SyncAsync(checkpoint with{Token=null,BuildingBaseline=false,Baseline=null},token).ConfigureAwait(false);}
-                    }
-                    catch(RemoteChangeFailure error)when(error.Unsupported)
-                    { await FullAsync(checkpoint with{Mode="Full",Token=null,BuildingBaseline=false,Baseline=null},token).ConfigureAwait(false); }
-                }
-                else if(forceFull||checkpoint.LastFullUtc is null||DateTimeOffset.UtcNow-checkpoint.LastFullUtc>=fullInterval)
-                    await FullAsync(checkpoint,token).ConfigureAwait(false);
-                // 子目录分别拥有令牌；不认为父集合报告覆盖所有后代。
-                foreach(var child in repository.RemoteShadow(mount,scope).Where(x=>x.Entry.IsDirectory&&RelativePaths.Parent(x.Entry.Path)==path))queue.Enqueue(child.Entry.Path);
+                token.ThrowIfCancellationRequested();_session.Disable(error);Mode=RemoteChangeSessionState.FallbackMode;
+                // 失败页没有提交；从根强制完整抓取，不能只回退出错子集合或采用半份基线推断删除。
+                await CollectionsAsync(true,fullInterval,token).ConfigureAwait(false);
             }
-            var modes=repository.RemoteCollections(mount,scope).Select(x=>x.Mode).Distinct().ToArray();
-            Mode=modes.Contains("RFC6578")?(modes.Contains("Full")?"RFC 6578 + 完整对账":"RFC 6578 增量检测"):"完整对账（服务器不支持 RFC 6578）";
         }
+        catch{_session.RequireFullScan();throw;}
         finally{_poll.Release();}
+    }
+    /// <summary>逐目录独立检测；当前会话的能力决定独立于持久检查点，重连可重新探测 Full 集合。</summary>
+    private async Task CollectionsAsync(bool forceFull,TimeSpan fullInterval,CancellationToken token)
+    {
+        var disabled=_session.Fallback is not null;if(disabled){Mode=RemoteChangeSessionState.FallbackMode;forceFull|=_session.FullScanRequired;}
+        var visited=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var queue=new Queue<string>();queue.Enqueue("");
+        while(queue.Count!=0)
+        {
+            token.ThrowIfCancellationRequested();var path=queue.Dequeue();if(!visited.Add(path))continue;
+            if(visited.Count>1000000)throw new IOException("远端集合数量超过安全限制。");
+            var checkpoint=repository.RemoteCollections(mount,scope).FirstOrDefault(x=>x.Path==path)??new(path);
+            if(disabled)checkpoint=checkpoint with{Mode="Full"};
+            else
+            {
+                if(!_session.TryGetMode(path,out var mode))
+                {mode=await changes.SupportsCollectionSyncAsync(path,token).ConfigureAwait(false)?"RFC6578":"Full";_session.SetMode(path,mode);}
+                if(mode=="RFC6578"&&checkpoint.Mode!="RFC6578")checkpoint=checkpoint with{Token=null,BuildingBaseline=false,Baseline=null};
+                checkpoint=checkpoint with{Mode=mode};
+            }
+            if(forceFull)checkpoint=checkpoint with{Token=null,BuildingBaseline=false,Baseline=null};
+            if(checkpoint.Mode=="RFC6578")
+            {
+                try
+                {
+                    try{await SyncAsync(checkpoint,token).ConfigureAwait(false);}
+                    catch(RemoteChangeFailure error)when(error.InvalidCheckpoint)
+                    {await SyncAsync(checkpoint with{Token=null,BuildingBaseline=false,Baseline=null},token).ConfigureAwait(false);}
+                }
+                catch(RemoteChangeFailure error)when(error.Unsupported)
+                {_session.SetMode(path,"Full");await FullAsync(checkpoint with{Mode="Full",Token=null,BuildingBaseline=false,Baseline=null},token).ConfigureAwait(false);}
+            }
+            else if(forceFull||checkpoint.LastFullUtc is null||DateTimeOffset.UtcNow-checkpoint.LastFullUtc>=fullInterval)
+                await FullAsync(checkpoint,token).ConfigureAwait(false);
+            foreach(var child in repository.RemoteShadow(mount,scope).Where(x=>x.Entry.IsDirectory&&RelativePaths.Parent(x.Entry.Path)==path))queue.Enqueue(child.Entry.Path);
+        }
+        token.ThrowIfCancellationRequested();if(disabled)_session.CompleteFullScan();
+        var modes=repository.RemoteCollections(mount,scope).Select(x=>x.Mode).Distinct().ToArray();
+        Mode=disabled?RemoteChangeSessionState.FallbackMode:modes.Contains("RFC6578")?(modes.Contains("Full")?"RFC 6578 + 完整对账":"RFC 6578 增量检测"):"完整对账（服务器不支持 RFC 6578）";
     }
     /// <summary>一次扫描的所有分页先在锁外完成；缺失逐项查询当前状态，失败/取消不持久任何删除。</summary>
     private async Task SnapshotAsync(IRemoteSnapshotSource snapshot,bool force,TimeSpan interval,CancellationToken token)
@@ -89,16 +108,19 @@ internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSour
     {
         var initial=checkpoint.Token is null||checkpoint.BuildingBaseline;
         var accumulated=(checkpoint.Baseline??[]).ToDictionary(x=>x.Path,StringComparer.OrdinalIgnoreCase);
+        var tokens=new HashSet<string>(StringComparer.Ordinal);if(checkpoint.Token is {} previous)tokens.Add(previous);
         for(var batchNumber=0;batchNumber<10000;batchNumber++)
         {
             var batch=await changes.GetCollectionChangesAsync(checkpoint.Path,checkpoint.Token,token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
+            if(string.IsNullOrWhiteSpace(batch.NextToken)||batch.NextToken.Length>65536||batch.HasMore&&!tokens.Add(batch.NextToken))
+                throw new InvalidRemoteChangeResponseException("远端续批令牌缺失、超限或重复，未推进本页检查点。");
             if(initial)
             {
                 foreach(var entry in batch.Entries)
-                {if(accumulated.ContainsKey(entry.Path))throw new IOException("DAV 初始续批包含重复路径，未提交完整基线。");accumulated.Add(entry.Path,entry);}
-                if(batch.Deleted.Count!=0)throw new IOException("DAV 初始续批包含删除，未提交完整基线。");
-                if(accumulated.Count>1000000)throw new IOException("DAV 初始基线超过安全限制。");
+                {if(accumulated.ContainsKey(entry.Path))throw new InvalidRemoteChangeResponseException("DAV 初始续批包含重复路径，未提交完整基线。");accumulated.Add(entry.Path,entry);}
+                if(batch.Deleted.Count!=0)throw new InvalidRemoteChangeResponseException("DAV 初始续批包含删除，未提交完整基线。");
+                if(accumulated.Count>1000000)throw new InvalidRemoteChangeResponseException("DAV 初始基线超过安全限制。");
                 checkpoint=checkpoint with{Token=batch.NextToken,BuildingBaseline=batch.HasMore,Baseline=batch.HasMore?accumulated.Values.ToArray():null};
                 if(batch.HasMore)repository.CommitRemoteBatch(mount,scope,checkpoint,[],[]);
                 else
@@ -113,7 +135,7 @@ internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSour
             }
             if(!batch.HasMore)return;
         }
-        throw new IOException("DAV 续批次数超过安全限制，保留检查点待重试。");
+        throw new InvalidRemoteChangeResponseException("DAV 续批次数超过安全限制，保留检查点待重试。");
     }
     private async Task FullAsync(RemoteCollectionCheckpoint checkpoint,CancellationToken token)
     {

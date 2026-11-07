@@ -24,6 +24,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public UploadRuntime? Uploads;
         public RemoteSyncRuntime? RemoteSync;
         public RemoteDetectionStatus Detection=new();
+        public RemoteChangeSessionState ChangeSession=new();
         public RemoteCapacitySession? Capacity;
         public RemoteCapacitySnapshot? CapacityStatus;
         public string? CapacityScope;
@@ -33,6 +34,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public bool SkipStartupConnection;
         public Action<SourceContentBaseline>? BaselineObserver;
         public Action<string>? WriteObserver;
+        public Action? CapacityObserver;
         public string Status=definition.RemovalPending?"移除未完成":"未连接";
         public string Detail=definition.RemovalPending?"请继续已选择的移除方式；不会自动重放删除操作。":"";
     }
@@ -238,6 +240,7 @@ public sealed partial class MountManager : IAsyncDisposable
             token.ThrowIfCancellationRequested();root.ConnectionStopReason=null;root.ConnectionSignal=Task.CompletedTask;root.Connecting=connection;root.ConnectionFinished=finished.Task;
         }
         token=connection.Token;
+        root.ChangeSession=new();root.Detection=root.Detection with{Mode="尚未检测",Error=null};
         Status(root,"连接中");
         try
         {

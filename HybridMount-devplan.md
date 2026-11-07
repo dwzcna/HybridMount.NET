@@ -1,6 +1,6 @@
-# HybridMount.NET 开发计划（0.0.1—0.0.9.28）
+# HybridMount.NET 开发计划（0.0.1—0.0.9.29）
 
-更新日期：2026-11-07。当前0.0.9.28修复已删除文件的问题提示清理循环及失败退避；最小x64编译、针对性95/95、Debug／Release各1096/1096、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。另对已重新启动的0.0.9.28正式进程只读复核：遗留Canceled条目自动Cleared、连续70秒CLR异常0。GUI／Explorer目视、MSIX安装升级、非打包Release启动及ARM64实机待测。本版独立本地提交、不推送；此前PR #19／#20的GitHub及Azure发布结果保留于docs/Validation-PR-Merges.md。
+更新日期：2026-11-07。当前0.0.9.29实现WebDAV挂载级RFC6578异常全量回退、507配额错误与PATCH能力诊断，并修复Explorer空白自定义状态崩溃；用户已确认D:\myweb恢复正常。最终最小x64编译、Shell针对性23/23、Debug／Release各1138/1138、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。真实初始和带令牌增量REPORT有效、配额10 GiB，正式配置未改。其他GUI／Explorer完整矩阵、最终Release正常启动、安装升级及ARM64实机待测；本版本地提交、不推送。详见docs/Validation-0.0.9.29.md。
 
 工程限定为 HybridMount、HybridMount.Ext、HybridMount.Tests，主程序 HybridMount.NET.exe、命名空间 HybridMount。使用 WinUI 3／.NET 10／MSIX，最低 Windows 11 21H2，支持 x64／ARM64。本地挂载根仅限 NTFS。用户配置根路径为 `HKCU\Software\HybridMount.NET`，日志和运行索引使用 SQLite。
 
@@ -61,7 +61,15 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 0.0.9.28范围为正常缺失文件的提示清理、双向失败退避与迟到错误保护，开发及自动验证预算30–60分钟；GUI／实机等待另计。诊断正式进程只读采样及查询，自动回归使用隔离根，工具不重启正式实例。
 
+0.0.9.29原预算开发及自动验证3–5小时；追加Explorer详细信息列确定性崩溃的捕获、符号定位及精确元数据修复，桌面和外部等待另计。按补丁、最小编译、针对性、最终全量及双架构包顺序交付，不推送。
+
 ## 已完成
+
+### 0.0.9.29：WebDAV降级保护、配额诊断与空白状态修复
+
+- REPORT结构错误采用专用异常；整挂载本会话停用RFC6578并立即从根全量，失败页不推进检查点、不用半份枚举推断删除。普通刷新／重试／间隔修改保留降级；显式重连、重开检测及应用重启重新探测旧Full集合，从空令牌建基线。模式、原因和时间进入现有诊断。
+- 写操作507标准DAV原因分类、容量缓存跨挂载同范围失效及迟到查询保护；失败保留快照／基线供显式重试。RFC5789仅诊断已有OPTIONS，条件PUT保持；取消RFC4709。
+- Explorer清除真正移除自定义编号，保全其他完整状态并读回校验；旧Cleared记录每会话仅复核一次。已捕获windows.storage.dll空文字向量故障并精确修复正式坏文件元数据，上传结果及代次保持，用户确认恢复正常。数据库和配置格式不变；实现及验收分别记录于docs/Validation-0.0.9.29.md。
 
 ### 0.0.9.28：缺失文件的问题提示收尾
 
@@ -492,6 +500,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 ## 待测试
 
+- 0.0.9.29：完整GUI及Explorer场景矩阵、长期运行、最终Release非打包正常启动、MSIX安装升级及ARM64实机；本次详细信息列崩溃用户已确认恢复，不能代替其他场景。当前真实REPORT已修复，坏响应降级为模拟回归，真实初始和带令牌增量及配额已只读实测。历史Shell及审查待办保留。
+
 - 0.0.9.28：GUI／Explorer目视、MSIX安装升级、生成的非打包Release启动及ARM64实机。正式Debug进程的遗留ClearPending收尾和70秒运行采样已实测，不以有限采样覆盖其他场景。
 
 - 0.0.9.27／PR #20：真实服务兼容性、GUI／Explorer、正式根升级、MSIX安装及ARM64实机；本地自动回归不能替代这些验收。不访问已取消NAS，不操作正式用户文件。
@@ -574,6 +584,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 | 0.0.5.2 | 实际托盘及连续退出、正常产品进程退出码 0、包身份下退出时序、调试器／Explorer、安装升级、ARM64 实机和长期网络压力；受控服务停止不能代替 GUI 验收 |
 
 ## 已测试
+
+- 2026-11-07，0.0.9.29，Windows x64：最终主工程最小Debug／Unpackaged、Shell针对性23/23、Debug／Release全量各1138/1138通过；本版新增42项。x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过；Compile主193／测试261及挂载133项无重复遗漏。真实只读6请求验证初始及带令牌增量REPORT、10 GiB配额和PATCH未验证通告；正式定义不变。Explorer故障捕获确认编号1／文字0／空指针；精确移除坏元数据后用户确认正常，程序自动收尾为Completed／代次1／Cleared，无额外上传。证据见docs/Validation-0.0.9.29.md和artifacts/validation/00929-evidence.json。
 
 - 2026-11-07，0.0.9.28，Windows x64：最小Debug主／测试编译、针对性95/95、Debug／Release全量各1096/1096通过；新增12项缺失属性、退避和迟到结果保护回归。x64／ARM64签名包、ARM64测试交叉编译及x64非打包Release构建通过；实际Compile项188／253、无重复遗漏。原0.0.9.27进程70秒采样确认87次原始抛出及87次异步重抛，仅作为问题来源证据。随后检测到新启动的0.0.9.28进程，原Canceled／代次1条目自动Cleared、70秒CLR采样异常0；工具未启动或结束正式进程。见docs/Validation-0.0.9.28.md及artifacts/validation/00928-evidence.json、00928-runtime-proof.json。
 

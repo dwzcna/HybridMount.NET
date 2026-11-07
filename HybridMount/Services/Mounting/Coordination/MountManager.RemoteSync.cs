@@ -43,7 +43,7 @@ public sealed partial class MountManager
             var identity=root.Definition.Source.Endpoint;
             var scope=root.Source is IMountSourceRuntime scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
             _repository.ActivateRemoteScope(root.Definition.Id,scope);
-            var runtime=new RemoteSyncRuntime(root.Source,root.Session,new(root.Definition.Id,scope,root.Source,changes,_repository),_stop.Token);root.RemoteSync=runtime;
+            var runtime=new RemoteSyncRuntime(root.Source,root.Session,new(root.Definition.Id,scope,root.Source,changes,_repository,root.ChangeSession),_stop.Token);root.RemoteSync=runtime;
             changes.RestoreObservations(_repository.RemoteShadow(root.Definition.Id,scope));
             if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=Task.Run(()=>RemoteLoopAsync(root,runtime));StartRemoteEvents(root,runtime);}
         }
@@ -66,7 +66,7 @@ public sealed partial class MountManager
     }
     private async Task RemoteLoopAsync(Runtime root,RemoteSyncRuntime runtime)
     {
-        var failures=0;var next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
+        var failures=0;var next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource||root.ChangeSession.Fallback is not null||runtime.Engine.Mode.StartsWith("完整对账")?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
         if(runtime.RescanSoon||_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).Any(x=>x.State is not("Completed" or "Canceled" or "Superseded")))next=TimeSpan.Zero;
         while(!runtime.Stop.IsCancellationRequested)
         {
@@ -80,7 +80,7 @@ public sealed partial class MountManager
             catch(OperationCanceledException)when(runtime.Stop.IsCancellationRequested){break;}
             catch(Exception error)
             {
-                root.Detection=root.Detection with{Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
+                root.Detection=root.Detection with{Mode=runtime.Engine.Mode,Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
                 if(error is SourceRescanRequiredException){runtime.RescanSoon=true;next=TimeSpan.FromSeconds(5);continue;}
                 if(error is RemoteChangeFailure{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403} or SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Authentication or ConnectionFailureKind.Permission}){_logger.Queue("远端检测","Warning","远端认证或权限失败，已暂停至重新连接。");break;}
                 if(error is SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Certificate})
@@ -121,6 +121,7 @@ public sealed partial class MountManager
                 root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
                     PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
             }
+            catch{root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
             finally{_remoteSlots.Release();}
         }
         finally{runtime.Serial.Release();}
@@ -169,14 +170,17 @@ public sealed partial class MountManager
         =>OwnAsync(async cancel=>
         {
             if(incrementalSeconds is <10 or >86400||fullSeconds is <30 or >604800)throw new ArgumentException("增量间隔为 10–86400 秒，完整对账间隔为 30–604800 秒。");
-            var root=Root(id);await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
+            var root=Root(id);var reopened=false;await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
                 if(root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前挂载不能更改远端检测设置。");
+                reopened=enabled&&!root.Definition.RemoteAutoDetectEnabled;
                 var definition=root.Definition with{RemoteAutoDetectEnabled=enabled,RemoteIncrementalSeconds=incrementalSeconds,RemoteFullSeconds=fullSeconds};_repository.SaveDefinition(definition);root.Definition=definition;
             }
             finally{root.Gate.Release();}
-            RequestRemoteStop(root);await StopRemoteAsync(root).ConfigureAwait(false);StartRemoteSync(root);Notify();
+            RequestRemoteStop(root);await StopRemoteAsync(root).ConfigureAwait(false);
+            if(reopened){root.ChangeSession=new();root.Detection=root.Detection with{Mode="尚未检测",Error=null};}
+            StartRemoteSync(root);if(reopened)root.RemoteSync?.Wake();Notify();
         },token);
     private static void RejectRemoteLinks(string staging,string path)
     {

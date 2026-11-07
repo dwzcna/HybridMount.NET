@@ -12,6 +12,10 @@ public sealed partial class MountManager
         var text=new StringBuilder(CloudShellState.EnvironmentDescription()).AppendLine().Append("挂载：").Append(snapshot.Definition.Name)
             .Append("；连接：").Append(snapshot.IsConnected?"已连接":"已断开").Append("；状态：").AppendLine(snapshot.Status);
         if(snapshot.Detail.Length>0)text.AppendLine(snapshot.Detail);
+        text.Append("远端检测模式：").AppendLine(snapshot.Detection?.Mode??"尚未检测");
+        if(root.ChangeSession.Fallback is {} fallback)
+            text.Append("RFC 6578 本次会话已停用：").AppendLine(fallback.Reason).Append("降级时间：").AppendLine(fallback.OccurredUtc.ToLocalTime().ToString("O"));
+        if(root.Source is IMountSourceRuntime {ConnectionDiagnostics:{} capabilities})text.AppendLine(capabilities);
         var allUploads=_repository.Uploads(id);var uploads=allUploads.GroupBy(item=>item.LocalPath,StringComparer.Ordinal).ToDictionary(group=>group.Key,group=>group.OrderByDescending(item=>item.ChangedUtc).First(),StringComparer.Ordinal);
         var entries=_repository.Entries(id).Where(e=>!e.Deleted).ToDictionary(e=>e.LocalPath,StringComparer.Ordinal);
         var paths=allUploads.Where(UploadAttentionRules.NeedsAttention).Select(x=>x.LocalPath).Concat(entries.Keys.OrderBy(x=>x,StringComparer.Ordinal).Take(3)).Distinct(StringComparer.Ordinal);

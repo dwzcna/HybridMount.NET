@@ -31,9 +31,11 @@ public sealed class ShellItemPropertyTests
         Assert.True(published.Attention!.ShellState=="Published",published.Attention.ShellError);Assert.Equal(original.Generation,published.Generation);
         Assert.Equal(root,MountPathGuard.ReadRoot(test.Local));Assert.Equal(rootIdentity,MountPathGuard.FileIdentity(test.Local));
         Assert.Equal(network,test.Dav.Server.Requests.Count);Assert.Equal(before.Identity,LocalFileState.Read(path).Identity);
+        var properties=CloudCustomStateReader.Read(path);Assert.Equal(new[]{"1"},properties.Ids);Assert.Equal(properties.Ids.Count,properties.Values.Count);Assert.Equal(properties.Ids.Count,properties.Icons.Count);
         var after=Native(path);Assert.Equal(native?.Info.PinState,after?.Info.PinState);Assert.Equal(native?.Info.InSyncState,after?.Info.InSyncState);Assert.Equal(native?.Info.OnDiskSize,after?.Info.OnDiskSize);
         test.Repository.UpdateUpload(existing.Id,x=>x with{State="Canceled",CancelRequested=true});await test.Manager.PublishUploadIssuesAsync();
         var cleared=test.Repository.Upload(existing.Id)!;Assert.True(cleared.Attention!.ShellState=="Cleared",cleared.Attention.ShellError);Assert.Equal(network,test.Dav.Server.Requests.Count);
+        Assert.DoesNotContain("1",CloudCustomStateReader.Read(path).Ids);
         await test.Manager.ScanUploadChangesAsync(test.Id);Assert.Equal(original.Generation,test.Repository.Upload(existing.Id)!.Generation);
     }
     [Fact(Timeout=60000)]

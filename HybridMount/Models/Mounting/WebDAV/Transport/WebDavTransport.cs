@@ -79,6 +79,7 @@ public sealed partial class WebDavFileSource
                 {
                     var result=await base.SendAsync(current,token).ConfigureAwait(false);
                     if(observation is not null){observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);observation.Identity=result.Content.Headers.ContentEncoding.All(x=>x.Equals("identity",StringComparison.OrdinalIgnoreCase));}
+                    if(request.Method==HttpMethod.Options)owner.CaptureOptions(result);
                     return result;
                 }
                 catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
@@ -179,6 +180,7 @@ public sealed partial class WebDavFileSource
                 case "UNLOCK": result=await _dav.UnlockAsync(path,LockValue(request,"Lock-Token"),cancel).ConfigureAwait(false);break;
                 default: throw new NotSupportedException("未迁移的 DAV 方法。");
             }
+            if(result.StatusCode==507)throw StorageRejected(result);
             if(result is DavMultiStatusResult multi&&multi.StatusCode==207&&request.Method.Method!="PROPFIND")
             {
                 var failed=multi.Resources.SelectMany(resource=>resource.Hrefs.Select(href=>new MountItemResult(HrefPath(href,request.RequestUri!),
@@ -195,6 +197,8 @@ public sealed partial class WebDavFileSource
                 {response.Content.Headers.Remove(header.Key);response.Content.Headers.TryAddWithoutValidation(header.Key,header.Value);}
             return response;
         }
+        catch(WebDAVException)when(observation.Status==507&&request.Method.Method is "PUT" or "MKCOL" or "MOVE" or "DELETE" or "LOCK" or "UNLOCK")
+        {throw StorageRejected();}
         finally{_wire.Value=previous;}
     }
     private static readonly PropertyName[] MetadataProperties=[new("DAV:","resourcetype"),new("DAV:","getcontentlength"),new("DAV:","getlastmodified"),new("DAV:","getetag")];

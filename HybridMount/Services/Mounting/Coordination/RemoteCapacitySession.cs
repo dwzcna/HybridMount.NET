@@ -15,6 +15,7 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
     private Task _work=Task.CompletedTask,_cancellation=Task.CompletedTask;
     private Task? _dispose;
     private bool _stopping;
+    private long _revision;
     public RemoteCapacitySession(IFileSource source,Action<RemoteCapacitySnapshot> publish,CancellationToken token,
         RemoteCapacitySnapshot? previous=null,Func<DateTimeOffset>? now=null,Func<bool,CancellationToken,Task<RemoteCapacity>>? query=null)
     {_query=query??((_,cancel)=>source.GetRemoteCapacityAsync(cancel));_publish=publish;_stop=CancellationTokenSource.CreateLinkedTokenSource(token);_snapshot=previous??new(RemoteCapacity.Unknown);_now=now??(()=>DateTimeOffset.UtcNow);}
@@ -31,19 +32,25 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
             else
             {
                 _snapshot=_snapshot with{LastAttemptUtc=_now(),IsRefreshing=true};
-                work=_work=Task.Run(()=>RefreshCoreAsync(force));
+                var revision=_revision;work=_work=Task.Run(()=>RefreshCoreAsync(force,revision));
             }
         }
         return waiter.CanBeCanceled?work.WaitAsync(waiter):work;
     }
-    private async Task RefreshCoreAsync(bool force)
+    /// <summary>已知存储拒绝使缓存过期，保留上次值供诊断；不在通知线程联网。</summary>
+    public void Invalidate()
+    {
+        RemoteCapacitySnapshot current;lock(_sync){if(_stopping)return;_revision++;current=_snapshot=_snapshot with{LastAttemptUtc=null,IsRefreshing=false,Error="服务器报告存储不足，容量需要重新核实。"};}
+        _publish(current);
+    }
+    private async Task RefreshCoreAsync(bool force,long revision)
     {
         try
         {
             RemoteCapacitySnapshot current;lock(_sync){if(_stopping)return;current=_snapshot;}
             _publish(current);
             var value=await _query(force,_stop.Token).ConfigureAwait(false);
-            lock(_sync){if(_stopping||_stop.IsCancellationRequested)return;current=_snapshot=new(value,_now(),_snapshot.LastAttemptUtc);}
+            lock(_sync){if(_stopping||_stop.IsCancellationRequested||revision!=_revision)return;current=_snapshot=new(value,_now(),_snapshot.LastAttemptUtc);}
             _publish(current);
         }
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){ }
@@ -52,7 +59,7 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
             RemoteCapacitySnapshot current;
             lock(_sync)
             {
-                if(_stopping||_stop.IsCancellationRequested)return;
+                if(_stopping||_stop.IsCancellationRequested||revision!=_revision)return;
                 var message=error is SourceConnectionException connection?connection.Message+" 已保留上次值。":error is SourceRequestRejectedException rejected?$"远端配额查询被拒绝（HTTP {rejected.HttpStatus}），保留上次值。":
                     $"远端配额查询失败（{error.GetType().Name}），保留上次值。";
                 current=_snapshot=_snapshot with{IsRefreshing=false,Error=message};

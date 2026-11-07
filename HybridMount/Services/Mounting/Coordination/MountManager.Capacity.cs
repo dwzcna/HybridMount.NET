@@ -5,6 +5,13 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private readonly CapacityCoordinator _capacities=new();
+    /// <summary>同账户写范围共享失效；不自动重试失败上传，不读取或覆盖用户的容量设置。</summary>
+    private void InvalidateCapacity(Runtime owner)
+    {
+        var scope=FileSourceFactory.CapacityWriteScope(owner.Definition);_capacities.Invalidate(scope);
+        foreach(var root in _roots.Values.Where(x=>FileSourceFactory.CapacityWriteScope(x.Definition)==scope))
+        {Interlocked.Exchange(ref root.CapacityForce,1);RemoteCapacitySession? capacity;lock(root.ConnectionSync)capacity=root.Capacity;capacity?.Invalidate();}
+    }
     private static string CapacityKey(MountDefinition definition)=>JsonSerializer.Serialize(new{definition.Id,definition.Source,definition.CredentialRevision,definition.CapacityAutoDetectEnabled,definition.MaximumCapacityBytes});
     private static RemoteCapacity CapacityInitial(MountDefinition definition)=>new(!CapacityRules.Enabled(definition)?"未设置容量限制":definition.CapacityAutoDetectEnabled?"自动识别服务器配额":"手动配置上限（尚未核实用量）",ConfiguredTotalBytes:definition.CapacityAutoDetectEnabled?null:definition.MaximumCapacityBytes);
     /// <summary>关闭且无手动值时不查询网络；每次连接和设置变更建立独立所有者，迟到结果不得跨代发布。</summary>

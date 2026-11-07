@@ -63,6 +63,12 @@ public sealed partial class MountManager
     }
     private void ObserveUploadSource(Runtime root)
     {
+        if(root.Source is IMountSourceRuntime protocol)
+        {
+            var owner=root.Source;
+            root.CapacityObserver=()=>{if(!IsStopping&&ReferenceEquals(root.Source,owner))InvalidateCapacity(root);};
+            protocol.CapacityInvalidated+=root.CapacityObserver;
+        }
         if(root.Source is not IUploadDiagnosticsSource source)return;
         root.BaselineObserver=value=>{try{_repository.SaveBaseline(root.Definition.Id,value);}catch(Exception e){_logger.Queue("上传基线","Warning",e.Message);}};
         root.WriteObserver=value=>_logger.Queue("协议写入","Warning",value);
@@ -71,7 +77,8 @@ public sealed partial class MountManager
     private static void UnobserveUploadSource(Runtime root)
     {
         if(root.Source is IUploadDiagnosticsSource source){source.ContentBaseline-=root.BaselineObserver;source.WriteWarning-=root.WriteObserver;}
-        root.BaselineObserver=null;root.WriteObserver=null;
+        if(root.Source is IMountSourceRuntime protocol)protocol.CapacityInvalidated-=root.CapacityObserver;
+        root.BaselineObserver=null;root.WriteObserver=null;root.CapacityObserver=null;
     }
     /// <summary>上传记录与普通任务共享任务页；持久阶段优先于旧任务历史的中断转换。</summary>
     private static MountOperationSnapshot UploadSnapshot(LocalUpload item)=>item.ToSnapshot();

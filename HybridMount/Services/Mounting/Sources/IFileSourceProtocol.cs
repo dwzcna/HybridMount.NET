@@ -21,6 +21,10 @@ internal interface IFileSourceProtocol
 internal interface IMountSourceRuntime
 {
     string RemoteScope(long credentialRevision);
+    /// <summary>只读当前连接已有能力证据；读取不能联网或探测写入。</summary>
+    string? ConnectionDiagnostics=>null;
+    /// <summary>服务器明确拒绝存储写入时失效同范围容量；通知不发请求、不改变上传结果。</summary>
+    event Action? CapacityInvalidated {add{} remove{}}
     void AttachRuntime(MountDefinition mount,MountRepository repository) { }
     Task BeforeRegistrationAsync(CancellationToken token)=>Task.CompletedTask;
     Task AfterRegistrationAsync(CancellationToken token)=>Task.CompletedTask;
