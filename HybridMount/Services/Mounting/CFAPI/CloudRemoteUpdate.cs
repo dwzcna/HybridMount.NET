@@ -48,7 +48,9 @@ internal static class CloudRemoteUpdate
             var final=CloudFilesNative.Inspect(borrowed);
             if(final?.Info.ModifiedSize!=0||pending.PinState==1&&final?.Info.PinState!=1)throw new IOException("水合后修改状态或固定状态不符。");
             long completedUsn=0;CloudFilesNative.Check(SetInSync(handle,1,0,ref completedUsn));
-            save(pending with{State="Completed",OriginalStamp=LocalFileState.Read(borrowed).Key,Error=null},entry);
+            var completedStamp=LocalFileState.Read(borrowed);
+            save(pending with{State="Completed",OriginalStamp=completedStamp.Key,Error=null},entry);
+            session.RecordLocalWrite(entry,completedStamp);
         }
         finally
         {

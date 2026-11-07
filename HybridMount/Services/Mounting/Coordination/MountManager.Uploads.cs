@@ -13,6 +13,8 @@ public sealed partial class MountManager
         public readonly SemaphoreSlim Signal=new(0,1);
         public readonly object Sync=new();
         public FileSystemWatcher? Watcher;
+        public CloudMountSession? Session;
+        public Action<string,LocalFileStamp>? LocalWriteCompleted;
         public CancellationTokenSource? Request;
         public string? CurrentId,PropertyPath;
         public Task Work=Task.CompletedTask;
@@ -32,7 +34,7 @@ public sealed partial class MountManager
         private void Notify(bool scan){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;if(scan)Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
         public void CancelRequest(string? id=null){lock(Sync)if((id is null||CurrentId==id)&&Request is {IsCancellationRequested:false} request)RequestCancellation=request.CancelAsync();}
         public void RequestStop(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;_stopping=1;Cancellation=Stop.CancelAsync();}CancelRequest();}
-        public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
+        public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}if(Session is not null)Session.LocalWriteCompleted-=LocalWriteCompleted;watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
     }
     private void StartUploads(Runtime root)
     {
@@ -40,6 +42,7 @@ public sealed partial class MountManager
         {
         if(root.Uploads is not null||root.Session is null||root.Source is null||root.Definition.RemovalPending||root.RemovalRequested||_stop.IsCancellationRequested)return;
         var runtime=new UploadRuntime(_stop.Token);root.Uploads=runtime;
+        runtime.Session=root.Session;runtime.LocalWriteCompleted=(path,stamp)=>runtime.Scans.Writes.Record(path,stamp,DateTimeOffset.UtcNow);runtime.Session.LocalWriteCompleted+=runtime.LocalWriteCompleted;
         var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.Size|NotifyFilters.LastWrite|NotifyFilters.CreationTime};
         BindUploadWatcher(watcher,runtime.RequestScan,change=>runtime.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow),runtime.Scans.RequestFull);
         runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Work=Task.Run(()=>UploadLoopAsync(root,runtime));

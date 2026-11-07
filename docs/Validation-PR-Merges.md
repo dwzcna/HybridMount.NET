@@ -68,5 +68,6 @@ PR #16来源a0911b2回并旧master，产品实现已在0.0.9.21合入；新测�
 | PR | 版本 | 内容 | 针对性 | Debug | Release | 双架构签名包／ARM64交叉编译／非打包构建 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [#19](https://github.com/dwzcna/HybridMount.NET/pull/19) | 0.0.9.26 | 上传恢复摘要移出根锁并保护提交代次 | 110 | 1052 | 1052 | 通过；ARM64未实机运行 |
+| [#20](https://github.com/dwzcna/HybridMount.NET/pull/20) | 0.0.9.27 | 一次性文件戳过滤水合及占位自事件 | 130 | 1084 | 1084 | 通过；ARM64未实机运行 |
 
 每版先最小编译及针对性，再完整回归与签名包核验，之后独立双父合并提交。全部完成后按本次授权普通推送GitHub、Azure，并核对master包含来源后精确删除远程分支；来源SHA变化则保留。最终提交、双远端SHA和删除结果见artifacts/validation/pr-round3-publication.json，逐版证据见本节对应验收文档。未启动或安装正式程序，未连接真实服务、未操作正式配置或同步根；GUI／Explorer、安装升级与ARM64实机按实际边界待测。

@@ -43,9 +43,11 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
     private readonly object _sync=new();
     private readonly Dictionary<string,bool> _paths=new(StringComparer.Ordinal);
     private bool _full=true;
+    private readonly Dictionary<string,bool> _changes=new(StringComparer.Ordinal);
+    internal readonly LocalWriteStampCache Writes=new();
     private DateTimeOffset _fullAfter=DateTimeOffset.MinValue,_lastFull=DateTimeOffset.MinValue,_firstEvent,_lastEvent;
-    internal void RequestFull(){lock(_sync){_full=true;_fullAfter=DateTimeOffset.MinValue;_paths.Clear();}}
-    internal LocalUploadScanBatch StartFull(){lock(_sync){_full=false;_paths.Clear();return LocalUploadScanBatch.Full;}}
+    internal void RequestFull(){lock(_sync){_full=true;_fullAfter=DateTimeOffset.MinValue;_paths.Clear();_changes.Clear();Writes.Clear();}}
+    internal LocalUploadScanBatch StartFull(){lock(_sync){_full=false;_paths.Clear();_changes.Clear();Writes.Clear();return LocalUploadScanBatch.Full;}}
     internal void Record(string root,FileSystemEventArgs change,DateTimeOffset now)
     {
         try
@@ -66,6 +68,9 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
                 {
                     if(path.Length==0){RequestFull();return;}
                     _paths[path]=true;
+                    var eligible=change is not RenamedEventArgs&&change.ChangeType is WatcherChangeTypes.Changed or WatcherChangeTypes.Created;
+                    _changes[path]=eligible&&(!_changes.TryGetValue(path,out var prior)||prior);
+                    if(!eligible)Writes.Forget(path);
                     var parent=RelativePaths.Parent(path);_paths.TryAdd(parent,false);
                     if(_paths.Count>capacity){RequestFull();return;}
                 }
@@ -88,15 +93,17 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
             return due>now?due:now;
         }
     }
-    /// <summary>消费已到期的一批；扫描开始后到达的事件仍留在队列中供下一批处理。</summary>
-    internal LocalUploadScanBatch? Take(DateTimeOffset now,bool requested=false)
+    /// <summary>消费已到期的一批；可选属性读取只过滤同戳的文件自事件，删除、重命名及父目录范围保留，新事件进入下一批。</summary>
+    internal LocalUploadScanBatch? Take(DateTimeOffset now,bool requested=false,Func<string,LocalFileStamp>? readStamp=null)
     {
         lock(_sync)
         {
             if(_full)return now>=_fullAfter?StartFull():null;
             if(now-_lastFull>=TimeSpan.FromSeconds(60)||requested&&_paths.Count==0)return StartFull();
             if(_paths.Count==0||now-_lastEvent<TimeSpan.FromMilliseconds(200)&&now-_firstEvent<TimeSpan.FromSeconds(2))return null;
-            var batch=new LocalUploadScanBatch(false,_paths.Select(pair=>new LocalUploadScanScope(pair.Key,pair.Value)));_paths.Clear();return batch;
+            var scopes=_paths.Select(pair=>new LocalUploadScanScope(pair.Key,pair.Value)).ToList();
+            if(readStamp is not null)scopes.RemoveAll(scope=>scope.Recursive&&_changes.GetValueOrDefault(scope.Path)&&Writes.Consume(scope.Path,now,()=>readStamp(scope.Path)));
+            var batch=new LocalUploadScanBatch(false,scopes);_paths.Clear();_changes.Clear();return batch;
         }
     }
     /// <summary>完整全扫重置兜底时钟；不完整扫描两秒后重试，完成通知不清除扫描期间新事件。</summary>
@@ -105,7 +112,7 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
         lock(_sync)
         {
             if(batch.IsFull)_lastFull=now;
-            if(!complete){_full=true;_fullAfter=now.AddSeconds(2);}
+            if(!complete){_full=true;_fullAfter=now.AddSeconds(2);Writes.Clear();}
         }
     }
 }

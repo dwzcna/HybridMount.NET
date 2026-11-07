@@ -1,6 +1,6 @@
-# HybridMount.NET 开发计划（0.0.1—0.0.9.26）
+# HybridMount.NET 开发计划（0.0.1—0.0.9.27）
 
-更新日期：2026-11-07。本批按编号继续合并GitHub PR，当前已完成PR #19并升至0.0.9.26；针对性110/110、x64 Debug／Release各1052/1052、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release通过。主工程／测试实际Compile项186／249无重复遗漏。正式程序、配置及同步根不切换，真实服务、GUI／Explorer、安装升级及ARM64实机仍待测。按本次授权逐版独立提交，最终普通推送GitHub、Azure并精确删除已合并来源；进度与发布实证见docs/Validation-PR-Merges.md及artifacts/validation/pr-round3-publication.json。
+更新日期：2026-11-07。本批已按#19→#20逐个合并，并依次升至0.0.9.26、0.0.9.27；当前最新为0.0.9.27；针对性130/130、x64 Debug／Release各1084/1084、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release通过。主工程／测试实际Compile项188／252无重复遗漏。正式程序、配置及同步根不切换，真实服务、GUI／Explorer、安装升级及ARM64实机仍待测。按本次授权逐版独立提交，最终普通推送GitHub、Azure并精确删除已合并来源；进度与发布实证见docs/Validation-PR-Merges.md及artifacts/validation/pr-round3-publication.json。
 
 工程限定为 HybridMount、HybridMount.Ext、HybridMount.Tests，主程序 HybridMount.NET.exe、命名空间 HybridMount。使用 WinUI 3／.NET 10／MSIX，最低 Windows 11 21H2，支持 x64／ARM64。本地挂载根仅限 NTFS。用户配置根路径为 `HKCU\Software\HybridMount.NET`，日志和运行索引使用 SQLite。
 
@@ -60,6 +60,11 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 本轮PR #16—#18逐个拉取、合并及分版自动验证预算45–75分钟，真实服务、GUI／Explorer及实机另计。每个PR独立升版、验证和提交后删除本地已合并来源分支；已在GitHub master中的旧来源分支按精确SHA清理，主分支推送仍需明确授权。
 
 ## 已完成
+
+### 0.0.9.27：PR #20——一次性文件戳过滤水合及占位自事件
+
+- 已合入来源90e01cabbeba69ecffaa7079a4aad915ac4eaac1。将水合、占位创建、元数据及固定内容更新后的可靠文件戳记入会话内有界缓存；两秒内完整戳一致才一次性过滤Changed／Created文件范围，保留父目录范围。外部编辑、删除、重命名、过期、属性读取失败或USN不可用仍正常扫描；六十秒全量兜底、溢出及失败补扫保持。属性句柄不读正文或触发水合，断开释放时解除通知订阅，并保留PR #19的提交代次保护。
+- 版本、三个工程与清单统一，公开协议、IPC v2、数据库及挂载配置格式保持；本版实现和验证分别记录于docs/Validation-0.0.9.27.md。
 
 ### 0.0.9.26：PR #19——上传恢复摘要移出根锁并保护提交代次
 
@@ -480,6 +485,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 ## 待测试
 
+- 0.0.9.27／PR #20：真实服务兼容性、GUI／Explorer、正式根升级、MSIX安装及ARM64实机；本地自动回归不能替代这些验收。不访问已取消NAS，不操作正式用户文件。
+
 - 0.0.9.26／PR #19：真实服务兼容性、GUI／Explorer、正式根升级、MSIX安装及ARM64实机；本地自动回归不能替代这些验收。不访问已取消NAS，不操作正式用户文件。
 
 - 0.0.9.25：视觉切换动画、真实鼠标侧栏／返回点击及Alt＋左方向键、弹层内键盘输入、导航失败时侧栏回退、MSIX安装升级与ARM64实机。computer-use连续初始化失败，未通过其他桌面控制方式绕过；隔离真实WinUI API断言已经完成，但不代替上述交互和视觉验收。
@@ -558,6 +565,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 | 0.0.5.2 | 实际托盘及连续退出、正常产品进程退出码 0、包身份下退出时序、调试器／Explorer、安装升级、ARM64 实机和长期网络压力；受控服务停止不能代替 GUI 验收 |
 
 ## 已测试
+
+- 2026-11-07，0.0.9.27，PR #20：最小x64编译、针对性130/130、Debug 1084/1084、Release 1084/1084通过；x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。实际Compile项188／252及本PR相关文件无重复遗漏，未启动正式程序；详见docs/Validation-0.0.9.27.md与artifacts/validation/pr20-evidence.json。
 
 - 2026-11-07，0.0.9.26，PR #19：最小x64编译、针对性110/110、Debug 1052/1052、Release 1052/1052通过；x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。实际Compile项186／249及本PR相关文件无重复遗漏，未启动正式程序；详见docs/Validation-0.0.9.26.md与artifacts/validation/pr19-evidence.json。
 
