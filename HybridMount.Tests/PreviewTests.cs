@@ -43,7 +43,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
         var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
         var repository=new MountRepository(Path.Combine(fixture.Area,"data"),registry);
         await using var logger=new LoggerService(Path.Combine(fixture.Area,"log.db"));
-        await using var manager=new MountManager(repository,logger);
+        await using var manager=new MountManager(repository,logger){LegacyPreviewsForTests=true};
         var mount=await manager.AddAsync("EXE 预览测试",local,true,source:fixture.Options);
         try
         {

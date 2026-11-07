@@ -108,7 +108,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         {
             if(phase=="enumeration")job=host.Manager.Queue(host.Id,"refresh");
             else if(phase=="hydration")read=Task.Run(()=>File.ReadAllBytes(Path.Combine(host.Local,"文件.bin")));
-            else if(phase=="preview"){await host.Manager.SetThumbnailsEnabledAsync(host.Id,true);host.Manager.RequestPreview(Path.Combine(host.Local,"photo.bmp"),128);}
+            else if(phase=="preview"){host.Manager.LegacyPreviewsForTests=true;await host.Manager.SetThumbnailsEnabledAsync(host.Id,true);host.Manager.RequestPreview(Path.Combine(host.Local,"photo.bmp"),128);}
             else read=host.Manager.TestConnectionAsync(s3.Options,S3Fixture.Credentials);
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));await StopWithinTarget(host.Manager);
             if(read is not null)Assert.NotNull(await Record.ExceptionAsync(()=>read));

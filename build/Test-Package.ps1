@@ -53,19 +53,20 @@ try {
     if ($runtime.runtimeOptions.framework -or $runtime.runtimeOptions.frameworks) { throw '主程序仍依赖共享 .NET 运行时。' }
     if ($entries.Keys | Where-Object { $_ -match '(?i)EPaperKit|ProKit|Square44x44Logo|StoreLogo' }) { throw '包内出现旧产品资源或组件。' }
     $text = $manifest.OuterXml
-    foreach ($registration in @('windows.cloudFiles','CloudFiles','windows.startupTask','windows.comServer','windows.fileExplorerContextMenus','HybridMountStartup','HybridMount.Ext.dll')) {
+    foreach ($registration in @('windows.startupTask','HybridMountStartup','ShellMaintenance')) {
         if (-not $text.Contains($registration)) { throw "清单缺少 $registration" }
     }
-    # 基础状态与属性处理器始终注册；缩略图仍独立门控，核验增量构建未遗留或重复。
-    foreach($handler in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler','CloudFilesContextMenus')){
-        if($manifest.SelectNodes("//*[local-name()='CloudFiles']/*[local-name()='$handler']").Count -ne 1){throw "基础云文件处理器缺失或重复：$handler"}
+    if($ExpectCloudThumbnails){throw '0.0.9.34暂停自有Shell扩展，不存在可验收的实验缩略图包。'}
+    # 暂停只撤销自有处理器注册，保留原生DLL和三个工程；防止旧清单或增量产物重新带入扩展。
+    foreach($category in @('windows.comServer','windows.fileExplorerContextMenus')){
+        if($manifest.SelectNodes("//*[local-name()='Extension' and @Category='$category']").Count -ne 0){throw "包意外注册自有Shell扩展：$category"}
     }
-    if($manifest.SelectNodes("//*[local-name()='CloudFiles']/*[local-name()='ThumbnailProviderHandler']").Count -gt 1){throw '云缩略图处理器重复。'}
-    $thumbnail=$manifest.SelectSingleNode("//*[local-name()='CloudFiles']/*[local-name()='ThumbnailProviderHandler']")
-    if($null -eq $thumbnail){throw 'SDK要求的系统缩略图节点缺失。'}
-    $customThumbnail=$thumbnail.HasAttribute('Clsid')
-    if([bool]$customThumbnail -ne $ExpectCloudThumbnails.IsPresent){throw '自定义云缩略图注册与本次构建的启用门槛不一致。'}
-    if($customThumbnail -and $thumbnail.Clsid -ne 'A65802EB-4D1C-4C7E-A519-34C76B9BB281'){throw '云缩略图 CLSID 不正确。'}
-    if(!$text.Contains('A65802EB-4D1C-4C7E-A519-34C76B9BB281')){throw '包缺少候选缩略图 COM 类。'}
-    Write-Host "包验证通过：$Platform / $version / 自包含 / 原生扩展 / 全新资源 / CloudFiles、启动与菜单声明。"
+    foreach($id in @('F4A8FD0B-4055-4F23-8CC0-91B736B3E491','A65802EB-4D1C-4C7E-A519-34C76B9BB281')){
+        if($text.Contains($id)){throw '包仍含暂停的自有COM类注册。'}
+    }
+    $cloud=$manifest.SelectNodes("//*[local-name()='CloudFiles']")
+    if($cloud.Count -ne 1 -or $cloud[0].ChildNodes.Count -ne 0 -or $cloud[0].IconResource -ne 'Assets\HybridMount.png'){
+        throw '本版CloudFiles只能包含提供程序图标，不能注册空处理器或自有菜单。'
+    }
+    Write-Host "包验证通过：$Platform / $version / 自包含 / 原生云文件显示 / 自有Shell扩展暂停 / 启动及维护入口。"
 } finally { $archive.Dispose() }

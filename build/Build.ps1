@@ -11,7 +11,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Deployment) { $Deployment = if ($Package) { 'Packaged' } else { 'Unpackaged' } }
-if ($ExperimentalThumbnails -and -not $Package) { throw '实验缩略图注册仅用于显式生成的 MSIX。' }
+if ($ExperimentalThumbnails) { throw '0.0.9.34 暂停自有Shell扩展，不能生成实验缩略图包。' }
 if ($Package -and $Deployment -eq 'Unpackaged') { throw '非打包模式不能生成 MSIX；请使用 -Deployment Packaged。' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $validation = Join-Path $repoRoot 'artifacts\validation'

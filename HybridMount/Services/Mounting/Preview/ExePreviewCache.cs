@@ -12,6 +12,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
     public const int MaximumPngBytes=384*1024;
     private static readonly int[] Sizes=[32,64,128,256];
     private readonly string _directory;
+    private readonly Func<bool> _available;
     private readonly Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? _enter;
     private readonly Action<string>? _diagnostic;
     private readonly object _disk=new();
@@ -37,7 +38,11 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private Task? _dispose,_cancellation;
     public ExePreviewCache(string directory,Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? enter=null,Action<string>? diagnostic=null,
         Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? render=null)
-    {_directory=directory;_enter=enter;_diagnostic=diagnostic;_render=render;_worker=Task.Run(ProcessAsync);}
+        :this(directory,enter,diagnostic,render,()=>true){}
+    /// <summary>应用层提供版本能力；暂停时在任何路径、缓存或内容查询之前退出。独立缓存实现保留可测试性。</summary>
+    internal ExePreviewCache(string directory,Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? enter,Action<string>? diagnostic,
+        Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? render,Func<bool> available)
+    {_available=available;_directory=directory;_enter=enter;_diagnostic=diagnostic;_render=render;_worker=Task.Run(ProcessAsync);}
     /// <summary>按挂载、条目、原始内容版本和尺寸区分；不把远端地址或令牌明文写入文件名。</summary>
     public static string CacheKey(MountDefinition mount,MountEntry entry,int size)=>Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[]{mount.Id.ToString("N"),entry.Id,entry.Version,Bucket(size).ToString(System.Globalization.CultureInfo.InvariantCulture)})));
     private static int Bucket(int size)=>Sizes.FirstOrDefault(candidate=>candidate>=Math.Clamp(size,16,256),256);
@@ -45,7 +50,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
     /// <summary>普通完成通知只处理完整本地文件；仅显式预览请求可读取远端，队列与挂载设置均有界。</summary>
     public void Queue(MountDefinition mount,MountEntry entry,bool allowRemote=false)
     {
-        if(_stop.IsCancellationRequested||!mount.ThumbnailsEnabled||mount.RemovalPending||entry.Deleted||entry.Protected||entry.RemotePresence==RemotePresence.Deleted||entry.IsDirectory||!entry.Materialized||!PreviewWorker.Supports(entry.LocalPath)||_blocked.ContainsKey(mount.Id))return;
+        if(!_available()||_stop.IsCancellationRequested||!mount.ThumbnailsEnabled||mount.RemovalPending||entry.Deleted||entry.Protected||entry.RemotePresence==RemotePresence.Deleted||entry.IsDirectory||!entry.Materialized||!PreviewWorker.Supports(entry.LocalPath)||_blocked.ContainsKey(mount.Id))return;
         if(!allowRemote)
         {
             var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
@@ -66,13 +71,13 @@ public sealed class ExePreviewCache : IAsyncDisposable
         await Task.WhenAll(pending.Select(work=>work.Completion.Task)).ConfigureAwait(false);
     }
     public void ResumeMount(Guid mount){_blocked.TryRemove(mount,out _);foreach(var row in _failed.Where(row=>row.Value.Mount==mount))_failed.TryRemove(row.Key,out _);}
-    public string State(MountDefinition mount,MountEntry entry)=>!mount.ThumbnailsEnabled?"disabled":_pending.ContainsKey(CacheKey(mount,entry,256))?"queued":_failed.TryGetValue(CacheKey(mount,entry,256),out var failed)&&failed.Until>DateTime.UtcNow?"unsupported":"notFound";
+    public string State(MountDefinition mount,MountEntry entry)=>!_available()||!mount.ThumbnailsEnabled?"disabled":_pending.ContainsKey(CacheKey(mount,entry,256))?"queued":_failed.TryGetValue(CacheKey(mount,entry,256),out var failed)&&failed.Until>DateTime.UtcNow?"unsupported":"notFound";
     /// <summary>只读队列和负缓存状态，诊断不排队、不读取远端。</summary>
     internal string Describe(Guid mount)=>$"待处理={_pending.Values.Count(x=>x.Mount.Id==mount)}；暂缓={_failed.Values.Count(x=>x.Mount==mount&&x.Until>DateTime.UtcNow)}；停止接收={_blocked.ContainsKey(mount)}";
     /// <summary>有界本机查询；缓存不存在、失效或被回收均返回空值，不启动提取。</summary>
     public byte[]? Get(MountDefinition mount,MountEntry entry,int size)
     {
-        if(!mount.ThumbnailsEnabled||entry.Deleted||entry.Protected||entry.RemotePresence==RemotePresence.Deleted||entry.IsDirectory||!PreviewWorker.Supports(entry.LocalPath))return null;
+        if(!_available()||!mount.ThumbnailsEnabled||entry.Deleted||entry.Protected||entry.RemotePresence==RemotePresence.Deleted||entry.IsDirectory||!PreviewWorker.Supports(entry.LocalPath))return null;
         lock(_disk)
         {
             var path=PathFor(mount,entry,size);
@@ -94,6 +99,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
         var mount=work.Mount;var entry=work.Entry;var key=CacheKey(mount,entry,256);var gate=_mounts.GetOrAdd(mount.Id,_=>new(1,1));var entered=false;var slot=false;var token=work.Cancel.Token;
         try
         {
+            if(!_available())return;
             await gate.WaitAsync(token).ConfigureAwait(false);entered=true;await _slots.WaitAsync(token).ConfigureAwait(false);slot=true;token.ThrowIfCancellationRequested();
             if(_render is not null)
             {

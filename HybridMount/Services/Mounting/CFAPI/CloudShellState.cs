@@ -47,6 +47,7 @@ internal static class CloudShellState
     public static ShellThumbnailCapability ThumbnailCapability()
     {
         var packaged=WinRegisterService.IsPackaged();
+        if(!ShellExtensionPolicy.CustomThumbnailsEnabled)return new(false,packaged,ShellExtensionPolicy.PauseReason);
         try
         {
             var packages=packaged?new[]{Windows.ApplicationModel.Package.Current}:new Windows.Management.Deployment.PackageManager().FindPackagesForUser(WindowsIdentity.GetCurrent().User!.Value).Where(p=>p.Id.Name=="dwzcn.HybridMount.NET").ToArray();
@@ -101,18 +102,19 @@ internal static class CloudShellState
         string identity;
         try{identity=Windows.ApplicationModel.Package.Current.Id.FullName;}
         catch(InvalidOperationException){identity="无包身份（非打包运行）";}
-        var lines=new List<string>{"运行版本："+typeof(MountManager).Assembly.GetName().Version,"运行包身份："+identity};
+        var lines=new List<string>{"运行版本："+typeof(MountManager).Assembly.GetName().Version,"运行包身份："+identity,
+            "配置存储模式："+(WinRegisterService.IsPackaged()?"Packaged":"Unpackaged"),"自有Shell扩展："+ShellExtensionPolicy.PauseReason};
         try
         {
             var user=WindowsIdentity.GetCurrent().User!.Value;
             var packages=new Windows.Management.Deployment.PackageManager().FindPackagesForUser(user).Where(p=>p.Id.Name=="dwzcn.HybridMount.NET").ToArray();
-            if(packages.Length==0)lines.Add("本用户未安装HybridMount MSIX；基础Shell注册不可用。");
+            if(packages.Length==0)lines.Add("本用户未安装HybridMount MSIX；Windows原生CFAPI状态不依赖自有扩展注册。");
             foreach(var package in packages)
             {
                 using var reader=XmlReader.Create(Path.Combine(package.InstalledLocation.Path,"AppxManifest.xml"),new(){DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=1024*1024});
                 var manifest=XDocument.Load(reader);var cloud=manifest.Descendants().FirstOrDefault(e=>e.Name.LocalName=="CloudFiles");
                 lines.Add("已安装包："+package.Id.FullName);
-                lines.Add("CloudFiles处理器："+(cloud is null?"未注册":string.Join("、",cloud.Elements().Select(e=>e.Name.LocalName))));
+                lines.Add("CloudFiles声明："+(cloud is null?"无自定义云声明":!cloud.Elements().Any()?"仅提供程序图标；无自定义处理器":string.Join("、",cloud.Elements().Select(e=>e.Name.LocalName))));
                 lines.Add("自定义云缩略图入口："+(HasThumbnailBinding(manifest,path=>File.Exists(Path.Combine(package.InstalledLocation.Path,path)))?"已注册（实验性）":"未启用；挂载开关不能替代安装注册。"));
             }
         }

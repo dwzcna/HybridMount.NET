@@ -48,6 +48,13 @@ public sealed partial class MountManager : IAsyncDisposable
         public Task Work=Task.CompletedTask;
     }
     private readonly ExePreviewCache _previews;
+#if HYBRIDMOUNT_HEADLESS_TEST
+    // 仅隔离回归显式启用保留实现；生产默认能力仍为暂停，测试之间不共享全局开关。
+    internal bool LegacyPreviewsForTests {get;set;}
+    private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled||LegacyPreviewsForTests;
+#else
+    private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled;
+#endif
     private readonly MountRepository _repository;
     private readonly ILocalUploadCommitter _uploadCommitter;
     private readonly IAsyncDisposable _remoteEvents;
@@ -78,7 +85,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var definitions=repository.LoadDefinitions();
         repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
-        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
+        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync,()=>CustomPreviewsAvailable);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
@@ -444,7 +451,7 @@ public sealed partial class MountManager : IAsyncDisposable
     /// <summary>单文件缓存只读查询；关闭或不属于本产品时回退，不打开内容、不查询远端。</summary>
     public byte[]? GetPreview(string path,int size)
     {
-        if(size is <16 or >256)return null;var target=PreviewTarget(path);return target is null?null:_previews.Get(target.Value.Root.Definition,target.Value.Entry,size);
+        if(!CustomPreviewsAvailable||size is <16 or >256)return null;var target=PreviewTarget(path);return target is null?null:_previews.Get(target.Value.Root.Definition,target.Value.Entry,size);
     }
     public string Queue(Guid id,string operation,string[]? paths=null)
     {lock(_lifetime){ThrowIfStopping();return QueueCore(id,operation,paths);}}

@@ -62,10 +62,11 @@
     <Manifest Include="$(ApplicationManifest)"/>
     <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(NativeConfiguration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
   </ItemGroup>
-  <!-- 真实 EXE Shell 路径及其他类型回归通过前，正式包默认不接管云缩略图。 -->
+  <!-- 本版本暂停自有Shell扩展；保留旧属性名，但显式开启会失败，防止旧构建参数重新注册。 -->
   <PropertyGroup><HybridMountEnableCloudThumbnails Condition="'$(HybridMountEnableCloudThumbnails)'==''">false</HybridMountEnableCloudThumbnails></PropertyGroup>
-  <!-- 源清单供 VS 包向导读取，必须与集中版本一致；构建副本仅切换实验扩展。 -->
+  <!-- 源清单供 VS 包向导读取，必须与集中版本一致；构建副本保留当前暂停策略。 -->
   <Target Name="PrepareProductManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountDeployment)'=='Packaged'">
+    <Error Condition="'$(HybridMountEnableCloudThumbnails)'=='true'" Text="0.0.9.34 暂停自有Shell扩展，不能启用实验缩略图注册。" />
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version">
       <Output TaskParameter="Result" PropertyName="_SourceManifestVersion"/>
     </XmlPeek>
@@ -74,7 +75,6 @@
     <PropertyGroup>
       <_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
       <_ProductManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest'))</_ProductManifestContent>
-      <_ProductManifestContent Condition="'$(HybridMountEnableCloudThumbnails)'=='true'">$(_ProductManifestContent.Replace('&lt;desktop3:ThumbnailProviderHandler /&gt;', '&lt;desktop3:ThumbnailProviderHandler Clsid=&quot;A65802EB-4D1C-4C7E-A519-34C76B9BB281&quot; /&gt;'))</_ProductManifestContent>
     </PropertyGroup>
     <WriteLinesToFile File="$(_ProductManifest)" Lines="$(_ProductManifestContent)" Overwrite="true" Encoding="UTF-8" WriteOnlyWhenDifferent="true" />
     <ItemGroup><AppxManifest Remove="@(AppxManifest)"/><AppxManifest Include="$(_ProductManifest)"/><FileWrites Include="$(_ProductManifest)"/></ItemGroup>

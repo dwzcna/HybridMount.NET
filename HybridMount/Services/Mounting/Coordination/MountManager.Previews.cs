@@ -7,6 +7,7 @@ public sealed partial class MountManager
     public Task SetThumbnailsEnabledAsync(Guid id,bool enabled,CancellationToken token=default)=>OwnAsync(cancel=>SetThumbnailsCoreAsync(id,enabled,cancel),token);
     private async Task SetThumbnailsCoreAsync(Guid id,bool enabled,CancellationToken token)
     {
+        if(!CustomPreviewsAvailable)throw new NotSupportedException(ShellExtensionPolicy.PauseReason);
         var root=Root(id);await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try{if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("移除过程中不能更改缩略图。");var updated=root.Definition with{ThumbnailsEnabled=enabled};_repository.SaveDefinition(updated);root.Definition=updated;}
         finally{root.Gate.Release();}
@@ -16,24 +17,25 @@ public sealed partial class MountManager
     }
     private (Runtime Root,MountEntry Entry)? PreviewTarget(string path)
     {
-        if(IsStopping)return null;var id=FindMount([path]);var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)return null;
+        if(!CustomPreviewsAvailable||IsStopping)return null;var id=FindMount([path]);var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)return null;
         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
         var entry=_repository.Entries(id).FirstOrDefault(entry=>entry.Id==marker?.EntryId&&entry.Materialized&&!entry.Deleted&&!entry.Protected&&entry.RemotePresence!=RemotePresence.Deleted);
         if(marker?.MountId!=id||entry is null||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||entry.IsDirectory||!PreviewWorker.Supports(entry.LocalPath))return null;
         return(root,entry);
     }
     /// <summary>只读的缓存状态，不排队、不访问远端；旧 IPC 调用仍保持 getPreview 的无副作用语义。</summary>
-    public string PreviewState(string path)=>PreviewTarget(path) is {} target?_previews.State(target.Root.Definition,target.Entry):"unsupported";
+    public string PreviewState(string path)=>!CustomPreviewsAvailable?"disabled":PreviewTarget(path) is {} target?_previews.State(target.Root.Definition,target.Entry):"unsupported";
     /// <summary>扩展显式请求单个文件预览；立即返回状态，网络和解码均在后台，不自动启动应用。</summary>
     public string RequestPreview(string path,int size)
     {
+        if(!CustomPreviewsAvailable)return "disabled";
         if(size is <16 or >256)return "unsupported";var target=PreviewTarget(path);if(target is null)return "unsupported";
         _previews.Queue(target.Value.Root.Definition,target.Value.Entry,true);return _previews.State(target.Value.Root.Definition,target.Value.Entry);
     }
     /// <summary>根锁内只核对并取得本地保护句柄；远端读取及隔离解码不持有根锁，发布前再校验身份和设置。</summary>
     private async Task<Dictionary<int,byte[]>?> RenderPreviewAsync(MountDefinition mount,MountEntry entry,bool allowRemote,CancellationToken token)
     {
-        if(!_roots.TryGetValue(mount.Id,out var root))return null;
+        if(!CustomPreviewsAvailable||!_roots.TryGetValue(mount.Id,out var root))return null;
         CloudFilesNative.ProtectedHandle? handle=null;var referenced=false;Stream? local=null;LocalFileStamp? stamp=null;Common.IFileSource? source=null;long length=0;
         try
         {

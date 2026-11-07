@@ -98,9 +98,9 @@ public partial class App:Application
             if(request.Operation=="getPreview")
             {
                 var png=Mounts.GetPreview(request.Paths[0],request.PreviewSize!.Value);
-                return new(2,request.RequestId,png is null?"notFound":"ok","",PreviewPng:png,PreviewStatus:Mounts.PreviewState(request.Paths[0]));
+                return new(2,request.RequestId,!ShellExtensionPolicy.CustomThumbnailsEnabled?"unsupported":png is null?"notFound":"ok","",PreviewPng:png,PreviewStatus:Mounts.PreviewState(request.Paths[0]));
             }
-            if(request.Operation=="requestPreview")return new(2,request.RequestId,"accepted","",PreviewStatus:Mounts.RequestPreview(request.Paths[0],request.PreviewSize!.Value));
+            if(request.Operation=="requestPreview")return new(2,request.RequestId,ShellExtensionPolicy.CustomThumbnailsEnabled?"accepted":"unsupported","",PreviewStatus:Mounts.RequestPreview(request.Paths[0],request.PreviewSize!.Value));
             if(request.Operation=="getOperation")
             {
                 var job=Mounts.GetOperation(request.JobId!);

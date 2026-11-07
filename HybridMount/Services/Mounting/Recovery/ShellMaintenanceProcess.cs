@@ -91,7 +91,17 @@ internal static class ShellMaintenanceProcess
         if(!WinRegisterService.IsPackaged())
             return Process.Start(new ProcessStartInfo(Environment.ProcessPath!){Arguments=arguments,UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden})??throw new IOException("不能启动维护进程。");
         var activation=(IActivation)new ActivationManager();
-        try{Marshal.ThrowExceptionForHR(activation.ActivateApplication(Windows.ApplicationModel.Package.Current.Id.FamilyName+"!ShellMaintenance",arguments,0,out var pid));return Process.GetProcessById((int)pid);}
+        try
+        {
+            Marshal.ThrowExceptionForHR(activation.ActivateApplication(Windows.ApplicationModel.Package.Current.Id.FamilyName+"!ShellMaintenance",arguments,0,out var pid));
+            var child=Process.GetProcessById((int)pid);
+            try
+            {
+                // 系统激活的进程不是Process.Start的子进程，必须在其退出前保留句柄，才能可靠等待和读取退出码。
+                _=child.SafeHandle;return child;
+            }
+            catch{child.Dispose();throw;}
+        }
         finally{Marshal.ReleaseComObject(activation);}
     }
     /// <summary>用持有的进程句柄读取令牌；不同SID、会话或可执行文件均拒绝。维护端不提升权限。</summary>

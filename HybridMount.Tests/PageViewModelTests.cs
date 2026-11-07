@@ -35,7 +35,7 @@ public sealed class PageViewModelTests
         {
             Directory.CreateDirectory(_area);Repository=new(Path.Combine(_area,"data"),definitions:Store);Logger=new(Path.Combine(_area,"log.db"));
             foreach(var name in new[]{"A","B"}){var local=Path.Combine(_area,name);Directory.CreateDirectory(local);Store.Items.Add(new(Guid.NewGuid(),name,local,false,RootIdentity:MountPathGuard.FileIdentity(local),Source:new(FileSourceKind.WebDav,"https://example.test/dav/"),RegistrationStage:MountRegistrationStage.NotRegistered));}
-            Manager=new(Repository,Logger);
+            Manager=new(Repository,Logger){LegacyPreviewsForTests=true};
         }
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }

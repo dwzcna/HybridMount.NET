@@ -62,8 +62,8 @@ public static class CloudRootRegistration
         StorageProviderSyncRootManager.Register(info);
         MountPathGuard.ValidateOperation(mount,mount.LocalPath);
     }
-    /// <summary>本产品新旧根共用相同描述符，升级不改变路径、Context或CFAPI策略。</summary>
-    private static async Task<StorageProviderSyncRootInfo> CreateDescriptorAsync(MountDefinition mount)
+    /// <summary>两种运行模式共用新根描述符并允许原生固定；已有根不因本版重新注册或改变CFAPI策略。</summary>
+    internal static async Task<StorageProviderSyncRootInfo> CreateDescriptorAsync(MountDefinition mount)
     {
         return new StorageProviderSyncRootInfo
         {
@@ -73,7 +73,7 @@ public static class CloudRootRegistration
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.None,
             InSyncPolicy = StorageProviderInSyncPolicy.FileLastWriteTime | StorageProviderInSyncPolicy.DirectoryLastWriteTime |
                 StorageProviderInSyncPolicy.FileCreationTime | StorageProviderInSyncPolicy.DirectoryCreationTime,
-            HardlinkPolicy = StorageProviderHardlinkPolicy.None, Version = typeof(MountManager).Assembly.GetName().Version!.ToString(), ShowSiblingsAsGroup = false,
+            AllowPinning = true, HardlinkPolicy = StorageProviderHardlinkPolicy.None, Version = typeof(MountManager).Assembly.GetName().Version!.ToString(), ShowSiblingsAsGroup = false,
             Context = CryptographicBuffer.CreateFromByteArray(MountPathGuard.RootBytes(mount.Id))
         };
     }
