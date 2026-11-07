@@ -61,6 +61,8 @@ internal static class CloudShellState
                 var manifest=XDocument.Load(reader);var cloud=manifest.Descendants().FirstOrDefault(e=>e.Name.LocalName=="CloudFiles");
                 lines.Add("已安装包："+package.Id.FullName);
                 lines.Add("CloudFiles处理器："+(cloud is null?"未注册":string.Join("、",cloud.Elements().Select(e=>e.Name.LocalName))));
+                var thumbnail=cloud?.Elements().FirstOrDefault(e=>e.Name.LocalName=="ThumbnailProviderHandler")?.Attribute("Clsid")?.Value;
+                lines.Add("自定义云缩略图入口："+(string.Equals(thumbnail,"A65802EB-4D1C-4C7E-A519-34C76B9BB281",StringComparison.OrdinalIgnoreCase)?"已注册（实验性）":"未启用；挂载开关不能替代安装注册。"));
             }
         }
         catch(Exception error){lines.Add("安装注册查询失败："+error.GetType().Name);}

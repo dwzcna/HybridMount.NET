@@ -8,7 +8,7 @@ public sealed class ShellStateMatrixTests(ITestOutputHelper output)
     [Fact(Timeout=60000)]
     public async Task ConvertedAndHydratedCleanFilesExposeConsistentShellState()
     {
-        await using var test=await UploadFlowTests.Fixture.Create();var path=Path.Combine(test.Local,"shell-classify.txt");
+        await using var test=await UploadFlowTests.Fixture.Create();await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);var path=Path.Combine(test.Local,"shell-classify.txt");
         void Log(string stage,string target)
         {
             var native=CloudFilesNative.Inspect(target)!.Value.Info;

@@ -12,6 +12,7 @@ public sealed partial class MountManager
         var text=new StringBuilder(CloudShellState.EnvironmentDescription()).AppendLine().Append("挂载：").Append(snapshot.Definition.Name)
             .Append("；连接：").Append(snapshot.IsConnected?"已连接":"已断开").Append("；状态：").AppendLine(snapshot.Status);
         if(snapshot.Detail.Length>0)text.AppendLine(snapshot.Detail);
+        text.Append("挂载缩略图开关：").AppendLine(root.Definition.ThumbnailsEnabled?"已开启":"已关闭");
         text.Append("远端检测模式：").AppendLine(snapshot.Detection?.Mode??"尚未检测");
         if(root.ChangeSession.Fallback is {} fallback)
             text.Append("RFC 6578 本次会话已停用：").AppendLine(fallback.Reason).Append("降级时间：").AppendLine(fallback.OccurredUtc.ToLocalTime().ToString("O"));

@@ -292,6 +292,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private async Task StopAsync()
     {
         await RequestStop().ConfigureAwait(false);
+        await _pinnedHydration.DisposeAsync().ConfigureAwait(false);foreach(var gate in _pinGates.Values)gate.Dispose();
         Task[] pending;lock(_fetchGate)pending=_fetches.Values.Select(item=>item.Work).Concat(_notifications).ToArray();
         await Task.WhenAll(pending).ConfigureAwait(false);await _metadata.DisposeAsync().ConfigureAwait(false);
         // 回调已结束才断开 CFAPI；常规停止不注销持久同步根。

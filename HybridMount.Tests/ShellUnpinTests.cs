@@ -12,7 +12,7 @@ public sealed class ShellUnpinTests
     [InlineData(0L,15)][InlineData(long.MaxValue,15)][InlineData(0L,0)]
     public async Task PendingUnpinCompletesWithoutCachePressureAndPreservesIdentity(long limit,int size)
     {
-        await using var test=await UploadFlowTests.Fixture.Create();test.Manager.CacheLimitBytes=limit;
+        await using var test=await UploadFlowTests.Fixture.Create();await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);test.Manager.CacheLimitBytes=limit;
         var path=Path.Combine(test.Local,"unpin.txt");var bytes=Encoding.UTF8.GetBytes(new string('a',size));
         await File.WriteAllBytesAsync(path,bytes);await test.Wait("unpin.txt");
         var identity=LocalFileState.Read(path).Identity;var marker=CloudFilesNative.Inspect(path)!.Value.Identity;Unpin(path);
@@ -31,7 +31,7 @@ public sealed class ShellUnpinTests
     [InlineData("Queued")][InlineData("Sending")][InlineData("OutcomeUnknown")][InlineData("Conflict")][InlineData("Failed")][InlineData("Canceled")]
     public async Task NonCompletedUploadProtectsCachedContent(string state)
     {
-        await using var test=await UploadFlowTests.Fixture.Create();test.Manager.CacheLimitBytes=0;
+        await using var test=await UploadFlowTests.Fixture.Create();await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);test.Manager.CacheLimitBytes=0;
         var path=Path.Combine(test.Local,"protected.txt");await File.WriteAllTextAsync(path,"not discarded");var upload=await test.Wait("protected.txt");
         await test.Manager.SetSchedulingForTestsAsync(test.Id,false);Unpin(path);
         test.Repository.SaveUpload(upload with{State=state,ChangedUtc=DateTimeOffset.UtcNow});
@@ -48,7 +48,7 @@ public sealed class ShellUnpinTests
     [InlineData("pinned")][InlineData("unspecified")][InlineData("dirty")][InlineData("open")][InlineData("remote-pending")][InlineData("remote-deleted")]
     public async Task ModifiedActivePinnedAndRemoteBarriersArePreserved(string protection)
     {
-        await using var test=await UploadFlowTests.Fixture.Create(false);test.Manager.CacheLimitBytes=0;
+        await using var test=await UploadFlowTests.Fixture.Create(false);await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);test.Manager.CacheLimitBytes=0;
         var path=Path.Combine(test.Local,"文件.bin");_ = await File.ReadAllBytesAsync(path);var entry=test.Repository.Entries(test.Id).Single(e=>e.LocalPath=="文件.bin");
         HybridMount.Models.Mounting.RemotePendingChange? pending=null;
         if(protection=="pinned")Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]))).State);
@@ -76,10 +76,10 @@ public sealed class ShellUnpinTests
     [Fact(Timeout=60000)]
     public async Task RestartCompletesOldRequestAndCancelledMaintenanceDoesNotChangeIt()
     {
-        await using var test=await UploadFlowTests.Fixture.Create();test.Manager.CacheLimitBytes=0;
+        await using var test=await UploadFlowTests.Fixture.Create();await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);test.Manager.CacheLimitBytes=0;
         var path=Path.Combine(test.Local,"restarted.txt");await File.WriteAllTextAsync(path,"restart content");await test.Wait("restarted.txt");Unpin(path);
         var identity=LocalFileState.Read(path).Identity;var puts=test.Dav.Server.Requests.Count(r=>r.Method=="PUT");
-        await test.Manager.DisposeAsync();test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);
+        await test.Manager.DisposeAsync();test.Manager=new(test.Repository,test.Logger);await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);await test.Manager.ConnectAsync(test.Id);
         using(var cancel=new CancellationTokenSource())
         {cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>test.Manager.EnforceCacheLimitAsync(cancel.Token));}
         Assert.Equal(10u,CloudShellState.Read(path).ProviderState);await test.Manager.EnforceCacheLimitAsync();

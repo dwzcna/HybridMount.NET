@@ -39,7 +39,7 @@ public sealed partial class MountManager
             var signals=new List<Task>{_stop.CancelAsync(),_previews.RequestStop()};
             foreach(var root in _roots.Values)
             {
-                CancelConnection(root,reason:"Shutdown");RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);
+                CancelConnection(root,reason:"Shutdown");RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
                 lock(root.ConnectionSync){signals.Add(root.ConnectionSignal);if(root.Uploads is {} uploads)signals.Add(uploads.Cancellation);}
                 if(root.Session is {} session)signals.Add(session.RequestStop());
             }
@@ -68,6 +68,7 @@ public sealed partial class MountManager
         await Step("Jobs",()=>Task.WhenAll(_jobs.Values.Select(job=>job.Work))).ConfigureAwait(false);
         if(_issuePublishing is not null)await Step("IssuePublishing",()=>_issuePublishing).ConfigureAwait(false);
         if(_maintenance is not null)await Step("Maintenance",()=>_maintenance).ConfigureAwait(false);
+        await Step("PinIntents",()=>Task.WhenAll(_roots.Values.Select(StopPinIntentsAsync))).ConfigureAwait(false);
         await Step("RemoteSync",()=>Task.WhenAll(_roots.Values.Select(StopRemoteAsync))).ConfigureAwait(false);
         await Step("Capacity",()=>Task.WhenAll(_roots.Values.Select(StopCapacityAsync))).ConfigureAwait(false);
         await Step("SqsReceivers",()=>_remoteEvents.DisposeAsync().AsTask()).ConfigureAwait(false);
@@ -82,7 +83,7 @@ public sealed partial class MountManager
                 finally{root.Gate.Release();}
             }).ConfigureAwait(false);
         }
-        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_stop.Dispose();
+        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_pinSlots.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_stop.Dispose();
         ObserveStop(errors.Count==0?"Stopped":"StoppedWithErrors",null);
         if(errors.Count!=0)throw new AggregateException("挂载停止时有资源未正常释放。",errors);
     }

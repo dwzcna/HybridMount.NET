@@ -144,6 +144,8 @@ public static class CloudFilesNative
     [DllImport("CldApi.dll")] public static extern int CfUpdatePlaceholder(ProtectedHandle handle,in FsMetadata metadata,nint identity,uint identityLength,[In] FileRange[] ranges,uint count,uint flags,nint usn,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfRevertPlaceholder(ProtectedHandle handle,uint flags,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfSetPinState(ProtectedHandle handle,uint state,uint flags,nint overlap);
+    /// <summary>仅属性句柄设置原生固定意图，不因申请正文访问而隐式水合；调用者负责核对根及条目身份。</summary>
+    [DllImport("CldApi.dll",EntryPoint="CfSetPinState")] internal static extern int SetPinIntent(SafeFileHandle handle,uint state,uint flags,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfGetPlaceholderRangeInfo(SafeHandle handle,uint infoClass,long offset,long length,nint buffer,uint size,out int returned);
     [DllImport("kernel32.dll",EntryPoint="CreateFileW",CharSet=CharSet.Unicode,SetLastError=true)] public static extern SafeFileHandle CreateFile(string path,uint access,uint share,nint security,uint creation,uint flags,nint template);
     [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetFileInformationByHandleEx(SafeFileHandle handle,int infoClass,out AttributeTag info,uint size);

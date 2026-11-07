@@ -5,14 +5,17 @@ public sealed partial class MountManager
     /// <summary>不依赖软限额完成旧释放请求；不联网、不上传，根锁内复核上传与远端屏障，锁外通知Shell。</summary>
     private async Task<long> CompletePendingUnpinsAsync(CancellationToken token)
     {
+        long freed=0;foreach(var root in _roots.Values)freed+=await CompletePendingUnpinsAsync(root,token).ConfigureAwait(false);return freed;
+    }
+    private async Task<long> CompletePendingUnpinsAsync(Runtime root,CancellationToken token)
+    {
         long freed=0;
-        foreach(var root in _roots.Values)
         {
             var changed=new List<string>();await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 token.ThrowIfCancellationRequested();
-                if(root.Session is null||root.RemovalRequested||root.Definition.RemovalPending)continue;
+                if(root.Session is null||root.RemovalRequested||root.Definition.RemovalPending)return 0;
                 MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
                 var entries=_repository.Entries(root.Definition.Id);
                 var protectedPaths=_repository.Uploads(root.Definition.Id).Where(x=>x.State!="Completed").Select(x=>x.LocalPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -32,7 +35,7 @@ public sealed partial class MountManager
             finally
             {
                 root.Gate.Release();
-                foreach(var path in changed)CloudFilesNative.NotifyItemUpdated(path);
+                foreach(var path in changed)NotifyFileState(path);
             }
         }
         return freed;

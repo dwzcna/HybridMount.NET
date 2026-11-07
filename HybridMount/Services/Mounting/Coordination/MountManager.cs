@@ -22,6 +22,8 @@ public sealed partial class MountManager : IAsyncDisposable
         public CloudMountSession? Session;
         public IFileSource? Source;
         public UploadRuntime? Uploads;
+        public PinIntentRuntime? Pins;
+        public bool PinIntentsEnabled=true;
         public RemoteSyncRuntime? RemoteSync;
         public RemoteDetectionStatus Detection=new();
         public RemoteChangeSessionState ChangeSession=new();
@@ -150,8 +152,8 @@ public sealed partial class MountManager : IAsyncDisposable
         var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
-            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);
-            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+            CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
+            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
@@ -177,7 +179,7 @@ public sealed partial class MountManager : IAsyncDisposable
         finally
         {
             lock(root.ConnectionSync)root.ConnectionStops--;
-            if(root.Session is not null&&!IsStopping){StartUploads(root);StartRemoteSync(root);}
+            if(root.Session is not null&&!IsStopping){StartUploads(root);StartPinIntents(root);StartRemoteSync(root);}
         }
     }
     /// <summary>只有实际无注册、无云占位、无物化索引的从未注册条目可改变远端根。</summary>
@@ -257,7 +259,7 @@ public sealed partial class MountManager : IAsyncDisposable
             lock(_lifetime)
             {
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
-                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()); root.Session.Connect();
+                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=()=>PinResourcesReleasingForTests?.Invoke()??Task.CompletedTask}; root.Session.Connect();
             }
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
@@ -281,7 +283,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 catch(Exception recoveryError)when(recoveryError is not OperationCanceledException)
                 {Status(root,"已连接",recovery.RecoveryWarning);_logger.Queue(recovery.RecoveryLogArea,"Warning",recoveryError.Message);}
             }
-            Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartRemoteSync(root);
+            Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartPinIntents(root);StartRemoteSync(root);
         }
         catch(Exception error)
         {
@@ -394,8 +396,8 @@ public sealed partial class MountManager : IAsyncDisposable
             CancelConnection(root);
             // 先取消任务所有者，再停止共享检测：关联读取可立即结束，不能在任务令牌尚有效的窗口被误记 Failed。
             foreach(var job in _jobs.Values.Where(job=>job.Root==id))job.Cancel.Cancel();
-            RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
-            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),previewStop,reads,root.ConnectionFinished).ConfigureAwait(false);
+            RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
+            await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),previewStop,reads,root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync().ConfigureAwait(false);
             try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"未连接");}
             finally{root.Gate.Release();}
@@ -404,9 +406,9 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     private async Task DisconnectCoreAsync(Runtime root)
     {
-        RequestUploadStop(root);var previewStop=_previews.CancelMountAsync(root.Definition.Id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
+        RequestUploadStop(root);RequestPinStop(root);var previewStop=_previews.CancelMountAsync(root.Definition.Id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
         RequestCapacityStop(root);var errors=new List<Exception>();
-        try{await Task.WhenAll(previewStop,reads,StopUploadsAsync(root),StopCapacityAsync(root)).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
+        try{await Task.WhenAll(previewStop,reads,StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root)).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         UnobserveUploadSource(root);var session=root.Session;var source=root.Source;root.Session=null;root.Source=null;
         try{if(session is not null)await session.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         try{if(source is not null)await source.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
@@ -438,16 +440,16 @@ public sealed partial class MountManager : IAsyncDisposable
         var removing=operation is "remove" or "clearAndRemove";
         var mode=operation=="clearAndRemove"?MountRemovalMode.ClearContents:MountRemovalMode.PreserveFiles;
         if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除未完成，不能改用其他模式或执行缓存任务。");
-        if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);}
+        if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);}
         if(removing)foreach(var current in _jobs.Values.Where(job=>job.Root==id && job.Snapshot.State is "Queued" or "Running"))current.Cancel.Cancel();
         var job=new Job(Guid.NewGuid().ToString("N"),id,operation,_stop.Token);
         _jobs[job.Snapshot.Id]=job;Save(job);
         job.Work=Task.Run(async()=>
         {
-            var held=false;
+            var held=false;var changedPaths=new List<string>();
             try
             {
-                if(removing)await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+                if(removing)await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
                 if(operation=="refresh"&&root.Source is IRemoteChangeSource)
                 {
                     Update(job,"Running");
@@ -491,14 +493,19 @@ public sealed partial class MountManager : IAsyncDisposable
                         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
                         if(info is null || _repository.HasPendingRemote(id,entry.SourcePath) || entry.RemotePresence==RemotePresence.Deleted || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
-                        using var priority=operation=="keepOnDevice"?root.Session.PrioritizeDownload(entry.Id):null;
-                        using(var handle=CloudFilesNative.Open(path,operation=="freeSpace"))
-                        {
-                        if(operation=="keepOnDevice")
-                        {CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,1,0,0));if(!entry.IsDirectory)await CloudFilesNative.HydrateAsync(handle,job.Cancel.Token).ConfigureAwait(false);}
-                        else
+                        var session=root.Session;
+                        if(operation=="keepOnDevice")session.RequestPin(entry);
+                        else using(var handle=CloudFilesNative.Open(path,true))
                         {CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,2,0,0));if(!entry.IsDirectory)CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,0,-1,0,0));}
+                        if(operation=="keepOnDevice"&&!entry.IsDirectory)
+                        {
+                            root.Gate.Release();held=false;
+                            try{await session.HydratePinnedAsync(entry,job.Cancel.Token).ConfigureAwait(false);}
+                            finally{await root.Gate.WaitAsync().ConfigureAwait(false);held=true;}
+                            job.Cancel.Token.ThrowIfCancellationRequested();
+                            if(!ReferenceEquals(root.Session,session))throw new IOException("下载会话已结束。");
                         }
+                        changedPaths.Add(path);
                         if(operation=="keepOnDevice")_previews.Queue(root.Definition,entry);
                         Result(job,path,"Completed","操作已完成。");
                     }
@@ -516,6 +523,7 @@ public sealed partial class MountManager : IAsyncDisposable
                     if(root.Definition.RemovalPending && _roots.ContainsKey(id))Status(root,"移除未完成",root.Definition.RemovalMode==MountRemovalMode.ClearContents?"清空尚未完成；已删内容不会恢复，请重试清空并移除。":"请继续下载并移除，以保留本地文件。");
                     root.Gate.Release();
                 }
+                foreach(var path in changedPaths)NotifyFileState(path);
                 if(removing)lock(root.ConnectionSync)
                 { root.RemovalRequests--;root.RemovalRequested=root.RemovalRequests>0 || root.Definition.RemovalPending; }
                 Notify();
