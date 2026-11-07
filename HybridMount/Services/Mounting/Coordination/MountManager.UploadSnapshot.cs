@@ -87,13 +87,34 @@ public sealed partial class MountManager
     }
     /// <summary>实例级通知屏障，用于验证数据库、保护句柄和根锁的提交顺序。</summary>
     internal Action<string>? ShellNotificationForTests {get;set;}
-    /// <summary>远端已确认后在根锁内提交；文件改变则只更新远端基线，保留新一代本地保护。</summary>
+    /// <summary>远端确认后短锁捕获，恢复摘要在锁外执行；重新核对会话、代次和文件后再原生提交及持久化。</summary>
     private async Task CommitUploadAsync(Runtime root,LocalUpload prepared,CancellationToken token)
     {
         var receipt=prepared.Receipt??throw new IOException("上传回执缺失。");string? notifyPath=null;
+        var definition=root.Definition;var session=root.Session;var source=root.Source;
+        var localPath=RelativePaths.ToLocal(definition.LocalPath,prepared.LocalPath);MountEntry? capturedEntry=null;
+        MountEntry Entry()
+        {
+            var entries=_repository.Entries(prepared.MountId);
+            var mapped=entries.FirstOrDefault(x=>x.Id==prepared.EntryId&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath)
+                ??entries.FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);
+            return new(mapped?.Id??prepared.Id,prepared.SourcePath,prepared.LocalPath,receipt.Version,receipt.IsDirectory,Materialized:true);
+        }
+        bool Current(UploadCommitCapture capture)=>!root.RemovalRequested&&!root.Definition.RemovalPending&&root.Definition==definition&&ReferenceEquals(root.Session,session)&&ReferenceEquals(root.Source,source)&&
+            _repository.Upload(prepared.Id)==capture.Row&&Entry()==capturedEntry&&(!capture.NeedsHash||UploadCommitRecovery.SameStamp(localPath,capture.Stamp!));
+        var recovery=await UploadCommitRecovery.VerifyAsync(root.Gate,()=>
+        {
+            var row=_repository.Upload(prepared.Id);if(row!=prepared||row.State!="RemoteCommitted"||root.RemovalRequested||root.Definition.RemovalPending)return null;
+            MountPathGuard.ValidateOperation(definition,prepared.IsCopy?definition.LocalPath:localPath);capturedEntry=Entry();
+            var stamp=prepared.IsCopy||LocalMissing(localPath)?null:LocalFileState.Read(localPath);
+            var needsHash=stamp is not null&&row.Generation==prepared.SnapshotGeneration&&_uploadCommitter is IRecoveryUploadCommitter committer&&committer.NeedsRecovery(definition,capturedEntry,prepared,stamp);
+            return new(row,stamp,needsHash);
+        },Current,capture=>UploadCommitRecovery.HashAsync(localPath,capture.Stamp!,token,()=>UploadCheckpointAsync("RecoveryHash",prepared)),token).ConfigureAwait(false);
+        if(recovery is null)return;
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
+            if(!Current(recovery))return;
             if(root.RemovalRequested||root.Definition.RemovalPending)throw new OperationCanceledException(token);
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
@@ -112,10 +133,12 @@ public sealed partial class MountManager
                 MountPathGuard.ValidateOperation(root.Definition,path);
                 UploadRules.ValidateTypes(prepared,LocalFileState.Read(path),receipt.IsDirectory);
                 var current=_repository.Upload(prepared.Id);
-                if(current?.Generation==prepared.SnapshotGeneration)committedStamp=_uploadCommitter.Commit(root.Definition,entry,prepared);
+                if(current?.Generation==prepared.SnapshotGeneration)committedStamp=_uploadCommitter is IRecoveryUploadCommitter committer?
+                    committer.Commit(root.Definition,entry,prepared,recovery.VerifiedStamp):_uploadCommitter.Commit(root.Definition,entry,prepared);
             }
             if(committedStamp is not null)await UploadCheckpointAsync("CommitVerified",prepared).ConfigureAwait(false);
-            var completed=_repository.CommitUploadedEntry(prepared,entry,receipt,committedStamp,!exists);
+            var completed=_repository.TryCommitUploadedEntry(recovery.Row,prepared,entry,receipt,committedStamp,!exists);
+            if(completed is null)return;
             if(committedStamp is not null&&completed.State=="Completed")notifyPath=path;
             CompleteOwnUploadEcho(root,receipt);
             await UploadCheckpointAsync("Committed",completed).ConfigureAwait(false);

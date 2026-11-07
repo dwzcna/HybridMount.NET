@@ -84,7 +84,16 @@ public sealed partial class MountRepository
             command.Parameters.AddWithValue("$m",mount.ToString("N"));command.Parameters.AddWithValue("$p",path);command.Parameters.AddWithValue("$v",version);return command.ExecuteScalar() as string;
         }
     }
-    /// <summary>明确提交远端版本、映射和上传日志；只有已验证的当前代次才解除本地保护。</summary>
+    /// <summary>仓库锁内比较完整捕获记录后提交，记录已变化返回空值，不覆盖新代次或取消状态。</summary>
+    internal LocalUpload? TryCommitUploadedEntry(LocalUpload captured,LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false)
+    {
+        lock(_gate)
+        {
+            if(Upload(prepared.Id)!=captured)return null;
+            return CommitUploadedEntry(prepared,entry,receipt,committedStamp,missing);
+        }
+    }
+    /// <summary>在同一事务保存远端版本、索引和上传日志；只有已验证的当前代次才解除本地保护。</summary>
     public LocalUpload CommitUploadedEntry(LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false)
     {
         lock(_gate)

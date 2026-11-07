@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text.Json;
 using HybridMount.Models.Mounting;
 using Microsoft.Win32.SafeHandles;
@@ -16,8 +15,18 @@ internal static class CloudUploadState
     public static void ValidateTypes(LocalUpload intent,LocalFileStamp? local=null,bool? remoteDirectory=null)
         =>UploadRules.ValidateTypes(intent,local,remoteDirectory);
 
+    /// <summary>只读核对本挂载占位身份及同步标记，判断崩溃恢复是否需要锁外摘要。</summary>
+    internal static bool IsCommitted(MountDefinition mount,MountEntry entry,string path)
+    {
+        var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+        return marker?.MountId==mount.Id&&marker.EntryId==entry.Id&&info?.Info.InSyncState==1;
+    }
+    /// <summary>恢复证明只适用于已经提交且状态戳仍一致的同一对象；保护范围内变化时拒绝。</summary>
+    internal static bool MatchesRecovery(LocalFileStamp stamp,LocalFileStamp? verifiedStamp,bool alreadyCommitted)
+        =>alreadyCommitted&&verifiedStamp is not null&&stamp.Key==verifiedStamp.Key;
+
     /// <summary>保护引用内核验内容并返回提交后稳定戳；并发编辑返回空值，类型冲突拒绝原生转换。</summary>
-    public static LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)
+    public static LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp=null)
     {
         var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);
         using var handle=CloudFilesNative.Open(path,true);
@@ -33,9 +42,7 @@ internal static class CloudUploadState
             var alreadyCommitted=marker?.MountId==mount.Id&&marker.EntryId==entry.Id&&info?.Info.InSyncState==1;
             if(!entry.IsDirectory&&stamp.Key!=prepared.SnapshotStamp)
             {
-                if(!alreadyCommitted)return null;
-                using var stream=new ProtectedResourceStream(raw,stamp.Length);
-                if(System.Convert.ToHexString(SHA256.HashData(stream))!=prepared.SnapshotSha256)return null;
+                if(!MatchesRecovery(stamp,verifiedStamp,alreadyCommitted))return null;
             }
             var identity=JsonSerializer.SerializeToUtf8Bytes(new MountPathGuard.EntryMarker(mount.Id,entry.Id));
             long usn=stamp.Usn;
@@ -62,7 +69,10 @@ internal static class CloudUploadState
 }
 
 /// <summary>默认 CFAPI 提交适配器；身份、保护句柄和同步标记仍由同一原生实现负责。</summary>
-internal sealed class CloudUploadCommitter : ILocalUploadCommitter
+internal sealed class CloudUploadCommitter : ILocalUploadCommitter,IRecoveryUploadCommitter
 {
     public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)=>CloudUploadState.Commit(mount,entry,prepared);
+    public bool NeedsRecovery(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp stamp)
+        =>!entry.IsDirectory&&stamp.Identity==prepared.SnapshotIdentity&&stamp.Key!=prepared.SnapshotStamp&&CloudUploadState.IsCommitted(mount,entry,RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath));
+    public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp)=>CloudUploadState.Commit(mount,entry,prepared,verifiedStamp);
 }

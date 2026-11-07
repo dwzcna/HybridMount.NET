@@ -60,3 +60,13 @@ PR #16来源a0911b2回并旧master，产品实现已在0.0.9.21合入；新测�
 - PR #16、#17、#18的GitHub来源逐个核验SHA及master祖先关系后，使用精确SHA租约删除；新增提交会拒绝删除。累计18个已合并GitHub来源清理完成，远端仅保留master。
 - 本次只更新发布记录，产品、测试、版本、配置和数据库保持；已有构建及回归结果沿用原版证据，不重复计数。发布记录独立提交后再同步两端。
 - 证据：artifacts/validation/pr-publication-preflight.json、pr-publication-master-push.json、pr16-18-github-branch-cleanup.json；最终两端一致性和工作区审计为pr-publication-final-audit.json。
+
+## 第三批：PR #19—#20（2026-11-07）
+
+从0.0.9.25继续逐个拉取、合并和递增第四段版本；开发及自动验证预算60–90分钟，真实服务及桌面／实机等待另计。
+
+| PR | 版本 | 内容 | 针对性 | Debug | Release | 双架构签名包／ARM64交叉编译／非打包构建 |
+| --- | --- | --- | --- | --- | --- | --- |
+| [#19](https://github.com/dwzcna/HybridMount.NET/pull/19) | 0.0.9.26 | 上传恢复摘要移出根锁并保护提交代次 | 110 | 1052 | 1052 | 通过；ARM64未实机运行 |
+
+每版先最小编译及针对性，再完整回归与签名包核验，之后独立双父合并提交。全部完成后按本次授权普通推送GitHub、Azure，并核对master包含来源后精确删除远程分支；来源SHA变化则保留。最终提交、双远端SHA和删除结果见artifacts/validation/pr-round3-publication.json，逐版证据见本节对应验收文档。未启动或安装正式程序，未连接真实服务、未操作正式配置或同步根；GUI／Explorer、安装升级与ARM64实机按实际边界待测。

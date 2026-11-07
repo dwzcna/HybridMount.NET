@@ -1,6 +1,6 @@
-# HybridMount.NET 开发计划（0.0.1—0.0.9.25）
+# HybridMount.NET 开发计划（0.0.1—0.0.9.26）
 
-更新日期：2026-11-06。0.0.9.25已移除内部URI路由，以页面枚举和单一导航服务连接WinUI Frame原生历史、切换动画、标题栏返回及Alt＋左方向键；保留页面缓存和退出保护。针对性46/46、x64 Debug／Release各1029/1029、x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release通过；隔离实际WinUI运行时62项断言通过并以0退出，正式挂载和配置未加载。视觉动画、实际鼠标／快捷键、安装升级与ARM64实机仍待测。完成后按本次授权独立提交并推送GitHub与Azure，具体发布SHA保存artifacts/validation/00925-publication.json。前批PR合并及分支清理记录继续保留于docs/Validation-PR-Merges.md。
+更新日期：2026-11-07。本批按编号继续合并GitHub PR，当前已完成PR #19并升至0.0.9.26；针对性110/110、x64 Debug／Release各1052/1052、双架构签名MSIX、ARM64测试交叉编译及x64非打包Release通过。主工程／测试实际Compile项186／249无重复遗漏。正式程序、配置及同步根不切换，真实服务、GUI／Explorer、安装升级及ARM64实机仍待测。按本次授权逐版独立提交，最终普通推送GitHub、Azure并精确删除已合并来源；进度与发布实证见docs/Validation-PR-Merges.md及artifacts/validation/pr-round3-publication.json。
 
 工程限定为 HybridMount、HybridMount.Ext、HybridMount.Tests，主程序 HybridMount.NET.exe、命名空间 HybridMount。使用 WinUI 3／.NET 10／MSIX，最低 Windows 11 21H2，支持 x64／ARM64。本地挂载根仅限 NTFS。用户配置根路径为 `HKCU\Software\HybridMount.NET`，日志和运行索引使用 SQLite。
 
@@ -60,6 +60,11 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 本轮PR #16—#18逐个拉取、合并及分版自动验证预算45–75分钟，真实服务、GUI／Explorer及实机另计。每个PR独立升版、验证和提交后删除本地已合并来源分支；已在GitHub master中的旧来源分支按精确SHA清理，主分支推送仍需明确授权。
 
 ## 已完成
+
+### 0.0.9.26：PR #19——上传恢复摘要移出根锁并保护提交代次
+
+- 已合入来源0491d6fca274a6d0c341e911961a3ccfab22880c。远端已确认、本地原生提交后的恢复核验不再持有根锁读取整文件。短锁捕获上传记录和文件戳，锁外异步计算SHA256，再核对挂载定义、会话、源、记录、索引及文件状态；原生保护句柄内继续重验已验证戳。仓库提交比较完整捕获记录，迟到失败不能覆盖新代次或取消状态。
+- 版本、三个工程与清单统一，公开协议、IPC v2、数据库及挂载配置格式保持；本版实现和验证分别记录于docs/Validation-0.0.9.26.md。
 
 ### 0.0.9.25：Frame 原生导航、切换动画与返回
 
@@ -475,6 +480,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 
 ## 待测试
 
+- 0.0.9.26／PR #19：真实服务兼容性、GUI／Explorer、正式根升级、MSIX安装及ARM64实机；本地自动回归不能替代这些验收。不访问已取消NAS，不操作正式用户文件。
+
 - 0.0.9.25：视觉切换动画、真实鼠标侧栏／返回点击及Alt＋左方向键、弹层内键盘输入、导航失败时侧栏回退、MSIX安装升级与ARM64实机。computer-use连续初始化失败，未通过其他桌面控制方式绕过；隔离真实WinUI API断言已经完成，但不代替上述交互和视觉验收。
 
 - 本批PR逐版集成：真实服务兼容性、GUI／Explorer、安装升级与ARM64实机；自动测试仅使用本地服务及隔离NTFS／CFAPI根。既有正式进程不切换到中间版本，不访问已取消NAS；历史Shell及审查待办保持。
@@ -551,6 +558,8 @@ SMB／NFS 不列入版本和排期，仅在统一源契约、能力表及协议�
 | 0.0.5.2 | 实际托盘及连续退出、正常产品进程退出码 0、包身份下退出时序、调试器／Explorer、安装升级、ARM64 实机和长期网络压力；受控服务停止不能代替 GUI 验收 |
 
 ## 已测试
+
+- 2026-11-07，0.0.9.26，PR #19：最小x64编译、针对性110/110、Debug 1052/1052、Release 1052/1052通过；x64／ARM64签名MSIX、ARM64测试交叉编译及x64非打包Release构建通过。实际Compile项186／249及本PR相关文件无重复遗漏，未启动正式程序；详见docs/Validation-0.0.9.26.md与artifacts/validation/pr19-evidence.json。
 
 - 2026-11-06，0.0.9.25，Windows x64：Debug最小编译、导航／页面状态／任务定位针对性46/46、Debug／Release全量各1029/1029通过；x64／ARM64签名MSIX核验、ARM64测试交叉编译和x64非打包Release通过。隔离WinUI运行时62项断言、宿主退出0，实际Frame历史、五页缓存、设置草稿与滚动、ContentDialog返回拦截及退出停止通过；未加载正式挂载。实际Compile185／247，无重复、遗漏，代码无新增参考来源字样。证据见docs/Validation-0.0.9.25.md和artifacts/validation/00925-evidence.json；视觉与实机边界单列待测。
 
