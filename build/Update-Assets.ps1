@@ -76,7 +76,7 @@ function Draw-Node($drawing,$node,[hashtable]$parent){
         $drawing.DrawGeometry($fill,$pen,(Geometry $node $style['fill-rule']))
     }finally{while($pushes-- -gt 0){$drawing.Pop()}}
 }
-function New-LogoPng([string]$name,[double]$width,[double]$height,[double]$logoSize){
+function New-LogoPng([string]$name,[double]$width,[double]$height,[double]$logoSize,[switch]$AsBytes){
     # 非整数缩放向上取整；使用 viewBox 保持原图形比例及透明留白。
     $width=[int][Math]::Ceiling($width);$height=[int][Math]::Ceiling($height)
     $view=@($svg.DocumentElement.GetAttribute('viewBox') -split '[,\s]+'|Where-Object {$_}|ForEach-Object {Number $_})
@@ -90,18 +90,36 @@ function New-LogoPng([string]$name,[double]$width,[double]$height,[double]$logoS
         $drawing.Pop();$drawing.Pop();$drawing.Pop()
     }finally{$drawing.Close()}
     $bitmap=[Windows.Media.Imaging.RenderTargetBitmap]::new($width,$height,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($visual)
-    $encoder=[Windows.Media.Imaging.PngBitmapEncoder]::new();$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$stream=[IO.File]::Create((Join-Path $assetRoot $name))
-    try{$encoder.Save($stream)}finally{$stream.Dispose()}
+    $encoder=[Windows.Media.Imaging.PngBitmapEncoder]::new();$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$stream=if($AsBytes){[IO.MemoryStream]::new()}else{[IO.File]::Create((Join-Path $assetRoot $name))}
+    try{$encoder.Save($stream);if($AsBytes){return ,$stream.ToArray()}}finally{$stream.Dispose()}
 }
 
-# 状态图标同样由仓库SVG导出；可单独生成，避免改动应用标识及既有二进制资源。
+# 每帧独立从SVG渲染，ICO目录保留真实尺寸和alpha；系统按DPI选图，不将PNG路径当图标资源。
+function Write-Icon([string]$path,[object[]]$frames){
+    $stream=[IO.File]::Create($path);$writer=[IO.BinaryWriter]::new($stream)
+    try{
+        $writer.Write([uint16]0);$writer.Write([uint16]1);$writer.Write([uint16]$frames.Count);$offset=6+16*$frames.Count
+        foreach($frame in $frames){
+            $dimension=if($frame.Size -eq 256){0}else{$frame.Size}
+            $writer.Write([byte]$dimension);$writer.Write([byte]$dimension);$writer.Write([byte]0);$writer.Write([byte]0)
+            $writer.Write([uint16]1);$writer.Write([uint16]32);$writer.Write([uint32]$frame.Bytes.Length);$writer.Write([uint32]$offset);$offset+=$frame.Bytes.Length
+        }
+        foreach($frame in $frames){$writer.Write([byte[]]$frame.Bytes)}
+    }finally{$writer.Dispose();$stream.Dispose()}
+}
 $applicationSvg=$svg
-$statusReader=[Xml.XmlReader]::Create((Join-Path $assetRoot 'SyncExcluded.svg'),$settings)
-$svg=[Xml.XmlDocument]::new();$svg.XmlResolver=$null
-try{$svg.Load($statusReader)}finally{$statusReader.Dispose()}
-New-LogoPng 'SyncExcluded.png' 32 32 32
+foreach($name in @('SyncExcluded','SyncIssue')){
+    $statusReader=[Xml.XmlReader]::Create((Join-Path $assetRoot ($name+'.svg')),$settings)
+    $svg=[Xml.XmlDocument]::new();$svg.XmlResolver=$null
+    try{$svg.Load($statusReader)}finally{$statusReader.Dispose()}
+    New-LogoPng ($name+'.png') 32 32 32
+    $frames=@(foreach($size in @(16,20,24,32,40,48,64,128,256)){
+        [pscustomobject]@{Size=$size;Bytes=(New-LogoPng '' $size $size $size -AsBytes)}
+    })
+    Write-Icon (Join-Path $assetRoot ($name+'.ico')) $frames
+}
 $svg=$applicationSvg
-if($StatusIconsOnly){Write-Host '排除状态图标已重新生成。';return}
+if($StatusIconsOnly){Write-Host '排除及同步问题多尺寸状态图标已重新生成。';return}
 foreach ($scale in @(100,125,150,200,400)) {
     New-LogoPng "HybridMountSquare44.scale-$scale.png" (44*$scale/100) (44*$scale/100) (44*$scale/100)
     New-LogoPng "HybridMountSquare150.scale-$scale.png" (150*$scale/100) (150*$scale/100) (112*$scale/100)
@@ -114,20 +132,7 @@ foreach ($size in $sizes) {
     New-LogoPng "HybridMountSquare44.targetsize-${size}_altform-unplated.png" $size $size $size
 }
 New-LogoPng 'HybridMount.png' 256 256 256
-# ICO 每一帧使用相同矢量图形，保留真实 alpha，覆盖托盘到高 DPI 快捷方式。
-$iconPath = Join-Path $assetRoot 'HybridMount.ico'
-$iconStream = [IO.File]::Create($iconPath)
-$writer = [IO.BinaryWriter]::new($iconStream)
-try {
-    $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]$sizes.Count)
-    $offset = 6 + 16*$sizes.Count
-    foreach ($size in $sizes) {
-        $png = [IO.File]::ReadAllBytes((Join-Path $assetRoot "HybridMountSquare44.targetsize-${size}_altform-unplated.png"))
-        $dimension = if ($size -eq 256) { 0 } else { $size }
-        $writer.Write([byte]$dimension); $writer.Write([byte]$dimension); $writer.Write([byte]0); $writer.Write([byte]0)
-        $writer.Write([uint16]1); $writer.Write([uint16]32); $writer.Write([uint32]$png.Length); $writer.Write([uint32]$offset)
-        $offset += $png.Length
-    }
-    foreach ($size in $sizes) { $writer.Write([IO.File]::ReadAllBytes((Join-Path $assetRoot "HybridMountSquare44.targetsize-${size}_altform-unplated.png"))) }
-} finally { $writer.Dispose(); $iconStream.Dispose() }
+# 应用ICO继续复用同一导出器，保留托盘与高DPI所需帧。
+$frames=@(foreach($size in $sizes){[pscustomobject]@{Size=$size;Bytes=[IO.File]::ReadAllBytes((Join-Path $assetRoot "HybridMountSquare44.targetsize-${size}_altform-unplated.png"))}})
+Write-Icon (Join-Path $assetRoot 'HybridMount.ico') $frames
 Write-Host 'HybridMount 骡子图标和 MSIX 资源已重新生成。'

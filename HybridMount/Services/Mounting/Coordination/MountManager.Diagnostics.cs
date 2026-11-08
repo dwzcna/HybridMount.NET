@@ -25,6 +25,8 @@ public sealed partial class MountManager
             }
         }
         catch(Exception error){text.Append("移除注册只读核验失败：").Append(error.Message).Append("；HRESULT=0x").AppendLine(error.HResult.ToString("X8"));}
+        foreach(var resolution in _repository.Uploads(id).Where(x=>x.Resolution is not null||x.ConflictRecoveryPath is not null))
+            text.Append("冲突取舍：").Append(resolution.LocalPath).Append("；阶段：").Append(resolution.Resolution?.Phase??"已完成交接").Append("；备份：").AppendLine(resolution.Resolution?.BackupPath??resolution.ConflictRecoveryPath);
         text.AppendLine(FileExclusionStatus(id));
         text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));

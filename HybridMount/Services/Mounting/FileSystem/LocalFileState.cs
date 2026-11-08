@@ -14,6 +14,8 @@ internal static class LocalFileState
         using var handle=CloudFilesNative.CreateFile(path,0x80,7,0,3,0x02200000,0);
         if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());return Read(handle);
     }
+    /// <summary>显式正文替换拒绝多硬链接对象，避免改变同步根外共享同一文件身份的内容。</summary>
+    internal static uint LinkCount(SafeFileHandle handle){if(!GetStandard(handle,1,out var info,24))throw new Win32Exception(Marshal.GetLastWin32Error());return info.Links;}
     public static LocalFileStamp Read(SafeFileHandle handle)
     {
         if(!GetBasic(handle,0,out var basic,40)||!GetStandard(handle,1,out var standard,24))throw new Win32Exception(Marshal.GetLastWin32Error());

@@ -32,9 +32,9 @@ public sealed record LocalUpload(string Id,Guid MountId,string LocalPath,string 
     string? SnapshotStamp=null,string? SnapshotIdentity=null,long SnapshotGeneration=0,long Bytes=0,long Total=0,
     SourceEntry? Receipt=null,string? Error=null,bool ExplicitRequest=false,bool CancelRequested=false,bool IsCopy=false,
     DateTimeOffset? LastCheckedUtc=null,UploadAttention? Attention=null,int AutoRetryCount=0,
-    DateTimeOffset? NextAttemptUtc=null,int TransientFailureCount=0,string? SnapshotAttemptId=null,string? ExclusionResumeState=null)
+    DateTimeOffset? NextAttemptUtc=null,int TransientFailureCount=0,string? SnapshotAttemptId=null,string? ExclusionResumeState=null,ConflictResolution? Resolution=null,string? ConflictRecoveryPath=null)
 {
     /// <summary>同一上传的界面和持久历史使用相同描述；副本明确显示远端新路径。</summary>
     public MountOperationSnapshot ToSnapshot()=>new(Id,"upload",State,State=="Completed"?1:0,1,
-        [new(LocalPath,State,Error??(IsCopy?$"另存到 {SourcePath}":IsDirectory?"本地目录上传":"本地文件上传"))],Error,MountId,LocalPath,Bytes,Total,IsDirectory,SourcePath,Attention);
+        [new(LocalPath,State,(Error??(IsCopy?$"另存到 {SourcePath}":IsDirectory?"本地目录上传":"本地文件上传"))+((ConflictRecoveryPath??Resolution?.BackupPath) is {} backup?"\n恢复备份："+backup:""))],Error,MountId,LocalPath,Bytes,Total,IsDirectory,SourcePath,Attention,ConflictRecoveryPath??Resolution?.BackupPath);
 }

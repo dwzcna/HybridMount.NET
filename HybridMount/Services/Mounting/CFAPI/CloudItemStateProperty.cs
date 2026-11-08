@@ -8,7 +8,7 @@ internal static class CloudItemStateProperty
 {
     internal const int ExclusionId=2;
     internal const string ExclusionText="已排除（不上传）";
-    internal static string ExclusionIcon=>new Uri(Path.Combine(AppContext.BaseDirectory,"Assets","SyncExcluded.png")).AbsoluteUri;
+    internal static string ExclusionIcon=>ShellStatusIconResources.Excluded;
     /// <summary>只替换本程序拥有的编号，保留同根其他完整状态；来源不一致或向量损坏时拒绝覆盖。</summary>
     internal static (bool Changed,IReadOnlyList<ShellCustomProperty> Properties) Plan(MountDefinition mount,string path,int id,string text,string icon)
     {

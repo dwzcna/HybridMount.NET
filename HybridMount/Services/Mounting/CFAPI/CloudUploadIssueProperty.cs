@@ -26,7 +26,7 @@ internal static class CloudUploadIssueProperty
         var text=message;
         text=text.Replace('\r',' ').Replace('\n',' ');if(text.Length>180)text=text[..177]+"…";
         var changed=await CloudItemStateProperty.SetAsync(mount,path,before.IsDirectory,PropertyId,text,
-            text.Length==0?"":new Uri(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png")).AbsoluteUri,token).ConfigureAwait(false);
+            text.Length==0?"":ShellStatusIconResources.Issue,token).ConfigureAwait(false);
         // 普通文件关闭时会再产生USN；在保护内先生成close记录，避免释放后的元数据被误当新编辑。
         if(changed&&!WriteClose(borrowed,0x000900ef,0,0,new byte[8],8,out _,0))throw new Win32Exception(Marshal.GetLastWin32Error());
         var after=LocalFileState.Read(borrowed);var final=Inspect(path);

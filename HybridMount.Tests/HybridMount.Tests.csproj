@@ -10,6 +10,11 @@
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/>
     <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
+  <ItemGroup>
+    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll')"/>
+    <Content Include="..\HybridMount\Assets\SyncExcluded.ico" Link="Assets\SyncExcluded.ico" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="..\HybridMount\Assets\SyncIssue.ico" Link="Assets\SyncIssue.ico" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
   <ItemGroup><Content Include="..\HybridMount\Assets\SyncExcluded.png" Link="Assets\SyncExcluded.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="..\HybridMount\Assets\SyncIssue.png" Link="Assets\SyncIssue.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\Models\AppearancePreferences.cs" Link="Production\AppearancePreferences.cs"/>

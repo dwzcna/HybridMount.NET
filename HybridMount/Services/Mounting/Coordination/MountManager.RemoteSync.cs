@@ -143,7 +143,7 @@ public sealed partial class MountManager
     {
         foreach(var root in _roots.Values)
         {
-            var pending=RemotePendingFor(root).FirstOrDefault(x=>x.Id==id);if(pending is null)continue;
+            var pending=RemotePendingFor(root).FirstOrDefault(x=>x.Id==id);if(pending is null)continue;if(HasConflictResolution(root.Definition.Id,pending.Path))return false;
             if(pending.State is "Completed" or "Superseded" or "Canceled" or "Committing" or "Hydrating")return false;
             SaveRemote(pending with{State="Canceled",Error="已取消此远端版本；显式重试或下一远端版本后恢复。"});
             if(root.RemoteSync is {} runtime)lock(runtime.Sync)if(runtime.CurrentId==id)runtime.Request?.Cancel();return true;
@@ -154,7 +154,7 @@ public sealed partial class MountManager
     {
         foreach(var root in _roots.Values)
         {
-            var pending=RemotePendingFor(root).FirstOrDefault(x=>x.Id==id);if(pending is null)continue;
+            var pending=RemotePendingFor(root).FirstOrDefault(x=>x.Id==id);if(pending is null)continue;if(HasConflictResolution(root.Definition.Id,pending.Path))return false;
             if(pending.State is not("Conflict" or "Failed" or "Canceled" or "Waiting" or "Interrupted")&&!(pending.State is "Committing" or "Hydrating"&&pending.Error is not null))return false;
             var retryState=pending.State=="Hydrating"?"Hydrating":pending.State=="Committing"?"Prepared":"Pending";
             SaveRemote(pending with{State=retryState,Error=null},retry:true);

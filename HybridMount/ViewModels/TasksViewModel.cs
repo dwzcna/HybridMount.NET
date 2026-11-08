@@ -13,7 +13,11 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private int _pending;
     private readonly TaskFocusService? _focus;
     private long _focusRevision;
-    private bool _issuesOnly;
+    private bool _issuesOnly,_conflictsOnly;
+    private ConflictComparison? _comparison;
+    private CancellationTokenSource? _comparisonCancel;
+    private bool _conflictBusy;
+    private string _conflictStatus="";
     private Guid? _filterMount;
     private IReadOnlyList<string> _filterPaths=[];
     private bool _disposed,_clearingHistory,_dialogBusy;
@@ -50,14 +54,15 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     }
     /// <summary>当前操作提示。</summary>
     public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
-    public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value))Refresh();}}
+    public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value)){if(value){_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));}Refresh();}}}
+    public bool ConflictsOnly{get=>_conflictsOnly;set{if(!_disposed&&SetProperty(ref _conflictsOnly,value)){if(value){_issuesOnly=false;OnPropertyChanged(nameof(IssuesOnly));}Refresh();}}}
     public string IssueViewTitle=>_filterMount is {} id?"同步问题 · "+(_manager.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??"挂载"):"同步问题";
     public bool HasIssueFilter=>_filterMount is not null||_filterPaths.Count>0;
     public void ClearIssueFilter(){_filterMount=null;_filterPaths=[];Refresh();}
     public string? SelectedLocation()
     {
-        if(_disposed||_manager.IsStopping||Selected is not {Operation:"upload"} selected){Status="请先选择上传问题。";return null;}
-        try{return _manager.UploadIssueLocalPath(selected.Id);}catch(Exception error){Status=error.Message;return null;}
+        if(_disposed||_manager.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate"} selected){Status="请先选择同步问题。";return null;}
+        try{return _manager.SyncIssueLocalPath(selected.Id);}catch(Exception error){Status=error.Message;return null;}
     }
     private void FocusChanged()
     {
@@ -66,7 +71,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void ApplyFocus()
     {
         if(_focus?.Current is not {} focus||focus.Revision==_focusRevision)return;
-        _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=true;
+        _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=true;_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));
         OnPropertyChanged(nameof(IssuesOnly));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
     }
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
@@ -107,7 +112,46 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         try{var result=IssuesOnly?selected:_manager.GetOperation(selected.Id)??selected;_dialogBusy=true;return result;}
         catch(Exception error){Status=error.Message;return null;}
     }
-    public void EndDialog(){_dialogBusy=false;_dialogJob=null;}
+    /// <summary>关闭比较只取消本次准备，不取消原冲突；已开始的受保护写入由应用完成安全收尾。</summary>
+    public void EndDialog(){_comparisonCancel?.Cancel();_comparisonCancel?.Dispose();_comparisonCancel=null;_comparison=null;_dialogBusy=false;_dialogJob=null;if(!_disposed)NotifyConflict();}
+    public string ConflictTitle=>"处理冲突 · "+(_comparison?.Path??"文件");
+    public string ConflictLocalText=>_comparison?.LocalText??"尚未核对";
+    public string ConflictRemoteText=>_comparison?.RemoteText??"尚未核对";
+    public string ConflictBaselineText=>_comparison?.BaselineText??"";
+    public string ConflictLocalRestriction=>_comparison?.LocalRestriction??"请先重新核对。";
+    public string ConflictRemoteRestriction=>_comparison?.RemoteRestriction??"请先重新核对。";
+    public string ConflictRecoveryText=>_comparison?.RecoveryPath is {Length:>0} path?"保留的本地恢复备份："+path:"";
+    public string ConflictStatus=>_conflictStatus;
+    public bool CanResolveWithLocal=>!_disposed&&!_conflictBusy&&_comparison?.CanUseLocal==true;
+    public bool CanResolveWithRemote=>!_disposed&&!_conflictBusy&&_comparison?.CanUseRemote==true;
+    public bool CanRefreshConflict=>!_disposed&&!_conflictBusy;
+    private void NotifyConflict(){foreach(var property in new[]{nameof(ConflictTitle),nameof(ConflictLocalText),nameof(ConflictRemoteText),nameof(ConflictBaselineText),nameof(ConflictLocalRestriction),nameof(ConflictRemoteRestriction),nameof(ConflictRecoveryText),nameof(ConflictStatus),nameof(CanResolveWithLocal),nameof(CanResolveWithRemote),nameof(CanRefreshConflict)})OnPropertyChanged(property);}
+    /// <summary>捕获原事务ID，选择切换不会把比较授权转移到其他文件。</summary>
+    public async Task<bool> BeginConflictAsync()
+    {
+        if(_disposed||_manager.IsStopping||_dialogBusy||_conflictBusy)return false;
+        if(Selected is not{Operation:"upload" or "remoteUpdate"} selected){Status="请先选择文件冲突。";return false;}
+        var owner=new CancellationTokenSource();_dialogBusy=true;_dialogJob=selected.Id;_comparisonCancel=owner;await RefreshConflictAsync();return !_disposed&&_dialogBusy&&_dialogJob==selected.Id&&_comparisonCancel==owner;
+    }
+    public async Task RefreshConflictAsync()
+    {
+        if(_disposed||_conflictBusy||!_dialogBusy||_dialogJob is not {} id||_comparisonCancel is null)return;
+        var owner=_comparisonCancel;_conflictBusy=true;_comparison=null;_conflictStatus="正在只读核对两端信息…";NotifyConflict();
+        try{var compared=await _manager.CompareConflictAsync(id,owner.Token);if(!_disposed&&_dialogJob==id&&_comparisonCancel==owner){_comparison=compared;_conflictStatus="核对时间："+compared.ObservedUtc.ToLocalTime().ToString("G");}}
+        catch(OperationCanceledException){if(!_disposed&&_comparisonCancel==owner)_conflictStatus="核对已停止。";}
+        catch(Exception error){if(!_disposed&&_comparisonCancel==owner)_conflictStatus=error.Message;}
+        finally{_conflictBusy=false;if(!_disposed)NotifyConflict();}
+    }
+    /// <summary>直接选择调用独立条件取舍流程；失败使旧比较失效，禁止重复点击重发。</summary>
+    public async Task<bool> ResolveConflictAsync(bool useLocal)
+    {
+        if(!(useLocal?CanResolveWithLocal:CanResolveWithRemote)||_comparison is not {} compared||_comparisonCancel is null)return false;
+        _conflictBusy=true;_conflictStatus=useLocal?"正在冻结本地内容并提交条件上传…":"正在备份本地、下载并核验远端内容…";NotifyConflict();
+        try{var result=await _manager.ResolveConflictAsync(compared,useLocal,_comparisonCancel.Token);if(!_disposed){Status=result;_conflictStatus=result;}return true;}
+        catch(OperationCanceledException){if(!_disposed)_conflictStatus="处理已停止；已保存的备份和恢复阶段保留。";return false;}
+        catch(Exception error){if(!_disposed)_conflictStatus=error.Message;return false;}
+        finally{_comparison=null;_conflictBusy=false;if(!_disposed){Refresh();NotifyConflict();}}
+    }
     /// <summary>在 UI 线程订阅应用级任务；释放时解除订阅。</summary>
     public TasksViewModel(MountManager manager,IUiDispatcher dispatcher,TaskFocusService? focus=null) { _dispatcher=dispatcher;_manager=manager;_focus=focus;_manager.Changed+=Changed;if(focus is not null)focus.Changed+=FocusChanged;Refresh();ApplyFocus(); }
     private void Changed()
@@ -118,10 +162,10 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void Refresh()
     {
         if(_disposed)return;
-        try { var source=_issuesOnly?_manager.UploadIssues.Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_manager.Operations;
+        try { var source=_issuesOnly||_conflictsOnly?(_conflictsOnly?_manager.Conflicts:_manager.SyncIssues).Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_manager.Operations;
             var snapshots=OperationDisplayOrder.Sort(source);OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
         catch(Exception error) { Status=error.Message; }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>
-    public void Dispose() { _disposed=true;_manager.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
+    public void Dispose() { EndDialog();_disposed=true;_manager.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
 }

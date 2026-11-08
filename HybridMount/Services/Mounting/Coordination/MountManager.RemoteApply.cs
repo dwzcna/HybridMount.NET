@@ -15,7 +15,7 @@ public sealed partial class MountManager
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
-            if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow))continue;
+            if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path))continue;
             using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
             lock(runtime.Sync){runtime.CurrentId=prior.Id;runtime.Request=request;}
             var current=prior;

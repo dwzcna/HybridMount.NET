@@ -117,7 +117,7 @@ public sealed partial class MountManager
     public bool RetryUpload(string id){lock(_lifetime){if(IsStopping)return false;return RetryUploadCore(id);}}
     private bool RetryUploadCore(string id)
     {
-        if(IsStopping)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
+        if(IsStopping)return false;if(_repository.Upload(id)?.Resolution is not null)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(!UploadRules.CanRetry(item)||FileExclusionRules.Matches(root.Definition,item)&&!UploadRules.InFlight(item))return false;
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);
         ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,NextAttemptUtc=null,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
@@ -127,7 +127,7 @@ public sealed partial class MountManager
     private string UploadAsCopyCore(string id,string destination)
     {
         ThrowIfStopping();var original=_repository.Upload(id)??throw new IOException("上传记录不存在。");var root=Root(original.MountId);
-        if(original.IsDirectory||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前条目不能另存副本。");
+        if(original.Resolution is not null||original.IsDirectory||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前条目不能另存副本。");
         destination=RelativePaths.Normalize(destination);if(destination.Length==0||destination.Equals(original.SourcePath,StringComparison.OrdinalIgnoreCase))throw new ArgumentException("请填写不同的新文件相对路径。");
         if(FileExclusionRules.Matches(root.Definition,original)||FileExclusionRules.Matches(root.Definition.ExclusionRules,destination))throw new IOException("文件或副本目标匹配排除规则，请先修改规则或文件名。");
         var copy=_repository.CreateUploadCopy(id,destination,ValidateUploadSnapshot);
@@ -135,7 +135,7 @@ public sealed partial class MountManager
     }
     private bool CancelUpload(string id)
     {
-        var item=_repository.Upload(id);if(item is null||item.State is "Completed" or "Canceled" or "Ignored")return false;
+        var item=_repository.Upload(id);if(item is null||item.Resolution is not null||item.State is "Completed" or "Canceled" or "Ignored")return false;
         ChangeUpload(id,x=>x with{CancelRequested=true,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:"Canceled",Error="已取消本代内容；再次修改或显式重试后恢复。"});
         if(_roots.TryGetValue(item.MountId,out var root))root.Uploads?.CancelRequest(id);return true;
     }
@@ -176,6 +176,7 @@ public sealed partial class MountManager
                         MountPathGuard.ValidateOperation(root.Definition,path);
                         var relative=Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/');RelativePaths.Normalize(relative);seen.Add(relative);
                         records.TryGetValue(relative,out var prior);
+                        if(prior?.Resolution is not null)return; // 显式取舍的持久屏障：中断时不把部分替换误当作新上传。
                         var entry=marker is null?index.ActivePath(relative):index.ById(marker.EntryId);
                         entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);
