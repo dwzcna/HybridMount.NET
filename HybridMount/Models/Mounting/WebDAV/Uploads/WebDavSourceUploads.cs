@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>协议内按职责拆分的 Uploads 实现；公开入口与版本字段保持兼容。</summary>
-public sealed partial class WebDavFileSource
+public sealed partial class WebDavFileSource : IExcludedRenameSource
 {
     private static void Condition(HttpRequestMessage request, string? expectedVersion)
     {
@@ -45,6 +45,9 @@ public sealed partial class WebDavFileSource
         try { return await GetMetadataAsync(destination, token).ConfigureAwait(false); }
         catch(Exception error)when(error is IOException or OperationCanceledException){throw new SourceOutcomeUnknownException("移动后核对",new IOException("远端成功响应后未能读取元数据。"));}
     }
+    /// <summary>MOVE完成并核对目标后立刻交付回执；核对失败保留未知结果，不重放移动。</summary>
+    async Task<SourceEntry> IExcludedRenameSource.MoveForExclusionAsync(string path,string destination,string version,Func<SourceEntry,Task> saveReceipt,CancellationToken token)
+    {var receipt=await MoveAsync(path,destination,version,token).ConfigureAwait(false);await saveReceipt(receipt).ConfigureAwait(false);return receipt;}
     public async Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default)
     {
         path = NonRoot(path); await VerifyMutationAsync("DELETE",RelativePaths.Parent(path),token).ConfigureAwait(false);

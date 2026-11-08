@@ -19,7 +19,7 @@ public sealed partial class MountManager
     /// <summary>调用方持有根锁；先记录删除屏障并停止未发送任务，再从子项到父目录按身份清理。</summary>
     private IReadOnlyList<MountItemResult> ApplyRemoteDeletions(Runtime root,IReadOnlyList<MountEntry> missing,CancellationToken token)
     {
-        var results=new List<MountItemResult>();var mount=root.Definition;
+        var results=new List<MountItemResult>();var mount=root.Definition;missing=missing.Where(x=>!HasOwnRenameEntry(mount.Id,x.Id)).ToArray();
         foreach(var entry in missing)
         {
             token.ThrowIfCancellationRequested();
@@ -33,6 +33,7 @@ public sealed partial class MountManager
         foreach(var old in missing.OrderByDescending(entry=>entry.LocalPath.Count(c=>c=='/')).ThenBy(entry=>entry.IsDirectory?1:0))
         {
             token.ThrowIfCancellationRequested();var entry=_repository.Entries(mount.Id).First(item=>item.Id==old.Id);
+            if(HasOwnRenameEntry(mount.Id,entry.Id)){results.Add(new(entry.LocalPath,"Completed","改名排除事务拥有此条目，本地文件保持。"));continue;}
             var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
             try
             {
@@ -119,6 +120,7 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))return null;
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
+            if(RenameOwnsUpload(current)||RenameBlocksSource(mountId,current.SourcePath))return null;
             if(FileExclusionRules.Matches(root.Definition,current)){ChangeUpload(current.Id,FileExclusionRules.Pause);return null;}
             if(_repository.HasPendingRemote(mountId,current.SourcePath))throw new SourceConflictException("远端更改尚待核对，未发送旧基线上传。");
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);

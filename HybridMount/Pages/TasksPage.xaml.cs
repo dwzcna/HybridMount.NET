@@ -36,6 +36,8 @@ public sealed partial class TasksPage : Page, IDisposable
     private void ToolbarSizeChanged(object sender,SizeChangedEventArgs args)
     {if(_disposed||HistoryToolbar is null)return;var narrow=args.NewSize.Width<1150;Grid.SetRow(HistoryToolbar,narrow?1:0);Grid.SetColumn(HistoryToolbar,narrow?0:1);Grid.SetColumnSpan(HistoryToolbar,narrow?2:1);Toolbar.RowSpacing=narrow?8:0;}
     private void ClearIssueFilter(object sender,RoutedEventArgs args)=>ViewModel.ClearIssueFilter();
+    /// <summary>只读核对改名事务，界面不直接发送远端改名。</summary>
+    private void RecheckRename(object sender,RoutedEventArgs args)=>ViewModel.RecheckSelected();
     /// <summary>文件存在时由Shell选中；已移除文件打开最近仍存在的父目录，不连接服务或自动上传。</summary>
     private async void OpenLocation(object sender,RoutedEventArgs args)
     {

@@ -10,12 +10,13 @@ public sealed partial class MountManager
     internal Action? ConflictWriteForTests{get;set;}
     /// <summary>冲突列表来自持久事务，清除展示历史不丢失上传或远端冲突。</summary>
     public IReadOnlyList<MountOperationSnapshot> Conflicts=>_repository.Uploads().Where(x=>x.State=="Conflict"||x.Resolution is not null).Select(x=>x.ToSnapshot())
-        .Concat(_roots.Keys.SelectMany(_repository.AllRemotePending).Where(x=>x.State=="Conflict"||x.State is "Committing" or "Hydrating"&&x.Error is not null).Select(x=>RemoteTask(x))).ToArray();
+        .Concat(_roots.Keys.SelectMany(_repository.AllRemotePending).Where(x=>x.State=="Conflict"||x.State is "Committing" or "Hydrating"&&x.Error is not null).Select(x=>RemoteTask(x))).Concat(RenameIntents().Where(x=>x.Stage=="Conflict").Select(x=>x.Snapshot())).ToArray();
     /// <summary>同步问题也包括远端更新冲突；相同路径的独立事务保持各自ID。</summary>
     public IReadOnlyList<MountOperationSnapshot> SyncIssues=>UploadIssues.Concat(Conflicts).DistinctBy(x=>x.Id).ToArray();
     /// <summary>仅解析本机索引路径供Shell定位；不联网、不下载。</summary>
     public string SyncIssueLocalPath(string id)
     {
+        if(RenameIntent(id) is {} rename)return RelativePaths.ToLocal(Root(rename.MountId).Definition.LocalPath,rename.LocalPath);
         if(_repository.Upload(id) is not null)return UploadIssueLocalPath(id);
         var pending=_roots.Keys.SelectMany(_repository.AllRemotePending).FirstOrDefault(x=>x.Id==id)??throw new IOException("同步问题不存在。");
         var root=Root(pending.MountId);var entry=_repository.Entries(pending.MountId).FirstOrDefault(x=>x.SourcePath==pending.Path);

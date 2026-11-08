@@ -66,7 +66,7 @@ public sealed partial class MountManager
     private async Task EnsureUploadIncludedAsync(Runtime root,LocalUpload item,CancellationToken token)
     {
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
-        try{if(FileExclusionRules.Matches(root.Definition,item)){ChangeUpload(item.Id,FileExclusionRules.Pause);throw new UploadExcludedException();}}
+        try{if(RenameOwnsUpload(item))throw new UploadExcludedException();if(FileExclusionRules.Matches(root.Definition,item)){ChangeUpload(item.Id,FileExclusionRules.Pause);throw new UploadExcludedException();}}
         finally{root.Gate.Release();}
     }
 }

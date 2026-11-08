@@ -23,7 +23,7 @@ public sealed partial class MountManager
             {
                 current=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==prior.Id);
                 if(current.State is "Completed" or "Canceled" or "Superseded")continue;
-                if(!await CompleteUnchangedObservationAsync(root,runtime,current,request.Token).ConfigureAwait(false))
+                if(!await SuppressExcludedRenameEchoAsync(root,runtime,current,request.Token).ConfigureAwait(false)&&!await CompleteUnchangedObservationAsync(root,runtime,current,request.Token).ConfigureAwait(false))
                     current=await ApplyRemoteItemAsync(root,runtime,current,request.Token).ConfigureAwait(false);
                 else current=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==current.Id);
                 if(current.State=="Completed")DeleteRemoteSnapshot(current.SnapshotPath);
@@ -44,6 +44,16 @@ public sealed partial class MountManager
             finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
         }
     }
+    /// <summary>迟到旧版本回显必须再读当前元数据；只消除确认已不存在的旧观测，重新出现的真实远端对象仍按正常同步处理。</summary>
+    private async Task<bool> SuppressExcludedRenameEchoAsync(Runtime root,RemoteSyncRuntime runtime,RemotePendingChange pending,CancellationToken token)
+    {
+        if(pending.Entry is not {IsDirectory:false} metadata||!RenameIntents(root.Definition.Id).Any(x=>x.Finished&&x.RemoteMoved&&x.SourcePath==pending.Path&&(x.ExpectedVersion==metadata.Version||x.OriginalVersion==metadata.Version)))return false;
+        var current=await runtime.Source.TryGetMetadataAsync(pending.Path,token).ConfigureAwait(false);
+        if(current is not null)return false;
+        await root.Gate.WaitAsync(token).ConfigureAwait(false);
+        try{if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);SaveRemote(pending with{State="Completed",Error=null});return true;}
+        finally{root.Gate.Release();}
+    }
     private async Task<RemotePendingChange> ApplyRemoteItemAsync(Runtime root,RemoteSyncRuntime runtime,RemotePendingChange pending,CancellationToken token)
     {
         MountEntry? entry;var pinned=false;
@@ -52,6 +62,7 @@ public sealed partial class MountManager
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
+            if(RenameBlocksSource(root.Definition.Id,pending.Path))return pending;
             var entries=_repository.Entries(root.Definition.Id);entry=entries.FirstOrDefault(x=>x.SourcePath.Equals(pending.Path,StringComparison.OrdinalIgnoreCase));
             var uploads=_repository.Uploads(root.Definition.Id).Where(x=>UploadRules.SourceContains(pending.Path,x.SourcePath)&&UploadRules.Unfinished(x)).ToArray();
             if(uploads.Any(UploadRules.InFlight))throw new IOException("同路径上传已发送，等待其回执或未知结果核对后再应用远端变化。");
@@ -88,6 +99,8 @@ public sealed partial class MountManager
                 _repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
                 return SaveRemote(pending with{State="Completed",Error=null});
             }
+            if(RenameIntents(root.Definition.Id).Any(x=>x.LocalDetached&&x.MappingRebound&&x.FileId==LocalFileState.Read(path).Identity&&x.DestinationPath==metadata.Path))
+                throw new SourceConflictException("排除文件的远端版本已变化，保留本地内容，请在冲突视图核对。");
             if(!entry.Materialized||entry.Protected)throw new SourceConflictException("本地新增、修改或身份不明，未覆盖远端变化。");
             MountPathGuard.ValidateOperation(root.Definition,path);
             var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);

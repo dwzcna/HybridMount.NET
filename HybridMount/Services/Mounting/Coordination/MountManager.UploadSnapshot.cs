@@ -38,6 +38,7 @@ public sealed partial class MountManager
         {
             definition=root.Definition;source=root.Source;session=root.Session;Validate();
             var current=_repository.Upload(queued.Id);if(current is null||current.CancelRequested)return false;
+            if(RenameOwnsUpload(current))return false;
             if(FileExclusionRules.Matches(definition,current)){ChangeUpload(current.Id,FileExclusionRules.Pause);return false;}
             if(current.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity")||current.Error==UploadRules.TypeConflictMessage)return false;
             path=RelativePaths.ToLocal(definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(definition,path);
@@ -107,8 +108,8 @@ public sealed partial class MountManager
         var recovery=await UploadCommitRecovery.VerifyAsync(root.Gate,()=>
         {
             var row=_repository.Upload(prepared.Id);if(row!=prepared||row.State!="RemoteCommitted"||root.RemovalRequested||root.Definition.RemovalPending)return null;
-            MountPathGuard.ValidateOperation(definition,prepared.IsCopy?definition.LocalPath:localPath);capturedEntry=Entry();
-            var stamp=prepared.IsCopy||LocalMissing(localPath)?null:LocalFileState.Read(localPath);
+            MountPathGuard.ValidateOperation(definition,prepared.IsCopy||RenamedUploadMissing(prepared)?definition.LocalPath:localPath);capturedEntry=Entry();
+            var stamp=prepared.IsCopy||LocalMissing(localPath)||RenamedUploadMissing(prepared)?null:LocalFileState.Read(localPath);
             var needsHash=stamp is not null&&row.Generation==prepared.SnapshotGeneration&&_uploadCommitter is IRecoveryUploadCommitter committer&&committer.NeedsRecovery(definition,capturedEntry,prepared,stamp);
             return new(row,stamp,needsHash);
         },Current,capture=>UploadCommitRecovery.HashAsync(localPath,capture.Stamp!,token,()=>UploadCheckpointAsync("RecoveryHash",prepared)),token).ConfigureAwait(false);
@@ -121,7 +122,7 @@ public sealed partial class MountManager
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
             {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});return;}
-            var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path);LocalFileStamp? committedStamp=null;
+            var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path)&&!RenamedUploadMissing(prepared);LocalFileStamp? committedStamp=null;
             UploadRules.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
             if(_repository.Upload(prepared.Id)?.Error==UploadRules.TypeConflictMessage)throw new SourceConflictException(UploadRules.TypeConflictMessage);
             // 远端 StableId 可为空且不保证可用；占位身份始终由本产品维护。

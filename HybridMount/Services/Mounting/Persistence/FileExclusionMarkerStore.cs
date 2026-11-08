@@ -30,6 +30,8 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
         catch(Exception error)when(error is JsonException or ArgumentException){throw new IOException("排除标记日志损坏，未改写原记录；上传排除仍生效。",error);}
     }
     internal bool HasMarks{get{lock(_gate)return Load().Count!=0;}}
+    /// <summary>升级只读取已存在的精确排除证据；新规则保存不能凭文件名生成历史改名授权。</summary>
+    internal Mark? ExistingMark(string identity,string relative){lock(_gate)return Load().GetValueOrDefault(identity) is {} mark&&mark.Path==relative?mark:null;}
     /// <summary>完整扫描后只丢弃确认已消失或被替换的日志；不访问越界路径、不修改文件。</summary>
     internal void Prune(MountDefinition definition)
     {

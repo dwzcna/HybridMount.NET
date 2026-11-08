@@ -47,7 +47,7 @@ public sealed record MountOperationSnapshot(string Id, string Operation, string 
     [System.Text.Json.Serialization.JsonIgnore]
     public long SubmissionOrder {get;init;}
     /// <summary>区分文件、目录和副本目标；旧历史缺少类型时显示条目，不猜测类型。</summary>
-    public string DisplayTarget=>Operation!="upload"?ItemPath??"":$"{(IsDirectory is true?"目录":IsDirectory is false?"文件":"条目")}：{ItemPath}"+
+    public string DisplayTarget=>Operation=="excludedRename"?$"本地：{ItemPath}；云端目标：{RemotePath}":Operation!="upload"?ItemPath??"":$"{(IsDirectory is true?"目录":IsDirectory is false?"文件":"条目")}：{ItemPath}"+
         (RemotePath is not null&&RemotePath!=ItemPath?$" → 远端：{RemotePath}":"");
     public double ProgressPercent=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true?(TotalBytes>0?Math.Clamp(100.0*BytesTransferred/TotalBytes,0,100):State=="Completed"?100:0):Total>0?100.0*Completed/Total:0;
     public string ProgressText=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true
@@ -55,10 +55,10 @@ public sealed record MountOperationSnapshot(string Id, string Operation, string 
     /// <summary>悬停保留精确字节；目录任务按条目计数，不把目录显示为零字节文件。</summary>
     public string ProgressDetail=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true
         ?$"{BytesTransferred:N0} / {TotalBytes:N0} 字节":$"{Completed:N0} / {Total:N0} 项";
-    public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","remoteUpdate"=>"应用远端更改","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
+    public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","remoteUpdate"=>"应用远端更改","excludedRename"=>"改名排除收尾","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
     public string IssueDetails=>$"{DisplayTarget}\n{DisplayState}\n{IssueStage}\n{IssueTimeText}\n{DisplayIssueReason}\n"+(Attention is {} a?$"Explorer提示：{a.ShellState}\n{a.ShellError}":Error)+(RecoveryPath is {Length:>0}?"\n恢复备份："+RecoveryPath:"");
     public string DisplayIssueReason=>Attention is {ResolvedUtc:null} issue?issue.Reason:Error??"";
     public string IssueTimeText=>Attention is {ResolvedUtc:null} issue?issue.OccurredUtc.ToLocalTime().ToString("g"):"";
     public string IssueStage=>Attention is {ResolvedUtc:null} issue?"阶段："+(issue.Stage switch{"Failed"=>"上传失败","Conflict"=>"版本或类型冲突","OutcomeUnknown"=>"写入结果待核对","WaitingCapacity"=>"容量检查","RemoteCommitted"=>"本地提交",_=>issue.Stage}):"";
-    public string DisplayState=>(UploadAttentionRules.IsRetryInProgress(State,Attention)?"正在重试 · ":"")+(State switch{"AwaitingConfirmation"=>"等待首次确认","Ignored"=>"未纳入上传","Excluded"=>"已排除","Waiting"=>"等待文件可用","WaitingCapacity"=>"等待容量","Downloading"=>"下载远端快照","Committing"=>"切换占位版本","Hydrating"=>"从快照水合","Pending"=>"待应用","Superseded"=>"已被新版本替代","Prepared"=>"快照已就绪","Sending"=>"上传中","RemoteCommitted"=>"提交本地状态","Conflict"=>"冲突","ResolutionPending"=>"冲突处理待完成","OutcomeUnknown"=>"结果待核对","Queued"=>"排队中","Running"=>"执行中","Completed"=>"已完成","PartialFailure"=>"部分失败","Failed"=>"失败","Canceled"=>"已取消","Interrupted"=>"已中断",_=>State});
+    public string DisplayState=>Operation=="excludedRename"?(State switch{"Waiting"=>"等待原上传结果","Queued"=>"等待远端改名","Running"=>"远端改名中","Downloading"=>"取回本地并核验","Committing"=>"本地排除收尾","OutcomeUnknown"=>"改名结果待核对","Completed"=>"已改名并排除","Superseded"=>"已由后续改名接管","Failed"=>"收尾失败","Conflict"=>"改名冲突","Canceled"=>"已停止收尾",_=>State}):(UploadAttentionRules.IsRetryInProgress(State,Attention)?"正在重试 · ":"")+(State switch{"AwaitingConfirmation"=>"等待首次确认","Ignored"=>"未纳入上传","Excluded"=>"已排除","Waiting"=>"等待文件可用","WaitingCapacity"=>"等待容量","Downloading"=>"下载远端快照","Committing"=>"切换占位版本","Hydrating"=>"从快照水合","Pending"=>"待应用","Superseded"=>"已被新版本替代","Prepared"=>"快照已就绪","Sending"=>"上传中","RemoteCommitted"=>"提交本地状态","Conflict"=>"冲突","ResolutionPending"=>"冲突处理待完成","OutcomeUnknown"=>"结果待核对","Queued"=>"排队中","Running"=>"执行中","Completed"=>"已完成","PartialFailure"=>"部分失败","Failed"=>"失败","Canceled"=>"已取消","Interrupted"=>"已中断",_=>State});
 }

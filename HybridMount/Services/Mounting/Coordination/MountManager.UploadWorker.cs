@@ -24,12 +24,14 @@ public sealed partial class MountManager
             {
                 var scan=runtime.Scans.Take(DateTimeOffset.UtcNow,runtime.TakeScanRequest(),path=>LocalWriteStampCache.Read(RelativePaths.ToLocal(root.Definition.LocalPath,path)));
                 if(scan is not null)await ScanLocalUploadsAsync(root,token,batch:scan).ConfigureAwait(false);
+                if(await TryRunExcludedRenameAsync(root,runtime,token).ConfigureAwait(false))continue;
                 var candidates=_repository.Uploads(root.Definition.Id).Where(x=>
-                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
                 var now=DateTimeOffset.UtcNow;var item=UploadRules.NextUpload(candidates,now);
                 if(item is null)
                 {
-                    await runtime.Signal.WaitAsync(UploadRules.UploadWait(candidates,now,runtime.Scans.NextDueUtc(now)),token).ConfigureAwait(false);continue;
+                    var wait=UploadRules.UploadWait(candidates,now,runtime.Scans.NextDueUtc(now));if(RenameIntents(root.Definition.Id).Any(x=>!x.Finished&&x.Stage is not("Failed" or "Conflict" or "OutcomeUnknown"))&&wait>TimeSpan.FromSeconds(1))wait=TimeSpan.FromSeconds(1);
+                    await runtime.Signal.WaitAsync(wait,token).ConfigureAwait(false);continue;
                 }
                 await RunUploadAsync(root,runtime,item,token).ConfigureAwait(false);
             }
@@ -149,6 +151,7 @@ public sealed partial class MountManager
     /// <summary>只读核对完成后有限重排已验证的条件写；取消或超出次数时不增加发送，不更换原始基线。</summary>
     private bool RetryConditionalUpload(Runtime root,LocalUpload item,bool create)
     {
+        if(RenameOwnsUpload(item))return false;
         if((create?root.Source!.WriteCapabilities.CreateOnly:root.Source!.WriteCapabilities.ConditionalUpdate)!=CapabilitySupport.Supported)return false;
         var changed=false;
         ChangeUpload(item.Id,current=>

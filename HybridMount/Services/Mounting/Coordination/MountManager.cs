@@ -127,10 +127,10 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         lock(root.ConnectionSync)return new(root.Definition,root.Status,root.Detail,root.Detection,root.Session is not null,
             root.Connecting is not null,root.ConnectionStops>0,
-            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,_repository.Uploads(root.Definition.Id).Count(UploadAttentionRules.NeedsAttention));
+            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,_repository.Uploads(root.Definition.Id).Count(UploadAttentionRules.NeedsAttention)+RenameIntents(root.Definition.Id).Count(x=>x.NeedsAttention)+(_renameErrors.ContainsKey(root.Definition.Id)?1:0));
     }
     /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
-    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(x=>x.ToSnapshot()).ToArray();
+    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(x=>x.ToSnapshot()).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).ToArray();
     public IReadOnlyList<MountOperationSnapshot> Operations
     {
         get
@@ -139,6 +139,8 @@ public sealed partial class MountManager : IAsyncDisposable
             foreach(var upload in _repository.Uploads())
                 if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id))
                     history[upload.Id]=UploadSnapshot(upload) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
+            foreach(var rename in RenameIntents())if(!rename.Finished||history.ContainsKey(rename.Id))history[rename.Id]=rename.Snapshot();
+            foreach(var problem in RenameJournalIssues())history[problem.Id]=problem;
             foreach(var job in _jobs.Values)
                 if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))
                     history[job.Snapshot.Id]=job.Snapshot with{SubmissionOrder=history.GetValueOrDefault(job.Snapshot.Id)?.SubmissionOrder??0};
@@ -678,10 +680,11 @@ public sealed partial class MountManager : IAsyncDisposable
     private void Update(Job job,string state,string? error=null)
     {var next=job.Snapshot with{State=state,Error=error};OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();}
     private void Save(Job job){_repository.SaveOperation(job.Snapshot);Notify();}
-    public MountOperationSnapshot? GetOperation(string id)=>_repository.Upload(id) is {} upload?UploadSnapshot(upload):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id);
+    public MountOperationSnapshot? GetOperation(string id)=>RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id));
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
     public bool Cancel(string id)
     {
+        if(CancelExcludedRename(id) is {} renameCancel)return renameCancel;
         if(_repository.Upload(id) is not null)return CancelUpload(id);
         if(CancelRemoteChange(id))return true;
         if(!_jobs.TryGetValue(id,out var job) || job.Snapshot.State is not("Queued" or "Running"))return false;

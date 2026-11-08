@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.37**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.38**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部；使用页面枚举和 Frame.Navigate 切换，采用内置淡入与上移动画，并保留原生返回历史。标题栏返回按钮与 Alt＋左方向键共用返回入口；无历史时按钮禁用，弹层打开时保持底层页面。五页缓存各自的草稿、选择和滚动。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -18,7 +18,9 @@
 
 移除失败或取消后保留模式、根身份、精确注册备份与实际阶段，重启不会自动重放删除；再次选择相同方式继续。内容完成后只继续注销和 Explorer 入口清理，通过当前包与真实注册视图核验后才移除配置。挂载页“遗留挂载”可发现卸载后的原生根或仅剩的 Shell 入口；仅剩入口时保留目录和文件。已经删除的内容不会因取消而恢复。
 
-挂载设置提供排除文件列表，支持文件名包含、前缀、后缀匹配，可逐项启用、添加和删除。新建挂载默认排除包含 `~`、包含 `$`、`.bak` 后缀及 `-` 开头的文件；已有挂载和旧备份导入保持原行为，可手动添加默认规则。排除只停止上传，目录和远端读取保持；解除后恢复原本允许自动上传的工作，失败、冲突和未知结果保留原保护。系统排除标记优先于固定、释放空间；匹配文件通过系统属性发布“已排除（不上传）”，解除排除后清除本程序的对应状态。本版改为原生DLL中的多尺寸ICO资源，实际Explorer显示仍列为待测，详见[验收记录](docs/Validation-0.0.9.36.md)。普通文件保持原文件形态；标记或图标发布失败时，仍禁止上传并在保存结果及完整诊断报告。
+挂载设置提供排除文件列表，支持文件名包含、前缀、后缀匹配，可逐项启用、添加和删除。新建挂载默认排除包含 `~`、包含 `$`、`.bak` 后缀及 `-` 开头的文件；已有挂载和旧备份导入保持原行为，可手动添加默认规则。排除只停止上传，目录和远端读取保持；解除后恢复原本允许自动上传的工作，失败、冲突和未知结果保留原保护。系统排除标记优先于固定、释放空间；匹配文件通过系统属性发布“已排除（不上传）”，解除排除后清除本程序的对应状态。状态图标使用原生DLL中的多尺寸ICO资源，实际Explorer显示仍列为待测，详见[验收记录](docs/Validation-0.0.9.36.md)。普通文件保持原文件形态；标记或图标发布失败时，仍禁止上传并在保存结果及完整诊断报告。
+
+文件从非排除名称改成排除名称时，例如 `123.txt → 123.bak`，已有云端版本会按原版本条件同步改名，禁止覆盖已有目标；S3移动保留历史版本。随后自动补齐缺失内容，保留本地未上传修改，并将完整文件保留为普通本地排除文件。后续本地修改不再上传；远端再次变化时保留本地并在任务页提示冲突。没有已确认云端映射的文件仅停止上传。目标重名、能力不足或移动结果无法确认时保留问题，可查看详情、只读重新核对、重试或取消收尾；取消不撤销已完成的云端步骤。单纯修改规则不会批量改名云端文件。
 
 常规缓存操作会保护本地修改、新建、删除和重命名；明确选择清空时按上述范围删除。本版本自动上传新增文件、目录和文件修改；最后一次变化后默认等待 2 秒，连接恢复、监控溢出及每 60 秒补扫。**本地删除不删除远端；重命名上传新路径，保留远端旧项。** 删除后复制同名文件会沿用原远端基线执行条件更新；远端变化、远端删除或类型互换仍保留冲突。 WebDAV 的干净已固定文件自动下载新版并保持固定状态；占用、修改或未决上传保持保护，取消当前版本后需显式重试或等待下一版本。手动“刷新”立即完整对账。WebDAV 全部协议操作使用 WebDAVClient 3.3.0 的 DavClient，每目录独立 RFC 6578 令牌，服务不支持时回退 Depth 1；S3 使用 AWS SDK v4、SigV4 签名及分页，路径寻址默认开启。默认 HTTPS，原子替换等未验证的能力保持未知。WebDAV 的可选空／非标准 ETag 不阻断枚举；缺少可靠标签时使用整文件快照缓存，可靠强标签仍严格验证版本。系统状态为本地（实心绿勾）、仅远端（云）及待脱水（空心绿勾，允许回收）。设置页可调整默认 10 GiB 的缓存软上限，0 关闭自动回收；固定、修改和活动内容不会为了达标而被回收。
 
@@ -69,7 +71,7 @@ Visual Studio 调试选择：
 
 Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=None`，可直接运行 EXE；扩展、测试工程在 Unpackaged 配置中复用对应 Debug／Release 构建。输出按架构、配置、Packaged／Unpackaged 隔离。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.37`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.37`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.38`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.38`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -92,7 +94,7 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，本版不注册自有 Explorer 菜单；不需要手工使用 regsvr32。新根的固定／释放入口由 Windows 提供；未打包登录启动继续使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.37.md](docs/Validation-0.0.9.37.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版验证细节及待测项目见 [docs/Validation-0.0.9.38.md](docs/Validation-0.0.9.38.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 本版真实自动同步验收可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

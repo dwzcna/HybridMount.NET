@@ -90,6 +90,7 @@ public sealed partial class WebDavFileSource
                 if(method=="MOVE"){request.Headers.Add("Destination",Address(destination).AbsoluteUri);request.Headers.Add("Overwrite","F");}
                 using var result=await SendAsync(request,token,true).ConfigureAwait(false);
                 var supported=result.StatusCode==HttpStatusCode.PreconditionFailed;
+                if(supported&&method=="MOVE")supported=await VerifyMoveNoOverwriteAsync(path,parent,token).ConfigureAwait(false);
                 if(method=="DELETE"){_deleteVerified=true;WriteCapabilities=WriteCapabilities with{ConditionalDelete=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};}
                 else{_moveVerified=true;WriteCapabilities=WriteCapabilities with{ConditionalMove=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};}
                 if(!supported)throw new NotSupportedException("服务器未通过此方法的条件写验证，已保留用户内容。");
@@ -99,6 +100,21 @@ public sealed partial class WebDavFileSource
         finally{_writeProbe.Release();}
         if((method=="DELETE"?WriteCapabilities.ConditionalDelete:WriteCapabilities.ConditionalMove)!=CapabilitySupport.Supported)
             throw new NotSupportedException("服务器不支持此方法的可靠条件写。");
+    }
+    /// <summary>源版本条件与目标禁止覆盖分别验证；只操作两个精确登记的独有临时项。</summary>
+    private async Task<bool> VerifyMoveNoOverwriteAsync(string path,string parent,CancellationToken token)
+    {
+        var target=await CreateProbeAsync(parent,[47],token).ConfigureAwait(false);
+        try
+        {
+            var before=await GetMetadataAsync(path,token).ConfigureAwait(false);var occupied=await GetMetadataAsync(target,token).ConfigureAwait(false);
+            using var request=new HttpRequestMessage(new("MOVE"),Address(path));Condition(request,before.Version);request.Headers.Add("Destination",Address(target).AbsoluteUri);request.Headers.Add("Overwrite","F");
+            using var response=await SendAsync(request,token,true).ConfigureAwait(false);
+            if(response.StatusCode!=HttpStatusCode.PreconditionFailed)return false;
+            var after=await TryGetMetadataAsync(path,token).ConfigureAwait(false);var destination=await TryGetMetadataAsync(target,token).ConfigureAwait(false);
+            return after is not null&&destination is not null&&IsSameVersion(after.Version,before.Version)&&IsSameVersion(destination.Version,occupied.Version);
+        }
+        finally{await CleanupProbesAsync(target).ConfigureAwait(false);}
     }
     /// <summary>发送前按连接验证条件写与所需回退能力；可取消，探测失败保留用户目标和原上传意图。</summary>
     public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)

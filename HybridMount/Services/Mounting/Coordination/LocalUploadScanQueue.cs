@@ -11,10 +11,11 @@ internal sealed class LocalUploadScanBatch
     internal static readonly LocalUploadScanBatch Full=new(true,[]);
     internal bool IsFull {get;}
     internal IReadOnlyList<LocalUploadScanScope> Scopes {get;}
+    internal IReadOnlyList<LocalRenameNotice> Renames {get;}
     private readonly Dictionary<string,bool> _paths=new(StringComparer.Ordinal);
-    internal LocalUploadScanBatch(bool full,IEnumerable<LocalUploadScanScope> scopes)
+    internal LocalUploadScanBatch(bool full,IEnumerable<LocalUploadScanScope> scopes,IReadOnlyList<LocalRenameNotice>? renames=null)
     {
-        IsFull=full;
+        IsFull=full;Renames=renames??[];
         var selected=new List<LocalUploadScanScope>();
         foreach(var scope in scopes.OrderBy(value=>value.Path.Count(character=>character=='/')).ThenBy(value=>value.Path.Length).ThenByDescending(value=>value.Recursive))
         {
@@ -42,13 +43,16 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
 {
     private readonly object _sync=new();
     private readonly Dictionary<string,bool> _paths=new(StringComparer.Ordinal);
+    private readonly List<LocalRenameNotice> _renames=[];
     private bool _full=true;
     private readonly Dictionary<string,bool> _changes=new(StringComparer.Ordinal);
     internal readonly LocalWriteStampCache Writes=new();
     private DateTimeOffset _fullAfter=DateTimeOffset.MinValue,_lastFull=DateTimeOffset.MinValue,_firstEvent,_lastEvent;
     internal void RequestFull(){lock(_sync){_full=true;_fullAfter=DateTimeOffset.MinValue;_paths.Clear();_changes.Clear();Writes.Clear();}}
-    internal LocalUploadScanBatch StartFull(){lock(_sync){_full=false;_paths.Clear();_changes.Clear();Writes.Clear();return LocalUploadScanBatch.Full;}}
-    internal void Record(string root,FileSystemEventArgs change,DateTimeOffset now)
+    internal LocalUploadScanBatch StartFull(){lock(_sync){_full=false;_paths.Clear();_changes.Clear();Writes.Clear();var batch=new LocalUploadScanBatch(true,[],_renames.ToArray());_renames.Clear();return batch;}}
+    /// <summary>原生完成通知只写有界内存；全扫和去抖不能丢弃已复制的改名关联。</summary>
+    internal void RecordNativeRename(LocalRenameNotice notice){lock(_sync){if(_renames.Count<capacity)_renames.Add(notice);_full=true;_fullAfter=DateTimeOffset.MinValue;}}
+    internal void Record(string root,FileSystemEventArgs change,DateTimeOffset now,IReadOnlyList<FileExclusionRule>? rules=null)
     {
         try
         {
@@ -61,6 +65,7 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
             if(paths.Length==2&&paths[0]!=paths[1]&&paths[0].Equals(paths[1],StringComparison.OrdinalIgnoreCase)){RequestFull();return;}
             lock(_sync)
             {
+                if(change is RenamedEventArgs&&paths.Length==2&&_renames.Count<capacity)_renames.Add(new(paths[0],paths[1],IntoExcluded:rules is null?null:!FileExclusionRules.Matches(rules,paths[0])&&FileExclusionRules.Matches(rules,paths[1])));
                 if(_full)return;
                 if(_paths.Count==0)_firstEvent=now;
                 _lastEvent=now;
@@ -103,7 +108,7 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
             if(_paths.Count==0||now-_lastEvent<TimeSpan.FromMilliseconds(200)&&now-_firstEvent<TimeSpan.FromSeconds(2))return null;
             var scopes=_paths.Select(pair=>new LocalUploadScanScope(pair.Key,pair.Value)).ToList();
             if(readStamp is not null)scopes.RemoveAll(scope=>scope.Recursive&&_changes.GetValueOrDefault(scope.Path)&&Writes.Consume(scope.Path,now,()=>readStamp(scope.Path)));
-            var batch=new LocalUploadScanBatch(false,scopes);_paths.Clear();_changes.Clear();return batch;
+            var batch=new LocalUploadScanBatch(false,scopes,_renames.ToArray());_renames.Clear();_paths.Clear();_changes.Clear();return batch;
         }
     }
     /// <summary>完整全扫重置兜底时钟；不完整扫描两秒后重试，完成通知不清除扫描期间新事件。</summary>
@@ -112,7 +117,7 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
         lock(_sync)
         {
             if(batch.IsFull)_lastFull=now;
-            if(!complete){_full=true;_fullAfter=now.AddSeconds(2);Writes.Clear();}
+            if(!complete){foreach(var rename in batch.Renames)if(_renames.Count<capacity&&!_renames.Contains(rename))_renames.Add(rename);_full=true;_fullAfter=now.AddSeconds(2);Writes.Clear();}
         }
     }
 }

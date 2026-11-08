@@ -18,9 +18,11 @@ public sealed partial class S3FileSource
     /// <summary>只读重试基准间隔；实例级测试可缩短，不影响写入请求的单次发送。</summary>
     internal TimeSpan ReadRetryDelay {get;set;}=TimeSpan.FromMilliseconds(200);
     internal Action? ReadRetryWaiting {get;set;}
+    /// <summary>隔离回归观察单次HTTP发送的形状；不记录地址、凭据或正文。</summary>
+    internal Action<string>? HttpAttemptForTests {get;set;}
     /// <summary>请求及正文的无进展截止；持续传输会续期，调用方取消仍立即生效。</summary>
     internal TimeSpan InactivityTimeout {get;set;}=TimeSpan.FromSeconds(120);
-    private sealed class ResponseHints { internal string? Region,RequestId; internal bool Certificate; }
+    private sealed class ResponseHints { internal string? Region,RequestId; internal bool Certificate,Mutation;internal int MutationSends; }
     private static readonly AsyncLocal<ResponseHints?> Hints=new();
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
     {
@@ -55,6 +57,16 @@ public sealed partial class S3FileSource
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
         {
+            // SDK内部再次进入HTTP管线也不能重放同一修改；每个CallCore独立拥有发送边界。
+            if(Hints.Value is {Mutation:true} attempt&&request.Method.Method is not("GET" or "HEAD" or "OPTIONS")&&Interlocked.Exchange(ref attempt.MutationSends,1)!=0)
+                throw new HttpRequestException("S3修改已进入发送阶段，拒绝内部重发；结果由持久事务只读核对。");
+            // 零长度正文防止HTTP/1.1在零响应时自动重放DELETE；由持久事务核对已发结果。
+            if(request.Method==HttpMethod.Delete)
+            {
+                request.Content??=new ByteArrayContent([]);
+                request.Headers.ExpectContinue=false;
+            }
+            owner.HttpAttemptForTests?.Invoke($"{request.Method.Method};content={request.Content?.GetType().Name};length={request.Content?.Headers.ContentLength};expect={request.Headers.ExpectContinue};version={request.Version}");
             HttpResponseMessage response;
             using var idle=CancellationTokenSource.CreateLinkedTokenSource(token);idle.CancelAfter(owner.InactivityTimeout);
             if(request.Content is {} content)request.Content=new S3IdleContent(content,()=>owner.InactivityTimeout,()=>idle.CancelAfter(owner.InactivityTimeout));
@@ -138,7 +150,7 @@ public sealed partial class S3FileSource
         for(var index=0;index<attempts;index++)
         {
             token.ThrowIfCancellationRequested();
-            var previousHints=Hints.Value;var hints=new ResponseHints();Hints.Value=hints;
+            var previousHints=Hints.Value;var hints=new ResponseHints{Mutation=mutation};Hints.Value=hints;
             try { return await action().ConfigureAwait(false); }
             catch(AmazonS3Exception error) when((expected&ExpectedResult.Missing)!=0&&error.StatusCode==HttpStatusCode.NotFound&&error.ErrorCode!="NoSuchBucket") {return null;}
             catch(AmazonS3Exception error) when((expected&ExpectedResult.PreconditionRejected)!=0&&error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict) {return null;}

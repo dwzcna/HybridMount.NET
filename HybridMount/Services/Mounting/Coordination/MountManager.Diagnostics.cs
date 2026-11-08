@@ -28,6 +28,8 @@ public sealed partial class MountManager
         foreach(var resolution in _repository.Uploads(id).Where(x=>x.Resolution is not null||x.ConflictRecoveryPath is not null))
             text.Append("冲突取舍：").Append(resolution.LocalPath).Append("；阶段：").Append(resolution.Resolution?.Phase??"已完成交接").Append("；备份：").AppendLine(resolution.Resolution?.BackupPath??resolution.ConflictRecoveryPath);
         text.AppendLine(FileExclusionStatus(id));
+        foreach(var rename in RenameIntents(id).Where(x=>!x.Finished))text.Append("改名排除收尾：").Append(rename.OldLocalPath).Append(" → ").Append(rename.LocalPath).Append("；远端旧路径：").Append(rename.SourcePath).Append(" → ").Append(rename.DestinationPath??rename.LocalPath).Append("；移动已确认：").Append(rename.RemoteMoved).Append("；阶段：").Append(rename.StageText).Append("；文件身份：").Append(rename.FileId).Append("；本地已独立：").Append(rename.LocalDetached).Append("；").AppendLine(rename.Error??"无错误");
+        if(_renameErrors.TryGetValue(id,out var journalError))text.Append("改名日志错误：").AppendLine(journalError.Error);
         text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));
         text.Append("挂载缩略图开关：").AppendLine(root.Definition.ThumbnailsEnabled?"已开启":"已关闭");

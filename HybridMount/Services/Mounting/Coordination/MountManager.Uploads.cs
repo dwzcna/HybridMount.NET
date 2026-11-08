@@ -15,6 +15,7 @@ public sealed partial class MountManager
         public FileSystemWatcher? Watcher;
         public CloudMountSession? Session;
         public Action<string,LocalFileStamp>? LocalWriteCompleted;
+        public Action<LocalRenameNotice>? LocalRenameCompleted;
         public CancellationTokenSource? Request;
         public string? CurrentId,PropertyPath;
         public Task Work=Task.CompletedTask;
@@ -34,7 +35,7 @@ public sealed partial class MountManager
         private void Notify(bool scan){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;if(scan)Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
         public void CancelRequest(string? id=null){lock(Sync)if((id is null||CurrentId==id)&&Request is {IsCancellationRequested:false} request)RequestCancellation=request.CancelAsync();}
         public void RequestStop(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;_stopping=1;Cancellation=Stop.CancelAsync();}CancelRequest();}
-        public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}if(Session is not null)Session.LocalWriteCompleted-=LocalWriteCompleted;watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
+        public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}if(Session is not null){Session.LocalWriteCompleted-=LocalWriteCompleted;Session.LocalRenameCompleted-=LocalRenameCompleted;}watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
     }
     private void StartUploads(Runtime root)
     {
@@ -43,8 +44,9 @@ public sealed partial class MountManager
         if(root.Uploads is not null||root.Session is null||root.Source is null||root.Definition.RemovalPending||root.RemovalRequested||_stop.IsCancellationRequested)return;
         var runtime=new UploadRuntime(_stop.Token);root.Uploads=runtime;
         runtime.Session=root.Session;runtime.LocalWriteCompleted=(path,stamp)=>runtime.Scans.Writes.Record(path,stamp,DateTimeOffset.UtcNow);runtime.Session.LocalWriteCompleted+=runtime.LocalWriteCompleted;
+        runtime.LocalRenameCompleted=notice=>{runtime.Scans.RecordNativeRename(notice with{IntoExcluded=!FileExclusionRules.Matches(root.Definition.ExclusionRules,notice.OldPath)&&FileExclusionRules.Matches(root.Definition.ExclusionRules,notice.NewPath)});runtime.RequestScan();};runtime.Session.LocalRenameCompleted+=runtime.LocalRenameCompleted;
         var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.Size|NotifyFilters.LastWrite|NotifyFilters.CreationTime};
-        BindUploadWatcher(watcher,runtime.RequestScan,change=>runtime.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow),runtime.Scans.RequestFull);
+        BindUploadWatcher(watcher,runtime.RequestScan,change=>runtime.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow,root.Definition.ExclusionRules??[]),runtime.Scans.RequestFull);
         runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Work=Task.Run(()=>UploadLoopAsync(root,runtime));
         }
     }
@@ -117,8 +119,8 @@ public sealed partial class MountManager
     public bool RetryUpload(string id){lock(_lifetime){if(IsStopping)return false;return RetryUploadCore(id);}}
     private bool RetryUploadCore(string id)
     {
-        if(IsStopping)return false;if(_repository.Upload(id)?.Resolution is not null)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
-        if(!UploadRules.CanRetry(item)||FileExclusionRules.Matches(root.Definition,item)&&!UploadRules.InFlight(item))return false;
+        if(IsStopping)return false;if(RetryExcludedRename(id) is {} renameRetry)return renameRetry;if(_repository.Upload(id)?.Resolution is not null)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
+        if(!UploadRules.CanRetry(item)||(RenameOwnsUpload(item)||FileExclusionRules.Matches(root.Definition,item))&&!UploadRules.InFlight(item))return false;
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);
         ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,NextAttemptUtc=null,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
     }
@@ -127,6 +129,7 @@ public sealed partial class MountManager
     private string UploadAsCopyCore(string id,string destination)
     {
         ThrowIfStopping();var original=_repository.Upload(id)??throw new IOException("上传记录不存在。");var root=Root(original.MountId);
+        if(RenameOwnsUpload(original))throw new IOException("原文件已改名进入排除规则，旧上传不能通过另存副本继续发送。 ");
         if(original.Resolution is not null||original.IsDirectory||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前条目不能另存副本。");
         destination=RelativePaths.Normalize(destination);if(destination.Length==0||destination.Equals(original.SourcePath,StringComparison.OrdinalIgnoreCase))throw new ArgumentException("请填写不同的新文件相对路径。");
         if(FileExclusionRules.Matches(root.Definition,original)||FileExclusionRules.Matches(root.Definition.ExclusionRules,destination))throw new IOException("文件或副本目标匹配排除规则，请先修改规则或文件名。");
@@ -159,9 +162,22 @@ public sealed partial class MountManager
             {if(requireComplete)throw new IOException("请先连接挂载，再完整扫描并确认已有改动。");return;}
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             var queue=root.Uploads?.Scans;var scan=batch??queue?.StartFull()??LocalUploadScanBatch.Full;
+            var legacyRenames=!RenameLegacyChecked(root);
             var incomplete=false;var entries=_repository.Entries(root.Definition.Id);var seen=new HashSet<string>(StringComparer.Ordinal);
             var index=new LocalUploadScanIndex(entries);
             var records=_repository.Uploads(root.Definition.Id).Where(x=>!x.IsCopy).GroupBy(x=>x.LocalPath,StringComparer.Ordinal).ToDictionary(x=>x.Key,x=>x.First(),StringComparer.Ordinal);
+            // 先捕获本批所有改名，再扫描旧名称的新对象；枚举顺序不能让新文件继承旧云基线。
+            foreach(var target in scan.Renames.Select(x=>x.NewPath).Concat(legacyRenames?entries.Where(x=>x.LocalPath!=x.SourcePath).Select(x=>x.LocalPath):[]).Distinct(StringComparer.Ordinal))
+            {
+                try
+                {
+                    var targetPath=RelativePaths.ToLocal(root.Definition.LocalPath,target);if(LocalFileMetadata.TryRead(targetPath) is null)continue;
+                    MountPathGuard.ValidateOperation(root.Definition,targetPath);var info=CloudFilesNative.Inspect(targetPath);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+                    var mapped=marker is null?index.ActivePath(target):index.ById(marker.EntryId);
+                    ObserveExcludedRename(root,scan,target,LocalFileState.Read(targetPath),mapped,legacyRenames);
+                }
+                catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){incomplete=true;root.ExclusionError=error.Message;}
+            }
             void Scan(string directory)
             {
                 foreach(var path in Directory.EnumerateFileSystemEntries(directory))Visit(path,true);
@@ -180,6 +196,8 @@ public sealed partial class MountManager
                         var entry=marker is null?index.ActivePath(relative):index.ById(marker.EntryId);
                         entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);
+                        try{ObserveExcludedRename(root,scan,relative,stamp,entry,legacyRenames);}catch(Exception error)when(error is IOException or UnauthorizedAccessException){incomplete=true;root.ExclusionError=error.Message;}
+                        if(IsNewObjectAtRenamedSource(root.Definition.Id,relative,stamp)&&prior?.ObservedStamp.Split(':')[0]!=stamp.Identity){prior=null;entry=null;}
                         var excluded=FileExclusionRules.Matches(root.Definition.ExclusionRules,relative,stamp.IsDirectory);
                         stamp=ReconcileFileExclusion(root,relative,stamp,excluded,token);
                         if(prior is not null)prior=_repository.Upload(prior.Id);
@@ -242,9 +260,14 @@ public sealed partial class MountManager
             }
             if(scan.IsFull&&!incomplete&&root.ExclusionMarkers is {} markers)
                 try{if(markers.HasMarks)markers.Prune(root.Definition);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){root.ExclusionError="排除标记日志收尾未完成："+error.Message;}
+            if(scan.IsFull&&!incomplete)try{RenameJournal(root.Definition.Id).MarkLegacyChecked();}catch(IOException){RenameIntents(root.Definition.Id);}
             queue?.Completed(scan,DateTimeOffset.UtcNow,!incomplete);
             if(requireComplete&&incomplete)throw new IOException("部分本地条目无法读取元数据，首次确认尚未完成；请解除占用或权限问题后重新扫描。");
             foreach(var item in scan.MissingCandidates(_repository.Uploads(root.Definition.Id),seen))
-            {if(!LocalMissing(RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath)))continue;ChangeUpload(item.Id,x=>x with{CancelRequested=true,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:"Canceled",Error="本地项已删除；未传播远端删除。"});root.Uploads?.CancelRequest(item.Id);}
+            {
+                // 改名收尾已接管原文件；已发送回执仍由原上传恢复器提交，不按普通本地删除取消。
+                if(RenameOwnsUpload(item)||!LocalMissing(RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath)))continue;
+                ChangeUpload(item.Id,x=>x with{CancelRequested=true,State=x.State is "Sending" or "RemoteCommitted" or "OutcomeUnknown"?x.State:"Canceled",Error="本地项已删除；未传播远端删除。"});root.Uploads?.CancelRequest(item.Id);
+            }
     }
 }

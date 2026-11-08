@@ -12,7 +12,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>SigV4 S3 通用桶驱动；版本读取、分页、条件写与复制后删除分别处理。</summary>
-public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource, IRemoteSnapshotSource, IRemoteUsageSource
+public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, IReadDiagnosticsSource, IUploadDiagnosticsSource, IRemoteChangeSource, IRemoteSnapshotSource, IRemoteUsageSource
 {
     private readonly IAmazonS3 _client;
     private readonly string _bucket, _prefix, _work;
@@ -142,7 +142,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         catch(SequentialRangeConsumerException error){System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException!).Throw();throw;}
     }
     /// <summary>复制回执与目标版本一致才允许条件删源；多个请求不构成原子移动。</summary>
-    private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token,string? directoryMoveRoot=null)
+    private async Task<SourceEntry> MoveFileAsync(SourceEntry entry, string destination, CancellationToken token,string? directoryMoveRoot=null,Func<SourceEntry,Task>? saveMoveReceipt=null)
     {
         await CheckTargetAsync(destination,null,token,directoryMoveRoot).ConfigureAwait(false);
         var currentSource=await GetMetadataAsync(entry.Path,token).ConfigureAwait(false);
@@ -183,6 +183,7 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
                 receipt.VersionId is not null&&current.VersionId is not null&&receipt.VersionId!=current.VersionId)
                 throw new SourcePartialMoveException([new(entry.Path,"Copied",$"目标 {destination} 与本次复制回执的类型、长度或版本不一致；源保留。")]);
             token.ThrowIfCancellationRequested();
+            if(saveMoveReceipt is not null)await saveMoveReceipt(copy).ConfigureAwait(false);
             try{await DeleteAsync(entry.Path,entry.Version,token).ConfigureAwait(false);}
             catch(NotSupportedException)
             {throw new SourcePartialMoveException([new(entry.Path,"Copied",$"目标 {destination} 已核对；服务未通过可靠的条件删除验证，源保留。")]);}
@@ -193,6 +194,14 @@ public sealed partial class S3FileSource : IFileSource, IReadDiagnosticsSource, 
         catch(SourcePartialMoveException){throw;}
         catch(Exception error)when(error is IOException or OperationCanceledException or NotSupportedException)
         {throw new SourcePartialMoveException([new(entry.Path,acknowledged?"Copied":"Unconfirmed",$"复制到 {destination} 或目标核对未确认；未执行后续源删除，请核对两端。")]);}
+    }
+    /// <summary>排除改名只接受文件；复制回执先落盘，再沿既有条件删除源路径。</summary>
+    async Task<SourceEntry> IExcludedRenameSource.MoveForExclusionAsync(string path,string destination,string version,Func<SourceEntry,Task> saveReceipt,CancellationToken token)
+    {
+        path=NonRoot(path);destination=NonRoot(destination);if(path==destination)throw new ArgumentException("源目标相同。");
+        await VerifyPutCapabilitiesAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);RequirePut(true);await VerifyCopyAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);
+        var entry=await GetMetadataAsync(path,token).ConfigureAwait(false);if(entry.IsDirectory||!IsSameVersion(entry.Version,version))throw new SourceConflictException("S3改名源版本变化。");
+        return await MoveFileAsync(entry,destination,token,saveMoveReceipt:saveReceipt).ConfigureAwait(false);
     }
     public async Task<SourceEntry> MoveAsync(string path, string destination, string expectedVersion, CancellationToken token = default)
     {

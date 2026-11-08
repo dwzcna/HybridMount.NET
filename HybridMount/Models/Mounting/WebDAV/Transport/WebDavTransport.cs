@@ -65,6 +65,9 @@ public sealed partial class WebDavFileSource
                 request.Headers.Authorization=new AuthenticationHeaderValue("Basic",Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials.UserName+":"+credentials.Password)));
             var observation=owner._wire.Value;
             var readOnly=request.Method.Method is "OPTIONS" or "GET" or "PROPFIND" or "REPORT";
+            // 显式零长度正文避免HTTP/1.1把无正文MOVE／DELETE在零响应时当作可重放请求；结果交给上层只读核对。
+            if(request.Method.Method is "DELETE" or "MOVE")
+            {request.Content??=new ByteArrayContent([]);request.Headers.ExpectContinue=false;}
             byte[]? content=null;
             var retryableBody=request.Content is null||request.Content.Headers.ContentLength is >=0 and <=65536;
             if(readOnly&&request.Content is not null&&retryableBody)content=await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);

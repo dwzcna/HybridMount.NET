@@ -43,6 +43,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly ConcurrentDictionary<string,DateTimeOffset> _lastRead=new();
     public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false,Action<MountEntry>? localContentReady=null,Action? localChanged=null)
     { _localChanged=localChanged;_localContentReady=localContentReady;_mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
+    internal event Action<LocalRenameNotice>? LocalRenameCompleted;
     public void Connect()
     {
         var registrations=new List<CloudFilesNative.CallbackRegistration>();
@@ -135,6 +136,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                     var relative=Path.GetRelativePath(_mount.LocalPath,target).Replace('\\','/');
                     foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)))
                         _repository.SaveEntry(_mount.Id,child with{LocalPath=relative+child.LocalPath[entry.LocalPath.Length..],Protected=true});
+                    if(!entry.IsDirectory)LocalRenameCompleted?.Invoke(new(entry.LocalPath,relative,entry));
                 }
             }
         }

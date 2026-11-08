@@ -24,7 +24,8 @@
                 <Button Content="取消选中任务" Click="CancelJob"/>
                 <Button Content="处理冲突" Click="ResolveConflict"/>
                 <Button Content="查看结果" Click="ShowResults"/>
-                <Button Content="重试上传" Click="RetryUpload"/>
+                <Button Content="重试选中" Click="RetryUpload"/>
+                <Button Content="重新核对" Click="RecheckRename"/>
                 <Button Content="另存副本" Click="SaveUploadCopy"/>
                 <Button Content="打开所在位置" Click="OpenLocation"/>
             </StackPanel>

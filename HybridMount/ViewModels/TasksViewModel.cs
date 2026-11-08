@@ -61,7 +61,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public void ClearIssueFilter(){_filterMount=null;_filterPaths=[];Refresh();}
     public string? SelectedLocation()
     {
-        if(_disposed||_manager.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate"} selected){Status="请先选择同步问题。";return null;}
+        if(_disposed||_manager.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择同步问题。";return null;}
         try{return _manager.SyncIssueLocalPath(selected.Id);}catch(Exception error){Status=error.Message;return null;}
     }
     private void FocusChanged()
@@ -82,13 +82,20 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_disposed||_manager.IsStopping)return;
         if(Selected is not {} selected){Status="请先选择任务。";return;}
-        try{Status=_manager.Cancel(selected.Id)?"已请求取消；已完成的步骤保留，已删除内容不会恢复。":"任务已结束或不存在。";}catch(Exception error){Status=error.Message;}
+        try{Status=_manager.Cancel(selected.Id)?selected.Operation=="excludedRename"?"已请求停止收尾；已完成的云端改名或目标复制会保留。":"已请求取消；已完成的步骤保留，已删除内容不会恢复。":"任务已结束或不存在。";}catch(Exception error){Status=error.Message;}
     }
     public void RetrySelected()
     {
         if(_disposed||_manager.IsStopping)return;
-        if(Selected is not {Operation:"upload" or "remoteUpdate"} selected){Status="请先选择上传或远端更新任务。";return;}
-        try{Status=_manager.RetryUpload(selected.Id)?"已提交重试；如挂载未连接，请先在挂载页连接。":"当前上传任务不能重试。";}catch(Exception error){Status=error.Message;}
+        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择上传、远端更新或排除改名收尾任务。";return;}
+        try{Status=_manager.RetryUpload(selected.Id)?"已提交重试；如挂载未连接，请先在挂载页连接。":"当前任务不能重试。";}catch(Exception error){Status=error.Message;}
+    }
+    /// <summary>只读核对改名收尾，不授权再次删除或重新上传。</summary>
+    public void RecheckSelected()
+    {
+        if(_disposed||_manager.IsStopping)return;
+        if(Selected is not {Operation:"excludedRename"} selected){Status="请选择改名排除收尾任务。";return;}
+        try{Status=_manager.RecheckExcludedRename(selected.Id)?"已请求只读核对；不会因此重新执行远端改名。":"当前任务正在执行或已经结束。";}catch(Exception error){Status=error.Message;}
     }
     public bool BeginCopy()
     {
@@ -130,6 +137,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public async Task<bool> BeginConflictAsync()
     {
         if(_disposed||_manager.IsStopping||_dialogBusy||_conflictBusy)return false;
+        if(Selected?.Operation=="excludedRename"){Status="此任务请使用重新核对、重试或取消收尾；目标已存在时不会自动覆盖。";return false;}
         if(Selected is not{Operation:"upload" or "remoteUpdate"} selected){Status="请先选择文件冲突。";return false;}
         var owner=new CancellationTokenSource();_dialogBusy=true;_dialogJob=selected.Id;_comparisonCancel=owner;await RefreshConflictAsync();return !_disposed&&_dialogBusy&&_dialogJob==selected.Id&&_comparisonCancel==owner;
     }
