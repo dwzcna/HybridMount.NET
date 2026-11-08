@@ -1,4 +1,4 @@
-// 菜单生命周期和类工厂基于 ProKit.Ext 所参考的 Microsoft ExplorerCommand 示例改写。
+// 菜单生命周期和类工厂基于 Microsoft ExplorerCommand 示例改写。
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
 // EITHER EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
@@ -12,6 +12,8 @@
 #include <roapi.h>
 #include <cstddef>
 #include <sddl.h>
+#include <algorithm>
+#include <memory>
 static_assert(offsetof(CF_SYNC_ROOT_STANDARD_INFO, SyncRootIdentity) == 1056);
 static_assert(offsetof(CF_PLACEHOLDER_STANDARD_INFO, FileIdentity) == 60);
 static_assert(sizeof(CF_CALLBACK_INFO) == 152);
@@ -66,6 +68,29 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
     auto guid = std::wstring(L"{") + id.GetRawBuffer(nullptr) + L"}";
     return SUCCEEDED(CLSIDFromString(guid.c_str(), &mount));
 }
+    /// <summary>只读属性句柄确认完整缓存；排除或无法确认的文件不暴露缓存动作，不读取正文。</summary>
+    DWORD CacheActions(const std::wstring& path) {
+        auto raw=CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_BACKUP_SEMANTICS,nullptr);
+        if(raw==INVALID_HANDLE_VALUE)return 0;
+        struct Handle{HANDLE Value;~Handle(){CloseHandle(Value);}} handle{raw};
+        FILE_STANDARD_INFO standard{};if(!GetFileInformationByHandleEx(raw,FileStandardInfo,&standard,sizeof(standard)))return 0;
+        std::vector<BYTE> buffer(8192);DWORD returned=0;
+        const auto status=CfGetPlaceholderInfo(raw,CF_PLACEHOLDER_INFO_STANDARD,buffer.data(),static_cast<DWORD>(buffer.size()),&returned);
+        if(SUCCEEDED(status)){
+            if(returned<offsetof(CF_PLACEHOLDER_STANDARD_INFO,FileIdentity))return 0;
+            const auto info=reinterpret_cast<const CF_PLACEHOLDER_STANDARD_INFO*>(buffer.data());
+            if(info->PinState==CF_PIN_STATE_EXCLUDED)return 0;
+        }else if(!standard.Directory)return 0;
+        // 目录可能同时含有完整和联机条目；仅显示命令，不在菜单查询中递归枚举。
+        if(standard.Directory)return 3;
+        if(standard.EndOfFile.QuadPart==0)return 1;
+        std::vector<CF_FILE_RANGE> ranges(4096);returned=0;
+        const auto rangeStatus=CfGetPlaceholderRangeInfo(raw,CF_PLACEHOLDER_RANGE_INFO_ONDISK,LARGE_INTEGER{},standard.EndOfFile,ranges.data(),static_cast<DWORD>(ranges.size()*sizeof(CF_FILE_RANGE)),&returned);
+        if(FAILED(rangeStatus)||returned>ranges.size()*sizeof(CF_FILE_RANGE)||returned%sizeof(CF_FILE_RANGE))return 0;
+        LONGLONG end=0;
+        for(DWORD index=0;index<returned/sizeof(CF_FILE_RANGE);++index){const auto& range=ranges[index];if(range.StartingOffset.QuadPart>end)return 2;if(range.StartingOffset.QuadPart<0||range.Length.QuadPart<0||range.StartingOffset.QuadPart>MAXLONGLONG-range.Length.QuadPart)return 0;end=std::max(end,range.StartingOffset.QuadPart+range.Length.QuadPart);}
+        return end>=standard.EndOfFile.QuadPart?1:2;
+    }
 	class Command;
 	/// <summary>每次枚举拥有独立游标；Clone 复制位置但不共享可变枚举状态。</summary>
 	class CommandEnumerator final : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IEnumExplorerCommand>, private ModuleLifetime {
@@ -118,7 +143,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		Command(Operation operation, IUnknown* site = nullptr) : _operation(operation), _site(site) {}
 		IFACEMETHODIMP GetTitle(IShellItemArray*, PWSTR* title) override {
 			if (!title) return E_POINTER;
-			return SHStrDupW(_operation == Operation::Root ? L"HybridMount.NET" : _operation == Operation::FreeSpace ? L"释放空间" : _operation == Operation::KeepOnDevice ? L"始终保留在设备上" : L"查看同步问题", title);
+			return SHStrDupW(_operation == Operation::Root ? L"HybridMount.NET" : _operation == Operation::FreeSpace ? L"释放空间" : _operation == Operation::KeepOnDevice ? L"始终保留在此设备上" : L"查看同步问题", title);
 		}
 		IFACEMETHODIMP GetIcon(IShellItemArray*, PWSTR* icon) override {
 			if (!icon) return E_POINTER;
@@ -159,7 +184,9 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
             }
             if (paths.empty()) { std::wstring background; if (FAILED(BackgroundPath(_site.Get(), background))) return S_OK; paths.push_back(std::move(background)); }
             GUID expected{}; bool first = true;
-            for (const auto& path : paths) { GUID current{}; if (!OwnedRoot(path, current) || (!first && current != expected)) return S_OK; expected = current; first = false; }
+            DWORD actions=0;
+            for (const auto& path : paths) { GUID current{}; if (!OwnedRoot(path, current) || (!first && current != expected)) return S_OK; expected = current; first = false; if(_operation==Operation::FreeSpace||_operation==Operation::KeepOnDevice)actions|=CacheActions(path); }
+            if((_operation==Operation::FreeSpace&&!(actions&1))||(_operation==Operation::KeepOnDevice&&!(actions&2)))return S_OK;
             *state = ECS_ENABLED;
         } catch (...) { *state = ECS_HIDDEN; }
         return S_OK;
@@ -184,7 +211,10 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 					if (FAILED(status)) return status;
 					paths.push_back(std::move(background));
 				}
-				return _operation == Operation::ShowSyncIssues ? QueueSyncIssuesRequest(std::move(paths)) : QueuePlaceholderRequest(_operation == Operation::KeepOnDevice, std::move(paths));
+                GUID expected{};bool first=true;
+                for(const auto& path:paths){GUID current{};if(!OwnedRoot(path,current)||(!first&&current!=expected))return E_ACCESSDENIED;expected=current;first=false;}
+                if(_operation!=Operation::ShowSyncIssues){const auto mask=_operation==Operation::FreeSpace?1u:2u;paths.erase(std::remove_if(paths.begin(),paths.end(),[&](const auto& path){return !(CacheActions(path)&mask);}),paths.end());if(paths.empty())return S_FALSE;}
+                return _operation == Operation::ShowSyncIssues ? QueueSyncIssuesRequest(std::move(paths)) : QueuePlaceholderRequest(_operation == Operation::KeepOnDevice, std::move(paths));
 			}
 			catch (...) { return E_OUTOFMEMORY; }
 		}
@@ -257,4 +287,10 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** result) {
 
 bool IsOwnedMountPath(const std::wstring& path,GUID& mount) noexcept {
     try{return OwnedRoot(path,mount);}catch(...){return false;}
+}
+
+HRESULT CreateMenuHandler(REFIID iid,void** result) noexcept {
+    TraceShellProbe(L"CreateMenuHandler");
+    if(!result)return E_POINTER;*result=nullptr;
+    auto command=Make<Command>(Operation::Root);return command?command.CopyTo(iid,result):E_OUTOFMEMORY;
 }

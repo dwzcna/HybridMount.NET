@@ -52,6 +52,36 @@ public sealed class ThumbnailCacheStoreTests
         Assert.False(store.RemoveRoot(root with{Epoch=root.Epoch+1}));Assert.NotNull(store.Get(first,64));Assert.True(store.RemoveRoot(root));Assert.Null(store.Root(root.MountId));Assert.NotNull(store.Get(second,64));
     }
     [Fact]
+    public void LegacySharedDatabaseMigratesOnlyMatchingMountAndRetiresWhenEmpty()
+    {
+        using var area=new Area();var legacy=area.Store;var first=legacy.Configure(area.Root with{Owner=ThumbnailCacheReader.CurrentOwner});var second=legacy.Configure(first with{MountId=Guid.NewGuid(),Path="C:\\other-root"});
+        var firstBinding=area.Binding(first);var secondBinding=area.Binding(second) with{Path="C:\\other-root\\image.png"};var png=Png();legacy.Publish(firstBinding,new Dictionary<int,byte[]>{{64,png}});legacy.Publish(secondBinding,new Dictionary<int,byte[]>{{64,png}});
+        var catalog=new ThumbnailCacheCatalog(area.Path);Assert.Equal(first,catalog.Configure(first));var firstStore=new ThumbnailCacheStore(catalog.PathFor(first.MountId));Assert.Equal(png,firstStore.Get(firstBinding,64));Assert.Null(legacy.Root(first.MountId));Assert.NotNull(legacy.Get(secondBinding,64));
+        Assert.Equal(second,catalog.Configure(second));Assert.False(File.Exists(legacy.Database));Assert.Equal(png,new ThumbnailCacheStore(catalog.PathFor(second.MountId)).Get(secondBinding,64));
+        catalog.Remove(new(first.MountId,"first",first.Path,RootIdentity:first.FileId));Assert.False(File.Exists(firstStore.Database));Assert.True(File.Exists(catalog.PathFor(second.MountId)));Assert.Equal(png,new ThumbnailCacheStore(catalog.PathFor(second.MountId)).Get(secondBinding,64));
+    }
+    [Fact]
+    public void DatabaseDeletionRejectsChangedRootAndSharedContents()
+    {
+        using var area=new Area();var path=ThumbnailCachePaths.ForMount(area.Path,area.Root.MountId);var store=new ThumbnailCacheStore(path);var root=store.Configure(area.Root with{Owner=ThumbnailCacheReader.CurrentOwner});
+        Assert.Throws<IOException>(()=>store.DeleteDatabase(root with{Epoch=root.Epoch+1}));Assert.True(File.Exists(path));
+        store.Configure(root with{MountId=Guid.NewGuid(),Path="C:\\another"});Assert.Throws<IOException>(()=>store.DeleteDatabase(root));Assert.True(File.Exists(path));
+    }
+    [Fact]
+    public void PerMountDatabaseRejectsForeignContentsBeforeConfigureOrMigration()
+    {
+        using var area=new Area();var requested=area.Root with{Owner=ThumbnailCacheReader.CurrentOwner};var catalog=new ThumbnailCacheCatalog(area.Path);
+        var destination=new ThumbnailCacheStore(catalog.PathFor(requested.MountId));var foreign=destination.Configure(requested with{MountId=Guid.NewGuid(),Path="C:\\foreign"});
+        Assert.Throws<IOException>(()=>catalog.Configure(requested));Assert.Null(destination.Root(requested.MountId));Assert.Equal(foreign,destination.Root(foreign.MountId));
+        var legacy=area.Store;legacy.Configure(requested);Assert.Throws<IOException>(()=>catalog.Configure(requested));Assert.Equal(requested,legacy.Root(requested.MountId));Assert.Equal(foreign,destination.Root(foreign.MountId));
+    }
+    [Fact]
+    public void UnrelatedLegacyScopeIsNeverImportedOrDeleted()
+    {
+        using var area=new Area();var legacy=area.Store;var root=legacy.Configure(area.Root);var png=Png();var binding=area.Binding(root);legacy.Publish(binding,new Dictionary<int,byte[]>{{64,png}});
+        var catalog=new ThumbnailCacheCatalog(area.Path);var current=catalog.Configure(root with{Scope="new-connection"});Assert.Null(new ThumbnailCacheStore(catalog.PathFor(root.MountId)).Get(binding,64));Assert.NotNull(legacy.Get(binding,64));Assert.Equal("new-connection",current.Scope);
+    }
+    [Fact]
     public async Task IndependentReadersNeverObservePartialPublication()
     {
         using var area=new Area();var root=area.Store.Configure(area.Root);var binding=area.Binding(root);var png=Png();

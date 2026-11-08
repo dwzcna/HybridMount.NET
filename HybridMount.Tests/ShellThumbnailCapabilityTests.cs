@@ -32,6 +32,15 @@ public sealed class ShellThumbnailCapabilityTests
         var server=document.Descendants(c+"Extension").Single();server.Remove();document.Root.Element(f+"Applications")!.Add(new XElement(f+"Application",new XAttribute("Id","Other"),new XElement(f+"Extensions",server)));
         Assert.False(CloudShellState.HasThumbnailBinding(document,_=>true));
     }
+    [Fact]
+    public void SharedShellHostRequiresBothMenuVerbAndOwnClass()
+    {
+        var document=Manifest();XNamespace c="http://schemas.microsoft.com/appx/manifest/com/windows10",d="http://schemas.microsoft.com/appx/manifest/desktop/windows10/3";
+        var server=document.Descendants(c+"ExeServer").Single();server.SetAttributeValue("Arguments","--shell-server");
+        var menuId="F4A8FD0B-4055-4F23-8CC0-91B736B3E491";server.Add(new XElement(c+"Class",new XAttribute("Id",menuId)));
+        var menus=new XElement(d+"CloudFilesContextMenus",new XElement(d+"Verb",new XAttribute("Id","HybridMount"),new XAttribute("Clsid",menuId)));document.Descendants(d+"CloudFiles").Single().Add(menus);
+        Assert.True(CloudShellState.HasMenuBinding(document,_=>true));Assert.True(CloudShellState.HasThumbnailBinding(document,_=>true));Assert.False(CloudShellState.HasMenuBinding(document,_=>false));menus.Remove();Assert.False(CloudShellState.HasMenuBinding(document,_=>true));
+    }
     [Theory]
     [InlineData("../HybridMount.Ext.dll")]
     [InlineData("C:\\HybridMount.Ext.dll")]

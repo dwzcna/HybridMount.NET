@@ -100,6 +100,7 @@ public partial class App:Application
                 var png=Mounts.GetPreview(request.Paths[0],request.PreviewSize!.Value);
                 return new(2,request.RequestId,!ShellExtensionPolicy.CustomThumbnailsEnabled?"unsupported":png is null?"notFound":"ok","",PreviewPng:png,PreviewStatus:Mounts.PreviewState(request.Paths[0]));
             }
+            if(request.Operation=="requestThumbnail")return new(2,request.RequestId,ShellExtensionPolicy.CustomThumbnailsEnabled?"accepted":"unsupported","",PreviewStatus:Mounts.RequestThumbnail(request.Paths[0],request.PreviewSize!.Value));
             if(request.Operation=="requestLocalPreview")return new(2,request.RequestId,ShellExtensionPolicy.CustomThumbnailsEnabled?"accepted":"unsupported","",PreviewStatus:Mounts.RequestLocalPreview(request.Paths[0],request.PreviewSize!.Value));
             if(request.Operation=="requestPreview")return new(2,request.RequestId,ShellExtensionPolicy.CustomThumbnailsEnabled?"accepted":"unsupported","",PreviewStatus:Mounts.RequestPreview(request.Paths[0],request.PreviewSize!.Value));
             if(request.Operation=="getOperation")
@@ -111,7 +112,7 @@ public partial class App:Application
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);
             return new(2,request.RequestId,"accepted","操作已提交，可在任务页查看逐项结果。",id);
         }
-        catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview" or "requestLocalPreview"))Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview" or "requestLocalPreview"?"":error.Message);}
+        catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"))Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"?"":error.Message);}
     }
     private void OnUploadIssueNotifications()=>_dispatcher?.TryEnqueue(()=>{if(!_exiting)MainWindow?.RefreshUploadIssueNotifications();});
     private void OnAppearanceChanged(object? sender,EventArgs args)=>MainWindow?.ApplyAppearance();

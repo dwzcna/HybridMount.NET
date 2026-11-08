@@ -21,7 +21,11 @@ internal sealed class ThumbnailCacheStore(string database)
     /// <summary>只读连接不建目录、不升级或修复库；竞争和损坏作为缓存缺失处理，默认等待至多一秒。</summary>
     private SqliteConnection Open(bool writable)
     {
-        if(writable)Directory.CreateDirectory(Path.GetDirectoryName(database)!);
+        var parent=Path.GetDirectoryName(Path.GetFullPath(database))!;
+        for(var current=new DirectoryInfo(parent);current is not null;current=current.Parent)
+            if(current.Exists&&(current.Attributes&FileAttributes.ReparsePoint)!=0)throw new IOException("缩略图库路径经过重解析点。");
+        if(File.Exists(database)&&(File.GetAttributes(database)&FileAttributes.ReparsePoint)!=0)throw new IOException("缩略图库不是普通文件。");
+        if(writable)Directory.CreateDirectory(parent);
         var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=database,Mode=writable?SqliteOpenMode.ReadWriteCreate:SqliteOpenMode.ReadOnly,Pooling=false,DefaultTimeout=1}.ToString());
         try{db.Open();using var command=db.CreateCommand();command.CommandText=writable?"PRAGMA busy_timeout=0;PRAGMA foreign_keys=ON;":"PRAGMA query_only=ON;PRAGMA busy_timeout=0;";command.ExecuteNonQuery();return db;}
         catch{db.Dispose();throw;}
@@ -35,27 +39,79 @@ internal sealed class ThumbnailCacheStore(string database)
         using var tx=db.BeginTransaction();cmd.Transaction=tx;
         cmd.CommandText="CREATE TABLE IF NOT EXISTS roots(mount TEXT PRIMARY KEY,json TEXT NOT NULL);CREATE TABLE IF NOT EXISTS bindings(mount TEXT NOT NULL,entry TEXT NOT NULL,path TEXT NOT NULL COLLATE NOCASE,content TEXT NOT NULL,json TEXT NOT NULL,PRIMARY KEY(mount,entry));CREATE INDEX IF NOT EXISTS binding_paths ON bindings(path);CREATE TABLE IF NOT EXISTS images(content TEXT NOT NULL,size INTEGER NOT NULL,png BLOB NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(content,size));PRAGMA user_version=1;";cmd.ExecuteNonQuery();tx.Commit();
     }
-    private T Write<T>(Func<SqliteConnection,T> action)
+    private T Locked<T>(Func<T> action)
     {
         lock(_gate)
         {
             var name="Local\\HybridMount.ThumbnailCache."+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(database).ToUpperInvariant())));
             using var mutex=new Mutex(false,name);var held=false;
-            try{try{held=mutex.WaitOne(TimeSpan.FromSeconds(2));}catch(AbandonedMutexException){held=true;}if(!held)throw new IOException("缩略图库正忙，稍后重试。");using var db=Open(true);Initialize(db);return action(db);}
+            try{try{held=mutex.WaitOne(TimeSpan.FromSeconds(2));}catch(AbandonedMutexException){held=true;}if(!held)throw new IOException("缩略图库正忙，稍后重试。");return action();}
             finally{if(held)mutex.ReleaseMutex();}
         }
     }
+    private T Write<T>(Func<SqliteConnection,T> action)=>Locked(()=>{using var db=Open(true);Initialize(db);return action(db);});
+    /// <summary>旧共享库以一致只读快照迁移指定挂载；目标事务提交后才允许源库精确退休，绝不复制其他根。</summary>
+    internal ThumbnailCacheRoot? CopyMountTo(ThumbnailCacheStore target,ThumbnailCacheRoot requested)
+    {
+        if(!File.Exists(database))return null;
+        using var source=Open(false);if(!Supported(source))throw new IOException("旧缩略图库版本不受支持，保留原库。");
+        using var snapshot=source.BeginTransaction(deferred:true);var root=ReadRoot(source,requested.MountId,snapshot);
+        if(root is null||root.Owner!=requested.Owner||root.FileId!=requested.FileId||root.Path!=requested.Path||root.Scope!=requested.Scope)return null;
+        var copied=target.Write(destination=>
+        {
+            using var tx=destination.BeginTransaction();EnsureSingleMount(destination,root.MountId,tx);if(ReadRoot(destination,root.MountId,tx) is not null)return false;
+            using(var add=destination.CreateCommand()){add.Transaction=tx;add.CommandText="INSERT INTO roots VALUES($m,$j)";add.Parameters.AddWithValue("$m",root.MountId.ToString("N"));add.Parameters.AddWithValue("$j",JsonSerializer.Serialize(root));add.ExecuteNonQuery();}
+            using(var rows=source.CreateCommand())
+            {
+                rows.Transaction=snapshot;rows.CommandText="SELECT entry,path,content,json FROM bindings WHERE mount=$m AND length(json)<=65536";rows.Parameters.AddWithValue("$m",root.MountId.ToString("N"));using var reader=rows.ExecuteReader();
+                while(reader.Read())
+                {
+                    var binding=JsonSerializer.Deserialize<ThumbnailCacheBinding>(reader.GetString(3));if(binding?.Root!=root||binding.ContentKey!=reader.GetString(2))continue;
+                    using var add=destination.CreateCommand();add.Transaction=tx;add.CommandText="INSERT INTO bindings VALUES($m,$e,$p,$c,$j)";add.Parameters.AddWithValue("$m",root.MountId.ToString("N"));add.Parameters.AddWithValue("$e",reader.GetString(0));add.Parameters.AddWithValue("$p",reader.GetString(1));add.Parameters.AddWithValue("$c",reader.GetString(2));add.Parameters.AddWithValue("$j",reader.GetString(3));add.ExecuteNonQuery();
+                }
+            }
+            using(var rows=source.CreateCommand())
+            {
+                rows.Transaction=snapshot;rows.CommandText="SELECT content,size,png,created FROM images WHERE content IN (SELECT content FROM bindings WHERE mount=$m) AND length(png) BETWEEN 33 AND 393216";rows.Parameters.AddWithValue("$m",root.MountId.ToString("N"));using var reader=rows.ExecuteReader();
+                while(reader.Read())
+                {
+                    var png=(byte[])reader[2];var size=reader.GetInt32(1);if(!ValidPng(png)||size is not(32 or 64 or 128 or 256))continue;
+                    using var add=destination.CreateCommand();add.Transaction=tx;add.CommandText="INSERT INTO images VALUES($c,$s,$p,$t)";add.Parameters.AddWithValue("$c",reader.GetString(0));add.Parameters.AddWithValue("$s",size);add.Parameters.Add("$p",SqliteType.Blob).Value=png;add.Parameters.AddWithValue("$t",reader.GetInt64(3));add.ExecuteNonQuery();
+                }
+            }
+            tx.Commit();return true;
+        });return copied?root:null;
+    }
+    /// <summary>调用方已停止写入；同一命名锁内核对唯一根、正常检查点并关闭连接后精确删除库。读者占用或身份变化保留文件供重试。</summary>
+    internal bool DeleteDatabase(ThumbnailCacheRoot? expected)=>Locked(()=>
+    {
+        if(!File.Exists(database))return true;
+        using(var db=Open(false))
+        {
+            if(!Supported(db))throw new IOException("缩略图库版本未知，未删除。");using var command=db.CreateCommand();command.CommandText="SELECT count(*) FROM roots";var count=Convert.ToInt32(command.ExecuteScalar());
+            if(expected is null?count!=0:count!=1||ReadRoot(db,expected.MountId)!=expected)throw new IOException("缩略图库身份变化或仍包含其他挂载，未删除。");
+        }
+        using(var db=Open(true)){using var command=db.CreateCommand();command.CommandText="PRAGMA wal_checkpoint(TRUNCATE)";using var result=command.ExecuteReader();if(result.Read()&&result.GetInt32(0)!=0)throw new IOException("缩略图库仍在读取，稍后重试移除。");}
+        // SQLite已关闭且不使用连接池；仅删除这一个库及同名日志，失败不扩大清理范围。
+        foreach(var path in new[]{database+"-wal",database+"-shm",database})if(File.Exists(path))File.Delete(path);
+        return true;
+    });
+    internal bool IsEmpty
+    {get{if(!File.Exists(database))return true;using var db=Open(false);if(!Supported(db))return false;using var command=db.CreateCommand();command.CommandText="SELECT count(*) FROM roots";return Convert.ToInt32(command.ExecuteScalar())==0;}}
     private static ThumbnailCacheRoot? ReadRoot(SqliteConnection db,Guid mount,SqliteTransaction? tx=null)
     {using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="SELECT json FROM roots WHERE mount=$m AND length(json)<=65536";cmd.Parameters.AddWithValue("$m",mount.ToString("N"));return cmd.ExecuteScalar() is string json?JsonSerializer.Deserialize<ThumbnailCacheRoot>(json):null;}
     /// <summary>改变启用、内容作用域、根路径或身份时撤销旧绑定；相同根重启保留epoch和图片。</summary>
-    internal ThumbnailCacheRoot Configure(ThumbnailCacheRoot requested)=>Write(db=>
+    internal ThumbnailCacheRoot Configure(ThumbnailCacheRoot requested,bool singleMount=false)=>Write(db=>
     {
-        using var tx=db.BeginTransaction();var old=ReadRoot(db,requested.MountId,tx);var current=requested with{Epoch=old?.Epoch??1};
+        using var tx=db.BeginTransaction();if(singleMount)EnsureSingleMount(db,requested.MountId,tx);var old=ReadRoot(db,requested.MountId,tx);var current=requested with{Epoch=old?.Epoch??1};
         if(old is not null&&old!=current)current=current with{Epoch=checked(old.Epoch+1)};
         if(old==current){tx.Commit();return current;}
         using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="INSERT INTO roots VALUES($m,$j) ON CONFLICT(mount) DO UPDATE SET json=$j;DELETE FROM bindings WHERE mount=$m;";
         cmd.Parameters.AddWithValue("$m",requested.MountId.ToString("N"));cmd.Parameters.AddWithValue("$j",JsonSerializer.Serialize(current));cmd.ExecuteNonQuery();tx.Commit();return current;
     });
+    /// <summary>独立库不容纳第二个挂载或其孤立绑定；在写事务中核验，失败保留原库。</summary>
+    private static void EnsureSingleMount(SqliteConnection db,Guid mount,SqliteTransaction tx)
+    {using var command=db.CreateCommand();command.Transaction=tx;command.CommandText="SELECT EXISTS(SELECT 1 FROM roots WHERE mount<>$m UNION ALL SELECT 1 FROM bindings WHERE mount<>$m)";command.Parameters.AddWithValue("$m",mount.ToString("N"));if(Convert.ToInt32(command.ExecuteScalar())!=0)throw new IOException("独立缩略图库含有其他挂载，未修改。 ");}
     internal ThumbnailCacheRoot? Root(Guid mount)
     {
         try{using var db=Open(false);if(!Supported(db))return null;return ReadRoot(db,mount);}

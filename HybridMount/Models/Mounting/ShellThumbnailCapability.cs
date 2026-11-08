@@ -3,6 +3,6 @@ namespace HybridMount.Models.Mounting;
 public sealed record ShellThumbnailCapability(bool Available,bool Packaged,string Reason)
 {
     public static ShellThumbnailCapability From(bool packaged,bool registered,bool queryFailed=false)=>queryFailed?new(false,packaged,"无法核对云缩略图处理器注册，请查看完整诊断。"):
-        registered&&packaged?new(true,true,"已绑定独立云缩略图宿主；在线仅读本机缓存，缺失时仅尝试完整本地内容。"):
+        registered&&packaged?new(true,true,"已绑定独立云缩略图宿主；缓存优先，缺失时由应用受限生成，不改变占位下载状态。"):
         new(false,packaged,packaged?"当前包未绑定云缩略图处理器。":"非打包根缺少受支持的MSIX云绑定，不提供缩略图开关；已保存偏好保持。");
 }

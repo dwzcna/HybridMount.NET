@@ -11,7 +11,8 @@ public sealed class ExePreviewCache : IAsyncDisposable
 {
     public const int MaximumPngBytes=384*1024;
     private static readonly int[] Sizes=[32,64,128,256];
-    private readonly ThumbnailCacheStore _store;
+    private readonly ThumbnailCacheCatalog _store;
+    private readonly ConcurrentDictionary<Guid,byte> _removed=new();
     private readonly ConcurrentDictionary<Guid,(ThumbnailCacheRoot Requested,ThumbnailCacheRoot Actual)> _configured=new();
     private readonly Func<bool> _available;
     private readonly Func<Guid,MountDefinition?>? _currentMount;
@@ -44,18 +45,19 @@ public sealed class ExePreviewCache : IAsyncDisposable
     /// <summary>应用层提供版本能力；暂停时在任何路径、缓存或内容查询之前退出。独立缓存实现保留可测试性。</summary>
     internal ExePreviewCache(string directory,Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? enter,Action<string>? diagnostic,
         Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? render,Func<bool> available,Func<Guid,MountDefinition?>? currentMount=null)
-    {_currentMount=currentMount;_available=available;_store=new(Path.Combine(directory,"thumbnails.db"));_enter=enter;_diagnostic=diagnostic;_render=render;_worker=Task.Run(ProcessAsync);}
+    {_currentMount=currentMount;_available=available;_store=new(directory);_enter=enter;_diagnostic=diagnostic;_render=render;_worker=Task.Run(ProcessAsync);}
     /// <summary>按挂载、条目、原始内容版本和尺寸区分；不把远端地址或令牌明文写入文件名。</summary>
     public static string CacheKey(MountDefinition mount,MountEntry entry,int size)=>Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[]{mount.Id.ToString("N"),entry.Id,entry.Version,Bucket(size).ToString(System.Globalization.CultureInfo.InvariantCulture)})));
     private static int Bucket(int size)=>Sizes.FirstOrDefault(candidate=>candidate>=Math.Clamp(size,16,256),256);
     /// <summary>配置摘要变化才更新库和epoch；UI刷新不会反复创建写事务。</summary>
     internal ThumbnailCacheRoot? ConfigureMount(MountDefinition mount)
     {
-        if(!_available()||_stop.IsCancellationRequested)return null;
+        if(!_available()||_stop.IsCancellationRequested||_removed.ContainsKey(mount.Id))return null;
         try
         {
             lock(_configurationGate)
             {
+                if(_removed.ContainsKey(mount.Id))return null;
                 // 工作项携带旧快照；串行写入前重新读取协调器当前值，禁止关闭／移除后被迟到工作重新启用。
                 if(_currentMount is not null)
                 {
@@ -100,15 +102,22 @@ public sealed class ExePreviewCache : IAsyncDisposable
         lock(_schedule)
         {
             if(_stop.IsCancellationRequested||_pending.Count>=128||_pending.ContainsKey(key)||Sizes.All(size=>Get(mount,entry,size) is not null))return;
+            if(_blocked.ContainsKey(mount.Id)||_removed.ContainsKey(mount.Id))return;
             var work=new Work(mount,entry,allowRemote,_stop.Token);if(!_pending.TryAdd(key,work)||!_queue.Writer.TryWrite(work)){_pending.TryRemove(key,out _);work.Dispose();}
         }
     }
     /// <summary>关闭／断开先阻止新任务，再取消并等待此挂载所有工作；不持有根锁等待其他挂载。</summary>
     public async Task CancelMountAsync(Guid mount)
     {
-        _blocked[mount]=0;var pending=_pending.Values.Where(work=>work.Mount.Id==mount).ToArray();
+        Work[] pending;lock(_schedule){_blocked[mount]=0;pending=_pending.Values.Where(work=>work.Mount.Id==mount).ToArray();}
         await Task.WhenAll(pending.Select(work=>work.RequestCancel())).ConfigureAwait(false);
         await Task.WhenAll(pending.Select(work=>work.Completion.Task)).ConfigureAwait(false);
+    }
+    /// <summary>先封闭新工作并等待所有本挂载任务，再删除精确库；配置尚未遗忘，失败可重试。</summary>
+    internal async Task RemoveMountAsync(MountDefinition mount)
+    {
+        await CancelMountAsync(mount.Id).ConfigureAwait(false);
+        lock(_configurationGate){_removed[mount.Id]=0;_configured.TryRemove(mount.Id,out _);_store.Remove(mount);}
     }
     public void ResumeMount(Guid mount){_blocked.TryRemove(mount,out _);foreach(var row in _failed.Where(row=>row.Value.Mount==mount))_failed.TryRemove(row.Key,out _);}
     public string State(MountDefinition mount,MountEntry entry)=>!_available()||!mount.ThumbnailsEnabled?"disabled":_pending.ContainsKey(CacheKey(mount,entry,256))?"queued":_failed.TryGetValue(CacheKey(mount,entry,256),out var failed)&&failed.Until>DateTime.UtcNow?"unsupported":"notFound";
@@ -192,7 +201,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
     }
     public long UsageBytes=>_store.UsageBytes;
     /// <summary>后台统一回收数据库BLOB，不散落图片文件或手工删除WAL。</summary>
-    public long Trim(long needed){if(_store.UsageBytes==0)return 0;try{return _store.Trim(needed);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){return 0;}}
+    public long Trim(long needed){lock(_configurationGate){if(_store.UsageBytes==0)return 0;try{return _store.Trim(needed);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){return 0;}}}
     /// <summary>只发信号；宿主同时取消其他工作之后再等待本队列结束。</summary>
     public Task RequestStop(){lock(_schedule){_queue.Writer.TryComplete();return _cancellation??=_stop.CancelAsync();}}
     public ValueTask DisposeAsync(){lock(_schedule)return new(_dispose??=StopAsync());}

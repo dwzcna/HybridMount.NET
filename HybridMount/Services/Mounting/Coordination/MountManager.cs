@@ -54,6 +54,7 @@ public sealed partial class MountManager : IAsyncDisposable
     // 仅隔离回归显式启用保留实现；生产默认能力仍为暂停，测试之间不共享全局开关。
     internal bool LegacyPreviewsForTests {get;set;}
     internal bool LocalPreviewsForTests {get;set;}
+    internal bool RemoteThumbnailsForTests {get;set;}
     private bool CustomPreviewsAvailable=>LocalPreviewsForTests||LegacyPreviewsForTests;
 #else
     private readonly bool _nativeThumbnails=CloudShellState.ThumbnailCapability().Available;
@@ -61,9 +62,11 @@ public sealed partial class MountManager : IAsyncDisposable
 #endif
 #if HYBRIDMOUNT_HEADLESS_TEST
     private bool LegacyRemotePreviewsAllowed=>LegacyPreviewsForTests;
+    private bool RemoteThumbnailsAllowed=>RemoteThumbnailsForTests;
     private static string PreviewDirectory(MountRepository repository)=>Path.Combine(repository.DataDirectory,"Thumbnails");
 #else
     private bool LegacyRemotePreviewsAllowed=>false;
+    private bool RemoteThumbnailsAllowed=>CustomPreviewsAvailable;
     private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
 #endif
     private readonly MountRepository _repository;
@@ -608,7 +611,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private async Task CompleteRemovalAsync(Runtime root,MountRemovalJournal journal,CancellationToken token)
     {
         MarkUnregistering(root);await DisconnectCoreAsync(root).ConfigureAwait(false);
-        RemovalCompletion().Finish(journal,token);Forget(root);
+        RemovalCompletion().Finish(journal,token);await _previews.RemoveMountAsync(root.Definition).ConfigureAwait(false);Forget(root);
     }
     /// <summary>清空本地目录，不读取或删除远端；失败／取消保留已删结果，内容完成以后不重复清空。</summary>
     private async Task<bool> ClearAndRemoveAsync(Runtime root,Job job)

@@ -2,29 +2,21 @@
   <Configurations>
     <BuildType Name="Debug" />
     <BuildType Name="Release" />
-    <BuildType Name="DebugUnpackaged" />
-    <BuildType Name="ReleaseUnpackaged" />
     <Platform Name="ARM64" />
     <Platform Name="x64" />
   </Configurations>
   <Project Path="HybridMount.Ext/HybridMount.Ext.vcxproj" Type="bc8a1ffa-bee3-4634-8014-f334798102b3" Id="e353aae2-9ec4-45f5-bbd2-0e53be1ef224">
-    <BuildType Solution="DebugUnpackaged|*" Project="Debug" />
-    <BuildType Solution="ReleaseUnpackaged|*" Project="Release" />
   </Project>
   <Project Path="HybridMount.Tests/HybridMount.Tests.csproj">
     <BuildDependency Project="HybridMount.Ext/HybridMount.Ext.vcxproj" />
-    <BuildType Solution="DebugUnpackaged|*" Project="Debug" />
-    <BuildType Solution="ReleaseUnpackaged|*" Project="Release" />
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
   </Project>
   <Project Path="HybridMount/HybridMount.csproj">
     <BuildDependency Project="HybridMount.Ext/HybridMount.Ext.vcxproj" />
-    <!-- 包向导要求主程序同时参与生成和部署；非打包配置不部署。 -->
+    <!-- 主工程的 Debug / Release 均参与打包生成和部署。 -->
     <Deploy Solution="Debug|*" Project="true" />
     <Deploy Solution="Release|*" Project="true" />
-    <Deploy Solution="DebugUnpackaged|*" Project="false" />
-    <Deploy Solution="ReleaseUnpackaged|*" Project="false" />
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
   </Project>

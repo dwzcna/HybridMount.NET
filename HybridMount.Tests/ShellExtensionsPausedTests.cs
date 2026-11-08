@@ -43,7 +43,7 @@ public sealed class ShellExtensionsPausedTests
         await test.Manager.DisposeAsync();test.Manager=new MountManager(test.Repository,test.Logger);
         using var vm=new MountsViewModel(test.Manager,new InlineDispatcher());vm.SelectedMountId=test.Id;
         Assert.False(vm.CanConfigureThumbnails);Assert.False(vm.Items.Single().CanConfigureThumbnails);Assert.True(vm.ThumbnailDraft(saved));
-        Assert.True(vm.Items.Single().ThumbnailsEnabled);Assert.False(ShellExtensionPolicy.CustomContextMenusEnabled);Assert.Contains("未通过",vm.ThumbnailCapability.Reason);Assert.False(ShellExtensionPolicy.CustomThumbnailsEnabled);Assert.Equal(test.Id,vm.SelectedMountId);
+        Assert.True(vm.Items.Single().ThumbnailsEnabled);Assert.False(ShellExtensionPolicy.CustomContextMenusEnabled);Assert.Contains("非打包",vm.ThumbnailCapability.Reason);Assert.False(ShellExtensionPolicy.CustomThumbnailsEnabled);Assert.Equal(test.Id,vm.SelectedMountId);
     }
     [Fact(Timeout=60000)]
     public async Task New_descriptor_allows_native_pinning_without_policy_identity_or_source_changes()

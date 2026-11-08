@@ -1,4 +1,4 @@
-# 先构建原生扩展，再评估 WinUI 的内容；相同架构输出按顺序写入。
+﻿# 先构建原生扩展，再评估 WinUI 的内容；相同架构输出按顺序写入。
 [CmdletBinding()]
 param(
     [ValidateSet('x64','ARM64')][string]$Platform = 'x64',
@@ -8,13 +8,16 @@ param(
     [switch]$Test,
     [switch]$ExperimentalThumbnails,
     [switch]$WithoutThumbnails,
+    [ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='Menus',
     [string]$CertificateThumbprint
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Deployment) { $Deployment = if ($Package) { 'Packaged' } else { 'Unpackaged' } }
 if($ExperimentalThumbnails -and $WithoutThumbnails){throw '缩略图构建参数冲突。'}
-if($ExperimentalThumbnails){throw '0.0.9.37缩略图自动绑定未通过原生菜单兼容门槛，实验注册不能交付。'}
-$enableThumbnails=$false
+if(($ExperimentalThumbnails -or $WithoutThumbnails) -and $PSBoundParameters.ContainsKey('ShellProfile')){throw '不要混用旧参数与ShellProfile。'}
+if($ExperimentalThumbnails){$ShellProfile='MenusAndThumbnails'}
+if($WithoutThumbnails){$ShellProfile='Menus'}
+if($ShellProfile -eq 'MenusAndThumbnails'){throw '云缩略图自动绑定尚未通过原生状态验收；正式构建请使用Menus或Native。'}
 if ($Package -and $Deployment -eq 'Unpackaged') { throw '非打包模式不能生成 MSIX；请使用 -Deployment Packaged。' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $validation = Join-Path $repoRoot 'artifacts\validation'
@@ -31,7 +34,7 @@ try {
     Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "native-$Platform-$Configuration"
     $packageDirectory = Join-Path $repoRoot $(if($ExperimentalThumbnails){"artifacts\packages-preview\$Platform\"}else{"artifacts\packages\$Platform\"})
     $managedArguments = @('HybridMount\HybridMount.csproj','/restore','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo',"/p:HybridMountDeployment=$Deployment","/p:GenerateAppxPackageOnBuild=$($Package.IsPresent)")
-    $managedArguments += "/p:HybridMountEnableCloudThumbnails=$($enableThumbnails.ToString().ToLowerInvariant())"
+    $managedArguments += "/p:HybridMountShellProfile=$ShellProfile"
     if ($Package) { $managedArguments += @("/p:AppxPackageDir=$packageDirectory",'/p:UapAppxPackageBuildMode=SideloadOnly','/p:AppxBundle=Never','/p:AppxPackageSigningEnabled=false') }
     Invoke-BuildStep $msbuild $managedArguments "managed-$Platform-$Configuration-$Deployment"
     if ($Test) {
@@ -57,7 +60,7 @@ try {
                 Invoke-BuildStep (Join-Path $sdkBin 'signtool.exe') @('sign','/sha1',$CertificateThumbprint,'/fd','SHA256',$msix.FullName) "sign-$Platform"
                 Invoke-BuildStep (Join-Path $sdkBin 'signtool.exe') @('verify','/pa','/all','/v',$msix.FullName) "signature-$Platform"
             }
-            & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ExpectCloudThumbnails:$enableThumbnails
+            & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ShellProfile $ShellProfile
             Get-FileHash -LiteralPath $msix.FullName -Algorithm SHA256 | Format-List | Out-File (Join-Path $validation "package-$Platform.sha256.txt") -Encoding utf8
         }
     }

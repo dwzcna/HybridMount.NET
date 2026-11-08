@@ -6,13 +6,13 @@ using System.Threading.Channels;
 using Microsoft.Win32.SafeHandles;
 namespace HybridMount.Services.Mounting;
 
-/// <summary>缓存缺失只异步请求已运行的同映像后台尝试本地生成；不激活主程序、不发送旧远端预览操作。</summary>
+/// <summary>缓存缺失只异步请求已运行的同映像应用生成；新请求允许受限远端读取，旧本地请求保持原语义，不激活主程序。</summary>
 internal sealed class LocalPreviewRequestClient:IAsyncDisposable
 {
     private readonly Channel<(string Path,int Size)> _queue=Channel.CreateBounded<(string,int)>(new BoundedChannelOptions(64){SingleReader=true,FullMode=BoundedChannelFullMode.Wait});
     private readonly ConcurrentDictionary<string,long> _recent=new(StringComparer.OrdinalIgnoreCase);
-    private readonly CancellationTokenSource _stop=new();private readonly Task _worker;
-    internal LocalPreviewRequestClient(){_worker=Task.Run(WorkAsync);}
+    private readonly CancellationTokenSource _stop=new();private readonly Task _worker;private readonly string _operation;
+    internal LocalPreviewRequestClient(string operation="requestLocalPreview"){_operation=operation is "requestLocalPreview" or "requestThumbnail"?operation:throw new ArgumentException("未知缩略图请求。");_worker=Task.Run(WorkAsync);}
     internal void Queue(string path,int size)
     {
         if(_stop.IsCancellationRequested||size is <16 or >256||!Path.IsPathFullyQualified(path)||path.StartsWith("\\",StringComparison.Ordinal))return;
@@ -36,7 +36,7 @@ internal sealed class LocalPreviewRequestClient:IAsyncDisposable
                     if(!GetNamedPipeServerProcessId(pipe.SafePipeHandle,out var pid))continue;
                     using var peer=Process.GetProcessById(checked((int)pid));using var self=Process.GetCurrentProcess();
                     if(peer.SessionId!=self.SessionId||!string.Equals(peer.MainModule?.FileName,Environment.ProcessPath,StringComparison.OrdinalIgnoreCase))continue;
-                    var message=new IpcRequest(2,Guid.NewGuid().ToString("N"),"requestLocalPreview",[request.Path],PreviewSize:request.Size);
+                    var message=new IpcRequest(2,Guid.NewGuid().ToString("N"),_operation,[request.Path],PreviewSize:request.Size);
                     await IpcProtocol.WriteAsync(pipe,message,deadline.Token).ConfigureAwait(false);var response=await IpcProtocol.ReadAsync<IpcResponse>(pipe,deadline.Token).ConfigureAwait(false);
                     if(response.Version!=2||response.RequestId!=message.RequestId)continue;
                 }

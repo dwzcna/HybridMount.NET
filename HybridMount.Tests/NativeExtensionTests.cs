@@ -1,3 +1,4 @@
+using HybridMount.Services.Mounting;
 using System.Runtime.InteropServices;
 
 namespace HybridMount.Tests;
@@ -52,7 +53,7 @@ public sealed class NativeExtensionTests
                 free = Next(first); freeAgain = Next(second);
                 Assert.Equal("释放空间", Title(free)); Assert.Equal("释放空间", Title(freeAgain));
                 Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint*,int>)Table(first)[6])(first, &clone));
-                keep = Next(clone); Assert.Equal("始终保留在设备上", Title(keep));
+                keep = Next(clone); Assert.Equal("始终保留在此设备上", Title(keep));
                 issues=Next(clone);Assert.Equal("查看同步问题",Title(issues));
                 uint state = 99;
                 Assert.Equal(0, ((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(free)[7])(free, 0, 1, &state));
@@ -77,6 +78,14 @@ public sealed class NativeExtensionTests
             }
             finally { Release(command); Release(enumerator); Release(array); Release(item); }
         }
+        /// <summary>使用真实Shell选择查询子菜单状态；只读查询不得触发水合或远端请求。</summary>
+        internal uint State(string path,bool keep)
+        {
+            var itemId=new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");var arrayId=new Guid("B63EA76D-1F85-456F-A19C-48159EFA858B");
+            Assert.Equal(0,SHCreateItemFromParsingName(path,0,in itemId,out var item));nint array=0,command=0,enumerator=Enumerate();
+            try{Assert.Equal(0,SHCreateShellItemArrayFromShellItem(item,in arrayId,out array));command=Next(enumerator);if(keep){Release(command);command=Next(enumerator);}uint state=99;Assert.Equal(0,((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(command)[7])(command,array,1,&state));return state;}
+            finally{Release(command);Release(enumerator);Release(array);Release(item);}
+        }
         public void Dispose()
         {
             Release(_root); Release(_factory); _root = _factory = 0;
@@ -90,28 +99,22 @@ public sealed class NativeExtensionTests
     [Fact]
     public async Task NativeComAndPipeRoundTrip()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "HybridMount.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        var file = Path.Combine(directory, "原生测试.txt"); await File.WriteAllTextAsync(file,"original");
-        try
-        {
-            await using var logger = new LoggerService(Path.Combine(directory,"log.db"));
-            await using var server = new IpcServerService(logger,NativePreviewInterop.PipeName);
-            var received = System.Threading.Channels.Channel.CreateUnbounded<IpcRequest>();
-            server.RequestReceived += request => received.Writer.TryWrite(request);
-            server.Start();
-            using var extension = new NativeExtension();
-            extension.VerifyEnumeration();
-            foreach (var keep in new[] { false, true })
-            {
-                extension.Invoke(file, keep);
-                var request = await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8));
-                Assert.Equal(keep ? "keepOnDevice" : "freeSpace",request.Operation);
-                Assert.Equal(file, Assert.Single(request.Paths));
-            }
-            extension.Invoke(file,false,true);var issue=await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("showSyncIssues",issue.Operation);Assert.Equal(file,Assert.Single(issue.Paths));
-            Assert.Equal("original", await File.ReadAllTextAsync(file));
-        }
-        finally { Directory.Delete(directory,true); }
+        await using var test=await UploadFlowTests.Fixture.Create(false);
+        var file=Path.Combine(test.Local,"文件.bin");
+        await using var server=new IpcServerService(test.Logger,NativePreviewInterop.PipeName);
+        var received=System.Threading.Channels.Channel.CreateUnbounded<IpcRequest>();server.RequestReceived+=request=>received.Writer.TryWrite(request);server.Start();
+        using var extension=new NativeExtension();extension.VerifyEnumeration();
+        var before=CloudFilesNative.Inspect(file)!.Value;var requests=test.Dav.Server.Requests.Count;
+        Assert.Equal(0u,extension.State(file,true));Assert.NotEqual(0u,extension.State(file,false));
+        Assert.Equal(requests,test.Dav.Server.Requests.Count);Assert.Equal(before.Info.OnDiskSize,CloudFilesNative.Inspect(file)!.Value.Info.OnDiskSize);
+        extension.Invoke(file,true);var keep=await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("keepOnDevice",keep.Operation);Assert.Equal(file,Assert.Single(keep.Paths));
+        Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[file]))).State);
+        var bytes=await File.ReadAllBytesAsync(file);requests=test.Dav.Server.Requests.Count;before=CloudFilesNative.Inspect(file)!.Value;
+        Assert.Equal(0u,extension.State(file,false));Assert.NotEqual(0u,extension.State(file,true));
+        extension.Invoke(file,false);var free=await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("freeSpace",free.Operation);Assert.Equal(file,Assert.Single(free.Paths));
+        Assert.Equal(requests,test.Dav.Server.Requests.Count);Assert.Equal(before.Info.PinState,CloudFilesNative.Inspect(file)!.Value.Info.PinState);Assert.Equal(bytes,await File.ReadAllBytesAsync(file));
+        extension.Invoke(file,false,true);var issue=await received.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("showSyncIssues",issue.Operation);
+        using(var handle=CloudFilesNative.CreateFile(file,0x180,7,0,3,0x02200000,0))CloudFilesNative.Check(CloudFilesNative.SetPinIntent(handle,3,0,0));
+        Assert.NotEqual(0u,extension.State(file,true));Assert.NotEqual(0u,extension.State(file,false));
     }
 }

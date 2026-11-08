@@ -7,7 +7,11 @@
 #include <string>
 #include <vector>
 
+#ifdef HYBRIDMOUNT_SHELL_PROBE_ID
+inline constexpr CLSID HybridMountCommandId{HYBRIDMOUNT_SHELL_PROBE_ID^0x10000000,0x4055,0x4f23,{0x8c,0xc0,0x91,0xb7,0x36,0xb3,0xe4,0x91}};
+#else
 inline constexpr CLSID HybridMountCommandId{ 0xf4a8fd0b,0x4055,0x4f23,{0x8c,0xc0,0x91,0xb7,0x36,0xb3,0xe4,0x91} };
+#endif
 /// <summary>仅隔离Shell试验记录无路径的原生阶段；正式DLL无注册表写入或追踪副作用。</summary>
 inline void TraceShellProbe(const wchar_t* stage) noexcept {
 #ifdef HYBRIDMOUNT_SHELL_PROBE_TAG
@@ -51,5 +55,9 @@ using HybridMountReadThumbnail=HRESULT(WINAPI*)(void* context,const wchar_t* pat
 /// <summary>宿主缓存回调的借用上下文；工厂、对象和活动调用均结束后宿主才释放。</summary>
 struct ThumbnailCacheSource{HybridMountReadThumbnail Read{};void* Context{};std::atomic<bool>* Closing{};};
 HRESULT CreateThumbnailHandler(REFIID iid,void** result,const ThumbnailCacheSource* source=nullptr) noexcept;
+/// <summary>创建本产品根菜单；状态查询仅读取本机属性，实际动作由应用服务执行。</summary>
+HRESULT CreateMenuHandler(REFIID iid,void** result) noexcept;
+/// <summary>flags位0为缩略图、位1为菜单；独立STA宿主不创建WinUI或同步服务。</summary>
+extern "C" HRESULT WINAPI HybridMountRunShellServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds,DWORD flags) noexcept;
 /// <summary>注册唯一缩略图类的本地COM服务；不创建菜单、不运行主应用，空闲时安全撤销。</summary>
 extern "C" HRESULT WINAPI HybridMountRunThumbnailServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds) noexcept;

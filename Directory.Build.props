@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.9.38</Version>
+    <Version>0.0.9.39</Version>
+    <Configurations>Debug;Release</Configurations>
     <InformationalVersion>$(Version)</InformationalVersion>
     <BinaryVersion>$(Version)</BinaryVersion>
     <BinaryVersion Condition="$([System.Version]::Parse('$(Version)').Revision) == -1">$(Version).0</BinaryVersion>

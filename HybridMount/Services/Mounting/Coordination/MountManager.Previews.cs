@@ -33,6 +33,13 @@ public sealed partial class MountManager
         if(size is <16 or >256)return "unsupported";var target=PreviewTarget(path);if(target is null)return "unsupported";
         _previews.Queue(target.Value.Root.Definition,target.Value.Entry,LegacyRemotePreviewsAllowed);return _previews.State(target.Value.Root.Definition,target.Value.Entry);
     }
+    /// <summary>新Shell宿主按需生成单个媒体；根内已启用项目才能排队，网络和解码不在回调内执行。</summary>
+    public string RequestThumbnail(string path,int size)
+    {
+        if(!CustomPreviewsAvailable)return "disabled";if(size is <16 or >256)return "unsupported";
+        var target=PreviewTarget(path);if(target is null)return "unsupported";
+        _previews.Queue(target.Value.Root.Definition,target.Value.Entry,RemoteThumbnailsAllowed);return _previews.State(target.Value.Root.Definition,target.Value.Entry);
+    }
     /// <summary>新宿主只请求已完整的本地内容，不复用旧进程可能联网的requestPreview语义。</summary>
     public string RequestLocalPreview(string path,int size)
     {
@@ -44,7 +51,7 @@ public sealed partial class MountManager
     private async Task<Dictionary<int,byte[]>?> RenderPreviewAsync(MountDefinition mount,MountEntry entry,bool allowRemote,CancellationToken token)
     {
         if(!CustomPreviewsAvailable||!_roots.TryGetValue(mount.Id,out var root))return null;
-        allowRemote=allowRemote&&LegacyRemotePreviewsAllowed; // 生产生成路径硬性禁止远端正文。
+        allowRemote=allowRemote&&(LegacyRemotePreviewsAllowed||RemoteThumbnailsAllowed); // 仅新按需请求允许有界远端预览。
         CloudFilesNative.ProtectedHandle? handle=null;var referenced=false;Stream? local=null;LocalFileStamp? stamp=null;Common.IFileSource? source=null;long length=0;
         void ReleaseLocal()
         {

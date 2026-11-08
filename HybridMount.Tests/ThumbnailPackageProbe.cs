@@ -12,7 +12,7 @@ public static class ThumbnailPackageProbe
     {
         if(ThumbnailServer.IsEntry(args))
         {
-            var started=new{Package=Windows.ApplicationModel.Package.Current.Id.FullName,Database=ThumbnailCachePaths.DatabasePath,FileId=MountPathGuard.FileIdentity(ThumbnailCachePaths.DatabasePath),Pid=Environment.ProcessId};
+            var started=new{Package=Windows.ApplicationModel.Package.Current.Id.FullName,Directory=ThumbnailCachePaths.DirectoryPath,Pid=Environment.ProcessId};
             File.WriteAllText(Path.Combine(area,"thumbnail-host-"+Environment.ProcessId+".json"),JsonSerializer.Serialize(started));
             return Task.FromResult(ThumbnailServer.Run(args));
         }
@@ -24,14 +24,14 @@ public static class ThumbnailPackageProbe
             var folder=NativeShellInspector.Read(directory,directory,names);
             if(!File.Exists(Path.Combine(area,"empty-profile")))foreach(var name in names)images[name]=Image(Path.Combine(directory,name));
             var direct=File.Exists(Path.Combine(area,"clsid.txt"))&&!File.Exists(Path.Combine(area,"empty-profile"))?DirectImage(path,Guid.Parse(File.ReadAllText(Path.Combine(area,"clsid.txt")))):null;
-            var value=new{Direct=direct,Database=ThumbnailCachePaths.DatabasePath,FileId=MountPathGuard.FileIdentity(ThumbnailCachePaths.DatabasePath),Cached=new ThumbnailCacheReader(ThumbnailCachePaths.DatabasePath).TryGet(path,64) is not null,Folder=folder,Images=images};
+            var database=ThumbnailCachePaths.ForMount(MountPathGuard.ReadRoot(path)!.MountId);var value=new{Direct=direct,Database=database,FileId=MountPathGuard.FileIdentity(database),Cached=new ThumbnailCacheReader(ThumbnailCachePaths.DirectoryPath,true).TryGet(path,64) is not null,Folder=folder,Images=images};
             Save(area,"outside-cache.json",value).GetAwaiter().GetResult();return Task.FromResult(value.Cached?0:1);
         }
         return RunAsync(area);
     }
     private static async Task<int> RunAsync(string area)
     {
-        var report=new Dictionary<string,object?>();UploadFlowTests.Fixture? test=null;ThumbnailCacheRoot? cacheRoot=null;var store=new ThumbnailCacheStore(ThumbnailCachePaths.DatabasePath);var success=false;
+        var report=new Dictionary<string,object?>();UploadFlowTests.Fixture? test=null;ThumbnailCacheRoot? cacheRoot=null;ThumbnailCacheStore? store=null;var success=false;
         try
         {
             var empty=File.Exists(Path.Combine(area,"empty-profile"));report["EmptyCloudFiles"]=empty;var package=Windows.ApplicationModel.Package.Current;Assert.StartsWith("HybridMount.ThumbnailProbe.",package.Id.Name);report["Package"]=package.Id.FullName;
@@ -40,15 +40,16 @@ public static class ThumbnailPackageProbe
             var names=new[]{"cloud.bmp","cached.bmp","pinned.bmp","released.bmp"};var actual=PreviewPipelineTests.Bmp();for(var offset=54;offset<actual.Length;offset+=3)actual[offset+2]=30;
             foreach(var name in names)test.Dav.Put(name,actual);
             MountDefinition mount;
-            try{mount=await test.Manager.AddAsync("MySvr-00937-"+Guid.NewGuid().ToString("N"),test.Local,false,source:test.Dav.Options,credentials:new("user","app-password"),autoUpload:false);}
+            try{mount=await test.Manager.AddAsync("MySvr-00939-"+Guid.NewGuid().ToString("N"),test.Local,false,source:test.Dav.Options,credentials:new("user","app-password"),autoUpload:false);}
             catch(COMException error)when(error.HResult==unchecked((int)0x80070490)&&test.Manager.Mounts.Count==1)
             {
                 test.Id=test.Manager.Mounts.Single().Definition.Id;report["FirstRegistrationHResult"]=error.HResult;await Task.Delay(3000);await test.Manager.ConnectAsync(test.Id);mount=test.Manager.Mounts.Single().Definition;
             }
-            test.Id=mount.Id;await test.Manager.SetSchedulingForTestsAsync(test.Id,false);
+            test.Id=mount.Id;store=new(ThumbnailCachePaths.ForMount(mount.Id));await test.Manager.SetSchedulingForTestsAsync(test.Id,false);
             report["Root"]=mount;report["Registry"]=test.Registry;report["RootId"]=CloudRootRegistration.Id(mount);await Save(area,"registered.json",report);
             foreach(var name in names.Where(x=>x!="cloud.bmp"))Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[Path.Combine(test.Local,name)]))).State);
             Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"freeSpace",[Path.Combine(test.Local,"released.bmp")]))).State);
+            using(var handle=CloudFilesNative.CreateFile(Path.Combine(test.Local,"cached.bmp"),0x180,7,0,3,0x02200000,0))CloudFilesNative.Check(CloudFilesNative.SetPinIntent(handle,0,0,0));
             // 合成缓存像素与真实正文不同；Shell自动返回该像素才能证明云处理器被选择。
             var pattern=PreviewPipelineTests.Bmp();var budget=new PreviewRangeBudget(pattern.Length,(offset,buffer,_)=>{pattern.AsMemory((int)offset,buffer.Length).CopyTo(buffer);return ValueTask.FromResult(new PreviewRangeResult(true,buffer.Length));});
             var frames=await new PreviewWorkerClient().DecodeAsync(".bmp",pattern.Length,budget.ReadAsync);Assert.NotNull(frames);
@@ -66,15 +67,19 @@ public static class ThumbnailPackageProbe
             var images=new Dictionary<string,ImageResult>();if(!empty)foreach(var name in names){var image=Image(Path.Combine(test.Local,name));images[name]=image;}report["Images"]=images;report["ShellProperties"]=names.Select(name=>new{Name=name,Properties=CloudShellState.Read(Path.Combine(test.Local,name))}).ToArray();
             report["FilesAfter"]=Facts(test,names);Assert.Equal(JsonSerializer.Serialize(Stable(before)),JsonSerializer.Serialize(Stable(report["FilesAfter"]!)));Assert.Equal(count,test.Dav.Server.Requests.Count);report["RequestsBefore"]=count;report["RequestsAfter"]=test.Dav.Server.Requests.Count;var outsideResult=(JsonElement)report["Outside"]!;var outsideFolder=outsideResult.GetProperty("Folder").Deserialize<NativeShellInspector.FolderFacts>()!;
             var outsideMenus=outsideFolder.Files.Any(x=>x.Menu.Any(s=>s.Contains("始终保留",StringComparison.Ordinal)))&&outsideFolder.Files.Any(x=>x.Menu.Any(s=>s.Contains("释放空间",StringComparison.Ordinal)));report["OutsideNativeMenusAvailable"]=outsideMenus;
-            Assert.True(outsideMenus,"Explorer包外视图原生菜单不可用。");if(!empty){var outsideImages=outsideResult.GetProperty("Images").Deserialize<Dictionary<string,ImageResult>>()!;Assert.All(outsideImages.Values,image=>Assert.True(image.Pattern,"系统图像工厂没有返回缓存识别像素。"));}success=true;
+            var menuRequired=File.Exists(Path.Combine(area,"menu-profile"));
+            var customMenus=outsideFolder.Files.Any(x=>x.Menu.Any(text=>text.Contains("HybridMount",StringComparison.Ordinal)));report["CustomMenusAvailable"]=customMenus;
+            if(menuRequired)Assert.True(customMenus,"包外视图没有发现本轮自有菜单。");
+            var properties=names.Select(name=>CloudShellState.Read(Path.Combine(test.Local,name))).ToArray();Assert.Equal(new uint?[]{1,2,3,1},properties.Select(x=>x.ProviderState));
+            if(!empty){var outsideImages=outsideResult.GetProperty("Images").Deserialize<Dictionary<string,ImageResult>>()!;Assert.True(outsideImages["cloud.bmp"].Pattern&&outsideImages["released.bmp"].Pattern,"联机文件的系统图像工厂没有返回缓存识别像素。");}success=true;
         }
         catch(Exception error){report["Error"]=error.ToString();}
         finally
         {
             try
             {
-                if(cacheRoot is not null){Assert.True(store.RemoveRoot(cacheRoot));Assert.Null(store.Root(cacheRoot.MountId));report["CacheCleanup"]=true;}
-                if(test is not null){if(test.Id!=Guid.Empty){var job=await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"clearAndRemove"));report["Removal"]=job;Assert.Equal("Completed",job.State);}await test.Manager.DisposeAsync();await test.Logger.DisposeAsync();Registry.CurrentUser.DeleteSubKeyTree(test.Registry,false);await test.Dav.DisposeAsync();Assert.Null(CloudFilesNative.RootIdentity(test.Local,true));report["Cleanup"]=true;}
+                try{if(cacheRoot is not null){Assert.True(store!.DeleteDatabase(cacheRoot));Assert.False(File.Exists(store.Database));report["CacheCleanup"]=true;}}catch(Exception cleanup){report["CacheCleanupError"]=cleanup.ToString();success=false;}
+                if(test is not null){if(test.Id==Guid.Empty&&test.Manager.Mounts.Count==1)test.Id=test.Manager.Mounts.Single().Definition.Id;if(test.Id!=Guid.Empty){var job=await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"clearAndRemove"));report["Removal"]=job;Assert.Equal("Completed",job.State);}await test.Manager.DisposeAsync();await test.Logger.DisposeAsync();Registry.CurrentUser.DeleteSubKeyTree(test.Registry,false);await test.Dav.DisposeAsync();Assert.Null(CloudFilesNative.RootIdentity(test.Local,true));report["Cleanup"]=true;}
             }
             catch(Exception error){report["CleanupError"]=error.ToString();report["Cleanup"]=false;success=false;}
             report["Success"]=success;await Save(area,"result.json",report);

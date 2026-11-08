@@ -5,7 +5,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>供独立缩略图宿主读取的本机缓存适配器；只查身份和元数据，不创建应用服务、不水合或联网。</summary>
-internal sealed class ThumbnailCacheReader(string database)
+internal sealed class ThumbnailCacheReader(string database,bool perMount=false)
 {
     private readonly ThumbnailCacheStore _store=new(database);
     internal static string CurrentOwner=>WindowsIdentity.GetCurrent().User?.Value??throw new IOException("无法取得当前账户身份。");
@@ -50,7 +50,13 @@ internal sealed class ThumbnailCacheReader(string database)
     internal byte[]? TryGet(string path,int size)
     {
         if(size is <1 or >256||!Path.IsPathFullyQualified(path)||path.StartsWith("\\",StringComparison.Ordinal))return null;
-        return _store.Read(Path.GetFullPath(path),size,Valid);
+        try
+        {
+            if(!perMount)return _store.Read(Path.GetFullPath(path),size,Valid);
+            var root=MountPathGuard.ReadRoot(path);if(root is null||root.Owner!=CurrentOwner)return null;
+            return new ThumbnailCacheStore(ThumbnailCachePaths.ForMount(database,root.MountId)).Read(Path.GetFullPath(path),size,Valid);
+        }
+        catch(Exception error)when(MetadataFailure(error)){return null;}
     }
     private static bool MetadataFailure(Exception error)=>error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException or ArgumentException;
 }

@@ -1,6 +1,6 @@
-# 检查实际交付包，不把成功编译当作打包内容正确的证据。
+﻿# 检查实际交付包，不把成功编译当作打包内容正确的证据。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails)
+param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='Menus')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
@@ -56,14 +56,24 @@ try {
     foreach ($registration in @('windows.startupTask','HybridMountStartup','ShellMaintenance')) {
         if (-not $text.Contains($registration)) { throw "清单缺少 $registration" }
     }
-    # 实测否定当前候选，正式包必须保留空CloudFiles及唯一原生状态路径。
-    if($ExpectCloudThumbnails){throw '0.0.9.37缩略图自动绑定尚未通过兼容门槛，不能验收为启用。'}
-    foreach($category in @('windows.fileExplorerContextMenus','windows.fileTypeAssociation','windows.comServer')){if($manifest.SelectNodes("//*[local-name()='Extension' and @Category='$category']").Count){throw "正式包意外注册 $category"}}
-    foreach($name in @('CloudFilesContextMenus','CustomStateHandler','ExtendedPropertyHandler','BannersHandler','ThumbnailProviderHandler')){if($manifest.SelectNodes("//*[local-name()='$name']").Count){throw "正式包含未通过验证的云处理器：$name"}}
-    $cloud=$manifest.SelectNodes("//*[local-name()='CloudFiles']");if($cloud.Count -ne 1 -or $cloud[0].IconResource -ne 'Assets\HybridMount.png' -or $cloud[0].ChildNodes.Count){throw 'CloudFiles必须仅含提供程序图标。'}
+    # 校验实际选择的唯一注册组合，不允许额外文件类型接管或未实现处理器CLSID。
+    if($ExpectCloudThumbnails -and $ShellProfile -ne 'MenusAndThumbnails'){throw '缩略图预期与Shell配置不一致。'}
+    if($manifest.SelectNodes("//*[local-name()='Extension' and @Category='windows.fileTypeAssociation']").Count){throw '不得接管全局文件类型。'}
+    $cloud=$manifest.SelectNodes("//*[local-name()='CloudFiles']");if($cloud.Count -ne 1 -or $cloud[0].IconResource -ne 'Assets\HybridMount.png'){throw '云提供程序声明不正确。'}
+    $classes=@($manifest.SelectNodes("//*[local-name()='ComServer']//*[local-name()='Class']"));$verbs=@($manifest.SelectNodes("//*[local-name()='Verb']"));$menu='F4A8FD0B-4055-4F23-8CC0-91B736B3E491';$thumb='A65802EB-4D1C-4C7E-A519-34C76B9BB281'
+    $expected=if($ShellProfile -eq 'Native'){@()}elseif($ShellProfile -eq 'Menus'){@($menu)}else{@($menu,$thumb)}
+    if($classes.Count -ne $expected.Count -or @($classes|Where-Object {$_.Id -notin $expected}).Count){throw 'COM类与所选配置不一致。'}
+    foreach($class in $classes){if($class.ParentNode.LocalName -ne 'ExeServer' -or $class.ParentNode.Executable -ne 'HybridMount.NET.exe' -or $class.ParentNode.Arguments -ne '--shell-server'){throw 'Shell类没有绑定独立早期宿主。'}}
+    if($ShellProfile -eq 'Native'){if($cloud[0].ChildNodes.Count -or $verbs.Count){throw '原生配置意外含扩展。'}}
+    elseif($ShellProfile -eq 'Menus'){if($cloud[0].ChildNodes.Count -or $verbs.Count -ne 3 -or @($verbs|Where-Object {$_.Clsid -ne $menu}).Count){throw '独立动态菜单注册不符。'}}
+    else{
+        if($cloud[0].ChildNodes.Count -ne 5 -or $verbs.Count -ne 1 -or $verbs[0].Clsid -ne $menu){throw '云菜单和缩略图组合不完整或重复。'}
+        $handler=$cloud[0].SelectSingleNode("*[local-name()='ThumbnailProviderHandler']");if(!$handler -or $handler.Clsid -ne $thumb){throw '云缩略图入口不符。'}
+        foreach($name in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler')){$node=$cloud[0].SelectSingleNode("*[local-name()='$name']");if(!$node -or $node.HasAttribute('Clsid')){throw '不得注册未实现的云处理器。'}}
+    }
     $excluded=$manifest.SelectNodes("//*[local-name()='ExcludedDirectory']")
     if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
     if(-not $manifest.SelectNodes("//*[local-name()='Capability' and @Name='unvirtualizedResources']").Count){throw '缺少共享缓存所需的受限能力。'}
-    Write-Host "包验证通过：$Platform / $version / 自包含 / 数据库缩略图自动绑定未完成、注册门控 / 自有菜单暂停 / 原生状态及维护入口保留。"
+    Write-Host "包验证通过：$Platform / $version / 自包含 / Shell配置=$ShellProfile / 原生状态及维护入口保留，桌面效果另行验收。"
 
 } finally { $archive.Dispose() }

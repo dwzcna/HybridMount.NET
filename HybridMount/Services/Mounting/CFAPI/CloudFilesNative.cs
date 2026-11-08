@@ -81,7 +81,7 @@ public static class CloudFilesNative
             // 只有明确的“未位于同步根”可用于安全删除判定，其他原生错误必须保留。
             if (result < 0)
             {
-                if (strict && result is not (unchecked((int)0x80070186) or unchecked((int)0x80070195))) Check(result);
+                if (strict && result is not (unchecked((int)0x80070186) or unchecked((int)0x80070195))) CheckRootQueryResult(result,path);
                 return null;
             }
             // SDK CF_SYNC_ROOT_STANDARD_INFO：IdentityLength 位于 1052，字节数据位于 1056。
@@ -89,6 +89,17 @@ public static class CloudFilesNative
             var bytes = new byte[length]; Marshal.Copy(buffer+1056,bytes,0,length); return bytes;
         }
         finally { Marshal.FreeHGlobal(buffer); }
+    }
+    /// <summary>严格根查询保留原HRESULT；卷未提供CFAPI功能时提示核验过滤器实例，不将失败当成“没有同步根”。</summary>
+    internal static void CheckRootQueryResult(int result,string path)
+    {
+        if(result==unchecked((int)0x80070001))
+        {
+            var volume=Path.GetPathRoot(path)?.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+            var command=string.IsNullOrEmpty(volume)?"fltmc.exe instances -f CldFlt":"fltmc.exe attach CldFlt "+volume;
+            throw new COMException($"本地 Cloud Files 同步根查询失败（0x80070001）。请确认 CldFlt 已附加到目标卷 {volume}；服务处于 RUNNING 不代表已附加到此卷。管理员终端可核验实例并按需执行：{command}",result);
+        }
+        Check(result);
     }
     [DllImport("shell32.dll",EntryPoint="SHChangeNotify",CharSet=CharSet.Unicode)] private static extern void ShellChangeNotify(uint change,uint flags,string path,nint second);
     /// <summary>Unicode 路径通知采用不等待 Shell 的刷新模式；调用前必须释放资源句柄。</summary>

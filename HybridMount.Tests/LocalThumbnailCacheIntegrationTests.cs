@@ -16,7 +16,7 @@ public sealed class LocalThumbnailCacheIntegrationTests(Xunit.Abstractions.ITest
     public async Task OnlineOnlyMissNeverReadsRemoteOrHydratesEvenThroughLegacyRequestName()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var path=await Photo(test);var before=CloudFilesNative.Inspect(path)!.Value;var requests=test.Dav.Server.Requests.Count;
-        var reader=new ThumbnailCacheReader(Path.Combine(test.Repository.DataDirectory,"Thumbnails","thumbnails.db"));
+        var reader=new ThumbnailCacheReader(ThumbnailCachePaths.ForMount(Path.Combine(test.Repository.DataDirectory,"Thumbnails"),test.Id));
         for(var i=0;i<10;i++){Assert.Null(reader.TryGet(path,64));Assert.Null(test.Manager.GetPreview(path,64));test.Manager.RequestLocalPreview(path,64);test.Manager.RequestPreview(path,64);}
         var after=CloudFilesNative.Inspect(path)!.Value;Assert.Equal(before.Identity,after.Identity);Assert.Equal(before.Info.PinState,after.Info.PinState);Assert.Equal(before.Info.InSyncState,after.Info.InSyncState);Assert.Equal(before.Info.OnDiskSize,after.Info.OnDiskSize);
         Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));Assert.Equal(requests,test.Dav.Server.Requests.Count);
@@ -26,12 +26,12 @@ public sealed class LocalThumbnailCacheIntegrationTests(Xunit.Abstractions.ITest
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var path=await Photo(test);
         Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]))).State);var png=await Ready(test,path);
-        var reader=new ThumbnailCacheReader(Path.Combine(test.Repository.DataDirectory,"Thumbnails","thumbnails.db"));Assert.Equal(png,reader.TryGet(path,64));var requests=test.Dav.Server.Requests.Count;
+        var reader=new ThumbnailCacheReader(ThumbnailCachePaths.ForMount(Path.Combine(test.Repository.DataDirectory,"Thumbnails"),test.Id));Assert.Equal(png,reader.TryGet(path,64));var requests=test.Dav.Server.Requests.Count;
         Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"freeSpace",[path]))).State);Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));Assert.Equal(png,reader.TryGet(path,64));
         await test.Manager.DisposeAsync();
-        try{Assert.True(png.SequenceEqual(reader.TryGet(path,64)??[]),System.Text.Json.JsonSerializer.Serialize(new{Stored=new ThumbnailCacheStore(Path.Combine(test.Repository.DataDirectory,"Thumbnails","thumbnails.db")).Binding(path),Current=LocalFileState.Read(path),Native=CloudFilesNative.Inspect(path),Raw=RawFacts(path)}));Assert.Equal(requests,test.Dav.Server.Requests.Count);}
+        try{Assert.True(png.SequenceEqual(reader.TryGet(path,64)??[]),System.Text.Json.JsonSerializer.Serialize(new{Stored=new ThumbnailCacheStore(ThumbnailCachePaths.ForMount(Path.Combine(test.Repository.DataDirectory,"Thumbnails"),test.Id)).Binding(path),Current=LocalFileState.Read(path),Native=CloudFilesNative.Inspect(path),Raw=RawFacts(path)}));Assert.Equal(requests,test.Dav.Server.Requests.Count);}
         finally{test.Manager=new(test.Repository,test.Logger);}
-        Assert.All(Directory.GetFiles(Path.Combine(test.Repository.DataDirectory,"Thumbnails")),file=>Assert.True(Path.GetFileName(file) is "thumbnails.db" or "thumbnails.db-wal" or "thumbnails.db-shm"));
+        Assert.All(Directory.GetFiles(Path.Combine(test.Repository.DataDirectory,"Thumbnails")),file=>Assert.Contains(Path.GetFileName(file),new[]{test.Id.ToString("N")+".db",test.Id.ToString("N")+".db-wal",test.Id.ToString("N")+".db-shm"}));
     }
     [Fact(Timeout=90000)]
     public async Task LocalDirtyContentCanGenerateWithoutChangingInSyncPinOrUploading()
@@ -46,7 +46,7 @@ public sealed class LocalThumbnailCacheIntegrationTests(Xunit.Abstractions.ITest
     public async Task DisabledOrReplacedFileNeverReturnsTheOldBlob()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var path=await Photo(test);await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]));await Ready(test,path);
-        var reader=new ThumbnailCacheReader(Path.Combine(test.Repository.DataDirectory,"Thumbnails","thumbnails.db"));Assert.NotNull(reader.TryGet(path,64));await test.Manager.SetThumbnailsEnabledAsync(test.Id,false);Assert.Null(reader.TryGet(path,64));
+        var reader=new ThumbnailCacheReader(ThumbnailCachePaths.ForMount(Path.Combine(test.Repository.DataDirectory,"Thumbnails"),test.Id));Assert.NotNull(reader.TryGet(path,64));await test.Manager.SetThumbnailsEnabledAsync(test.Id,false);Assert.Null(reader.TryGet(path,64));
         await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);await Ready(test,path);var temporary=Path.Combine(test.Dav.Area,"new.bmp");await File.WriteAllBytesAsync(temporary,PreviewPipelineTests.Bmp());File.Move(temporary,path,true);Assert.Null(reader.TryGet(path,64));
     }
     [Fact(Timeout=90000)]
@@ -59,10 +59,10 @@ public sealed class LocalThumbnailCacheIntegrationTests(Xunit.Abstractions.ITest
         var entry=test.Repository.Entries(test.Id).Single(x=>x.LocalPath=="image.bmp");cache.Queue(mount,entry);await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         current=mount with{ThumbnailsEnabled=false};Assert.False(cache.ConfigureMount(mount)!.Enabled);release.SetResult(new(){{64,File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png"))}});
         var deadline=DateTime.UtcNow.AddSeconds(10);while(cache.Describe(mount.Id).Contains("待处理=1",StringComparison.Ordinal)&&DateTime.UtcNow<deadline)await Task.Delay(20);
-        Assert.False(new ThumbnailCacheStore(Path.Combine(directory,"thumbnails.db")).Root(mount.Id)!.Enabled);Assert.Null(cache.Get(mount,entry,64));Assert.Null(new ThumbnailCacheReader(Path.Combine(directory,"thumbnails.db")).TryGet(path,64));
-        await cache.DisposeAsync();var removal=test.Manager.Queue(test.Id,"clearAndRemove");
-        try{await WebDavTests.Finished(test.Manager,removal);}
-        catch{output.WriteLine(System.Text.Json.JsonSerializer.Serialize(test.Manager.Operations));output.WriteLine(await test.Manager.ReadDiagnosticsAsync(test.Id));throw;}
+        Assert.False(new ThumbnailCacheStore(ThumbnailCachePaths.ForMount(directory,mount.Id)).Root(mount.Id)!.Enabled);Assert.Null(cache.Get(mount,entry,64));Assert.Null(new ThumbnailCacheReader(ThumbnailCachePaths.ForMount(directory,mount.Id)).TryGet(path,64));
+        await cache.RemoveMountAsync(current);Assert.False(File.Exists(ThumbnailCachePaths.ForMount(directory,mount.Id)));await cache.DisposeAsync();var removal=test.Manager.Queue(test.Id,"clearAndRemove");
+        try{await WebDavTests.Finished(test.Manager,removal);Assert.False(File.Exists(ThumbnailCachePaths.ForMount(Path.Combine(test.Repository.DataDirectory,"Thumbnails"),mount.Id)));}
+        catch{output.WriteLine(System.Text.Json.JsonSerializer.Serialize(test.Manager.Operations));if(test.Manager.Mounts.Any(x=>x.Definition.Id==test.Id))output.WriteLine(await test.Manager.ReadDiagnosticsAsync(test.Id));throw;}
     }
     private static object RawFacts(string path)
     {
@@ -71,7 +71,7 @@ public sealed class LocalThumbnailCacheIntegrationTests(Xunit.Abstractions.ITest
         finally{System.Runtime.InteropServices.Marshal.FreeHGlobal(memory);}
     }
     [Theory]
-    [InlineData("--thumbnail-server")][InlineData("--thumbnail-server","-Embedding")][InlineData("--thumbnail-server","/embedding")]
+    [InlineData("--thumbnail-server")][InlineData("--thumbnail-server","-Embedding")][InlineData("--thumbnail-server","/embedding")][InlineData("--shell-server")][InlineData("--shell-server","-Embedding")]
     public void ThumbnailEntryAcceptsOnlyExplicitComRole(params string[] args)=>Assert.True(ThumbnailServer.ValidArguments(args));
     [Theory]
     [InlineData("--thumbnail-server","C:\\arbitrary.db")][InlineData("--thumbnail-server","-Embedding","extra")][InlineData("--tray")]
