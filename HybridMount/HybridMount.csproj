@@ -35,7 +35,7 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <PublishTrimmed>false</PublishTrimmed>
     <PublishAot>false</PublishAot>
-    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
     <AppxBundle>Never</AppxBundle>
     <AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
     <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
@@ -48,35 +48,35 @@
     <Optimize>true</Optimize><DebugType>portable</DebugType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK"/>
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools"/>
-    <PackageReference Include="CommunityToolkit.Mvvm"/>
-    <PackageReference Include="Microsoft.Data.Sqlite"/>
-    <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/>
-    <PackageReference Include="WebDAVClient"/>
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="AWSSDK.S3" /><PackageReference Include="AWSSDK.SQS" />
+    <PackageReference Include="WebDAVClient" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
-    <Content Include="ThirdParty\**\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
-    <Content Include="Assets\HybridMount.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
-    <Manifest Include="$(ApplicationManifest)"/>
-    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(NativeConfiguration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+    <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="ThirdParty\**\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\HybridMount.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Manifest Include="$(ApplicationManifest)" />
+    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(NativeConfiguration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <!-- 本版本暂停自有Shell扩展；保留旧属性名，但显式开启会失败，防止旧构建参数重新注册。 -->
-  <PropertyGroup><HybridMountEnableCloudThumbnails Condition="'$(HybridMountEnableCloudThumbnails)'==''">false</HybridMountEnableCloudThumbnails></PropertyGroup>
+  <PropertyGroup><HybridMountEnableCloudThumbnails Condition="'$(HybridMountEnableCloudThumbnails)'==''">false</HybridMountEnableCloudThumbnails><PackageCertificateThumbprint>3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0</PackageCertificateThumbprint><AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm><GenerateTestArtifacts>False</GenerateTestArtifacts><HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks></PropertyGroup>
   <!-- 源清单供 VS 包向导读取，必须与集中版本一致；构建副本保留当前暂停策略。 -->
   <Target Name="PrepareProductManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountDeployment)'=='Packaged'">
     <Error Condition="'$(HybridMountEnableCloudThumbnails)'=='true'" Text="0.0.9.34 暂停自有Shell扩展，不能启用实验缩略图注册。" />
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version">
-      <Output TaskParameter="Result" PropertyName="_SourceManifestVersion"/>
+      <Output TaskParameter="Result" PropertyName="_SourceManifestVersion" />
     </XmlPeek>
-    <Error Condition="'$(_SourceManifestVersion)' != '$(BinaryVersion)'"
-           Text="Package.appxmanifest 版本 $(_SourceManifestVersion) 与集中版本 $(BinaryVersion) 不一致；请同步源清单，确保 Visual Studio 打包向导显示正确版本。" />
+    <Error Condition="'$(_SourceManifestVersion)' != '$(BinaryVersion)'" Text="Package.appxmanifest 版本 $(_SourceManifestVersion) 与集中版本 $(BinaryVersion) 不一致；请同步源清单，确保 Visual Studio 打包向导显示正确版本。" />
     <PropertyGroup>
       <_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
       <_ProductManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest'))</_ProductManifestContent>
+
     </PropertyGroup>
     <WriteLinesToFile File="$(_ProductManifest)" Lines="$(_ProductManifestContent)" Overwrite="true" Encoding="UTF-8" WriteOnlyWhenDifferent="true" />
-    <ItemGroup><AppxManifest Remove="@(AppxManifest)"/><AppxManifest Include="$(_ProductManifest)"/><FileWrites Include="$(_ProductManifest)"/></ItemGroup>
+    <ItemGroup><AppxManifest Remove="@(AppxManifest)" /><AppxManifest Include="$(_ProductManifest)" /><FileWrites Include="$(_ProductManifest)" /></ItemGroup>
   </Target>
 </Project>

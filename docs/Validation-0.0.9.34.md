@@ -86,3 +86,10 @@
 电脑交互工具在恢复、重置后仍以trusted Node退出／`windows sandbox failed: helper_unknown_error: setup refresh had errors`失败；按工具恢复上限停止，没有改用其他UI输入方式。未执行的GUI项没有记为通过。
 
 本版不处理旧根迁移、注册修复、列布局或缩略图恢复，不改变水合策略，不接管另一运行模式的根。完成后独立本地提交，不推送。
+
+## 同版源码跟进：全窗口返回快捷键提示（2026-11-08）
+
+- 用户截图中的“Alt+向左键”为WinUI生成的快捷键提示。返回KeyboardAccelerator挂在覆盖全窗口的RootGrid上，其默认PlacementMode=Auto，使空白区域也成为该提示的悬停目标。
+- RootGrid显式设置KeyboardAcceleratorPlacementMode=Hidden；返回Key／Modifiers／处理器及普通按钮ToolTip均保持。只改提示显示，不改变Frame导航或挂载逻辑。
+- 最小x64 Debug非打包XAML编译通过：artifacts/validation/00934-back-tooltip-build.log。已有NavigationTests 19/19通过：00934-back-tooltip-navigation.trx；没有新增镜像实现的测试。
+- GUI未复测：待确认空白区域悬停不再出现该浮层、Alt+←仍可返回、普通按钮说明保留。本次仅源码与Debug编译更新，前述Release MSIX未重打，不宣称已有安装包包含该修正。

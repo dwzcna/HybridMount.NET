@@ -18,6 +18,7 @@
 *.log
 .pn3dkit-logs/
 /patch/
+**/AppPackages
 
 # 本机密钥与环境配置
 *.pfx
