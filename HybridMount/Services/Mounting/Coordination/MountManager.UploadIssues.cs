@@ -27,7 +27,7 @@ public sealed partial class MountManager
             }
         }
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
-        catch(Exception error){_logger.Queue("同步问题提示","Error",error.Message);}
+        catch(Exception error){_logger.QueueException("同步问题提示","Error","操作未完成",error);}
     }
     /// <summary>仅实例测试调用实际生产发布链；应用生命周期拥有操作，退出等待保护句柄释放。</summary>
     internal Task PublishUploadIssuesAsync(CancellationToken token=default)=>OwnAsync(PublishUploadIssuesCoreAsync,token);
@@ -109,7 +109,7 @@ public sealed partial class MountManager
             catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
             catch(Exception error)
             {
-                updated=RecordIssuePublicationFailure(attempted,journal,"Explorer提示未发布："+error.Message);
+                updated=RecordIssuePublicationFailure(attempted,journal,"Explorer提示未发布："+error.Message,error);
             }
             finally
             {
@@ -119,7 +119,7 @@ public sealed partial class MountManager
         }
     }
     /// <summary>仅为本次捕获或已写日志的同代问题保存失败及30秒退避；新问题、成功或取消不继承旧等待和迟到错误。</summary>
-    private bool RecordIssuePublicationFailure(LocalUpload attempted,UploadAttention? journal,string reason)
+    private bool RecordIssuePublicationFailure(LocalUpload attempted,UploadAttention? journal,string reason,Exception? error=null)
     {
         var accepted=false;var changed=false;
         var saved=_repository.UpdateUpload(attempted.Id,current=>
@@ -130,7 +130,7 @@ public sealed partial class MountManager
         if(accepted&&saved?.Attention is {} failed)
         {
             _issuePublicationRetry[attempted.Id]=(saved.Generation,failed,DateTimeOffset.UtcNow.AddSeconds(30));
-            if(changed)_logger.Queue("同步问题提示","Warning",reason);
+            if(changed){if(error is null)_logger.Queue("同步问题提示","Warning","本地文件缺失，Explorer提示未发布；保留原同步问题。");else _logger.QueueException("同步问题提示","Warning","Explorer提示未发布",error,attempted.Id);}
         }
         return changed;
     }

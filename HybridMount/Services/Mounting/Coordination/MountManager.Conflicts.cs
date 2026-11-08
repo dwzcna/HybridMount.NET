@@ -24,7 +24,9 @@ public sealed partial class MountManager
     }
     private bool HasConflictResolution(Guid mount,string path)=>_repository.Uploads(mount).Any(x=>x.Resolution is not null&&MountRepository.ConflictRelated(path,x.SourcePath));
     /// <summary>比较仅查询元数据，不水合、不计算正文摘要、不执行写能力探测；网络期间不持根锁。</summary>
-    public Task<ConflictComparison> CompareConflictAsync(string taskId,CancellationToken token=default)=>OwnAsync(cancel=>Task.Run(()=>CompareConflictCoreAsync(taskId,cancel),cancel),token);
+    public Task<ConflictComparison> CompareConflictAsync(string taskId,CancellationToken token=default)=>OwnAsync(async cancel=>
+        {try{return await Task.Run(()=>CompareConflictCoreAsync(taskId,cancel),cancel).ConfigureAwait(false);}
+         catch(Exception error){ReportDiagnosticException("冲突比较","冲突核对未完成",error);throw;}},token);
     private async Task<ConflictComparison> CompareConflictCoreAsync(string taskId,CancellationToken token)
     {
         var selected=_repository.Upload(taskId);var remoteTask=selected is null?_roots.Keys.SelectMany(_repository.AllRemotePending).FirstOrDefault(x=>x.Id==taskId):null;
@@ -48,14 +50,14 @@ public sealed partial class MountManager
             var local=upload?.LocalPath??entry?.LocalPath??path;
             if(local!=path)throw new IOException("改名或映射路径不同的冲突请先另存副本，本版不直接替换。");
             var absolute=RelativePaths.ToLocal(definition.LocalPath,local);MountPathGuard.ValidateOperation(definition,absolute);
-            try{stamp=LocalFileState.Read(absolute);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){localError="本地元数据读取失败："+error.Message;}
+            try{stamp=LocalFileState.Read(absolute);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){localError="本地元数据读取失败："+error.Message;_logger.QueueException("冲突比较","Warning","本地元数据核对失败",error,taskId);}
             pending=_repository.ConflictPendingJson(definition.Id,path);
         }
         finally{root.Gate.Release();}
         SourceEntry? remote=null;string remoteError="";
         try{remote=await source.TryGetMetadataAsync(path,token).ConfigureAwait(false);if(remote is null)remoteError="远端文件已不存在；请另存副本或重新检测。";}
         catch(OperationCanceledException){throw;}
-        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException){remoteError="远端元数据读取失败："+error.Message;}
+        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException){remoteError="远端元数据读取失败："+error.Message;_logger.QueueException("冲突比较","Warning","远端元数据核对失败",error,taskId);}
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -131,7 +133,9 @@ public sealed partial class MountManager
     }
     /// <summary>两个直接选择的实际执行入口；调用方必须传入本次比较，不接受裸路径或新的远端版本。</summary>
     public Task<string> ResolveConflictAsync(ConflictComparison comparison,bool useLocal,CancellationToken token=default)
-        =>OwnAsync(cancel=>Task.Run(()=>ResolveConflictCoreAsync(comparison,useLocal,cancel),cancel),token);
+        =>OwnAsync(async cancel=>
+        {try{return await Task.Run(()=>ResolveConflictCoreAsync(comparison,useLocal,cancel),cancel).ConfigureAwait(false);}
+         catch(Exception error){ReportDiagnosticException("冲突处理","冲突取舍未完成",error);throw;}},token);
     private async Task<string> ResolveConflictCoreAsync(ConflictComparison comparison,bool useLocal,CancellationToken token)
     {
         if(!(useLocal?comparison.CanUseLocal:comparison.CanUseRemote))throw new IOException(useLocal?comparison.LocalRestriction:comparison.RemoteRestriction);
@@ -201,7 +205,7 @@ public sealed partial class MountManager
             if(intent is not null&&completed is null)
             {
                 var current=_repository.Upload(intent.Id);
-                if(current?.Resolution?.Id==intent.Resolution?.Id)PublishUpload(_repository.UpdateUpload(intent.Id,x=>x.Resolution?.Id!=intent.Resolution?.Id?x:x with{State="ResolutionPending",Error="冲突处理未完成："+error.Message+"；请重新核对后明确选择，恢复备份保留。"}));
+                if(current?.Resolution?.Id==intent.Resolution?.Id)PublishUpload(_repository.UpdateUpload(intent.Id,x=>x.Resolution?.Id!=intent.Resolution?.Id?x:x with{State="ResolutionPending",Error="冲突处理未完成："+error.Message+"；请重新核对后明确选择，恢复备份保留。"}),error);
             }
             throw;
         }

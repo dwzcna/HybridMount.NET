@@ -39,7 +39,7 @@ public sealed partial class MountManager
             }
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
-        catch(Exception error){_logger.Queue("自动上传","Error",error.Message);Status(root,root.Status,"自动上传监控已停止，请重新连接。" );}
+        catch(Exception error){_logger.QueueException("自动上传","Error","操作未完成",error);Status(root,root.Status,"自动上传监控已停止，请重新连接。" );}
     }
     private sealed class UploadReporter(Action<UploadProgress> action) : IProgress<UploadProgress>
     {public void Report(UploadProgress value)=>action(value);}
@@ -48,8 +48,8 @@ public sealed partial class MountManager
     {
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
-        var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
-        LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current));
+        Exception? failure=null;var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
+        LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current),failure);
         try
         {
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
@@ -95,11 +95,11 @@ public sealed partial class MountManager
         catch(UploadPreparationChangedException){}
         catch(UploadExcludedException){}
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
-        catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
-        catch(StagingSpaceException error)when(preparing){Fail(x=>StagingDiskSpace.Wait(x,error,DateTimeOffset.UtcNow));}
-        catch(SourceConflictException error){Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
-        catch(NotSupportedException error){Fail(x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
-        catch(Exception error){HandleUploadFailure(selected.Id,error,preparing,stopping,Fail);}
+        catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x,error);}
+        catch(StagingSpaceException error)when(preparing){failure=error;Fail(x=>StagingDiskSpace.Wait(x,error,DateTimeOffset.UtcNow));}
+        catch(SourceConflictException error){failure=error;Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
+        catch(NotSupportedException error){failure=error;Fail(x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
+        catch(Exception error){failure=error;HandleUploadFailure(selected.Id,error,preparing,stopping,Fail);}
         finally
         {
             if(capacity is not null)
@@ -112,7 +112,7 @@ public sealed partial class MountManager
     /// <summary>上传任务所有者统一落库失败阶段；退出取消与已发送的未知结果优先，真实瞬时拒绝按持久退避调度。</summary>
     private void HandleUploadFailure(string id,Exception error,bool preparing,CancellationToken stopping,Func<Func<LocalUpload,LocalUpload>,LocalUpload?>? change=null)
     {
-        LocalUpload? Update(Func<LocalUpload,LocalUpload> update)=>change is null?ChangeUpload(id,update):change(update);
+        LocalUpload? Update(Func<LocalUpload,LocalUpload> update)=>change is null?ChangeUpload(id,update,error):change(update);
         var current=_repository.Upload(id);if(current is null||current.State=="Excluded")return;
         if(current.State=="RemoteCommitted")Update(x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
         else if(error is SourceRequestRejectedException)Update(x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
@@ -147,8 +147,8 @@ public sealed partial class MountManager
             ChangeUpload(item.Id,x=>x with{State=unchanged?(x.CancelRequested?"Canceled":x.Attention?.RetryRequested==true?"Prepared":"Failed"):"Conflict",Error=unchanged?"远端仍为原始版本，请显式重试后发送。":"远端内容与原始基线、发送快照均不一致，保留两端内容。",LastCheckedUtc=null});
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
-        catch(SourceConflictException error){ChangeUpload(item.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
-        catch(Exception error){ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="只读核对未完成："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});}
+        catch(SourceConflictException error){ChangeUpload(item.Id,x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null},error);}
+        catch(Exception error){ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="只读核对未完成："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow},error);}
     }
     /// <summary>只读核对完成后有限重排已验证的条件写；取消或超出次数时不增加发送，不更换原始基线。</summary>
     private bool RetryConditionalUpload(Runtime root,LocalUpload item,bool create)

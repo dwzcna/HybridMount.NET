@@ -22,12 +22,18 @@ public sealed partial class MountManager
         async Task<T> RunAsync()
         {
             try{cancel.Token.ThrowIfCancellationRequested();return await action(cancel.Token).ConfigureAwait(false);}
+            catch(Exception error){ReportDiagnosticException("用户操作","用户操作未完成",error);throw;}
             finally{cancel.Dispose();lock(_lifetime){_foreground.Remove(completed.Task);completed.TrySetResult();}}
         }
     }
     /// <summary>表单只读探测同样由应用拥有；退出取消并等待，不保存配置或执行远端写探测。</summary>
     public Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,CancellationToken token=default,TimeSpan? timeout=null)
-        =>OwnAsync(cancel=>(_factory as FileSourceFactory??new FileSourceFactory()).TestConnectionAsync(settings,credentials,cancel,timeout),token);
+        =>OwnAsync(async cancel=>
+        {
+            var result=await (_factory as FileSourceFactory??new FileSourceFactory()).TestConnectionAsync(settings,credentials,cancel,timeout).ConfigureAwait(false);
+            if(!result.Success){if(result.Diagnostic is {} diagnostic)_logger.QueueException("连接测试","Warning","只读连接测试失败",new SourceConnectionException(diagnostic));else _logger.Queue("连接测试","Warning","只读连接测试失败，请核对表单和连接设置。");}
+            return result;
+        },token);
     private Task OwnAsync(Func<CancellationToken,Task> action,CancellationToken token)
         =>OwnAsync(async cancel=>{await action(cancel).ConfigureAwait(false);return true;},token);
     /// <summary>先向所有生产者发停止信号，不持根锁等待；重复请求不重复取消已释放的资源。</summary>

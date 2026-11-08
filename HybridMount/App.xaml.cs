@@ -54,13 +54,13 @@ public partial class App:Application
             UnhandledException+=OnUiUnhandled;AppDomain.CurrentDomain.UnhandledException+=OnDomainUnhandled;TaskScheduler.UnobservedTaskException+=OnTaskUnobserved;
             Logger=new LoggerService();
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
-            Appearance=new AppearanceSettingsService();
+            Appearance=new AppearanceSettingsService();if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
             Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
             Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger){StopObserver=RecordMountStop};
             TaskFocus=new(Navigation);IssueNotifications=new(Mounts);IssueNotifications.Changed+=OnUploadIssueNotifications;
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}
-            catch(Exception error){Logger.Queue("托盘","Error",error.Message);}
+            catch(Exception error){Logger.QueueException("托盘","Error","操作未完成",error);}
             _ipc=new IpcServerService(Logger){Handler=request=>HandleRequest(request,false)};_ipc.Start();
             _legacyIpc=new IpcServerService(Logger,IpcProtocol.LegacyPipeName){Handler=request=>HandleRequest(request,true)};_legacyIpc.Start();
             _=Mounts.StartAsync();
@@ -68,7 +68,7 @@ public partial class App:Application
             if(!silent||_tray?.IsRegistered!=true)RestoreWindow();
             _lifecycle.Record("Ready");
         }
-        catch(Exception error){_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,$"HybridMount.NET 启动失败：\n{error.Message}","HybridMount.NET",0x10);await ExitAsync();}
+        catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,$"HybridMount.NET 启动失败：\n{error.Message}","HybridMount.NET",0x10);await ExitAsync();}
     }
     private void RecordMountStop(string phase,Exception? error)
     {
@@ -76,9 +76,9 @@ public partial class App:Application
         _lifecycle?.Record("Mounts."+phase,error,cancellationReason:reason);
     }
     /// <summary>只记录未处理异常的安全堆栈，不将其标记为已处理。</summary>
-    private void OnUiUnhandled(object sender,Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)=>_lifecycle?.Record("UiUnhandled",args.Exception,true);
-    private void OnDomainUnhandled(object sender,System.UnhandledExceptionEventArgs args)=>_lifecycle?.Record(args.IsTerminating?"DomainTerminating":"DomainUnhandled",args.ExceptionObject as Exception,args.IsTerminating);
-    private void OnTaskUnobserved(object? sender,UnobservedTaskExceptionEventArgs args)=>_lifecycle?.Record("TaskUnobserved",args.Exception);
+    private void OnUiUnhandled(object sender,Microsoft.UI.Xaml.UnhandledExceptionEventArgs args){_lifecycle?.Record("UiUnhandled",args.Exception,true);Services.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Error","UI未处理异常",args.Exception);}
+    private void OnDomainUnhandled(object sender,System.UnhandledExceptionEventArgs args){_lifecycle?.Record(args.IsTerminating?"DomainTerminating":"DomainUnhandled",args.ExceptionObject as Exception,args.IsTerminating);if(args.ExceptionObject is Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("应用异常","Error","域未处理异常",error);}}
+    private void OnTaskUnobserved(object? sender,UnobservedTaskExceptionEventArgs args){_lifecycle?.Record("TaskUnobserved",args.Exception);Services.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Warning","未观察任务异常",args.Exception);}
     private IpcResponse HandleRequest(IpcRequest request,bool legacy)
     {
         var version=legacy?1:2;
@@ -112,7 +112,7 @@ public partial class App:Application
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);
             return new(2,request.RequestId,"accepted","操作已提交，可在任务页查看逐项结果。",id);
         }
-        catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"))Logger.Queue("资源管理器","Warning",error.Message);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"?"":error.Message);}
+        catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"))Logger.QueueException("资源管理器","Warning","操作未完成",error);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"?"":error.Message);}
     }
     private void OnUploadIssueNotifications()=>_dispatcher?.TryEnqueue(()=>{if(!_exiting)MainWindow?.RefreshUploadIssueNotifications();});
     private void OnAppearanceChanged(object? sender,EventArgs args)=>MainWindow?.ApplyAppearance();
@@ -132,7 +132,7 @@ public partial class App:Application
     private async void RequestExit()
     {
         try{await ExitAsync();}
-        catch(Exception error){_lifecycle?.Record("ExitBoundaryFailure",error,true);Environment.ExitCode=1;}
+        catch(Exception error){_lifecycle?.Record("ExitBoundaryFailure",error,true);Logger?.QueueException("退出","Error","退出边界失败",error);Environment.ExitCode=1;}
     }
     private Task ExitAsync()
     {

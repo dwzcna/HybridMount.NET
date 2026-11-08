@@ -6,11 +6,11 @@ namespace HybridMount.Services;
 internal static class LifecycleTraceService
 {
     /// <summary>将生命周期问题交给产品日志，初始化或清理阶段同时写调试输出。</summary>
-    internal static void Record(string message, string? details = null)
+    internal static void Record(string message, Exception? error = null)
     {
-        var text = details is null ? message : $"{message}：{details}";
+        var text = error is null?message:message+"；"+HybridMount.Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error);
         Debug.WriteLine(text);
         try { App.Current.Logger.Queue("生命周期", "Warning", text); }
-        catch (Exception error) { Debug.WriteLine(error); }
+        catch (Exception failure) { Debug.WriteLine(failure.GetType().Name); }
     }
 }

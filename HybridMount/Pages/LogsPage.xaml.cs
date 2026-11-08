@@ -23,6 +23,13 @@ public sealed partial class LogsPage : Page, IDisposable
     private void SeverityChanged(object sender, SelectionChangedEventArgs args)
     { if (SeverityBox?.SelectedItem is ComboBoxItem item && item.Tag is string tag) ViewModel.Severity = tag; }
     private async void RefreshClicked(object sender, RoutedEventArgs args) => await ViewModel.RefreshAsync();
+    private async void OlderClicked(object sender,RoutedEventArgs args)=>await ViewModel.LoadOlderAsync();
+    /// <summary>只打开本应用安全生命周期证据目录，不附带注册表、连接配置或正文备份。</summary>
+    private async void LifecycleClicked(object sender,RoutedEventArgs args)
+    {
+        try{Directory.CreateDirectory(ApplicationPaths.LogsDirectory);await Windows.System.Launcher.LaunchFolderAsync(await StorageFolder.GetFolderFromPathAsync(ApplicationPaths.LogsDirectory));}
+        catch(Exception error){ViewModel.ReportError(error);}
+    }
     private void CopyClicked(object sender, RoutedEventArgs args)
     {
         try { var package = new DataPackage(); package.SetText(ViewModel.ExportText()); Clipboard.SetContent(package); }
@@ -33,11 +40,13 @@ public sealed partial class LogsPage : Page, IDisposable
         if(!ViewModel.TryBeginDialog())return;
         try
         {
+            var query=ViewModel.CaptureExportQuery();
             var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-{DateTime.Now:yyyyMMdd-HHmmss}" };
             picker.FileTypeChoices.Add("文本日志", new List<string> { ".txt" });
             WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
             var file = await picker.PickSaveFileAsync();
-            if (file is not null&&!App.Current.IsExiting) await FileIO.WriteTextAsync(file, ViewModel.ExportText());
+            if(file is not null&&!App.Current.IsExiting)
+            {var export=await ViewModel.ExportAsync(query);if(!App.Current.IsExiting)await FileIO.WriteTextAsync(file,export.Text);}
         }
         catch (Exception error) { ViewModel.ReportError(error); }
         finally {ViewModel.EndDialog();}

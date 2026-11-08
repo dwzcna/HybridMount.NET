@@ -9,7 +9,7 @@ namespace HybridMount.Services.Mounting;
 internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
 {
     internal sealed record Mark(string Path,string Identity,uint PreviousPin,string Phase,LocalFileStamp Before,DateTimeOffset AttemptUtc,string? Error=null,uint? OwnedPin=null);
-    internal sealed record Result(LocalFileStamp? Before,LocalFileStamp? After,bool Changed);
+    internal sealed record Result(LocalFileStamp? Before,LocalFileStamp? After,bool Changed,Exception? Failure=null);
     private readonly string _path=Path.Combine(directory,"ExclusionMarkers",mountId.ToString("N")+".json");
     private readonly object _gate=new();
     private Dictionary<string,Mark>? _marks;
@@ -157,7 +157,7 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
             {
                 marks[before.Identity]=record with{Error=$"{error.Message}；HRESULT=0x{error.HResult:X8}"};Save();
                 // 写入成功而后续确认失败时，仍吸收已证明无正文变化的自有元数据；错误及恢复阶段继续保留。
-                if(written){var after=LocalFileState.Read(handle);if(after.Identity==before.Identity&&MountPathGuard.FileIdentity(path)==after.Identity)return new(before,after,true);}
+                if(written){var after=LocalFileState.Read(handle);if(after.Identity==before.Identity&&MountPathGuard.FileIdentity(path)==after.Identity)return new(before,after,true,error);}
                 throw;
             }
         }

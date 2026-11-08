@@ -142,9 +142,9 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         }
         catch(Exception error)
         {
-            _logger.Queue("CFAPI","Error",$"回调 {type} 失败：{error.Message}");
-            if(type==0) try{Complete(info,0,0,unchecked((int)0xc000cf00));}catch(Exception secondary){_logger.Queue("CFAPI","Warning",secondary.Message);}
-            if(type==9 || type==11)try{Ack(info,type==9?6u:7u,unchecked((int)0xc0000022));}catch(Exception secondary){_logger.Queue("CFAPI","Warning",secondary.Message);}
+            _logger.QueueException("CFAPI","Error",$"回调 {type} 失败",error);
+            if(type==0) try{Complete(info,0,0,unchecked((int)0xc000cf00));}catch(Exception secondary){_logger.QueueException("CFAPI","Warning","操作未完成",secondary);}
+            if(type==9 || type==11)try{Ack(info,type==9?6u:7u,unchecked((int)0xc0000022));}catch(Exception secondary){_logger.QueueException("CFAPI","Warning","操作未完成",secondary);}
         }
     }
     /// <summary>只有取消区间完整覆盖该回调时才结束其等待；部分重叠继续服务剩余需要的数据，避免误伤其他请求。</summary>
@@ -218,8 +218,8 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             try { Complete(info,offset,length,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00),token:token); } catch(Exception completion) { _logger.Queue("CFAPI","Warning",$"请求结束：{completion.GetType().Name}"); }
             if(!canceled)
             {
-                if(error is not SourceConnectionException connection)_logger.Queue("按需读取","Error",error.Message);
-                else if(_networkFailures.ShouldWrite(connection.Diagnostic,out var suffix))_logger.Queue("按需读取","Error",connection.Message+suffix);
+                if(error is not SourceConnectionException connection)_logger.QueueException("按需读取","Error","操作未完成",error);
+                else if(_networkFailures.ShouldWrite(connection.Diagnostic,out var suffix))_logger.QueueException("按需读取","Error","按需读取失败"+suffix,connection);
             }
         }
         finally

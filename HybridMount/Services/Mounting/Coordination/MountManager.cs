@@ -81,7 +81,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private void RecordRemovalFailure(Guid id,Exception failure)
     {
         try{if(RemovalCompletion().Read(id) is {} journal)RemovalCompletion().Failure(journal,failure);}
-        catch(Exception error){_logger.Queue("移除恢复记录","Error","无法保存失败阶段："+error.Message);}
+        catch(Exception error){_logger.QueueException("移除恢复记录","Error","无法保存失败阶段",error);}
     }
     private void RemovalStatus(Runtime root)
     {
@@ -105,9 +105,9 @@ public sealed partial class MountManager : IAsyncDisposable
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
             try { InspectRegistration(root); }
-            catch(Exception error) { root.Status="需要恢复";root.Detail=error.Message; }
+            catch(Exception error) { root.Status="需要恢复";root.Detail=error.Message;_logger.QueueException("挂载恢复","Warning","同步根注册核对失败，保留原配置",error,definition.Id.ToString("N")); }
             if(definition.RemovalPending)
-                try{RemovalStatus(root);}catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;}
+                try{RemovalStatus(root);}catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
         }
     }
     private sealed class PreviewLease(SemaphoreSlim gate) : IDisposable
@@ -164,14 +164,14 @@ public sealed partial class MountManager : IAsyncDisposable
                 .Select(row=>row.Id).ToArray():Array.Empty<string>();
             var count=_repository.ClearOperations(mode,interrupted);Notify();return count;
         },cancel),token);
-    private void Notify() { foreach(var root in _roots.Values)_previews.ConfigureMount(root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested});NotifyIssues();if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
+    private void Notify() { foreach(var root in _roots.Values)_previews.ConfigureMount(root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested});NotifyIssues();if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.QueueException("挂载界面","Warning","操作未完成",error);} }
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
     private Task? _startup;
     public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);_issuePublishing??=Task.Run(PublishIssueLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
     private async Task InitializeAsync()
     {
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))
-            try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.Queue("恢复挂载","Error",error.Message); }
+            try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.QueueException("恢复挂载","Error","操作未完成",error); }
     }
     public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true,IReadOnlyList<FileExclusionRule>? exclusions=null)
         =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults())),token);
@@ -321,7 +321,7 @@ public sealed partial class MountManager : IAsyncDisposable
             {
                 try{await recovery.AfterRegistrationAsync(token).ConfigureAwait(false);}
                 catch(Exception recoveryError)when(recoveryError is not OperationCanceledException)
-                {Status(root,"已连接",recovery.RecoveryWarning);_logger.Queue(recovery.RecoveryLogArea,"Warning",recoveryError.Message);}
+                {Status(root,"已连接",recovery.RecoveryWarning);_logger.QueueException(recovery.RecoveryLogArea,"Warning","操作未完成",recoveryError);}
             }
             Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartPinIntents(root);StartRemoteSync(root);
         }
@@ -565,14 +565,14 @@ public sealed partial class MountManager : IAsyncDisposable
             catch(Exception error)
             {
                 if(removing)RecordRemovalFailure(id,error);
-                Update(job,"Failed",error.Message);_logger.Queue("挂载任务","Error",error.Message);
+                Update(job,"Failed",error.Message);_logger.QueueException("挂载任务","Error","操作未完成",error);
             }
             finally
             {
                 if(held)
                 {
                     try{if(root.Definition.RemovalPending && _roots.ContainsKey(id))RemovalStatus(root);}
-                    catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;}
+                    catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
                     finally{root.Gate.Release();}
                 }
                 foreach(var path in changedPaths)NotifyFileState(path);
@@ -716,7 +716,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private async Task CacheLoopAsync()
     {
         using var timer=new PeriodicTimer(TimeSpan.FromSeconds(30));
-        try { while(await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))try{await EnforceCacheLimitAsync(_stop.Token).ConfigureAwait(false);}catch(Exception error)when(error is not OperationCanceledException){_logger.Queue("缓存回收","Warning",error.Message);} }
+        try { while(await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))try{await EnforceCacheLimitAsync(_stop.Token).ConfigureAwait(false);}catch(Exception error)when(error is not OperationCanceledException){_logger.QueueException("缓存回收","Warning","操作未完成",error);} }
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
     /// <summary>尽力回收整文件临时缓存及未固定的干净占位；不为了达标而解除固定。</summary>

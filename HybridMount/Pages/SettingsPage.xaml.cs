@@ -19,7 +19,7 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
     private async void OpenStartupSettings(object sender,RoutedEventArgs args)
     {
         try{await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"));}
-        catch(Exception error){App.Current.Logger.Log("启动",error.Message,InfoBarSeverity.Error);}
+        catch(Exception error){App.Current.Logger.Log("启动","打开系统设置失败；"+HybridMount.Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error),InfoBarSeverity.Error);}
     }
     public void Dispose(){Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
     public async ValueTask DisposeAsync(){Dispose();await ViewModel.DisposeAsync();}

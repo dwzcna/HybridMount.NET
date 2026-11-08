@@ -80,7 +80,7 @@ public sealed partial class MainWindow : Window
             {
                 SystemBackdrop = null;
                 fallback = true;
-                App.Current.Logger.Queue("外观", "Warning", $"材质不可用，使用系统背景：{error.Message}");
+                App.Current.Logger.QueueException("外观","Warning","材质不可用，使用系统背景",error);
             }
             _appliedBackdrop = preference.Backdrop;
         }

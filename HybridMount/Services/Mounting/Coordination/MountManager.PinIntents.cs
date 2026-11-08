@@ -72,7 +72,7 @@ public sealed partial class MountManager
                             if(LocalFileMetadata.TryRead(RelativePaths.ToLocal(root.Definition.LocalPath,excluded.LocalPath)) is not null)
                                 ReconcileFileExclusion(root,excluded.LocalPath,LocalFileState.Read(RelativePaths.ToLocal(root.Definition.LocalPath,excluded.LocalPath)),true,token);
                         }
-                        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){root.ExclusionError="系统排除标记未完成："+error.Message;}
+                        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){root.ExclusionError="系统排除标记未完成："+error.Message;_logger.QueueException("排除标记","Warning","固定维护时排除属性核对失败",error);}
                     var protectedPaths=_repository.Uploads(root.Definition.Id).Where(x=>x.State!="Completed").Select(x=>x.LocalPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     foreach(var entry in entries.Where(x=>x.Materialized&&!x.IsDirectory&&!x.Deleted&&!x.Protected&&x.RemotePresence!=RemotePresence.Deleted))
                     {
@@ -85,7 +85,7 @@ public sealed partial class MountManager
                             lock(runtime.Sync)if(runtime.Retry.TryGetValue(entry.Id,out var retry)&&retry.Version==entry.Version&&retry.Next>DateTimeOffset.UtcNow)continue;
                             candidate=entry;
                         }
-                        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){}
+                        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){if(error is not System.ComponentModel.Win32Exception {NativeErrorCode:2 or 3 or 32 or 33})_logger.QueueException("固定意图","Warning","固定意图查询暂缓",error,entry.Id);}
                     }
                 }
                 finally{root.Gate.Release();}
@@ -99,7 +99,7 @@ public sealed partial class MountManager
             }
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
-        catch(Exception error){_logger.Queue("固定意图","Warning",error.Message);}
+        catch(Exception error){_logger.QueueException("固定意图","Warning","操作未完成",error);}
         finally{await runtime.Download.ConfigureAwait(false);}
     }
     private async Task DownloadPinIntentAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,CancellationToken token)
@@ -122,7 +122,7 @@ public sealed partial class MountManager
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         catch(Exception error)
-        {lock(runtime.Sync)runtime.Retry[entry.Id]=(entry.Version,DateTimeOffset.UtcNow.AddSeconds(30));_logger.Queue("固定下载","Warning",entry.LocalPath+"："+error.Message);}
+        {lock(runtime.Sync)runtime.Retry[entry.Id]=(entry.Version,DateTimeOffset.UtcNow.AddSeconds(30));_logger.QueueException("固定下载","Warning","后台固定下载未完成",error,entry.Id);}
         finally{if(entered)_pinSlots.Release();if(changed is not null)NotifyFileState(changed);runtime.Wake();}
     }
     /// <summary>原生保护句柄和根锁归还后发布实际状态；失败只影响Shell刷新，不重写同步标记。</summary>

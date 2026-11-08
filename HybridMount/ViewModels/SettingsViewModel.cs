@@ -36,7 +36,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         {
             if(_disposed||_savingClose||_preferences is null||value==CloseToTraySelection)return;
             _savingClose=true;
-            try{Status=_preferences.TrySetCloseToTray(value,out var error)?value?"关闭窗口时将隐藏到托盘。":"关闭窗口时将退出应用。":error??"关闭偏好保存失败。";OnPropertyChanged();}
+            try{Status=_preferences.TrySetCloseToTray(value,out var error)?value?"关闭窗口时将隐藏到托盘。":"关闭窗口时将退出应用。":error??"关闭偏好保存失败。";if(error is not null)_logger?.Queue("设置","Warning","关闭行为偏好保存失败，原设置保持。");OnPropertyChanged();}
             finally{_savingClose=false;}
         }
     }
@@ -82,7 +82,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
             if(!double.IsFinite(CacheLimitGiB)||CacheLimitGiB<0)throw new ArgumentException("请输入有效缓存上限。");
             _mounts!.CacheLimitBytes=checked((long)(CacheLimitGiB*1024*1024*1024));_savedCacheLimitGiB=CacheLimitGiB;CacheStatus="缓存上限已保存。";
         }
-        catch(Exception error){CacheLimitGiB=_savedCacheLimitGiB;CacheStatus=error.Message;}
+        catch(Exception error){CacheLimitGiB=_savedCacheLimitGiB;CacheStatus=error.Message;_logger?.QueueException("缓存","Warning","缓存操作失败",error);}
         finally{_savingCache=false;}
     }
     public Task TrimCacheAsync()
@@ -93,7 +93,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     private async Task TrimCoreAsync()
     {
         try{var freed=await Task.Run(()=>_mounts!.EnforceCacheLimitAsync());if(!_disposed)CacheStatus=$"本次回收 {freed/(1024d*1024):F1} MiB，当前占用约 {_mounts!.CacheUsageBytes/(1024d*1024):F1} MiB。";}
-        catch(Exception error){if(!_disposed)CacheStatus=error.Message;}
+        catch(Exception error){if(!_disposed)CacheStatus=error.Message;_logger?.QueueException("缓存","Warning","缓存操作失败",error);}
         finally{_trimming=false;if(!_disposed)OnPropertyChanged(nameof(CanEditCache));}
     }
     public bool CanEditAppearance => !_disposed && _settings.IsLoaded && !_saving;
@@ -128,7 +128,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         try
         {
             OnPropertyChanged(nameof(CanEditAppearance));
-            AppearanceStatus = _settings.TrySave(candidate, out var error) ? "外观设置已保存，立即生效。" : error ?? "外观设置保存失败。";
+            AppearanceStatus = _settings.TrySave(candidate, out var error) ? "外观设置已保存，立即生效。" : error ?? "外观设置保存失败。";if(error is not null)_logger?.Queue("外观","Warning","外观设置保存失败，原设置保持。");
         }
         finally { _saving = false; NotifySelections(); }
     }

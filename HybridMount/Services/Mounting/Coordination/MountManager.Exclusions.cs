@@ -48,7 +48,8 @@ public sealed partial class MountManager
         {
             var markers=ExclusionMarkers(root);if(!excluded&&!markers.HasMarks)return stamp;
             if(_repository.Uploads(root.Definition.Id).Any(x=>!x.IsCopy&&x.LocalPath==relative&&UploadRules.InFlight(x)))return stamp;
-            var result=markers.Reconcile(root.Definition,relative,excluded,token);root.ExclusionError=null;
+            var result=markers.Reconcile(root.Definition,relative,excluded,token);root.ExclusionError=result.Failure is null?null:"排除标记部分写入，等待重新核实。";
+            if(result.Failure is {} failed)_logger.QueueException("排除标记","Warning","排除标记部分写入，上传排除仍生效",failed,root.Definition.Id.ToString("N"));
             if(result.Before is null||result.After is null)return stamp;
             // 属性句柄关闭也可能推进USN；归还后再读取，连同已记录的纯元数据变化一起核实。
             var after=LocalFileState.Read(RelativePaths.ToLocal(root.Definition.LocalPath,relative));
@@ -60,7 +61,7 @@ public sealed partial class MountManager
             return after;
         }
         catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException)
-        {root.ExclusionError="系统排除标记未完成（上传排除仍生效）："+relative+"；"+error.Message;return stamp;}
+        {root.ExclusionError="系统排除标记未完成（上传排除仍生效）："+relative+"；"+error.Message;_logger.QueueException("排除标记","Warning","系统排除标记未完成，上传排除仍生效",error,root.Definition.Id.ToString("N"));return stamp;}
     }
     /// <summary>每次辅助写入前重新检查当前规则，防止保存规则后旧准备继续发起探测或目标写入。</summary>
     private async Task EnsureUploadIncludedAsync(Runtime root,LocalUpload item,CancellationToken token)

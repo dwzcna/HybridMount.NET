@@ -29,7 +29,7 @@ public sealed partial class MountManager
                         freed+=bytes;changed.Add(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));
                     }
                     // 占用、身份变化和本地修改留待后续维护，不制造失败上传，也不触发读取。
-                    catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){}
+                    catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){if(error is not System.ComponentModel.Win32Exception {NativeErrorCode:2 or 3 or 32 or 33})_logger.QueueException("释放空间","Warning","释放请求暂缓，文件继续保护",error,entry.Id);}
                 }
             }
             finally

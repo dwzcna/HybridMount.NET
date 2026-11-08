@@ -13,7 +13,7 @@ namespace HybridMount.Services;
 
 /// <summary>当前用户前端日志的通知、限频队列和 SQLite 存储。</summary>
 /// <remarks>数据库与后台系统库独立；写入、读取和清除按队列顺序执行，清除不触及生命周期文本日志。</remarks>
-public sealed class LoggerService : IAsyncDisposable
+public sealed partial class LoggerService : IAsyncDisposable
 #if !HYBRIDMOUNT_HEADLESS_TEST
     , ILoggerService
 #endif
@@ -22,6 +22,18 @@ public sealed class LoggerService : IAsyncDisposable
     private sealed record Append(PendingDiagnostic Entry) : Operation;
     private sealed record Read(TaskCompletionSource<IReadOnlyList<DiagnosticEntry>> Completion) : Operation;
     private sealed record Clear(TaskCompletionSource Completion) : Operation;
+    private sealed record Query(DiagnosticQuery Filter,TaskCompletionSource<DiagnosticPage> Completion,bool Export=false) : Operation;
+    private long _dropped,_pendingDropped;
+    /// <summary>本会话累计未保存条目；后续成功或清除不会掩盖丢失事实，普通重复合并不计入。</summary>
+    public long DroppedCount=>Interlocked.Read(ref _dropped);
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Exception,object> _reportedExceptions=new();
+    /// <summary>固定上下文与安全异常证据；correlation仅为任务标识，不接受路径、配置或原始错误文本。</summary>
+    public void QueueException(string source,string severity,string context,Exception error,string? correlation=null)
+    {
+        // 服务所有者和页面可能看到同一个异常；只记录一次，不强引用异常或保存敏感Message。
+        lock(_recentGate){if(_reportedExceptions.TryGetValue(error,out _))return;_reportedExceptions.Add(error,new object());}
+        Queue(source,severity,context+"；"+SafeDiagnostic.ExceptionSummary(error)+(correlation is null?"":"；关联="+SafeDiagnostic.Field(correlation)));
+    }
     private const int QueueCapacity = 512;
     // <summary>连续日志最多合并64条；不等待凑批、不越过读取或清除屏障。</summary>
     private const int AppendBatchCapacity = 64;
@@ -39,7 +51,7 @@ public sealed class LoggerService : IAsyncDisposable
     private readonly Func<string, SqliteConnection> _connectionFactory;
     private readonly string _ownerSid;
     private bool _initialized;
-    private string? _lastError;
+    private string? _lastError,_hostError;
 #if !HYBRIDMOUNT_HEADLESS_TEST
     private readonly DispatcherQueue? _dispatcher = DispatcherQueue.GetForCurrentThread();
     /// <summary>请求当前窗口显示一条日志通知；持久化与通知相互独立。</summary>
@@ -78,8 +90,14 @@ public sealed class LoggerService : IAsyncDisposable
     /// <summary>前端日志成功持久化后发布，页面在自己的 UI 线程更新列表。</summary>
     public event EventHandler<DiagnosticEntry>? EntryWritten;
     /// <summary>最近一次本地写入错误，供诊断页显示。</summary>
-    public string? LastError => Volatile.Read(ref _lastError);
+    public string? LastError => Volatile.Read(ref _hostError)??Volatile.Read(ref _lastError);
 
+    /// <summary>逐一通知订阅者；一个界面订阅异常不阻止其他页面看到已持久化记录，避免递归写日志。</summary>
+    private void PublishEntry(DiagnosticEntry entry)
+    {
+        if(EntryWritten is not {} handlers)return;
+        foreach(EventHandler<DiagnosticEntry> handler in handlers.GetInvocationList())try{handler(this,entry);}catch(Exception error){Debug.WriteLine(error.GetType().Name);}
+    }
     /// <summary>同步接收界面日志；重复消息在三十秒内只入库一次。</summary>
     /// <param name="source">日志来源。</param><param name="severity">完整诊断级别。</param><param name="message">日志正文。</param>
     public void Queue(string source, string severity, string message)
@@ -97,7 +115,7 @@ public sealed class LoggerService : IAsyncDisposable
                          .Select(item => item.Key).ToArray()) _recent.Remove(expired);
             if (_recent.ContainsKey(key)) return;
             if (!_operations.Writer.TryWrite(new Append(new PendingDiagnostic(source, severity, message))))
-            { Volatile.Write(ref _lastError, "诊断队列已满或关闭，此条日志未保存。"); return; }
+            { RecordDropped(1); Volatile.Write(ref _lastError, "诊断队列已满或关闭，此条日志未保存。"); return; }
             if (_recent.Count >= QueueCapacity)
                 _recent.Remove(_recent.MinBy(item => item.Value).Key);
             _recent[key] = now;
@@ -139,6 +157,8 @@ public sealed class LoggerService : IAsyncDisposable
         {
             try
             {
+                await ImportHostsAsync(operation is Clear);
+                await ReportDroppedAsync();
                 switch (operation)
                 {
                     case Append append:
@@ -147,17 +167,21 @@ public sealed class LoggerService : IAsyncDisposable
                                _operations.Reader.TryPeek(out var next) && next is Append &&
                                _operations.Reader.TryRead(out var taken))
                             batch.Add(((Append)taken).Entry);
-                        var entries = await AppendBatchAsync(batch);
+                        IReadOnlyList<DiagnosticEntry> entries;
+                        try{entries=await AppendBatchAsync(batch);}catch{RecordDropped(batch.Count);throw;}
                         Volatile.Write(ref _lastError, null);
                         foreach (var entry in entries)
                         {
                             // <remarks>订阅者故障不影响已提交事务，也不阻止后续条目的通知。</remarks>
-                            try { EntryWritten?.Invoke(this, entry); }
+                            try { PublishEntry(entry); }
                             catch (Exception error) { Debug.WriteLine($"前端诊断日志通知失败：{error}"); }
                         }
                         break;
+                    case Query query:
+                        var page=await QueryCoreAsync(query.Filter,query.Export);Volatile.Write(ref _lastError,null);query.Completion.TrySetResult(page);
+                        break;
                     case Read read:
-                        read.Completion.TrySetResult(await ReadCoreAsync());
+                        var rows=await ReadCoreAsync();Volatile.Write(ref _lastError,null);read.Completion.TrySetResult(rows);
                         break;
                     case Clear clear:
                         await ClearCoreAsync();
@@ -168,12 +192,14 @@ public sealed class LoggerService : IAsyncDisposable
             }
             catch (Exception error)
             {
-                Volatile.Write(ref _lastError, error.Message);
+                Volatile.Write(ref _lastError, SafeDiagnostic.ExceptionSummary(error));
                 Debug.WriteLine($"前端诊断日志存储失败：{error}");
+                if(operation is Query query)query.Completion.TrySetException(error);
                 if (operation is Read read) read.Completion.TrySetException(error);
                 if (operation is Clear clear) clear.Completion.TrySetException(error);
             }
         }
+        await ReportDroppedAsync();
     }
 
     /// <summary>创建当前用户专用表，不读取或迁移系统库中的旧前端日志。</summary>
@@ -185,6 +211,7 @@ public sealed class LoggerService : IAsyncDisposable
         try
         {
             await connection.OpenAsync();
+            connection.CreateFunction<string,string,bool>("hm_contains",(text,query)=>text.Contains(query,StringComparison.OrdinalIgnoreCase),isDeterministic:true);
             if (!_initialized)
             {
                 await using var schema = connection.CreateCommand();

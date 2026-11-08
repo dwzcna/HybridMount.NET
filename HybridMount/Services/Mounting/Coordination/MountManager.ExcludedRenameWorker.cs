@@ -90,7 +90,7 @@ public sealed partial class MountManager
             var explicitReject=error is SourceConflictException or SourceRequestRejectedException or NotSupportedException;
             if(error is OperationCanceledException&&!uncertain){RenameChange(latest,x=>x with{Stage=x.RemoteMoved?"RemoteMoved":"Queued",CheckedUtc=null});return;}
             var state=uncertain&&!explicitReject?latest.MoveReceipt is null?"OutcomeUnknown":"Copied":error is SourceConflictException or NotSupportedException?"Conflict":"Failed";
-            RenameChange(latest,x=>x with{Stage=state,MoveStarted=x.RemoteMoved||x.MoveReceipt is not null||uncertain&&!explicitReject,RetryRequested=false,ReadOnlyRequested=false,Error=error.Message,IssueUtc=x.IssueUtc??DateTimeOffset.UtcNow,CheckedUtc=state is "OutcomeUnknown" or "Copied"&&!readingOutcome?null:DateTimeOffset.UtcNow});
+            RenameChange(latest,x=>x with{Stage=state,MoveStarted=x.RemoteMoved||x.MoveReceipt is not null||uncertain&&!explicitReject,RetryRequested=false,ReadOnlyRequested=false,Error=error.Message,IssueUtc=x.IssueUtc??DateTimeOffset.UtcNow,CheckedUtc=state is "OutcomeUnknown" or "Copied"&&!readingOutcome?null:DateTimeOffset.UtcNow},error);
             if(uncertain)InvalidateCapacity(root);
         }
     }

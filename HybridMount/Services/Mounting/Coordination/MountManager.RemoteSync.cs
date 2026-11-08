@@ -81,15 +81,15 @@ public sealed partial class MountManager
             catch(Exception error)
             {
                 root.Detection=root.Detection with{Mode=runtime.Engine.Mode,Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
-                if(error is SourceRescanRequiredException){runtime.RescanSoon=true;next=TimeSpan.FromSeconds(5);continue;}
+                if(error is SourceRescanRequiredException){_logger.QueueException("远端检测","Warning","远端持续变化，完整扫描将重试",error);runtime.RescanSoon=true;next=TimeSpan.FromSeconds(5);continue;}
                 if(error is RemoteChangeFailure{AuthenticationFailure:true} or SourceRequestRejectedException{HttpStatus:401 or 403} or SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Authentication or ConnectionFailureKind.Permission}){_logger.Queue("远端检测","Warning","远端认证或权限失败，已暂停至重新连接。");break;}
                 if(error is SourceConnectionException{Diagnostic.Kind:ConnectionFailureKind.Certificate})
-                {root.Detection=root.Detection with{Error=error.Message+" 自动检测已暂停，请修正后断开并重新连接。"};Notify();_logger.Queue("远端检测","Warning",root.Detection.Error);break;}
+                {root.Detection=root.Detection with{Error=error.Message+" 自动检测已暂停，请修正后断开并重新连接。"};Notify();_logger.QueueException("远端检测","Warning","证书失败，自动检测已暂停",error);break;}
                 failures++;next=TimeSpan.FromMinutes(Math.Clamp(Math.Pow(2,Math.Min(failures-1,4))*(0.9+Random.Shared.NextDouble()*0.2),1,15));
                 var retry=error is RemoteChangeFailure sync?sync.RetryAfter:(error as SourceRequestRejectedException)?.RetryAfter;
                 if(retry is {} delay&&delay>next)next=delay;
-                if(error is not SourceConnectionException connection)_logger.Queue("远端检测","Warning",error.Message);
-                else if(runtime.FailureLog.ShouldWrite(connection.Diagnostic,out var suffix))_logger.Queue("远端检测","Warning",connection.Message+suffix);
+                if(error is not SourceConnectionException connection)_logger.QueueException("远端检测","Warning","操作未完成",error);
+                else if(runtime.FailureLog.ShouldWrite(connection.Diagnostic,out var suffix))_logger.QueueException("远端检测","Warning","检测未完成"+suffix,connection);
             }
         }
     }
@@ -115,13 +115,19 @@ public sealed partial class MountManager
             try
             {
                 await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
-                await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);
+                try{await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);}
+                finally
+                {
+                    // 格式错误被引擎转为全量后不会抛出；即使后续全量失败，也先记录一次挂载会话降级。
+                    if(root.ChangeSession.Fallback is {} fallback)RecordStateDiagnostic("远端检测",root.Definition.Id,root.Definition.Id.ToString("N"),"RFC6578Fallback",true,fallback.OccurredUtc.UtcTicks.ToString(),
+                        description:"RFC 6578 响应异常，本次挂载会话已改用完整对账；降级时间UTC="+fallback.OccurredUtc.ToString("O"));
+                }
                 await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);
                 var checkpoint=_repository.RemoteCollections(root.Definition.Id,runtime.Engine.Scope).FirstOrDefault(x=>x.Path=="");
                 root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
                     PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
             }
-            catch{root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
+            catch(Exception error){if(error is not OperationCanceledException)_logger.QueueException("远端检测","Warning","远端检测未完成",error,root.Definition.Id.ToString("N"));root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
             finally{_remoteSlots.Release();}
         }
         finally{runtime.Serial.Release();}
@@ -129,14 +135,14 @@ public sealed partial class MountManager
     private IReadOnlyList<RemotePendingChange> RemotePendingFor(Runtime root)=>_repository.AllRemotePending(root.Definition.Id);
     private static MountOperationSnapshot RemoteTask(RemotePendingChange change,long bytes=0)=>new(change.Id,"remoteUpdate",change.State=="Pending"?"Queued":change.State,
         change.State=="Completed"?1:0,1,change.Error is null?[]:[new(change.Path,change.State,change.Error)],change.Error,change.MountId,change.Path,bytes,change.Entry?.Size??0,change.Entry?.IsDirectory,change.Path);
-    private RemotePendingChange SaveRemote(RemotePendingChange pending,bool retry=false)
+    private RemotePendingChange SaveRemote(RemotePendingChange pending,bool retry=false,Exception? failure=null)
     {
         lock(_remoteJournalLock)
         {
             var current=_repository.RemotePending(pending.MountId,pending.Scope).FirstOrDefault(x=>x.Id==pending.Id);
             if(!retry&&current?.State=="Canceled"&&pending.State is not("Canceled" or "Completed" or "Superseded"))return current;
             if(!StagingDiskSpace.IsWaiting(pending.State,pending.Error)&&_roots.TryGetValue(pending.MountId,out var root))root.RemoteSync?.StagingRetries.Reset(pending.Id);
-            _repository.SaveRemotePending(pending);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;
+            _repository.SaveRemotePending(pending);RecordStateDiagnostic("远端更新",pending.MountId,pending.Id,pending.State,pending.Error is not null&&pending.State is not("Completed" or "Canceled" or "Superseded"),DiagnosticVersion(pending.Scope+pending.Error),failure);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;
         }
     }
     private bool CancelRemoteChange(string id)

@@ -9,6 +9,7 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
     private readonly object _sync=new();
     private readonly Func<bool,CancellationToken,Task<RemoteCapacity>> _query;
     private readonly Action<RemoteCapacitySnapshot> _publish;
+    private readonly Action<Exception>? _failed;
     private readonly Func<DateTimeOffset> _now;
     private readonly CancellationTokenSource _stop;
     private RemoteCapacitySnapshot _snapshot;
@@ -17,8 +18,8 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
     private bool _stopping;
     private long _revision;
     public RemoteCapacitySession(IFileSource source,Action<RemoteCapacitySnapshot> publish,CancellationToken token,
-        RemoteCapacitySnapshot? previous=null,Func<DateTimeOffset>? now=null,Func<bool,CancellationToken,Task<RemoteCapacity>>? query=null)
-    {_query=query??((_,cancel)=>source.GetRemoteCapacityAsync(cancel));_publish=publish;_stop=CancellationTokenSource.CreateLinkedTokenSource(token);_snapshot=previous??new(RemoteCapacity.Unknown);_now=now??(()=>DateTimeOffset.UtcNow);}
+        RemoteCapacitySnapshot? previous=null,Func<DateTimeOffset>? now=null,Func<bool,CancellationToken,Task<RemoteCapacity>>? query=null,Action<Exception>? failed=null)
+    {_failed=failed;_query=query??((_,cancel)=>source.GetRemoteCapacityAsync(cancel));_publish=publish;_stop=CancellationTokenSource.CreateLinkedTokenSource(token);_snapshot=previous??new(RemoteCapacity.Unknown);_now=now??(()=>DateTimeOffset.UtcNow);}
     public bool IsStopping {get{lock(_sync)return _stopping;}}
     /// <summary>普通读取缓存五分钟；手动刷新和重连可强制查询，同时请求仍共用在途工作。</summary>
     public Task RefreshAsync(bool force=false,CancellationToken waiter=default)
@@ -64,6 +65,7 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
                     $"远端配额查询失败（{error.GetType().Name}），保留上次值。";
                 current=_snapshot=_snapshot with{IsRefreshing=false,Error=message};
             }
+            try{_failed?.Invoke(error);}catch{ /* 诊断不得改变容量状态。 */ }
             _publish(current);
         }
     }

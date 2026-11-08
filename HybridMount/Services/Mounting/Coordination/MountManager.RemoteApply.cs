@@ -39,7 +39,7 @@ public sealed partial class MountManager
                 // 已开始本地提交必须保留原阶段及证据，不能转为新下载或覆盖失败。
                 var state=latest.State is "Committing" or "Hydrating"?latest.State:error is SourceConflictException?"Conflict":"Waiting";
                 if(error is StagingSpaceException&&state=="Waiting")runtime.StagingRetries.Defer(latest.Id,DateTimeOffset.UtcNow);
-                SaveRemote(latest with{State=state,Error=error.Message});
+                SaveRemote(latest with{State=state,Error=error.Message},failure:error);
             }
             finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
         }

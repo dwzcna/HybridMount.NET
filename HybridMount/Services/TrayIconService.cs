@@ -123,7 +123,7 @@ internal sealed class TrayIconService : IDisposable
                 try { _registered = false; AddIcon(); }
                 catch (Exception error)
                 {
-                    LifecycleTraceService.Record("重新注册托盘图标失败", error.ToString());
+                    LifecycleTraceService.Record("重新注册托盘图标失败", error);
                     RestoreRequested?.Invoke();
                 }
                 return IntPtr.Zero;
@@ -138,7 +138,7 @@ internal sealed class TrayIconService : IDisposable
         }
         catch (Exception error)
         {
-            LifecycleTraceService.Record("托盘消息处理失败", error.ToString());
+            LifecycleTraceService.Record("托盘消息处理失败", error);
             return IntPtr.Zero;
         }
         return DefWindowProc(window, message, wParam, lParam);

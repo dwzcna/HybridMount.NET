@@ -8,17 +8,20 @@ internal static class Program
     private static int Main(string[] args)
     {
         // 维护入口必须先于 WinUI、单实例、托盘和任何挂载服务；无有效私有握手时立即退出。
-        if(ShellMaintenanceProcess.IsMaintenanceEntry()||args.Length>0&&args[0]=="--shell-maintenance")return ShellMaintenanceProcess.Run(args);
-        if(ThumbnailServer.IsEntry(args))return ThumbnailServer.Run(args);
+        if(ShellMaintenanceProcess.IsMaintenanceEntry()||args.Length>0&&args[0]=="--shell-maintenance")return Services.HostDiagnosticStore.Run("ShellMaintenance",()=>ShellMaintenanceProcess.Run(args));
+        if(ThumbnailServer.IsEntry(args))return Services.HostDiagnosticStore.Run("ShellServer",()=>ThumbnailServer.Run(args));
         if(args is ["--preview-worker"])
         {
-            var result=1;var thread=new Thread(()=>result=PreviewWorker.Run());thread.SetApartmentState(ApartmentState.MTA);thread.Start();thread.Join();return result;
+            var result=1;var thread=new Thread(()=>result=Services.HostDiagnosticStore.Run("PreviewWorker",PreviewWorker.Run));thread.SetApartmentState(ApartmentState.MTA);thread.Start();thread.Join();return result;
         }
+        return Services.HostDiagnosticStore.Run("Startup",()=>
+        {
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Microsoft.UI.Xaml.Application.Start(parameter=>
         {
             SynchronizationContext.SetSynchronizationContext(new Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()));
             _=new App();
         });return 0;
+        });
     }
 }

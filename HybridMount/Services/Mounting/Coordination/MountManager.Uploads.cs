@@ -76,7 +76,7 @@ public sealed partial class MountManager
             protocol.CapacityInvalidated+=root.CapacityObserver;
         }
         if(root.Source is not IUploadDiagnosticsSource source)return;
-        root.BaselineObserver=value=>{try{_repository.SaveBaseline(root.Definition.Id,value);}catch(Exception e){_logger.Queue("上传基线","Warning",e.Message);}};
+        root.BaselineObserver=value=>{try{_repository.SaveBaseline(root.Definition.Id,value);}catch(Exception e){_logger.QueueException("上传基线","Warning","操作未完成",e);}};
         root.WriteObserver=value=>_logger.Queue("协议写入","Warning",value);
         source.ContentBaseline+=root.BaselineObserver;source.WriteWarning+=root.WriteObserver;
     }
@@ -88,13 +88,13 @@ public sealed partial class MountManager
     }
     /// <summary>上传记录与普通任务共享任务页；持久阶段优先于旧任务历史的中断转换。</summary>
     private static MountOperationSnapshot UploadSnapshot(LocalUpload item)=>item.ToSnapshot();
-    private void PublishUpload(LocalUpload? item)
+    private void PublishUpload(LocalUpload? item,Exception? error=null)
     {if(item is null)return;item=_repository.Upload(item.Id)??item;
         if(_roots.TryGetValue(item.MountId,out var root)&&FileExclusionRules.Matches(root.Definition,item)&&FileExclusionRules.Pause(item)!=item)
             item=_repository.UpdateUpload(item.Id,FileExclusionRules.Pause)??item;
-        _repository.SaveOperation(UploadSnapshot(item));Notify();}
+        _repository.SaveOperation(UploadSnapshot(item));RecordUploadDiagnostic(item,error);Notify();}
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
-    private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change){var item=_repository.UpdateUpload(id,change);PublishUpload(item);return item;}
+    private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change,Exception? error=null){var item=_repository.UpdateUpload(id,change);PublishUpload(item,error);return item;}
     /// <summary>首次启用仅扫描本地元数据；不读取干净占位的正文，也不提交远端写入。</summary>
     public Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>ScanUploadChangesCoreAsync(id,cancel),token);
     private async Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesCoreAsync(Guid id,CancellationToken token)
@@ -180,7 +180,7 @@ public sealed partial class MountManager
                     var mapped=marker is null?index.ActivePath(target):index.ById(marker.EntryId);
                     ObserveExcludedRename(root,scan,target,LocalFileState.Read(targetPath),mapped,legacyRenames);
                 }
-                catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){incomplete=true;root.ExclusionError=error.Message;}
+                catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){incomplete=true;root.ExclusionError=error.Message;_logger.QueueException("排除扫描","Warning","排除改名证据核对未完成",error);}
             }
             void Scan(string directory)
             {
@@ -200,7 +200,7 @@ public sealed partial class MountManager
                         var entry=marker is null?index.ActivePath(relative):index.ById(marker.EntryId);
                         entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);
-                        try{ObserveExcludedRename(root,scan,relative,stamp,entry,legacyRenames);}catch(Exception error)when(error is IOException or UnauthorizedAccessException){incomplete=true;root.ExclusionError=error.Message;}
+                        try{ObserveExcludedRename(root,scan,relative,stamp,entry,legacyRenames);}catch(Exception error)when(error is IOException or UnauthorizedAccessException){incomplete=true;root.ExclusionError=error.Message;_logger.QueueException("排除扫描","Warning","排除改名证据核对未完成",error);}
                         if(IsNewObjectAtRenamedSource(root.Definition.Id,relative,stamp)&&prior?.ObservedStamp.Split(':')[0]!=stamp.Identity){prior=null;entry=null;}
                         var excluded=FileExclusionRules.Matches(root.Definition.ExclusionRules,relative,stamp.IsDirectory);
                         stamp=ReconcileFileExclusion(root,relative,stamp,excluded,token);
@@ -255,7 +255,7 @@ public sealed partial class MountManager
                         if(recursive&&stamp.IsDirectory)Scan(path);
                     }
                     catch(Exception e)when(e is FileNotFoundException or DirectoryNotFoundException){}
-                    catch(Exception e)when(e is IOException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.COMException){incomplete=true;_logger.Queue("上传扫描","Warning",e.Message);}
+                    catch(Exception e)when(e is IOException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.COMException){incomplete=true;_logger.QueueException("上传扫描","Warning","操作未完成",e);}
             }
             if(scan.IsFull)Scan(root.Definition.LocalPath);
             else foreach(var scope in scan.Scopes)
@@ -263,7 +263,7 @@ public sealed partial class MountManager
                 if(scope.Path.Length!=0)Visit(RelativePaths.ToLocal(root.Definition.LocalPath,scope.Path),scope.Recursive,true);
             }
             if(scan.IsFull&&!incomplete&&root.ExclusionMarkers is {} markers)
-                try{if(markers.HasMarks)markers.Prune(root.Definition);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){root.ExclusionError="排除标记日志收尾未完成："+error.Message;}
+                try{if(markers.HasMarks)markers.Prune(root.Definition);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){root.ExclusionError="排除标记日志收尾未完成："+error.Message;_logger.QueueException("排除标记","Warning","恢复记录收尾未完成",error);}
             if(scan.IsFull&&!incomplete)try{RenameJournal(root.Definition.Id).MarkLegacyChecked();}catch(IOException){RenameIntents(root.Definition.Id);}
             queue?.Completed(scan,DateTimeOffset.UtcNow,!incomplete);
             if(requireComplete&&incomplete)throw new IOException("部分本地条目无法读取元数据，首次确认尚未完成；请解除占用或权限问题后重新扫描。");

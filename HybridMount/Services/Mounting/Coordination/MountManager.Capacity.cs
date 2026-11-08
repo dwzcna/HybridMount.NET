@@ -38,7 +38,7 @@ public sealed partial class MountManager
             {
                 using var lease=await _capacities.EnterAsync(FileSourceFactory.CapacityWriteScope(definition),cancel).ConfigureAwait(false);
                 return await ReadCapacityAsync(lease,definition,source,force,cancel).ConfigureAwait(false);
-            });
+            },failed:error=>_logger.QueueException("配额查询","Warning","容量查询失败，保留上次值",error,definition.Id.ToString("N")));
             root.Capacity=capacity;
         }
         _=capacity.RefreshAsync(force:true);

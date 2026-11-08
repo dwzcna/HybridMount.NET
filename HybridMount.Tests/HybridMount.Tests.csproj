@@ -26,7 +26,7 @@
     <Compile Include="..\HybridMount\Services\WinRegisterService.cs" Link="Production\WinRegisterService.cs"/>
     <Compile Include="..\HybridMount\Services\LifecycleDiagnostics.cs" Link="Production\LifecycleDiagnostics.cs"/>
     <Compile Include="..\HybridMount\Services\ShutdownSequence.cs" Link="Production\ShutdownSequence.cs"/>
-    <Compile Include="..\HybridMount\Services\LoggerService.cs" Link="Production\LoggerService.cs"/>
+    <Compile Include="..\HybridMount\Services\LoggerService*.cs" Link="Production\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\Ipc*.cs" Link="Production\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\SingleInstanceService.cs"/>
     <Compile Include="..\HybridMount\ViewModels\**\*.cs" Link="Production\ViewModels\%(RecursiveDir)%(Filename)%(Extension)"/>

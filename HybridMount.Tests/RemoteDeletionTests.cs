@@ -71,7 +71,8 @@ public sealed class RemoteDeletionTests
         Assert.Equal("Failed",(await Refresh(test)).State);Assert.True(File.Exists(Path.Combine(test.Local,"文件.bin")));
         test.Dav.Server.Handler=request=>request.Method=="PROPFIND"&&request.Headers.GetValueOrDefault("Depth")=="0"&&Uri.UnescapeDataString(request.Target).Contains("文件.bin",StringComparison.Ordinal)?Task.FromResult(new HttpTestServer.Response(403,[])):handler(request);
         Assert.Equal("Failed",(await Refresh(test)).State);Assert.True(File.Exists(Path.Combine(test.Local,"文件.bin")));Assert.Equal(RemotePresence.Present,test.Repository.Entries(test.Id).Single(item=>item.SourcePath=="文件.bin").RemotePresence);
-        test.Dav.Server.Handler=handler;Assert.Equal("Completed",(await Refresh(test)).State);Assert.False(File.Exists(Path.Combine(test.Local,"文件.bin")));
+        test.Dav.Server.Handler=handler;var final=await Refresh(test);
+        Assert.True(final.State=="Completed",System.Text.Json.JsonSerializer.Serialize(new{Refresh=final,Entries=test.Repository.Entries(test.Id),Uploads=test.Repository.Uploads(test.Id)}));Assert.False(File.Exists(Path.Combine(test.Local,"文件.bin")));
     }
     /// <summary>共享占用失败保留文件，句柄关闭后刷新可重试，不主动下载正文。</summary>
     [Fact(Timeout=120000)]

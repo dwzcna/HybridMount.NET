@@ -80,6 +80,8 @@ public sealed class RemoteFallbackTests
         await test.Manager.SetRemoteDetectionAsync(test.Id,true,79,602);await test.Manager.DetectRemoteForTestsAsync(test.Id);
         await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));Assert.Equal(reports,test.Dav.Server.Requests.Count(x=>x.Method=="REPORT"));
         var diagnostic=await test.Manager.ReadDiagnosticsAsync(test.Id);Assert.Contains("降级时间：",diagnostic);
+        var logged=(await test.Logger.ReadAsync(new HybridMount.Models.Diagnostics.DiagnosticQuery("Warning",test.Id.ToString("N")))).Entries;
+        Assert.Single(logged,x=>x.Message.Contains("RFC6578Fallback",StringComparison.Ordinal));
         await test.Manager.SetRemoteDetectionAsync(test.Id,false,79,602);sync.Report=null;
         await test.Manager.SetRemoteDetectionAsync(test.Id,true,79,602);await test.Manager.DetectRemoteForTestsAsync(test.Id);Assert.Contains("增量",test.Manager.Mounts.Single().Detection!.Mode);
         sync.Report=(_,_)=>Bad(sync,"xml");await test.Manager.DetectRemoteForTestsAsync(test.Id);Assert.Equal(RemoteChangeSessionState.FallbackMode,test.Manager.Mounts.Single().Detection!.Mode);

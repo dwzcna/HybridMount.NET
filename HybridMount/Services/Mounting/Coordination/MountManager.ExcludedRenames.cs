@@ -20,9 +20,9 @@ public sealed partial class MountManager
     }
     private IEnumerable<ExcludedRenameIntent> RenameIntents()=>_roots.Keys.SelectMany(RenameIntents);
     private ExcludedRenameIntent? RenameIntent(string id)=>RenameIntents().FirstOrDefault(x=>x.Id==id);
-    private void PublishRename(ExcludedRenameIntent row){_repository.SaveOperation(row.Snapshot());Notify();}
-    private ExcludedRenameIntent RenameChange(ExcludedRenameIntent row,Func<ExcludedRenameIntent,ExcludedRenameIntent> change)
-    {var updated=RenameJournal(row.MountId).Update(row.Id,change)??throw new IOException("改名收尾记录不存在。");PublishRename(updated);return updated;}
+    private void PublishRename(ExcludedRenameIntent row,Exception? error=null){_repository.SaveOperation(row.Snapshot());RecordStateDiagnostic("排除改名",row.MountId,row.Id,row.Stage,row.Stage is "Failed" or "Conflict" or "OutcomeUnknown" or "Copied"&&row.Error is not null,DiagnosticVersion(row.Error),error);Notify();}
+    private ExcludedRenameIntent RenameChange(ExcludedRenameIntent row,Func<ExcludedRenameIntent,ExcludedRenameIntent> change,Exception? error=null)
+    {var updated=RenameJournal(row.MountId).Update(row.Id,change)??throw new IOException("改名收尾记录不存在。");PublishRename(updated,error);return updated;}
     private Task RenameCheckpoint(string stage,ExcludedRenameIntent row)=>ExcludedRenameCheckpointForTests?.Invoke(stage,row)??Task.CompletedTask;
     /// <summary>索引保留原云路径，改名日志拥有退出同步意图；新旧路径只阻挡相关代次。</summary>
     private bool RenameBlocksSource(Guid mount,string source){var rows=RenameIntents(mount);return _renameErrors.ContainsKey(mount)||rows.Any(x=>!x.Finished&&(x.SourcePath==source||(x.DestinationPath??x.LocalPath)==source));}

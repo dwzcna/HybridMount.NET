@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.41**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.42**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部；使用页面枚举和 Frame.Navigate 切换，采用内置淡入与上移动画，并保留原生返回历史。标题栏返回按钮与 Alt＋左方向键共用返回入口；无历史时按钮禁用，弹层打开时保持底层页面。五页缓存各自的草稿、选择和滚动。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -50,7 +50,7 @@ WebDAV 与 S3 连接、远端检测和读取失败时显示安全的阶段、TLS
 
 排除规则立即阻止上传并显示排除图标。未完整水合的占位暂缓原生 EXCLUDED 标记，保持仅联机且不为状态显示下载正文；正常读取完整后补标记。解除排除按同一文件身份恢复原固定意图。
 
-日志页提供筛选、复制、导出与清除，最近显示 100 条，保留最多 30 天／10,000 条。主题、窗口背景和关闭行为可以在设置中调整。
+日志页在保留记录中按级别、来源／内容及日期筛选，按页加载更早记录；复制当前显示行，导出完整筛选范围及版本、架构、UTC边界和未保存计数。保留最多30天／10,000条。业务失败、冲突、未知结果与恢复按任务关联记录，队列满或存储失败有持久摘要；生命周期按钮可打开独立证据目录。主题、窗口背景和关闭行为可以在设置中调整。
 
 生命周期诊断位于数据目录的 `Logs/lifecycle-*.jsonl` 和 `Logs/last-session.json`，保留最近 32 个会话；记录实际包身份、调试器状态、启动／退出阶段、取消原因及异常的类型、HRESULT 和安全堆栈，不保存异常原始消息或服务响应。正常退出记录 ExitCompleted；清理失败继续释放其他资源，并记录 ExitCompletedWithErrors。关联令牌已取消的读取按正常停止，HTTP 超时仍报告故障；已发送写入被取消保留结果待核对。缺少退出完成记录仅表示原因待定位，不能单凭 Visual Studio 的 `0xffffffff` 输出认定崩溃。通知合并和普通存在性查询不再通过重复抛出自有异常完成；SDK 自身已捕获的首次异常仍可能出现在调试输出中。
 
@@ -72,7 +72,7 @@ Explorer 继续通过 Windows 自定义存储提供程序属性发布同步问�
 
 Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64 / ARM64，主工程默认打包运行并提供“打包和发布”菜单。非打包构建使用脚本参数 `-Deployment Unpackaged`；两种部署共用这两个配置，输出按架构、配置、Packaged / Unpackaged 隔离。部署和清单生成逻辑集中于 `build/HybridMount.Packaging.targets`，主工程文件只保留编译、依赖及资源声明。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.41`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.41`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.42`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.42`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -95,7 +95,7 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.41.md](docs/Validation-0.0.9.41.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版验证细节及待测项目见 [docs/Validation-0.0.9.42.md](docs/Validation-0.0.9.42.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 本版真实自动同步验收可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

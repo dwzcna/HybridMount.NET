@@ -67,7 +67,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     {
         if(_disposed)return;
         try{var snapshots=_manager.Mounts;Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));Refreshed?.Invoke();}
-        catch(Exception error){Status=error.Message;}
+        catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
     {
@@ -137,7 +137,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         catch(Exception error){Report(error);}
         finally{_dialogBusy=false;if(!_disposed){Refresh();NotifyStateChanged();}}
     }
-    private void Report(Exception error){if(_disposed)return;Status=error.Message;_logger?.Queue("挂载","Error",error.GetType().Name);}
+    private void Report(Exception error){if(_disposed)return;Status=error.Message;_manager.ReportDiagnosticException("挂载","挂载页面操作未完成",error);}
     public Task SaveSelectedDetectionAsync()=>SelectedMountId is {} id?SaveDetectionAsync(id):Task.CompletedTask;
     public Task SaveDetectionAsync(Guid mountId)
     {
@@ -205,7 +205,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         if(id is null||IsStopping)return;
         try{await _manager.RefreshCapacityAsync(id.Value);}
         catch(OperationCanceledException)when(_manager.IsStopping) { }
-        catch(IOException) { }
+        catch(IOException error){_manager.ReportDiagnosticException("配额查询","容量查询未完成",error);}
         catch(Exception error){if(!_disposed)_logger?.Queue("配额查询","Warning",error.GetType().Name);}
     }
     public Task ConnectAsync()=>RunSelectedAsync(mount=>_manager.ConnectAsync(mount.Definition.Id));
