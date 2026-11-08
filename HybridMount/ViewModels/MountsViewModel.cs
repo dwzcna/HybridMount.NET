@@ -4,7 +4,7 @@ using HybridMount.Services.Mounting;
 namespace HybridMount.ViewModels;
 
 /// <summary>挂载页唯一状态源，按挂载拥有草稿、选择及操作防重入；释放不停止应用后台工作。</summary>
-public sealed class MountsViewModel : ObservableObject,IDisposable
+public sealed partial class MountsViewModel : ObservableObject,IDisposable
 {
     private readonly MountManager _manager;
     private readonly IUiDispatcher _dispatcher;
@@ -89,7 +89,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
     public Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,CancellationToken token)
         =>_manager.TestConnectionAsync(settings,credentials,token);
     /// <summary>新建或保存连接，应用拥有网络工作；持久化成功但连接失败时返回可重试的配置，校验失败仍抛出。</summary>
-    public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id,string name,string path,bool autoConnect,FileSourceConfiguration settings,SourceCredentials credentials)
+    public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id,string name,string path,bool autoConnect,FileSourceConfiguration settings,SourceCredentials credentials,IReadOnlyList<FileExclusionRule>? exclusions=null)
     {
         if(IsStopping)throw new OperationCanceledException("程序正在停止。",new CancellationToken(true));
         var busyId=id??Guid.Empty;
@@ -99,7 +99,8 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
         {
             MountDefinition saved;
             if(id is {} existing){await _manager.UpdateCredentialsAsync(existing,credentials,settings:settings);saved=_manager.Mounts.Single(x=>x.Definition.Id==existing).Definition;}
-            else saved=await _manager.AddAsync(name,path,autoConnect,source:settings,credentials:credentials);
+            else saved=await _manager.AddAsync(name,path,autoConnect,source:settings,credentials:credentials,exclusions:exclusions);
+            if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
             return new(saved,$"已连接 {saved.Name}。");
         }
         catch(OperationCanceledException)when(_manager.IsStopping){throw;}
@@ -107,6 +108,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
         {
             var saved=_manager.Mounts.FirstOrDefault(x=>id is {} existing?x.Definition.Id==existing:!before.Contains(x.Definition.Id)&&x.Definition.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase));
             if(saved is null||error is ArgumentException or NotSupportedException)throw;
+            if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
             Report(error);return new(saved.Definition,$"连接未完成：{error.Message}；已保存的配置保留，可编辑或重试。");
         }
         finally{_busyMounts.Remove(busyId);if(!_disposed){Refresh();NotifyStateChanged();}}
@@ -241,7 +243,7 @@ public sealed class MountsViewModel : ObservableObject,IDisposable
         try{_manager.Queue(id,clear?"clearAndRemove":"remove");Status="移除任务已提交，可在任务页查看进度和逐项结果。";}
         catch(Exception error){Report(error);}
     }
-    public void Dispose(){if(_disposed)return;_disposed=true;_manager.Changed-=Changed;}
+    public void Dispose(){if(_disposed)return;_disposed=true;_manager.Changed-=Changed;_exclusionDrafts.Clear();}
 }
 
 /// <summary>配置保存的实际结果；连接失败不冒充未保存，也不自动重试写入。</summary>

@@ -3,8 +3,11 @@ namespace HybridMount.Models.Mounting;
 /// <summary>可迁移的挂载配置；只保存用户选项，不包含挂载 ID、同步根身份或运行索引。</summary>
 /// <remarks>凭据仅供加密编解码及重新保存到 DPAPI；不得记录整个对象。</remarks>
 public sealed record MountBackupItem(string Name, string LocalPath, FileSourceConfiguration Source,
-    SourceCredentials Credentials, bool AutoConnect = true, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, SqsConfiguration? Sqs = null, SourceCredentials? SqsCredentials = null, bool CapacityAutoDetectEnabled = false, long? MaximumCapacityBytes = null)
+    SourceCredentials Credentials, bool AutoConnect = true, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, SqsConfiguration? Sqs = null, SourceCredentials? SqsCredentials = null, bool CapacityAutoDetectEnabled = false, long? MaximumCapacityBytes = null, IReadOnlyList<FileExclusionRule>? ExclusionRules = null)
 {
+    private readonly FileExclusionRuleList? _exclusionRules=ExclusionRules is null?null:new(ExclusionRules);
+    /// <summary>缺失为旧行为；设置时复制规则，列表值相同的配置仍按记录值相等。</summary>
+    public IReadOnlyList<FileExclusionRule>? ExclusionRules{get=>_exclusionRules;init=>_exclusionRules=value is null?null:new(value);}
     /// <summary>避免调试或日志展开记录中的凭据。</summary>
     public override string ToString() => "挂载配置备份条目";
 }

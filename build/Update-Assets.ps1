@@ -1,6 +1,6 @@
 # 从 SVG 母版导出应用、托盘和 MSIX 图形；仅依赖 Windows WPF，不访问网络。
 [CmdletBinding()]
-param()
+param([switch]$StatusIconsOnly)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationCore,PresentationFramework,WindowsBase
 $assetRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\HybridMount\Assets'))
@@ -94,6 +94,14 @@ function New-LogoPng([string]$name,[double]$width,[double]$height,[double]$logoS
     try{$encoder.Save($stream)}finally{$stream.Dispose()}
 }
 
+# 状态图标同样由仓库SVG导出；可单独生成，避免改动应用标识及既有二进制资源。
+$applicationSvg=$svg
+$statusReader=[Xml.XmlReader]::Create((Join-Path $assetRoot 'SyncExcluded.svg'),$settings)
+$svg=[Xml.XmlDocument]::new();$svg.XmlResolver=$null
+try{$svg.Load($statusReader)}finally{$statusReader.Dispose()}
+New-LogoPng 'SyncExcluded.png' 32 32 32
+$svg=$applicationSvg
+if($StatusIconsOnly){Write-Host '排除状态图标已重新生成。';return}
 foreach ($scale in @(100,125,150,200,400)) {
     New-LogoPng "HybridMountSquare44.scale-$scale.png" (44*$scale/100) (44*$scale/100) (44*$scale/100)
     New-LogoPng "HybridMountSquare150.scale-$scale.png" (150*$scale/100) (150*$scale/100) (112*$scale/100)

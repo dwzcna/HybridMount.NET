@@ -83,7 +83,10 @@ public sealed partial class MountManager
     /// <summary>上传记录与普通任务共享任务页；持久阶段优先于旧任务历史的中断转换。</summary>
     private static MountOperationSnapshot UploadSnapshot(LocalUpload item)=>item.ToSnapshot();
     private void PublishUpload(LocalUpload? item)
-    {if(item is null)return;item=_repository.Upload(item.Id)??item;_repository.SaveOperation(UploadSnapshot(item));Notify();}
+    {if(item is null)return;item=_repository.Upload(item.Id)??item;
+        if(_roots.TryGetValue(item.MountId,out var root)&&FileExclusionRules.Matches(root.Definition,item)&&FileExclusionRules.Pause(item)!=item)
+            item=_repository.UpdateUpload(item.Id,FileExclusionRules.Pause)??item;
+        _repository.SaveOperation(UploadSnapshot(item));Notify();}
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
     private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change){var item=_repository.UpdateUpload(id,change);PublishUpload(item);return item;}
     /// <summary>首次启用仅扫描本地元数据；不读取干净占位的正文，也不提交远端写入。</summary>
@@ -115,7 +118,7 @@ public sealed partial class MountManager
     private bool RetryUploadCore(string id)
     {
         if(IsStopping)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
-        if(!UploadRules.CanRetry(item))return false;
+        if(!UploadRules.CanRetry(item)||FileExclusionRules.Matches(root.Definition,item)&&!UploadRules.InFlight(item))return false;
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);
         ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,NextAttemptUtc=null,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
     }
@@ -126,6 +129,7 @@ public sealed partial class MountManager
         ThrowIfStopping();var original=_repository.Upload(id)??throw new IOException("上传记录不存在。");var root=Root(original.MountId);
         if(original.IsDirectory||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前条目不能另存副本。");
         destination=RelativePaths.Normalize(destination);if(destination.Length==0||destination.Equals(original.SourcePath,StringComparison.OrdinalIgnoreCase))throw new ArgumentException("请填写不同的新文件相对路径。");
+        if(FileExclusionRules.Matches(root.Definition,original)||FileExclusionRules.Matches(root.Definition.ExclusionRules,destination))throw new IOException("文件或副本目标匹配排除规则，请先修改规则或文件名。");
         var copy=_repository.CreateUploadCopy(id,destination,ValidateUploadSnapshot);
         PublishUpload(copy);root.Uploads?.Wake();return copy.Id;
     }
@@ -174,7 +178,18 @@ public sealed partial class MountManager
                         records.TryGetValue(relative,out var prior);
                         var entry=marker is null?index.ActivePath(relative):index.ById(marker.EntryId);
                         entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
-                        var stamp=LocalFileState.Read(path);var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
+                        var stamp=LocalFileState.Read(path);
+                        var excluded=FileExclusionRules.Matches(root.Definition.ExclusionRules,relative,stamp.IsDirectory);
+                        stamp=ReconcileFileExclusion(root,relative,stamp,excluded,token);
+                        if(prior is not null)prior=_repository.Upload(prior.Id);
+                        var clean=info is not null&&info.Value.Info.InSyncState==1&&info.Value.Info.ModifiedSize==0&&entry is {Deleted:false,Protected:false}&&entry.LocalPath==relative;
+                        if(excluded)
+                        {
+                            if(prior is not null&&FileExclusionRules.Pause(prior)!=prior)ChangeUpload(prior.Id,FileExclusionRules.Pause);
+                            if(!clean&&entry is not null&&!entry.Protected)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true});
+                            return;
+                        }
+                        if(prior?.State=="Excluded")prior=ChangeUpload(prior.Id,FileExclusionRules.Resume);
                         if(index.DeletedAncestor(relative) is not null)
                         {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(recursive&&stamp.IsDirectory)Scan(path);return;}
                         // 修复旧版把同名替换误建为新增的未发送意图；只补历史基线，不清除失败、取消或重排同代内容。
@@ -224,6 +239,8 @@ public sealed partial class MountManager
             {
                 if(scope.Path.Length!=0)Visit(RelativePaths.ToLocal(root.Definition.LocalPath,scope.Path),scope.Recursive,true);
             }
+            if(scan.IsFull&&!incomplete&&root.ExclusionMarkers is {} markers)
+                try{if(markers.HasMarks)markers.Prune(root.Definition);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){root.ExclusionError="排除标记日志收尾未完成："+error.Message;}
             queue?.Completed(scan,DateTimeOffset.UtcNow,!incomplete);
             if(requireComplete&&incomplete)throw new IOException("部分本地条目无法读取元数据，首次确认尚未完成；请解除占用或权限问题后重新扫描。");
             foreach(var item in scan.MissingCandidates(_repository.Uploads(root.Definition.Id),seen))

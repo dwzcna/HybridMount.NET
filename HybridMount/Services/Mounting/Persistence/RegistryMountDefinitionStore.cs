@@ -21,7 +21,7 @@ internal sealed class RegistryMountDefinitionStore(string? registryPath) : IMoun
                 if (child?.GetValue("Definition") is not string json) continue;
                 var definition = JsonSerializer.Deserialize<MountDefinition>(json) ?? throw new IOException("挂载配置为空。");
                 MountDefinitionRules.Validate(definition,name);
-                result.Add(definition);
+                result.Add(definition with{ExclusionRules=definition.ExclusionRules is null?null:Array.AsReadOnly(FileExclusionRules.Validate(definition.ExclusionRules))});
             }
             return result;
         }

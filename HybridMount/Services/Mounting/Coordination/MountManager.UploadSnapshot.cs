@@ -17,6 +17,7 @@ public sealed partial class MountManager
             {
                 if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
                 var current=_repository.Upload(queued.Id);
+                if(current is not null&&FileExclusionRules.Matches(root.Definition,current)){ChangeUpload(current.Id,FileExclusionRules.Pause);return null;}
                 if(current is null||!current.IsCopy||current.CancelRequested||current.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity"))return null;
                 if(current.SnapshotPath is not null)
                 {
@@ -37,6 +38,7 @@ public sealed partial class MountManager
         {
             definition=root.Definition;source=root.Source;session=root.Session;Validate();
             var current=_repository.Upload(queued.Id);if(current is null||current.CancelRequested)return false;
+            if(FileExclusionRules.Matches(definition,current)){ChangeUpload(current.Id,FileExclusionRules.Pause);return false;}
             if(current.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity")||current.Error==UploadRules.TypeConflictMessage)return false;
             path=RelativePaths.ToLocal(definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(definition,path);
             stamp=LocalFileState.Read(path);UploadRules.ValidateTypes(current,stamp);

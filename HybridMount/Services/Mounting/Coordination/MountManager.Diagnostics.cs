@@ -25,6 +25,8 @@ public sealed partial class MountManager
             }
         }
         catch(Exception error){text.Append("移除注册只读核验失败：").Append(error.Message).Append("；HRESULT=0x").AppendLine(error.HResult.ToString("X8"));}
+        text.AppendLine(FileExclusionStatus(id));
+        text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));
         text.Append("挂载缩略图开关：").AppendLine(root.Definition.ThumbnailsEnabled?"已开启":"已关闭");
         text.Append("远端检测模式：").AppendLine(snapshot.Detection?.Mode??"尚未检测");

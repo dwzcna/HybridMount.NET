@@ -24,6 +24,7 @@ public static class UploadAttentionRules
     public static LocalUpload Normalize(LocalUpload item,bool recovering=false)
     {
         var a=item.Attention;
+        if(item.State=="Excluded")return item; // 排除是暂停，保留原问题及发生时间，不当作成功或再次重试。
         if(item.CancelRequested||item.State is "Completed" or "Canceled" or "Ignored")
             return a is {ResolvedUtc:null}?item with{Attention=a with{ResolvedUtc=DateTimeOffset.UtcNow,LastDisplayState=item.State,ShellState="ClearPending",ShellError=null}}:item;
         var failure=IsFailureState(item)&&!(a?.RetryRequested==true&&string.IsNullOrEmpty(item.Error));

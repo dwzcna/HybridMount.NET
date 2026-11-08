@@ -28,7 +28,7 @@ public sealed class CapacityBackupTests
         var restored=JsonSerializer.Deserialize<MountDefinition>(JsonSerializer.Serialize(values))!;Assert.False(CapacityRules.Enabled(restored));
     }
     [Fact]
-    public async Task Import_saves_capacity_and_reexports_v4_without_connection_or_root_registration()
+    public async Task Import_saves_capacity_and_reexports_v5_without_connection_or_root_registration()
     {
         await using var fixture=new DavFixture();var area=Path.Combine(fixture.Area,"backup");Directory.CreateDirectory(area);var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
         var repository=new MountRepository(Path.Combine(area,"data"),registry);await using var logger=new LoggerService(Path.Combine(area,"log.db"));await using var manager=new MountManager(repository,logger);
@@ -38,7 +38,7 @@ public sealed class CapacityBackupTests
             var item=Item() with{Source=fixture.Options,MaximumCapacityBytes=1000000};var result=await manager.ImportConfigurationsAsync([new(item,local)]);Assert.Equal("Saved",Assert.Single(result.Results).State);
             var saved=manager.Mounts.Single().Definition;Assert.Equal(item.MaximumCapacityBytes,saved.MaximumCapacityBytes);Assert.False(saved.CapacityAutoDetectEnabled);Assert.Equal(MountRegistrationStage.NotRegistered,saved.RegistrationStage);
             Assert.Empty(fixture.Server.Requests);Assert.Null(MountPathGuard.ReadRoot(local));Assert.Empty(repository.Uploads());
-            var file=Path.Combine(area,"backup.hmconfig");await manager.ExportConfigurationsAsync([saved.Id],Password,file);var restored=await manager.ReadConfigurationBackupAsync(file,Password);Assert.Equal(4,restored.SchemaVersion);Assert.Equal(item.MaximumCapacityBytes,restored.Mounts.Single().MaximumCapacityBytes);Assert.Empty(fixture.Server.Requests);
+            var file=Path.Combine(area,"backup.hmconfig");await manager.ExportConfigurationsAsync([saved.Id],Password,file);var restored=await manager.ReadConfigurationBackupAsync(file,Password);Assert.Equal(5,restored.SchemaVersion);Assert.Empty(restored.Mounts.Single().ExclusionRules??[]);Assert.Equal(item.MaximumCapacityBytes,restored.Mounts.Single().MaximumCapacityBytes);Assert.Empty(fixture.Server.Requests);
         }
         finally{await manager.DisposeAsync();Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);}
     }

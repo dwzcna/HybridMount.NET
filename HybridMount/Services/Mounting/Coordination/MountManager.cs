@@ -22,6 +22,8 @@ public sealed partial class MountManager : IAsyncDisposable
         public CloudMountSession? Session;
         public IFileSource? Source;
         public UploadRuntime? Uploads;
+        public FileExclusionMarkerStore? ExclusionMarkers;
+        public string? ExclusionError;
         public PinIntentRuntime? Pins;
         public bool PinIntentsEnabled=true;
         public RemoteSyncRuntime? RemoteSync;
@@ -156,13 +158,13 @@ public sealed partial class MountManager : IAsyncDisposable
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))
             try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.Queue("恢复挂载","Error",error.Message); }
     }
-    public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true)
-        =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload),token);
-    private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload)
+    public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true,IReadOnlyList<FileExclusionRule>? exclusions=null)
+        =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults())),token);
+    private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload,IReadOnlyList<FileExclusionRule> exclusions)
     {
         MountDefinition definition;
         await _configurationGate.WaitAsync(token).ConfigureAwait(false);
-        try { definition = SaveNewMountCore(name, directory, autoConnect, source, credentials, false, token); }
+        try { definition = SaveNewMountCore(name, directory, autoConnect, source, credentials, false, token,exclusions:exclusions); }
         finally { _configurationGate.Release(); }
         Notify(); await ConnectOwnedAsync(definition.Id, token).ConfigureAwait(false); return Root(definition.Id).Definition;
     }
@@ -506,13 +508,16 @@ public sealed partial class MountManager : IAsyncDisposable
                 var localOnly=targets.SelectMany(target=>Directory.Exists(target)?Walk(root.Definition,target):new[]{target})
                     .Where(path=>!path.Equals(root.Definition.LocalPath,StringComparison.OrdinalIgnoreCase)&&!selected.Any(entry=>RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath).Equals(path,StringComparison.OrdinalIgnoreCase))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 job.Snapshot=job.Snapshot with{Total=selected.Length+localOnly.Length};Save(job);
-                foreach(var local in localOnly)Result(job,local,"Skipped","普通本地文件或未知项，已保留。");
+                foreach(var local in localOnly)Result(job,local,"Skipped",FileExclusionRules.Matches(root.Definition.ExclusionRules,local,Directory.Exists(local))?
+                    "文件已排除；固定或释放空间前请先解除对应规则。":"普通本地文件或未知项，已保留。");
                 foreach(var entry in selected)
                 {
                     job.Cancel.Token.ThrowIfCancellationRequested(); var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
                     try
                     {
                         MountPathGuard.ValidateOperation(root.Definition,path);
+                        if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath,entry.IsDirectory))
+                        {Result(job,path,"Skipped","文件已排除；固定或释放空间前请先解除对应规则。");continue;}
                         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
                         if(info is null || _repository.HasPendingRemote(id,entry.SourcePath) || entry.RemotePresence==RemotePresence.Deleted || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
@@ -654,7 +659,11 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     private void Result(Job job,string path,string status,string message)
     {job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,Results=job.Snapshot.Results.Append(new(path,status,message)).ToArray()};Save(job);}
-    private void Update(Job job,string state,string? error=null){job.Snapshot=job.Snapshot with{State=state,Error=error};Save(job);}
+    /// <summary>实例级持久化屏障；仅隔离回归使用，不通过界面或IPC配置。</summary>
+    internal Action<MountOperationSnapshot>? OperationSavingForTests {get;set;}
+    /// <summary>终态先落库再发布，防止观察到完成后清理历史与迟到落库竞争而重新出现。</summary>
+    private void Update(Job job,string state,string? error=null)
+    {var next=job.Snapshot with{State=state,Error=error};OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();}
     private void Save(Job job){_repository.SaveOperation(job.Snapshot);Notify();}
     public MountOperationSnapshot? GetOperation(string id)=>_repository.Upload(id) is {} upload?UploadSnapshot(upload):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id);
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
@@ -712,6 +721,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>!entry.Deleted&&!entry.Protected&&!entry.IsDirectory&&entry.RemotePresence!=RemotePresence.Deleted&&!_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)).OrderBy(entry=>root.Session.LastRead(entry.Id)))
                 {
                     token.ThrowIfCancellationRequested();if(freed>=needed)break;
+                    if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath))continue;
                     var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
                     try
                     {

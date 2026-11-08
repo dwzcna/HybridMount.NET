@@ -7,6 +7,8 @@ namespace HybridMount.Services.Mounting;
 /// <summary>Windows SDK 26100 CFAPI ABI；结构使用原生八字节对齐，回调不可向原生传播异常。</summary>
 public static class CloudFilesNative
 {
+    /// <summary>SDK CF_PIN_STATE_EXCLUDED；仅提供程序用于排除上传，不代表同步完成。</summary>
+    internal const uint PinStateExcluded=3;
     [StructLayout(LayoutKind.Sequential)] public struct BasicInfo { public long CreationTime, LastAccessTime, LastWriteTime, ChangeTime; public uint FileAttributes; }
     [StructLayout(LayoutKind.Sequential)] public struct FsMetadata { public BasicInfo Basic; public long FileSize; }
     [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct PlaceholderCreateInfo

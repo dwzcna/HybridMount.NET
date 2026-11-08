@@ -90,6 +90,7 @@ public sealed partial class MountManager
                 if(root.RemovalRequested||root.Definition.RemovalPending||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
                 if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))throw new CapacitySettingsChangedException();
                 if(root.Source!=source||root.Session!=session||root.Definition!=definition)throw new UploadPreparationChangedException();
+                if(FileExclusionRules.Matches(root.Definition,item)){ChangeUpload(item.Id,FileExclusionRules.Pause);throw new UploadExcludedException();}
                 var current=_repository.Upload(item.Id);
                 if(current is null||current.CancelRequested||current.State!="Prepared"||current.Generation!=item.SnapshotGeneration||current.SnapshotGeneration!=item.SnapshotGeneration||
                     current.SnapshotPath!=item.SnapshotPath||current.SnapshotAttemptId is not null||current.ExpectedVersion!=item.ExpectedVersion||current.BaselineSha256!=item.BaselineSha256)throw new UploadPreparationChangedException();
@@ -118,6 +119,7 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(root.RemovalRequested||root.Session is null||root.Source is null)throw new OperationCanceledException(token);
             if(capacitySettings is not null&&!CapacityRules.SameSettings(root.Definition,capacitySettings))return null;
             var current=_repository.Upload(prepared.Id);if(current is null)return null;
+            if(FileExclusionRules.Matches(root.Definition,current)){ChangeUpload(current.Id,FileExclusionRules.Pause);return null;}
             if(_repository.HasPendingRemote(mountId,current.SourcePath))throw new SourceConflictException("远端更改尚待核对，未发送旧基线上传。");
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(mountId),current.SourcePath) is not null)throw new SourceConflictException(UploadRules.RemoteDeletedMessage);
             if(current.CancelRequested||(!root.SchedulingEnabled&&!current.ExplicitRequest)||current.State!="Prepared"||current.SnapshotAttemptId is not null||current.SnapshotStamp!=prepared.SnapshotStamp||current.SnapshotGeneration!=prepared.SnapshotGeneration)return null;

@@ -51,13 +51,16 @@ public static class CloudRootRegistration
         MountPathGuard.ValidateOperation(mount,mount.LocalPath);
     }
     /// <summary>在已有根上更新同一注册描述符；不注销、不转换文件或改变根身份。旧WinRT查询不可见时用本程序的原策略重建描述符。</summary>
-    internal static async Task EnsureIssueDefinitionAsync(MountDefinition mount,CancellationToken token)
+    internal static Task EnsureIssueDefinitionAsync(MountDefinition mount,CancellationToken token)=>EnsureDefinitionAsync(mount,CloudUploadIssueProperty.PropertyId,"同步问题",token);
+    /// <summary>只增加排除状态的系统属性定义；保留已有根策略和其他定义，不注册菜单、缩略图或COM处理器。</summary>
+    internal static Task EnsureExclusionDefinitionAsync(MountDefinition mount,CancellationToken token)=>EnsureDefinitionAsync(mount,CloudItemStateProperty.ExclusionId,"上传排除",token);
+    private static async Task EnsureDefinitionAsync(MountDefinition mount,int id,string title,CancellationToken token)
     {
         if(!IsOwnedRoot(mount))throw new IOException("不能为未注册的根发布同步问题。");
         var info=StorageProviderSyncRootManager.GetCurrentSyncRoots().FirstOrDefault(x=>x.Id==Id(mount));
-        if(info?.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudUploadIssueProperty.PropertyId)==true)return;
+        if(info?.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==id)==true)return;
         info??=await CreateDescriptorAsync(mount);
-        AddIssueDefinition(info);
+        if(!info.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==id))info.StorageProviderItemPropertyDefinitions.Add(new(){Id=id,DisplayNameResource=title});
         token.ThrowIfCancellationRequested();MountPathGuard.ValidateOperation(mount,mount.LocalPath);
         StorageProviderSyncRootManager.Register(info);
         MountPathGuard.ValidateOperation(mount,mount.LocalPath);
@@ -81,6 +84,8 @@ public static class CloudRootRegistration
     {
         if(!info.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudUploadIssueProperty.PropertyId))
             info.StorageProviderItemPropertyDefinitions.Add(new(){Id=CloudUploadIssueProperty.PropertyId,DisplayNameResource="同步问题"});
+        if(!info.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudItemStateProperty.ExclusionId))
+            info.StorageProviderItemPropertyDefinitions.Add(new(){Id=CloudItemStateProperty.ExclusionId,DisplayNameResource="上传排除"});
     }
     public static void Unregister(MountDefinition mount)
     {

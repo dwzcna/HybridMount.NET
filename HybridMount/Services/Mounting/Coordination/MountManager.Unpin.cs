@@ -22,7 +22,7 @@ public sealed partial class MountManager
                 foreach(var entry in entries.Where(e=>e.Materialized&&!e.IsDirectory&&!e.Deleted&&!e.Protected&&e.RemotePresence!=RemotePresence.Deleted))
                 {
                     token.ThrowIfCancellationRequested();
-                    if(protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;
+                    if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath)||protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;
                     try
                     {
                         if(root.Session.CompletePendingUnpin(entry) is not {} bytes)continue;

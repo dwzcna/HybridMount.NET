@@ -76,6 +76,21 @@ public sealed class CompletedTaskHistoryTests
         finally{await manager.DisposeAsync();}
     }
     [Fact(Timeout=30000)]
+    public async Task ClearDuringTerminalPersistenceCannotSeeUncommittedCompletionOrResurrectHistory()
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false);using var release=new ManualResetEventSlim();var held=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        test.Manager.OperationSavingForTests=snapshot=>{if(snapshot.Operation=="refresh"&&snapshot.State=="Completed"){held.TrySetResult();if(!release.Wait(TimeSpan.FromSeconds(10)))throw new TimeoutException("terminal barrier");}};
+        var id=test.Manager.Queue(test.Id,"refresh");
+        try
+        {
+            await held.Task.WaitAsync(TimeSpan.FromSeconds(10));Assert.NotEqual("Completed",test.Manager.GetOperation(id)!.State);
+            await test.Manager.ClearCompletedOperationsAsync();
+        }
+        finally{release.Set();}
+        Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,id)).State);await test.Manager.ClearCompletedOperationsAsync();
+        Assert.DoesNotContain(test.Manager.Operations,x=>x.Id==id);
+    }
+    [Fact(Timeout=30000)]
     public async Task Clearing_completed_live_job_does_not_restore_it_from_the_memory_overlay()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);

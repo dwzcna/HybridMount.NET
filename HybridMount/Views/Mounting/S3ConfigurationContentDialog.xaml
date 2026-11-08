@@ -1,6 +1,6 @@
 <ContentDialog x:Class="HybridMount.Views.Mounting.S3ConfigurationContentDialog"
                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views">
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:vm="using:HybridMount.ViewModels">
     <Grid MaxHeight="640" MinWidth="360" MaxWidth="520">
         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
@@ -28,15 +28,36 @@
                     <CheckBox x:Name="HttpField" Content="允许明文 HTTP（仅可信测试环境）"/>
                     <ToggleSwitch x:Name="AutoConnectField" Header="随程序启动连接" IsOn="True"/>
                 </StackPanel></UserControl>
+                <UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
+                    <TextBlock Text="排除文件" FontWeight="SemiBold"/>
+                    <ListView x:Name="ExclusionList" SelectionMode="None" MaxHeight="220" HorizontalContentAlignment="Stretch">
+                        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/></Style></ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate><DataTemplate x:DataType="vm:FileExclusionRuleDraft">
+                            <Grid ColumnSpacing="8" Padding="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
+                                <CheckBox IsChecked="{x:Bind Enabled,Mode=TwoWay}" ToolTipService.ToolTip="启用规则" AutomationProperties.Name="启用规则"/>
+                                <ComboBox Grid.Column="1" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.Name="匹配方式"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
+                                <TextBox Grid.Column="2" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" PlaceholderText="文件名文本" AutomationProperties.Name="匹配文本"/>
+                                <Button Grid.Column="3" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" ToolTipService.ToolTip="删除规则" AutomationProperties.Name="删除规则"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
+                            </Grid>
+                        </DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="添加规则" Click="AddExclusionRule"/>
+                        <Button Content="添加默认规则" Click="AddDefaultExclusionRules"/>
+                        <Button x:Name="SaveExclusionsButton" Content="保存排除规则" Click="SaveExclusions"/>
+                    </StackPanel>
+                </StackPanel></UserControl>
                 <UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
                     <TextBlock Text="容量上限" FontWeight="SemiBold"/>
-                    <ToggleSwitch x:Name="CapacityAuto" Header="自动识别容量" Toggled="CapacityModeChanged"/>
+                    <ToggleSwitch x:Name="CapacityAuto" Header="自动从服务器信息替代" Toggled="CapacityModeChanged"/>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                         <TextBox x:Name="MaximumField" Header="手动最大容量（留空不限）" TextChanged="CapacityTextChanged"/>
                         <ComboBox x:Name="CapacityUnit" Grid.Column="1" Header="单位" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
                     </Grid>
-                    <Button x:Name="SaveCapacityButton" Content="保存容量设置" Click="SaveCapacity"/>
-                    <Button x:Name="RecheckButton" Content="重新核实容量" Click="RecheckCapacity"/>
+                    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock Text="保存容量设置" TextWrapping="Wrap" TextAlignment="Center"/></Button>
+                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock Text="从服务器抓取容量信息" TextWrapping="Wrap" TextAlignment="Center"/></Button>
+                    </Grid>
                     <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind views:TextVisibility.ForText(CapacityDescription.Text),Mode=OneWay}"/>
                     <TextBlock Text="同步与预览" FontWeight="SemiBold"/>
                     <ToggleSwitch x:Name="ThumbnailToggle" Header="缩略图（实验性）" Toggled="ThumbnailChanged"/>

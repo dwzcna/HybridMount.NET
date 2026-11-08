@@ -32,6 +32,8 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
                 AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;
                 LoadProtocol(existing,model.ReadCredentials(existing.Id),editable);SettingsFields.Visibility=Visibility.Visible;
             }
+            ExclusionList.ItemsSource=model.ExclusionDraft(existing?.Id,_kind);
+            SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
             Title=(existing is null?"新增":"设置 · ")+(existing?.Name??(_kind==FileSourceKind.S3?"S3 挂载":"WebDAV 挂载"));
             PrimaryButtonText=existing is null?"创建并连接":"保存连接并重连";SecondaryButtonText="测试连接";CloseButtonText="关闭";
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
@@ -48,7 +50,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
         if(_existing is not null&&mount is null){CancelForShutdown();return;}
         var busy=_submitting||_picking||_testing is not null||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
-        ConnectionFields.IsEnabled=!busy;SettingsFields.IsEnabled=!busy;
+        ExclusionFields.IsEnabled=!busy;ConnectionFields.IsEnabled=!busy;SettingsFields.IsEnabled=!busy;
         IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
         if(mount is null)return;
         var settings=mount.Definition;var capacity=_model.CapacitySettingsDraft(settings);var detection=_model.Draft(settings);_loading=true;
@@ -57,15 +59,19 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             CapacityAuto.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;CapacityAuto.IsOn=capacity.Automatic;
             MaximumField.Text=capacity.Text;CapacityUnit.SelectedIndex=capacity.Unit=="TB"?1:0;
             MaximumField.IsEnabled=CapacityUnit.IsEnabled=!capacity.Automatic;
-            CapacityDescription.Text=mount.CapacityDisplay;RecheckButton.IsEnabled=mount.IsConnected&&CapacityRules.Enabled(settings);
+            CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);RecheckButton.IsEnabled=mount.IsConnected&&CapacityRules.Enabled(settings);
             ThumbnailToggle.Visibility=_model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=_model.CanConfigureThumbnails?mount.ThumbnailDisplay:"";
             RemoteAuto.IsOn=detection.Enabled;IncrementalField.Value=detection.Incremental;FullField.Value=detection.Full;
             IncrementalField.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
-            DetectionDescription.Text=mount.RemoteDetectionDisplay;
+            DetectionDescription.Text=MountsViewModel.DetectionSummary(mount);
             StatusText.Text=_model.Status;
         }
         finally{_loading=false;}
     }
+    private void AddExclusionRule(object sender,RoutedEventArgs args){if(!Stopped)_model.AddExclusionRule(_existing?.Id,_kind);}
+    private void AddDefaultExclusionRules(object sender,RoutedEventArgs args){if(!Stopped)_model.AddDefaultExclusionRules(_existing?.Id,_kind);}
+    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&sender is FrameworkElement{Tag:FileExclusionRuleDraft row})_model.RemoveExclusionRule(_existing?.Id,_kind,row);}
+    private async void SaveExclusions(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
     private void CaptureCapacity(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateCapacityDraft(mount.Id,CapacityAuto.IsOn,MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}
     private void CaptureDetection(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateDraft(mount.Id,RemoteAuto.IsOn,IncrementalField.Value,FullField.Value);}
     private void CapacityTextChanged(object sender,TextChangedEventArgs args)=>CaptureCapacity();
@@ -111,7 +117,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         var deferral=args.GetDeferral();_submitting=true;Refresh();ErrorBar.IsOpen=false;
         try
         {
-            var result=await _model.SaveConnectionAsync(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials());
+            var result=await _model.SaveConnectionAsync(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),exclusions:_existing is null?_model.ReadExclusionRules(null,_kind):null);
             if(!Stopped){CreatedMount=result.Mount;ResultMessage=result.Message;args.Cancel=false;}
         }
         catch(OperationCanceledException)when(_model.IsStopping){args.Cancel=false;}

@@ -39,6 +39,33 @@ public sealed class PageViewModelTests
         }
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }
+
+    [Fact]
+    public async Task ExclusionDraftsPreserveCustomRowsAcrossRefreshAndFailedSave()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        Assert.Empty(vm.ExclusionDraft(a.Id,FileSourceKind.WebDav));Assert.Equal(4,vm.ExclusionDraft(null,FileSourceKind.WebDav).Count);
+        vm.AddExclusionRule(a.Id,FileSourceKind.WebDav);var row=vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Single();row.Text="custom";row.MatchIndex=1;row.Enabled=false;
+        vm.AddDefaultExclusionRules(a.Id,FileSourceKind.WebDav);vm.AddDefaultExclusionRules(a.Id,FileSourceKind.WebDav);Assert.Equal(5,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Count);
+        vm.SelectedMountId=b.Id;vm.RefreshNow();vm.SelectedMountId=a.Id;Assert.Same(row,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav)[0]);
+        area.Store.FailSave=true;await vm.SaveExclusionsAsync(a.Id);Assert.Null(area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.ExclusionRules);Assert.Same(row,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav)[0]);
+        area.Store.FailSave=false;await vm.SaveExclusionsAsync(a.Id);Assert.Equal(5,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.ExclusionRules!.Count);Assert.Null(area.Manager.Mounts.Single(x=>x.Definition.Id==b.Id).Definition.ExclusionRules);
+        vm.AddExclusionRule(a.Id,FileSourceKind.WebDav);await vm.SaveExclusionsAsync(a.Id);Assert.Equal(5,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.ExclusionRules!.Count);
+        var draft=vm.ExclusionDraft(a.Id,FileSourceKind.WebDav);vm.Dispose();vm.AddExclusionRule(a.Id,FileSourceKind.WebDav);Assert.Equal(6,draft.Count);
+    }
+    [Fact]
+    public async Task CapacityAndDetectionSettingsDescribeSavedSourceAndKeepFallback()
+    {
+        await using var area=new Area();var manual=area.A with{MaximumCapacityBytes=10_000_000_000};var capacity=new RemoteCapacitySnapshot(new("scope",7_500_000_000,2_500_000_000,10_000_000_000));
+        var mount=new MountSnapshot(manual,"已连接","",Capacity:capacity,Detection:new("RFC 6578 增量检测"));
+        Assert.Equal("可用7.5GB/总10.0GB，基于用户输入",MountsViewModel.CapacitySummary(mount));
+        Assert.Equal("可用7.5GB/总10.0GB，基于服务器信息",MountsViewModel.CapacitySummary(mount with{Definition=manual with{CapacityAutoDetectEnabled=true}}));
+        Assert.Equal("可用—/总不限，基于用户输入",MountsViewModel.CapacitySummary(mount with{Definition=area.A,Capacity=null}));
+        Assert.DoesNotContain("RFC 6578 增量检测",MountsViewModel.DetectionSummary(mount));
+        Assert.Contains("本次已停用",MountsViewModel.DetectionSummary(mount with{Detection=new("完整对账（RFC 6578 响应异常，本次已停用）",Error:"invalid href")}));
+        Assert.Contains("invalid href",MountsViewModel.DetectionSummary(mount with{Detection=new("完整对账",Error:"invalid href")}));
+        Assert.Contains("保存失败",MountsViewModel.CapacitySummary(mount with{Capacity=capacity with{Error="保存失败"}}));
+    }
     [Theory]
     [InlineData(false,false)]
     [InlineData(true,false)]

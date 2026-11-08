@@ -25,7 +25,7 @@ public sealed partial class MountManager
                 var scan=runtime.Scans.Take(DateTimeOffset.UtcNow,runtime.TakeScanRequest(),path=>LocalWriteStampCache.Read(RelativePaths.ToLocal(root.Definition.LocalPath,path)));
                 if(scan is not null)await ScanLocalUploadsAsync(root,token,batch:scan).ConfigureAwait(false);
                 var candidates=_repository.Uploads(root.Definition.Id).Where(x=>
-                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
                 var now=DateTimeOffset.UtcNow;var item=UploadRules.NextUpload(candidates,now);
                 if(item is null)
                 {
@@ -45,13 +45,14 @@ public sealed partial class MountManager
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         lock(runtime.Sync){if(runtime.PropertyPath is not null)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
-        LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current));
+        LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current));
         try
         {
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
             if(prepared.State=="OutcomeUnknown"){await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
             if(prepared.State=="RemoteCommitted"){await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
             if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest))return;
+            await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             await UploadCheckpointAsync("BeforePrepare",prepared).ConfigureAwait(false);
             prepared=await PrepareUploadAsync(root,prepared,token).ConfigureAwait(false);
             if(prepared is null)return;preparing=false;
@@ -59,6 +60,7 @@ public sealed partial class MountManager
             capacity=await EnterUploadCapacityAsync(root,prepared,token).ConfigureAwait(false);
             await _uploadSlots.WaitAsync(token).ConfigureAwait(false);transferSlot=true;
             await PrepareUploadDestinationAsync(root,prepared,token,capacity.Definition).ConfigureAwait(false);
+            await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             if(!prepared.IsDirectory)await root.Source!.PrepareUploadAsync(prepared.SourcePath,new(prepared.ExpectedVersion,prepared.BaselineSha256),prepared.Total,token).ConfigureAwait(false);
             SourceEntry receipt;
             if(prepared.IsDirectory)
@@ -87,6 +89,7 @@ public sealed partial class MountManager
             await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);
         }
         catch(UploadPreparationChangedException){}
+        catch(UploadExcludedException){}
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x);}
         catch(StagingSpaceException error)when(preparing){Fail(x=>StagingDiskSpace.Wait(x,error,DateTimeOffset.UtcNow));}
@@ -106,7 +109,7 @@ public sealed partial class MountManager
     private void HandleUploadFailure(string id,Exception error,bool preparing,CancellationToken stopping,Func<Func<LocalUpload,LocalUpload>,LocalUpload?>? change=null)
     {
         LocalUpload? Update(Func<LocalUpload,LocalUpload> update)=>change is null?ChangeUpload(id,update):change(update);
-        var current=_repository.Upload(id);if(current is null)return;
+        var current=_repository.Upload(id);if(current is null||current.State=="Excluded")return;
         if(current.State=="RemoteCommitted")Update(x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
         else if(error is SourceRequestRejectedException)Update(x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
         else if(UploadRules.IsPermanentConnectionFailure(error)&&(error is not SourceOutcomeUnknownException||current.State!="Sending"))Update(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});

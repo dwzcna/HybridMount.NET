@@ -29,7 +29,14 @@ public sealed partial class MountManager
             if(root.Pins is not null||!root.PinIntentsEnabled||root.Session is null||root.RemovalRequested||root.Definition.RemovalPending||IsStopping)return;
             var runtime=new PinIntentRuntime(root.Session,_stop.Token);root.Pins=runtime;runtime.Session.PinWorkCompleted+=runtime.Wake;
             var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.Attributes|NotifyFilters.FileName|NotifyFilters.DirectoryName};
-            watcher.Changed+=(_,_)=>runtime.Wake();watcher.Created+=(_,_)=>runtime.Wake();watcher.Deleted+=(_,_)=>runtime.Wake();watcher.Renamed+=(_,_)=>runtime.Wake();watcher.Error+=(_,_)=>runtime.Wake();
+            // 普通文件沿用原内容监控；只有排除文件的属性变化才额外请求上传扫描以恢复系统标记。
+            watcher.Changed+=(_,change)=>
+            {
+                runtime.Wake();
+                if(FileExclusionRules.Matches(root.Definition.ExclusionRules,change.Name??"")&&root.Uploads is {} uploads)
+                {uploads.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow);uploads.RequestScan();}
+            };
+            watcher.Created+=(_,_)=>runtime.Wake();watcher.Deleted+=(_,_)=>runtime.Wake();watcher.Renamed+=(_,_)=>runtime.Wake();watcher.Error+=(_,_)=>runtime.Wake();
             runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Wake();runtime.Work=Task.Run(()=>PinIntentLoopAsync(root,runtime));
         }
     }
@@ -59,10 +66,17 @@ public sealed partial class MountManager
                 {
                     if(!ReferenceEquals(root.Pins,runtime)||!ReferenceEquals(root.Session,runtime.Session)||root.RemovalRequested||root.Definition.RemovalPending)break;
                     var entries=_repository.Entries(root.Definition.Id);
+                    foreach(var excluded in entries.Where(x=>x.Materialized&&!x.IsDirectory&&!x.Deleted&&FileExclusionRules.Matches(root.Definition.ExclusionRules,x.LocalPath)))
+                        try
+                        {
+                            if(LocalFileMetadata.TryRead(RelativePaths.ToLocal(root.Definition.LocalPath,excluded.LocalPath)) is not null)
+                                ReconcileFileExclusion(root,excluded.LocalPath,LocalFileState.Read(RelativePaths.ToLocal(root.Definition.LocalPath,excluded.LocalPath)),true,token);
+                        }
+                        catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){root.ExclusionError="系统排除标记未完成："+error.Message;}
                     var protectedPaths=_repository.Uploads(root.Definition.Id).Where(x=>x.State!="Completed").Select(x=>x.LocalPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     foreach(var entry in entries.Where(x=>x.Materialized&&!x.IsDirectory&&!x.Deleted&&!x.Protected&&x.RemotePresence!=RemotePresence.Deleted))
                     {
-                        if(protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;
+                        if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath)||protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;
                         try
                         {
                             var intent=runtime.Session.ReadPinIntent(entry);
