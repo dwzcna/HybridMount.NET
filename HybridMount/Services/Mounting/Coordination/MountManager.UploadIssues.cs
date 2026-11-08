@@ -65,7 +65,7 @@ public sealed partial class MountManager
                 {
                     runtime=root.Uploads;
                     if(runtime is not null)lock(runtime.Sync)
-                    {if(runtime.CurrentId is not null||runtime.PropertyPath is not null)continue;runtime.PropertyPath=item.LocalPath;reserved=true;}
+                    {if(runtime.CurrentId is not null||runtime.PropertyPath is not null||runtime.ConflictWaiters>0)continue;runtime.PropertyPath=item.LocalPath;reserved=true;}
                 }
                 // 缺失文件无需调用Shell；只有已解决的问题才能结束清理，未解决原因继续保留。
                 if(!MountPathGuard.TryValidateOperation(root.Definition,RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath)))
@@ -95,6 +95,7 @@ public sealed partial class MountManager
                     journal=accepted?saved?.Attention:null;return accepted;
                 },(before,after)=>
                 {
+                    root.ConflictMetadata.Record(item.LocalPath,before,after);
                     _repository.UpdateUpload(item.Id,current=>current.Generation!=item.Generation||current.Attention!=journal?current:current with
                     {
                         ObservedStamp=current.ObservedStamp==before.Key||a.ShellOriginalStamp==current.ObservedStamp&&!UploadRules.ContentChanged(current.ObservedStamp,before)?after.Key:current.ObservedStamp,
@@ -113,7 +114,7 @@ public sealed partial class MountManager
             finally
             {
                 if(reserved&&runtime is not null)lock(runtime.Sync)runtime.PropertyPath=null;
-                root.Gate.Release();if(notify is not null)CloudFilesNative.NotifyItemUpdated(notify);if(notify is not null||updated)Notify();
+                root.Gate.Release();if(reserved)runtime?.PulseIdle();if(notify is not null)CloudFilesNative.NotifyItemUpdated(notify);if(notify is not null||updated)Notify();
             }
         }
     }

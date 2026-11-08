@@ -154,7 +154,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public async Task<bool> ResolveConflictAsync(bool useLocal)
     {
         if(!(useLocal?CanResolveWithLocal:CanResolveWithRemote)||_comparison is not {} compared||_comparisonCancel is null)return false;
-        _conflictBusy=true;_conflictStatus=useLocal?"正在冻结本地内容并提交条件上传…":"正在备份本地、下载并核验远端内容…";NotifyConflict();
+        _conflictBusy=true;_conflictStatus=useLocal?"正在等待当前任务完成，随后冻结本地内容并提交条件上传…":"正在等待当前任务完成，随后备份本地、下载并核验远端内容…";NotifyConflict();
         try{var result=await _manager.ResolveConflictAsync(compared,useLocal,_comparisonCancel.Token);if(!_disposed){Status=result;_conflictStatus=result;}return true;}
         catch(OperationCanceledException){if(!_disposed)_conflictStatus="处理已停止；已保存的备份和恢复阶段保留。";return false;}
         catch(Exception error){if(!_disposed)_conflictStatus=error.Message;return false;}

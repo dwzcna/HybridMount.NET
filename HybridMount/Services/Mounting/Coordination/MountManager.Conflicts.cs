@@ -60,11 +60,13 @@ public sealed partial class MountManager
         try
         {
             token.ThrowIfCancellationRequested();
+            var currentUpload=upload is null?null:_repository.Upload(upload.Id);
             if(root.Definition!=definition||root.Session!=session||root.Source!=source||root.RemovalRequested||root.Definition.RemovalPending||
-                upload is not null&&_repository.Upload(upload.Id)!=upload||_repository.ConflictPendingJson(definition.Id,path)!=pending||
+                upload is not null&&!SameConflictUpload(root,upload,currentUpload)||_repository.ConflictPendingJson(definition.Id,path)!=pending||
                 _repository.Entries(definition.Id).FirstOrDefault(x=>entry is null?x.SourcePath==path:x.Id==entry.Id)!=entry)
                 throw new SourceConflictException("核对期间会话、索引或任务变化，请重新核对。");
-            var absolute=RelativePaths.ToLocal(definition.LocalPath,path);if(stamp is not null&&LocalFileState.Read(absolute).Key!=stamp.Key)throw new SourceConflictException("核对期间本地文件变化，请重新核对。");
+            var absolute=RelativePaths.ToLocal(definition.LocalPath,path);
+            if(stamp is not null){var current=LocalFileState.Read(absolute);if(!root.ConflictMetadata.Allows(path,stamp.Key,current.Key))throw new SourceConflictException("核对期间本地文件变化，请重新核对。");stamp=current;}upload=currentUpload;
             var common=localError.Length!=0?localError:remoteError;
             if(common.Length==0&&(stamp!.IsDirectory||remote!.IsDirectory||entry?.IsDirectory==true))common="文件／目录类型冲突需先另存处理，本版仅直接替换普通文件。";
             var related=_repository.Uploads(definition.Id).Where(x=>x.Id!=upload?.Id&&UploadRules.Unfinished(x)&&MountRepository.ConflictRelated(x.SourcePath,path)).ToArray();
@@ -88,15 +90,44 @@ public sealed partial class MountManager
         }
         finally{root.Gate.Release();}
     }
-    private void ValidateConflict(Runtime root,ConflictComparison comparison)
+    /// <summary>忽略问题展示字段，但正文戳只能沿已核验的本程序元数据变化更新，其他上传状态保持严格相等。</summary>
+    private static bool SameConflictUpload(Runtime root,LocalUpload? expected,LocalUpload? current)
+        =>expected is null?current is null:current is not null&&
+          expected with{Attention=current.Attention,ObservedStamp=current.ObservedStamp,SnapshotStamp=current.SnapshotStamp}==current&&
+          root.ConflictMetadata.Allows(expected.LocalPath,expected.ObservedStamp,current.ObservedStamp)&&root.ConflictMetadata.Allows(expected.LocalPath,expected.SnapshotStamp,current.SnapshotStamp);
+    private ConflictComparison ValidateConflict(Runtime root,ConflictComparison comparison)
     {
         if(root.Definition!=comparison.Definition||root.Session!=comparison.Session||root.Source!=comparison.Source||root.RemovalRequested||root.Definition.RemovalPending||IsStopping)
             throw new SourceConflictException("挂载连接或设置变化，请重新核对。");
-        if(comparison.Upload is not null&&_repository.Upload(comparison.Upload.Id)!=comparison.Upload||comparison.Upload is null&&_repository.Uploads(comparison.Definition.Id).Any(x=>!x.IsCopy&&x.SourcePath==comparison.Path)||
+        var currentUpload=comparison.Upload is null?null:_repository.Upload(comparison.Upload.Id);
+        if(comparison.Upload is not null&&!SameConflictUpload(root,comparison.Upload,currentUpload)||comparison.Upload is null&&_repository.Uploads(comparison.Definition.Id).Any(x=>!x.IsCopy&&x.SourcePath==comparison.Path)||
             _repository.ConflictPendingJson(comparison.Definition.Id,comparison.Path)!=comparison.PendingJson||_repository.Entries(comparison.Definition.Id).FirstOrDefault(x=>comparison.Entry is null?x.SourcePath==comparison.Path:x.Id==comparison.Entry.Id)!=comparison.Entry)
             throw new SourceConflictException("任务、索引或远端事件变化，请重新核对。");
         var path=RelativePaths.ToLocal(comparison.Definition.LocalPath,comparison.Path);MountPathGuard.ValidateOperation(comparison.Definition,path);
-        if(comparison.Stamp is null||LocalFileState.Read(path).Key!=comparison.Stamp.Key)throw new SourceConflictException("本地文件在确认后变化，未覆盖。");
+        var currentStamp=LocalFileState.Read(path);
+        if(comparison.Stamp is null||!root.ConflictMetadata.Allows(comparison.Path,comparison.Stamp.Key,currentStamp.Key))throw new SourceConflictException("本地文件在确认后变化，未覆盖。");
+        return comparison.Rebased(currentUpload,currentStamp);
+    }
+    /// <summary>按既有Serial→根锁顺序等待当前文件完成；等待期间释放根锁，且优先于新上传和属性发布。</summary>
+    private async Task<ConflictComparison> ReserveConflictPathAsync(Runtime root,UploadRuntime uploads,ConflictComparison comparison,CancellationToken token)
+    {
+        lock(uploads.Sync)uploads.ConflictWaiters++;
+        try
+        {
+            while(true)
+            {
+                Task idle;await root.Gate.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    token.ThrowIfCancellationRequested();if(root.Uploads!=uploads)throw new IOException("上传队列已变化，请重新连接后核对。");
+                    var authorized=ValidateConflict(root,comparison);
+                    lock(uploads.Sync){if(uploads.CurrentId is null&&uploads.PropertyPath is null){uploads.PropertyPath=comparison.Path;return authorized;}idle=uploads.IdleChanged.Task;}
+                }
+                finally{root.Gate.Release();}
+                await idle.WaitAsync(token).ConfigureAwait(false);
+            }
+        }
+        finally{lock(uploads.Sync)uploads.ConflictWaiters--;uploads.PulseIdle();}
     }
     /// <summary>两个直接选择的实际执行入口；调用方必须传入本次比较，不接受裸路径或新的远端版本。</summary>
     public Task<string> ResolveConflictAsync(ConflictComparison comparison,bool useLocal,CancellationToken token=default)
@@ -110,12 +141,13 @@ public sealed partial class MountManager
         try
         {
             if(remoteRuntime is not null){await remoteRuntime.Serial.WaitAsync(token).ConfigureAwait(false);serial=true;}
+            if(uploads is null)throw new IOException("上传队列尚未就绪，请重新连接。");
+            comparison=await ReserveConflictPathAsync(root,uploads,comparison,token).ConfigureAwait(false);reserved=true;
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                token.ThrowIfCancellationRequested();ValidateConflict(root,comparison);
+                token.ThrowIfCancellationRequested();comparison=ValidateConflict(root,comparison);
                 if(root.Uploads!=uploads||root.RemoteSync!=remoteRuntime||uploads is null)throw new IOException("上传队列尚未就绪，请重新连接。");
-                lock(uploads.Sync){if(uploads.CurrentId is not null||uploads.PropertyPath is not null)throw new IOException("当前挂载仍有文件任务执行，请稍后重试。");uploads.PropertyPath=comparison.Path;reserved=true;}
                 var id=Guid.NewGuid().ToString("N");var directory=ConflictDirectory(comparison.Definition.Id,id);var entry=comparison.Entry??new(Guid.NewGuid().ToString("N"),comparison.Path,comparison.Path,comparison.Remote!.Version,false);
                 var recovery=new ConflictResolution(id,useLocal?"Local":"Remote","Preparing",comparison.Remote!,comparison.Stamp!,entry,comparison.PendingJson,Path.Combine(directory,"local.snapshot"),PreviousRecoveryPath:comparison.Upload?.Resolution is {Phase:"Committing"} prior?prior.PreviousRecoveryPath??prior.BackupPath:null);
                 var previous=comparison.Upload??new(Guid.NewGuid().ToString("N"),comparison.Definition.Id,comparison.Path,comparison.Path,false,comparison.Stamp!.Key,0,"Conflict",DateTimeOffset.UtcNow,entry.Id,comparison.Entry?.Version);
@@ -176,7 +208,7 @@ public sealed partial class MountManager
         finally
         {
             if(!published&&stagedUpload.Length!=0)DeleteUploadSnapshot(stagedUpload);
-            if(reserved&&uploads is not null){lock(uploads.Sync)if(uploads.PropertyPath==comparison.Path)uploads.PropertyPath=null;uploads.Wake();}
+            if(reserved&&uploads is not null){lock(uploads.Sync)if(uploads.PropertyPath==comparison.Path)uploads.PropertyPath=null;uploads.PulseIdle();uploads.Wake();}
             if(serial)remoteRuntime!.Serial.Release();Notify();
         }
     }

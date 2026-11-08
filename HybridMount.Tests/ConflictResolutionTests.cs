@@ -185,5 +185,40 @@ public sealed class ConflictResolutionTests
         finally{release.TrySetResult();}
         Assert.False(await comparing);Assert.False(vm.BeginCopy());vm.EndDialog();
     }
+    [Theory(Timeout=90000)]
+    [InlineData(false,false)][InlineData(true,false)][InlineData(false,true)]
+    public async Task OneChoiceWaitsForUnrelatedUploadAndCanCancelWithoutAnIntent(bool useLocal,bool cancelWaiting)
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false);var original=await Conflict(test);var compared=await test.Manager.CompareConflictAsync(original.Id);
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"other.txt"),"unrelated upload");await test.Manager.ScanUploadChangesAsync(test.Id);
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        test.Manager.UploadCheckpointForTests=async (phase,item)=>{if(phase=="BeforePrepare"&&item.LocalPath=="other.txt"){entered.TrySetResult();await release.Task;}};
+        using var cancel=new CancellationTokenSource();Task<string>? resolving=null;
+        try
+        {
+            await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await entered.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            resolving=test.Manager.ResolveConflictAsync(compared,useLocal,cancel.Token);await Task.Delay(80);Assert.False(resolving.IsCompleted);
+            if(cancelWaiting){cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>resolving);Assert.Null(test.Repository.Upload(original.Id)!.Resolution);}
+        }
+        finally{release.TrySetResult();}
+        if(cancelWaiting)return;
+        await resolving!.WaitAsync(TimeSpan.FromSeconds(30));
+        if(useLocal)await test.Wait("文件.bin",bytes:Encoding.UTF8.GetBytes("local choice"));
+        Assert.Equal("Completed",test.Repository.Upload(original.Id)!.State);
+        var puts=test.Dav.Server.Requests.Count(x=>x.Method=="PUT"&&Uri.UnescapeDataString(x.Target).Split('?')[0].EndsWith("/文件.bin",StringComparison.Ordinal));Assert.Equal(useLocal?1:0,puts);
+    }
+    [Theory(Timeout=90000)]
+    [InlineData(false,false)][InlineData(false,true)][InlineData(true,false)]
+    public async Task OwnIssueMetadataDoesNotRequireAnotherChoiceButExternalSameSizeEditDoes(bool externalEdit,bool useLocal)
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false);var original=await Conflict(test);var compared=await test.Manager.CompareConflictAsync(original.Id);
+        await test.Manager.PublishUploadIssuesAsync();Assert.Equal("Published",test.Repository.Upload(original.Id)!.Attention!.ShellState);
+        if(externalEdit)
+        {
+            var path=Path.Combine(test.Local,"文件.bin");var write=File.GetLastWriteTimeUtc(path);await File.WriteAllTextAsync(path,"local edited");File.SetLastWriteTimeUtc(path,write);
+            await Assert.ThrowsAsync<SourceConflictException>(()=>test.Manager.ResolveConflictAsync(compared,false));Assert.Equal("local edited",await File.ReadAllTextAsync(path));Assert.Null(test.Repository.Upload(original.Id)!.Resolution);
+        }
+        else{await test.Manager.ResolveConflictAsync(compared,useLocal);if(useLocal)await test.Wait("文件.bin",bytes:Encoding.UTF8.GetBytes("local choice"));Assert.Equal("Completed",test.Repository.Upload(original.Id)!.State);Assert.Equal(useLocal?"local choice":"remote choice",await File.ReadAllTextAsync(Path.Combine(test.Local,"文件.bin")));}
+    }
     private sealed class InlineDispatcher:IUiDispatcher{public bool TryEnqueue(Action action){action();return true;}}
 }

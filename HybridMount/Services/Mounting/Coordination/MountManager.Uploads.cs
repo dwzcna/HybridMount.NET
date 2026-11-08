@@ -18,6 +18,10 @@ public sealed partial class MountManager
         public Action<LocalRenameNotice>? LocalRenameCompleted;
         public CancellationTokenSource? Request;
         public string? CurrentId,PropertyPath;
+        public int ConflictWaiters;
+        public TaskCompletionSource IdleChanged=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        /// <summary>状态释放后广播给等待取舍和调度器，不抢占上传消费用的Signal。</summary>
+        public void PulseIdle(){TaskCompletionSource previous;lock(Sync){previous=IdleChanged;IdleChanged=new(TaskCreationOptions.RunContinuationsAsynchronously);}previous.TrySetResult();}
         public Task Work=Task.CompletedTask;
         public int Dirty=1;private int _stopping,_disposed;
         public readonly LocalUploadScanQueue Scans=new();

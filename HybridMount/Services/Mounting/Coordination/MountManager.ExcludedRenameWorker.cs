@@ -11,9 +11,9 @@ public sealed partial class MountManager
             !(x.Stage=="WaitingUpload"&&x.UploadId is {} id&&_repository.Upload(id) is {} upload&&UploadRules.InFlight(upload)));
         if(row is null)return false;
         await _uploadSlots.WaitAsync(token).ConfigureAwait(false);using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
-        lock(runtime.Sync){runtime.CurrentId=row.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
+        lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0){_uploadSlots.Release();return false;}runtime.CurrentId=row.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         try{await RunExcludedRenameAsync(root,row,request.Token).ConfigureAwait(false);}
-        finally{Task cancellation;lock(runtime.Sync){runtime.CurrentId=null;runtime.Request=null;cancellation=runtime.RequestCancellation;}await cancellation.ConfigureAwait(false);_uploadSlots.Release();}
+        finally{Task cancellation;lock(runtime.Sync){runtime.CurrentId=null;runtime.Request=null;cancellation=runtime.RequestCancellation;}await cancellation.ConfigureAwait(false);_uploadSlots.Release();runtime.PulseIdle();}
         return true;
     }
     /// <summary>跨会话、账户或根身份不沿用原改名授权；只有同一连接作用域才能收尾。</summary>

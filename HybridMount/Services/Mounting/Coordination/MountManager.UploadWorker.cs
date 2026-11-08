@@ -22,6 +22,8 @@ public sealed partial class MountManager
             foreach(var item in _repository.Uploads(root.Definition.Id).Where(x=>x.State=="Sending"))ChangeUpload(item.Id,x=>x with{State="OutcomeUnknown",Error="上次请求已发出，恢复后先核对远端。",LastCheckedUtc=null});
             while(!token.IsCancellationRequested)
             {
+                Task? idle;lock(runtime.Sync)idle=runtime.PropertyPath is not null||runtime.ConflictWaiters>0?runtime.IdleChanged.Task:null;
+                if(idle is not null){await idle.WaitAsync(token).ConfigureAwait(false);continue;}
                 var scan=runtime.Scans.Take(DateTimeOffset.UtcNow,runtime.TakeScanRequest(),path=>LocalWriteStampCache.Read(RelativePaths.ToLocal(root.Definition.LocalPath,path)));
                 if(scan is not null)await ScanLocalUploadsAsync(root,token,batch:scan).ConfigureAwait(false);
                 if(await TryRunExcludedRenameAsync(root,runtime,token).ConfigureAwait(false))continue;
@@ -45,7 +47,7 @@ public sealed partial class MountManager
     private async Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
     {
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
-        lock(runtime.Sync){if(runtime.PropertyPath is not null)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
+        lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
         LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current));
         try
@@ -104,7 +106,7 @@ public sealed partial class MountManager
             {if(!receiptSaved&&sendingStarted)capacity.Invalidate();capacity.Dispose();}
             if(transferSlot)_uploadSlots.Release();
             Task canceled;lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;canceled=runtime.RequestCancellation;}
-            await canceled.ConfigureAwait(false);
+            await canceled.ConfigureAwait(false);runtime.PulseIdle();
         }
     }
     /// <summary>上传任务所有者统一落库失败阶段；退出取消与已发送的未知结果优先，真实瞬时拒绝按持久退避调度。</summary>

@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.39**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.40**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部；使用页面枚举和 Frame.Navigate 切换，采用内置淡入与上移动画，并保留原生返回历史。标题栏返回按钮与 Alt＋左方向键共用返回入口；无历史时按钮禁用，弹层打开时保持底层页面。五页缓存各自的草稿、选择和滚动。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -19,6 +19,8 @@
 移除失败或取消后保留模式、根身份、精确注册备份与实际阶段，重启不会自动重放删除；再次选择相同方式继续。内容完成后只继续注销和 Explorer 入口清理，通过当前包与真实注册视图核验后才移除配置。挂载页“遗留挂载”可发现卸载后的原生根或仅剩的 Shell 入口；仅剩入口时保留目录和文件。已经删除的内容不会因取消而恢复。
 
 挂载设置提供排除文件列表，支持文件名包含、前缀、后缀匹配，可逐项启用、添加和删除。新建挂载默认排除包含 `~`、包含 `$`、`.bak` 后缀及 `-` 开头的文件；已有挂载和旧备份导入保持原行为，可手动添加默认规则。排除只停止上传，目录和远端读取保持；解除后恢复原本允许自动上传的工作，失败、冲突和未知结果保留原保护。系统排除标记优先于固定、释放空间；匹配文件通过系统属性发布“已排除（不上传）”，解除排除后清除本程序的对应状态。状态图标使用原生DLL中的多尺寸ICO资源，实际Explorer显示仍列为待测，详见[验收记录](docs/Validation-0.0.9.36.md)。普通文件保持原文件形态；标记或图标发布失败时，仍禁止上传并在保存结果及完整诊断报告。
+
+任务页处理文件冲突时，一次选择会等待当前文件任务完成，等待可取消；不需要因其他上传占用而重复点击。本程序发布状态图标的已核验元数据变化不会要求重复选择；正文、远端版本、连接或相关事务确实变化时仍需重新核对。原本地内容保留恢复备份，条件写入和结果待核对保护保持。
 
 文件从非排除名称改成排除名称时，例如 `123.txt → 123.bak`，已有云端版本会按原版本条件同步改名，禁止覆盖已有目标；S3移动保留历史版本。随后自动补齐缺失内容，保留本地未上传修改，并将完整文件保留为普通本地排除文件。后续本地修改不再上传；远端再次变化时保留本地并在任务页提示冲突。没有已确认云端映射的文件仅停止上传。目标重名、能力不足或移动结果无法确认时保留问题，可查看详情、只读重新核对、重试或取消收尾；取消不撤销已完成的云端步骤。单纯修改规则不会批量改名云端文件。
 
@@ -68,7 +70,7 @@ Explorer 继续通过 Windows 自定义存储提供程序属性发布同步问�
 
 Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64 / ARM64，主工程默认打包运行并提供“打包和发布”菜单。非打包构建使用脚本参数 `-Deployment Unpackaged`；两种部署共用这两个配置，输出按架构、配置、Packaged / Unpackaged 隔离。部署和清单生成逻辑集中于 `build/HybridMount.Packaging.targets`，主工程文件只保留编译、依赖及资源声明。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.39`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.39`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.40`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.40`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -91,7 +93,7 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.39.md](docs/Validation-0.0.9.39.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版验证细节及待测项目见 [docs/Validation-0.0.9.40.md](docs/Validation-0.0.9.40.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 本版真实自动同步验收可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

@@ -22,6 +22,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public CloudMountSession? Session;
         public IFileSource? Source;
         public UploadRuntime? Uploads;
+        public readonly ConflictMetadataChanges ConflictMetadata=new();
         public FileExclusionMarkerStore? ExclusionMarkers;
         public string? ExclusionError;
         public PinIntentRuntime? Pins;

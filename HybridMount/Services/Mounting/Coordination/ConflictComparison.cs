@@ -24,4 +24,8 @@ public sealed class ConflictComparison
     public bool CanUseRemote=>RemoteRestriction.Length==0;
     public string RecoveryPath=>Upload?.Resolution?.PreviousRecoveryPath??Upload?.Resolution?.BackupPath??Upload?.ConflictRecoveryPath??"";
     public DateTimeOffset ObservedUtc{get;init;}=DateTimeOffset.UtcNow;
+    /// <summary>仅在已证明为本程序元数据变化后更新执行戳，保持原远端版本与用户比较时刻。</summary>
+    internal ConflictComparison Rebased(LocalUpload? upload,LocalFileStamp? stamp)=>new()
+    {Definition=Definition,Session=Session,Source=Source,Upload=upload,Entry=Entry,Stamp=stamp,Remote=Remote,PendingJson=PendingJson,
+        TaskId=TaskId,Path=Path,LocalText=LocalText,RemoteText=RemoteText,BaselineText=BaselineText,LocalRestriction=LocalRestriction,RemoteRestriction=RemoteRestriction,ObservedUtc=ObservedUtc};
 }
