@@ -226,7 +226,7 @@ static bool QueryPreview(const std::wstring& path,UINT size,std::vector<BYTE>& p
         if(wcscmp(status.GetRawBuffer(nullptr),L"ok")!=0) {
             HString state;
             if(wcscmp(operation,L"getPreview")==0&&SUCCEEDED(root->GetNamedString(HStringReference(L"previewStatus").Get(),state.GetAddressOf()))&&wcscmp(state.GetRawBuffer(nullptr),L"notFound")==0)
-                QueryPreview(path,size,png,L"requestPreview",deadline);
+                QueryPreview(path,size,png,L"requestLocalPreview",deadline);
             return false;
         }
         Check(SUCCEEDED(root->GetNamedString(HStringReference(L"previewPng").Get(),encoded.GetAddressOf())));

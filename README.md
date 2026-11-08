@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.36**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.37**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部；使用页面枚举和 Frame.Navigate 切换，采用内置淡入与上移动画，并保留原生返回历史。标题栏返回按钮与 Alt＋左方向键共用返回入口；无历史时按钮禁用，弹层打开时保持底层页面。五页缓存各自的草稿、选择和滚动。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
@@ -30,13 +30,15 @@ WebDAV 不创建辅助目录，必要的探测及安全上传临时文件保存�
 
 AWS S3 的“SQS 事件加速”使用同区域 Standard Queue。每台机器需要独立专用队列，同进程同队列共享一个接收器；事件先落库再确认，并重新查询 S3 当前状态，不按消息直接删除本地。定时完整对账仍保留，队列故障不影响它。测试连接只读取队列属性，不 Receive／Delete、不创建队列或修改桶通知；消费权限在运行时验证。配置步骤、权限及 DLQ 见 [SQS 配置说明](docs/S3-SQS.md)。
 
-读取会合并同时发生的整文件快照和元数据查询，取消一个请求不影响其他等待者，明确提交的下载优先并保留普通读取机会。首次打开大文件仍受服务速度及完整快照要求影响。0.0.9.34 暂停自有缩略图及右键菜单扩展：两种模式均隐藏缩略图开关，停止自有预览排队、解码和远端读取，旧 IPC 请求返回不可用。已有缩略图偏好、缓存和备份字段保留，暂停期间不生效；应用内固定、释放空间、诊断和同步问题入口继续可用。新根共用注册描述符并明确允许 Windows 原生固定，保留命名侧栏入口；MSIX 只保留提供程序图标的空 CloudFiles 声明。实际包身份决定运行和配置模式，两种模式不接管对方的根。本版不迁移已有挂载、不改列布局或水合策略；默认状态列及文件图标的桌面显示仍需按 [0.0.9.34 验收记录](docs/Validation-0.0.9.34.md) 实测。
+读取会合并同时发生的整文件快照和元数据查询，取消一个请求不影响其他等待者，明确提交的下载优先并保留普通读取机会。首次打开大文件仍受服务速度及完整快照要求影响。
 
-WebDAV 与 S3 连接、远端检测和读取失败时显示安全的阶段、TLS／证书／超时／网络分类及错误码。普通只读请求对明确的瞬态故障最多尝试三次；证书验证失败不重试，需修正后断开再连接。严格缩略图请求保持原预算，写入失败仍可能需要核对结果。若调试器设置为“引发时中断”，继续运行后仍可能正常完成取消与退出，首次异常不等于程序崩溃。
+0.0.9.37 已实现 SQLite BLOB 缩略图缓存、本地完整内容生成和独立 IThumbnailProvider 宿主，但 **Explorer 自动接管未完成，正式包保持关闭**。真实临时 MSIX 的候选声明会丢失 Windows 原生固定／释放菜单，Shell 自动选择也失败，因此正式清单继续使用仅含提供程序图标的空 CloudFiles，不注册自有 COM 或菜单。两种模式隐藏缩略图开关并保留原偏好；应用内固定、释放空间、诊断与同步问题继续可用。命名侧栏入口、新根 AllowPinning、现有水合策略及两种独立配置模式保持，未迁移正式根或改列布局。实现与失败证据见 [0.0.9.37 验收记录](docs/Validation-0.0.9.37.md)。
+
+WebDAV 与 S3 连接、远端检测和读取失败时显示安全的阶段、TLS／证书／超时／网络分类及错误码。普通只读请求对明确的瞬态故障最多尝试三次；证书验证失败不重试，需修正后断开再连接。保留的本地预览实现保持有界读取和隔离解码，写入失败仍可能需要核对结果。若调试器设置为“引发时中断”，继续运行后仍可能正常完成取消与退出，首次异常不等于程序崩溃。
 
 关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出先停止接纳和取消全部在途工作，等待启动恢复及手动连接完成，再断开 CFAPI；重复退出共用一次收尾。同步根注册保留，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
 
-配置位于 `HKCU\Software\HybridMount.NET`，挂载定义在其 Mounts/Packaged 或 Mounts/Unpackaged 子键。运行索引和任务使用 SQLite，凭据按当前 Windows 用户 DPAPI 加密保存在 Mounting/Credentials，独立 SQS 凭据保存在 Mounting/Sqs/Credentials，整文件退化缓存位于 Mounting/RangeCache，图标缓存在 Mounting/PreviewCache，上传快照位于 Mounting/UploadStaging，固定远端更新快照位于 Mounting/RemoteStaging，这些缓存均计入软上限；待上传、冲突或结果不明的内容及其快照受到保护，可能暂时超过软上限。旧模拟源保留在 Mounting/MockSources，仅供旧挂载迁出；不自动改绑 WebDAV。打包数据位于本包 LocalState，非打包数据位于 `%LOCALAPPDATA%\HybridMount.NET`；调试使用独立挂载目录，不接管另一模式缺少配置的根。
+配置位于 `HKCU\Software\HybridMount.NET`，挂载定义在其 Mounts/Packaged 或 Mounts/Unpackaged 子键。运行索引和任务使用 SQLite，凭据按当前 Windows 用户 DPAPI 加密保存在 Mounting/Credentials，独立 SQS 凭据保存在 Mounting/Sqs/Credentials，整文件退化缓存位于 Mounting/RangeCache，缩略图新缓存固定为 `%LOCALAPPDATA%\HybridMount.NET\Mounting\Thumbnails\thumbnails.db`（图片为 BLOB，旁边仅 SQLite 日志），旧 Mounting/PreviewCache 保留但不再读写，上传快照位于 Mounting/UploadStaging，固定远端更新快照位于 Mounting/RemoteStaging，这些缓存均计入软上限；待上传、冲突或结果不明的内容及其快照受到保护，可能暂时超过软上限。旧模拟源保留在 Mounting/MockSources，仅供旧挂载迁出；不自动改绑 WebDAV。打包数据位于本包 LocalState，非打包数据位于 `%LOCALAPPDATA%\HybridMount.NET`；调试使用独立挂载目录，不接管另一模式缺少配置的根。
 
 日志页提供筛选、复制、导出与清除，最近显示 100 条，保留最多 30 天／10,000 条。主题、窗口背景和关闭行为可以在设置中调整。
 
@@ -55,7 +57,7 @@ Explorer 继续通过 Windows 自定义存储提供程序属性发布同步问�
 | 工程 | 职责 |
 | --- | --- |
 | HybridMount | 界面、配置、生命周期和 NamedPipe 服务；输出 HybridMount.NET.exe |
-| HybridMount.Ext | 保留的原生菜单与云缩略图实现，本版暂停注册 |
+| HybridMount.Ext | 原生图标资源、媒体解码与独立云缩略图宿主；自有缩略图及菜单注册门控 |
 | HybridMount.Tests | 生产服务契约及真实原生 DLL 集成测试 |
 
 Visual Studio 调试选择：
@@ -67,7 +69,7 @@ Visual Studio 调试选择：
 
 Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=None`，可直接运行 EXE；扩展、测试工程在 Unpackaged 配置中复用对应 Debug／Release 构建。输出按架构、配置、Packaged／Unpackaged 隔离。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.35`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.35`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为打包 Debug／Release 显式启用部署，非打包配置不参与部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.37`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.37`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -90,7 +92,7 @@ Release／ReleaseUnpackaged 同理。非打包配置设置 `WindowsPackageType=N
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，本版不注册自有 Explorer 菜单；不需要手工使用 regsvr32。新根的固定／释放入口由 Windows 提供；未打包登录启动继续使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.35.md](docs/Validation-0.0.9.35.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版验证细节及待测项目见 [docs/Validation-0.0.9.37.md](docs/Validation-0.0.9.37.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 本版真实自动同步验收可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

@@ -52,6 +52,16 @@ public static class CloudFilesNative
     {
         if (!GetFileInformationByHandleEx(handle, 9, out AttributeTag tag, 8)) throw new Win32Exception(Marshal.GetLastWin32Error());
         if ((CfGetPlaceholderStateFromAttributeTag(tag.Attributes, tag.Tag) & 1) == 0) return null;
+        return ReadPersistedPlaceholder(handle);
+    }
+    /// <summary>已核验本产品根之后读取持久占位身份；断开时系统可能隐藏reparse标签，不能据此推断不是云文件。</summary>
+    internal static (PlaceholderInfo Info,byte[] Identity) InspectPersisted(string path)
+    {
+        using var handle=CreateFile(path,0x80,7,0,3,0x02200000,0);
+        if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());return ReadPersistedPlaceholder(handle);
+    }
+    private static (PlaceholderInfo Info,byte[] Identity) ReadPersistedPlaceholder(SafeFileHandle handle)
+    {
         var buffer = Marshal.AllocHGlobal(8192);
         try
         {

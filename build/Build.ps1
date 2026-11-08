@@ -7,11 +7,14 @@ param(
     [switch]$Package,
     [switch]$Test,
     [switch]$ExperimentalThumbnails,
+    [switch]$WithoutThumbnails,
     [string]$CertificateThumbprint
 )
 $ErrorActionPreference = 'Stop'
 if (-not $Deployment) { $Deployment = if ($Package) { 'Packaged' } else { 'Unpackaged' } }
-if ($ExperimentalThumbnails) { throw '0.0.9.34 暂停自有Shell扩展，不能生成实验缩略图包。' }
+if($ExperimentalThumbnails -and $WithoutThumbnails){throw '缩略图构建参数冲突。'}
+if($ExperimentalThumbnails){throw '0.0.9.37缩略图自动绑定未通过原生菜单兼容门槛，实验注册不能交付。'}
+$enableThumbnails=$false
 if ($Package -and $Deployment -eq 'Unpackaged') { throw '非打包模式不能生成 MSIX；请使用 -Deployment Packaged。' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $validation = Join-Path $repoRoot 'artifacts\validation'
@@ -28,7 +31,7 @@ try {
     Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "native-$Platform-$Configuration"
     $packageDirectory = Join-Path $repoRoot $(if($ExperimentalThumbnails){"artifacts\packages-preview\$Platform\"}else{"artifacts\packages\$Platform\"})
     $managedArguments = @('HybridMount\HybridMount.csproj','/restore','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo',"/p:HybridMountDeployment=$Deployment","/p:GenerateAppxPackageOnBuild=$($Package.IsPresent)")
-    $managedArguments += "/p:HybridMountEnableCloudThumbnails=$($ExperimentalThumbnails.IsPresent)"
+    $managedArguments += "/p:HybridMountEnableCloudThumbnails=$($enableThumbnails.ToString().ToLowerInvariant())"
     if ($Package) { $managedArguments += @("/p:AppxPackageDir=$packageDirectory",'/p:UapAppxPackageBuildMode=SideloadOnly','/p:AppxBundle=Never','/p:AppxPackageSigningEnabled=false') }
     Invoke-BuildStep $msbuild $managedArguments "managed-$Platform-$Configuration-$Deployment"
     if ($Test) {
@@ -37,6 +40,8 @@ try {
         $testNative=Join-Path $repoRoot "artifacts\native-tests\$Platform\$Configuration\"
         $testNativeObjects=Join-Path $testNative 'obj\'
         Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountIsolatedTests=true',"/p:OutDir=$testNative","/p:IntDir=$testNativeObjects",'/v:minimal','/nologo') "native-tests-$Platform-$Configuration"
+        $thumbnailTest=Join-Path $repoRoot "artifacts\native-thumbnail-host\$Platform\$Configuration\"
+        Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountShellProbeTag=d0037037',"/p:OutDir=$thumbnailTest","/p:IntDir=$($thumbnailTest)obj\",'/v:minimal','/nologo') "native-thumbnail-host-$Platform-$Configuration"
         Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'-v:minimal') "tests-$Platform-$Configuration"
     }
     if ($Package) {
@@ -52,7 +57,7 @@ try {
                 Invoke-BuildStep (Join-Path $sdkBin 'signtool.exe') @('sign','/sha1',$CertificateThumbprint,'/fd','SHA256',$msix.FullName) "sign-$Platform"
                 Invoke-BuildStep (Join-Path $sdkBin 'signtool.exe') @('verify','/pa','/all','/v',$msix.FullName) "signature-$Platform"
             }
-            & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ExpectCloudThumbnails:$ExperimentalThumbnails.IsPresent
+            & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ExpectCloudThumbnails:$enableThumbnails
             Get-FileHash -LiteralPath $msix.FullName -Algorithm SHA256 | Format-List | Out-File (Join-Path $validation "package-$Platform.sha256.txt") -Encoding utf8
         }
     }

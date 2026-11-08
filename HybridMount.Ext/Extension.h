@@ -47,4 +47,9 @@ bool QueryCachedPreview(const std::wstring& path,UINT size,std::vector<BYTE>& pn
 /// <summary>验证本机根身份，不打开文件内容；异常视为不归属。</summary>
 bool IsOwnedMountPath(const std::wstring& path,GUID& mount) noexcept;
 /// <summary>同一 DLL 内创建缩略图对象，由共享模块计数管理生命周期。</summary>
-HRESULT CreateThumbnailHandler(REFIID iid,void** result) noexcept;
+using HybridMountReadThumbnail=HRESULT(WINAPI*)(void* context,const wchar_t* path,UINT size,BYTE** png,DWORD* length);
+/// <summary>宿主缓存回调的借用上下文；工厂、对象和活动调用均结束后宿主才释放。</summary>
+struct ThumbnailCacheSource{HybridMountReadThumbnail Read{};void* Context{};std::atomic<bool>* Closing{};};
+HRESULT CreateThumbnailHandler(REFIID iid,void** result,const ThumbnailCacheSource* source=nullptr) noexcept;
+/// <summary>注册唯一缩略图类的本地COM服务；不创建菜单、不运行主应用，空闲时安全撤销。</summary>
+extern "C" HRESULT WINAPI HybridMountRunThumbnailServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds) noexcept;

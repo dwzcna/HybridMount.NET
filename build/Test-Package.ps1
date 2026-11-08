@@ -56,17 +56,14 @@ try {
     foreach ($registration in @('windows.startupTask','HybridMountStartup','ShellMaintenance')) {
         if (-not $text.Contains($registration)) { throw "清单缺少 $registration" }
     }
-    if($ExpectCloudThumbnails){throw '0.0.9.34暂停自有Shell扩展，不存在可验收的实验缩略图包。'}
-    # 暂停只撤销自有处理器注册，保留原生DLL和三个工程；防止旧清单或增量产物重新带入扩展。
-    foreach($category in @('windows.comServer','windows.fileExplorerContextMenus')){
-        if($manifest.SelectNodes("//*[local-name()='Extension' and @Category='$category']").Count -ne 0){throw "包意外注册自有Shell扩展：$category"}
-    }
-    foreach($id in @('F4A8FD0B-4055-4F23-8CC0-91B736B3E491','A65802EB-4D1C-4C7E-A519-34C76B9BB281')){
-        if($text.Contains($id)){throw '包仍含暂停的自有COM类注册。'}
-    }
-    $cloud=$manifest.SelectNodes("//*[local-name()='CloudFiles']")
-    if($cloud.Count -ne 1 -or $cloud[0].ChildNodes.Count -ne 0 -or $cloud[0].IconResource -ne 'Assets\HybridMount.png'){
-        throw '本版CloudFiles只能包含提供程序图标，不能注册空处理器或自有菜单。'
-    }
-    Write-Host "包验证通过：$Platform / $version / 自包含 / 原生云文件显示 / 自有Shell扩展暂停 / 启动及维护入口。"
+    # 实测否定当前候选，正式包必须保留空CloudFiles及唯一原生状态路径。
+    if($ExpectCloudThumbnails){throw '0.0.9.37缩略图自动绑定尚未通过兼容门槛，不能验收为启用。'}
+    foreach($category in @('windows.fileExplorerContextMenus','windows.fileTypeAssociation','windows.comServer')){if($manifest.SelectNodes("//*[local-name()='Extension' and @Category='$category']").Count){throw "正式包意外注册 $category"}}
+    foreach($name in @('CloudFilesContextMenus','CustomStateHandler','ExtendedPropertyHandler','BannersHandler','ThumbnailProviderHandler')){if($manifest.SelectNodes("//*[local-name()='$name']").Count){throw "正式包含未通过验证的云处理器：$name"}}
+    $cloud=$manifest.SelectNodes("//*[local-name()='CloudFiles']");if($cloud.Count -ne 1 -or $cloud[0].IconResource -ne 'Assets\HybridMount.png' -or $cloud[0].ChildNodes.Count){throw 'CloudFiles必须仅含提供程序图标。'}
+    $excluded=$manifest.SelectNodes("//*[local-name()='ExcludedDirectory']")
+    if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
+    if(-not $manifest.SelectNodes("//*[local-name()='Capability' and @Name='unvirtualizedResources']").Count){throw '缺少共享缓存所需的受限能力。'}
+    Write-Host "包验证通过：$Platform / $version / 自包含 / 数据库缩略图自动绑定未完成、注册门控 / 自有菜单暂停 / 原生状态及维护入口保留。"
+
 } finally { $archive.Dispose() }

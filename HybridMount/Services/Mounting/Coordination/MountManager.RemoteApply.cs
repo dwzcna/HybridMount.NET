@@ -99,6 +99,7 @@ public sealed partial class MountManager
             pinned=info.Value.Info.PinState==1||pending.State is "Committing" or "Hydrating";
             if(!pinned)
             {
+                _previews.Invalidate(root.Definition,entry.Id);
                 if(!root.Session.RefreshPlaceholder(entry,metadata))throw new IOException("文件正被使用或无法原生刷新，保留旧版本。");
                 _repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});CloudFilesNative.NotifyItemUpdated(path);
                 return SaveRemote(pending with{State="Completed",Error=null});
@@ -125,6 +126,7 @@ public sealed partial class MountManager
             var generation=_repository.Uploads(root.Definition.Id).Where(x=>x.LocalPath==entry.LocalPath).Select(x=>x.Generation).DefaultIfEmpty().Max();
             if(generation!=pending.UploadGeneration||_repository.Uploads(root.Definition.Id).Any(x=>x.LocalPath==entry.LocalPath&&UploadRules.Unfinished(x)))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
             ValidateRemoteSnapshot(pending);
+            _previews.Invalidate(root.Definition,entry.Id);
             await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated)=>
             {
                 lock(_remoteJournalLock)

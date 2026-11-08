@@ -99,7 +99,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 fixture.Put("large.exe",LargeExecutable());var refresh=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"refresh"));Assert.Equal("Completed",refresh.State);
                 var newEntry=repository.Entries(mount.Id).Single(entry=>entry.LocalPath=="large.exe");Assert.NotEqual(oldEntry.Version,newEntry.Version);
                 Assert.NotEqual(ExePreviewCache.CacheKey(mount,oldEntry,64),ExePreviewCache.CacheKey(mount,newEntry,64));Assert.Null(manager.GetPreview(path,64));
-                manager.CacheLimitBytes=1;await manager.EnforceCacheLimitAsync();Assert.Empty(Directory.EnumerateFiles(Path.Combine(repository.DataDirectory,"PreviewCache"),"*.cache"));
+                manager.CacheLimitBytes=1;await manager.EnforceCacheLimitAsync();Assert.Null(manager.GetPreview(path,64));Assert.Empty(Directory.EnumerateFiles(Path.Combine(repository.DataDirectory,"Thumbnails"),"*.cache"));
             }
             using(var other=new NativePreviewInterop(Path.Combine(local,"文件.bin")))
             {var count=requests.Count;Assert.Equal(unchecked((int)0x80004001),other.Thumbnail(64,out _,out var bitmap));Assert.Equal(0,bitmap);Assert.Equal(count,requests.Count);}

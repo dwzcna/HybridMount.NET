@@ -7,7 +7,7 @@ namespace HybridMount.Services.Mounting;
 public static class PreviewWorker
 {
     public static readonly int[] Sizes=[32,64,128,256];
-    public static bool Supports(string path)=>Path.GetExtension(path).ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif" or ".mp4" or ".exe";
+    public static bool Supports(string path)=>Path.GetExtension(path).ToLowerInvariant() is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif" or ".tif" or ".tiff" or ".heic" or ".heif" or ".webp" or ".avif" or ".mp4" or ".exe";
     /// <summary>单次解码，所有尺寸共用同一父进程预算；失败只回传类型状态，不回传堆栈或原消息。</summary>
     public static int Run()
     {

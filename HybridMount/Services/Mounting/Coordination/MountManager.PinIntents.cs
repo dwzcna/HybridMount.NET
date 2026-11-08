@@ -127,5 +127,8 @@ public sealed partial class MountManager
     }
     /// <summary>原生保护句柄和根锁归还后发布实际状态；失败只影响Shell刷新，不重写同步标记。</summary>
     private void NotifyFileState(string path)
-    {try{if(ShellNotificationForTests is {} notify)notify(path);else CloudFilesNative.NotifyItemUpdated(path);}catch(Exception error){_logger.Queue("Shell状态","Warning","文件状态已提交，Shell通知失败："+error.GetType().Name);}}
+    {try{
+        var root=_roots.Values.FirstOrDefault(x=>MountPathGuard.IsUnder(x.Definition.LocalPath,path));
+        if(root is not null&&_repository.Entries(root.Definition.Id).FirstOrDefault(x=>!x.Deleted&&RelativePaths.ToLocal(root.Definition.LocalPath,x.LocalPath).Equals(path,StringComparison.OrdinalIgnoreCase)) is {} entry)_previews.RebindMetadata(root.Definition,entry);
+        if(ShellNotificationForTests is {} notify)notify(path);else CloudFilesNative.NotifyItemUpdated(path);}catch(Exception error){_logger.Queue("Shell状态","Warning","文件状态已提交，Shell通知失败："+error.GetType().Name);}}
 }

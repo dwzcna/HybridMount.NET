@@ -135,6 +135,7 @@ public sealed partial class MountManager
                 MountPathGuard.ValidateOperation(root.Definition,path);
                 UploadRules.ValidateTypes(prepared,LocalFileState.Read(path),receipt.IsDirectory);
                 var current=_repository.Upload(prepared.Id);
+                _previews.Invalidate(root.Definition,entry.Id);
                 if(current?.Generation==prepared.SnapshotGeneration)committedStamp=_uploadCommitter is IRecoveryUploadCommitter committer?
                     committer.Commit(root.Definition,entry,prepared,recovery.VerifiedStamp):_uploadCommitter.Commit(root.Definition,entry,prepared);
             }

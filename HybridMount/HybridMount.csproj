@@ -64,21 +64,19 @@
     <Manifest Include="$(ApplicationManifest)" />
     <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(NativeConfiguration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
-  <!-- 本版本暂停自有Shell扩展；保留旧属性名，但显式开启会失败，防止旧构建参数重新注册。 -->
+  <!-- 缩略图自动绑定未通过真实MSIX门槛，禁止旧实验参数绕过发布门控。 -->
   <PropertyGroup><HybridMountEnableCloudThumbnails Condition="'$(HybridMountEnableCloudThumbnails)'==''">false</HybridMountEnableCloudThumbnails><PackageCertificateThumbprint>3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0</PackageCertificateThumbprint><AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm><GenerateTestArtifacts>False</GenerateTestArtifacts><HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks></PropertyGroup>
   <!-- 源清单供 VS 包向导读取，必须与集中版本一致；构建副本保留当前暂停策略。 -->
   <Target Name="PrepareProductManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountDeployment)'=='Packaged'">
-    <Error Condition="'$(HybridMountEnableCloudThumbnails)'=='true'" Text="0.0.9.34 暂停自有Shell扩展，不能启用实验缩略图注册。" />
+    <Error Condition="'$(HybridMountEnableCloudThumbnails)'=='true'" Text="0.0.9.37 缩略图自动绑定未通过原生菜单兼容验收，不能注册候选处理器。" />
     <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version">
       <Output TaskParameter="Result" PropertyName="_SourceManifestVersion" />
     </XmlPeek>
     <Error Condition="'$(_SourceManifestVersion)' != '$(BinaryVersion)'" Text="Package.appxmanifest 版本 $(_SourceManifestVersion) 与集中版本 $(BinaryVersion) 不一致；请同步源清单，确保 Visual Studio 打包向导显示正确版本。" />
     <PropertyGroup>
       <_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
-      <_ProductManifestContent>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package.appxmanifest'))</_ProductManifestContent>
-
     </PropertyGroup>
-    <WriteLinesToFile File="$(_ProductManifest)" Lines="$(_ProductManifestContent)" Overwrite="true" Encoding="UTF-8" WriteOnlyWhenDifferent="true" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build\Prepare-Manifest.ps1&quot; -Source &quot;$(MSBuildProjectDirectory)\Package.appxmanifest&quot; -Destination &quot;$(_ProductManifest)&quot; -Thumbnails $(HybridMountEnableCloudThumbnails)" />
     <ItemGroup><AppxManifest Remove="@(AppxManifest)" /><AppxManifest Include="$(_ProductManifest)" /><FileWrites Include="$(_ProductManifest)" /></ItemGroup>
   </Target>
 </Project>

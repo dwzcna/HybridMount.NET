@@ -12,7 +12,7 @@ public sealed class ShellExtensionsPausedTests
     {
         var rendered=0;var mount=new MountDefinition(Guid.NewGuid(),"paused","\0",ThumbnailsEnabled:true);
         var entry=new MountEntry("entry","photo.png","photo.png","version",false,Materialized:true);
-        await using var cache=new ExePreviewCache("\0",null,null,(_,_,_,_)=>{Interlocked.Increment(ref rendered);throw new InvalidOperationException();},()=>ShellExtensionPolicy.CustomThumbnailsEnabled);
+        await using var cache=new ExePreviewCache("\0",null,null,(_,_,_,_)=>{Interlocked.Increment(ref rendered);throw new InvalidOperationException();},()=>false);
         cache.Queue(mount,entry,true);cache.Queue(mount,entry,false);
         Assert.Null(cache.Get(mount,entry,64));Assert.Equal("disabled",cache.State(mount,entry));Assert.Equal(0,rendered);
         Assert.Contains("待处理=0",cache.Describe(mount.Id));
@@ -43,7 +43,7 @@ public sealed class ShellExtensionsPausedTests
         await test.Manager.DisposeAsync();test.Manager=new MountManager(test.Repository,test.Logger);
         using var vm=new MountsViewModel(test.Manager,new InlineDispatcher());vm.SelectedMountId=test.Id;
         Assert.False(vm.CanConfigureThumbnails);Assert.False(vm.Items.Single().CanConfigureThumbnails);Assert.True(vm.ThumbnailDraft(saved));
-        Assert.True(vm.Items.Single().ThumbnailsEnabled);Assert.Contains("暂停",vm.ThumbnailCapability.Reason);Assert.Equal(test.Id,vm.SelectedMountId);
+        Assert.True(vm.Items.Single().ThumbnailsEnabled);Assert.False(ShellExtensionPolicy.CustomContextMenusEnabled);Assert.Contains("未通过",vm.ThumbnailCapability.Reason);Assert.False(ShellExtensionPolicy.CustomThumbnailsEnabled);Assert.Equal(test.Id,vm.SelectedMountId);
     }
     [Fact(Timeout=60000)]
     public async Task New_descriptor_allows_native_pinning_without_policy_identity_or_source_changes()

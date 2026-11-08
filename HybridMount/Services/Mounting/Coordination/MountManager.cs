@@ -53,9 +53,18 @@ public sealed partial class MountManager : IAsyncDisposable
 #if HYBRIDMOUNT_HEADLESS_TEST
     // 仅隔离回归显式启用保留实现；生产默认能力仍为暂停，测试之间不共享全局开关。
     internal bool LegacyPreviewsForTests {get;set;}
-    private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled||LegacyPreviewsForTests;
+    internal bool LocalPreviewsForTests {get;set;}
+    private bool CustomPreviewsAvailable=>LocalPreviewsForTests||LegacyPreviewsForTests;
 #else
-    private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled;
+    private readonly bool _nativeThumbnails=CloudShellState.ThumbnailCapability().Available;
+    private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled&&_nativeThumbnails;
+#endif
+#if HYBRIDMOUNT_HEADLESS_TEST
+    private bool LegacyRemotePreviewsAllowed=>LegacyPreviewsForTests;
+    private static string PreviewDirectory(MountRepository repository)=>Path.Combine(repository.DataDirectory,"Thumbnails");
+#else
+    private bool LegacyRemotePreviewsAllowed=>false;
+    private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
 #endif
     private readonly MountRepository _repository;
     private readonly ILocalUploadCommitter _uploadCommitter;
@@ -87,7 +96,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var definitions=repository.LoadDefinitions();
         repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
-        _previews=new ExePreviewCache(Path.Combine(repository.DataDirectory,"PreviewCache"),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync,()=>CustomPreviewsAvailable);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
+        _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
@@ -108,7 +117,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(!_roots.TryGetValue(mount.Id,out var root)||_stop.IsCancellationRequested)return null;
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         if(_stop.IsCancellationRequested||root.RemovalRequested||root.Definition.RemovalPending||!_roots.ContainsKey(mount.Id)||
-            !_repository.Entries(mount.Id).Any(current=>current.Id==entry.Id&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&!current.Protected&&current.RemotePresence!=RemotePresence.Deleted))
+            !_repository.Entries(mount.Id).Any(current=>current.Id==entry.Id&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&current.RemotePresence!=RemotePresence.Deleted))
         {root.Gate.Release();return null;}
         return new PreviewLease(root.Gate);
     }
@@ -149,7 +158,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 .Select(row=>row.Id).ToArray():Array.Empty<string>();
             var count=_repository.ClearOperations(mode,interrupted);Notify();return count;
         },cancel),token);
-    private void Notify() { NotifyIssues();if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
+    private void Notify() { foreach(var root in _roots.Values)_previews.ConfigureMount(root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested});NotifyIssues();if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("挂载界面","Warning",error.Message);} }
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
     private Task? _startup;
     public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);_issuePublishing??=Task.Run(PublishIssueLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
@@ -465,7 +474,9 @@ public sealed partial class MountManager : IAsyncDisposable
         var removing=operation is "remove" or "clearAndRemove";
         var mode=operation=="clearAndRemove"?MountRemovalMode.ClearContents:MountRemovalMode.PreserveFiles;
         if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除未完成，不能改用其他模式或执行缓存任务。");
-        if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);}
+        // 预览可能持有正文保护引用；先在根锁外取消并等待，不能进入清空后才等待oplock释放。
+        var previewStop=Task.CompletedTask;
+        if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);previewStop=_previews.CancelMountAsync(id);}
         if(removing)foreach(var current in _jobs.Values.Where(job=>job.Root==id && job.Snapshot.State is "Queued" or "Running"))current.Cancel.Cancel();
         var job=new Job(Guid.NewGuid().ToString("N"),id,operation,_stop.Token);
         _jobs[job.Snapshot.Id]=job;Save(job);
@@ -474,7 +485,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var held=false;var changedPaths=new List<string>();
             try
             {
-                if(removing)await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+                if(removing)await Task.WhenAll(previewStop,StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
                 if(operation=="refresh"&&root.Source is IRemoteChangeSource)
                 {
                     Update(job,"Running");
@@ -534,6 +545,8 @@ public sealed partial class MountManager : IAsyncDisposable
                             if(!ReferenceEquals(root.Session,session))throw new IOException("下载会话已结束。");
                         }
                         changedPaths.Add(path);
+                        // 原生句柄已归还，先完成缓存元数据收尾再发布任务完成；Shell通知仍在根锁外发送。
+                        _previews.RebindMetadata(root.Definition,entry);
                         if(operation=="keepOnDevice")_previews.Queue(root.Definition,entry);
                         Result(job,path,"Completed","操作已完成。");
                     }

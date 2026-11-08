@@ -3,3 +3,5 @@ EXPORTS
     DllCanUnloadNow PRIVATE
     DllGetClassObject PRIVATE
     HybridMountDecodePreview
+
+    HybridMountRunThumbnailServer

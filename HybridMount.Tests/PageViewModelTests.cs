@@ -80,9 +80,9 @@ public sealed class PageViewModelTests
         Assert.Empty(manager.Operations);Assert.False(string.IsNullOrWhiteSpace(vm.ThumbnailCapability.Reason));
     }
     [Fact]
-    public async Task Unpackaged_backend_with_registered_entry_can_edit_only_selected_thumbnail_preference()
+    public async Task Explicit_packaged_candidate_capability_can_edit_only_selected_thumbnail_preference()
     {
-        await using var area=new Area();var a=area.A;var b=area.B;using var vm=new MountsViewModel(area.Manager,area.Ui,thumbnailCapability:ShellThumbnailCapability.From(false,true));
+        await using var area=new Area();var a=area.A;var b=area.B;using var vm=new MountsViewModel(area.Manager,area.Ui,thumbnailCapability:ShellThumbnailCapability.From(true,true));
         vm.SelectedMountId=b.Id;var row=vm.Items.Single(x=>x.Id==a.Id);Assert.True(vm.CanConfigureThumbnails);Assert.True(row.CanConfigureThumbnails);
         await vm.SetThumbnailAsync(a.Id,true);Assert.True(vm.FindMount(a.Id)!.Definition.ThumbnailsEnabled);Assert.False(vm.FindMount(b.Id)!.Definition.ThumbnailsEnabled);Assert.Equal(b.Id,vm.SelectedMountId);
     }

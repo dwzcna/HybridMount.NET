@@ -35,7 +35,9 @@ public sealed class ShellStatusTests(ITestOutputHelper output)
             }
             catch(Exception error){notified.TrySetException(error);}
         };
-        await File.WriteAllTextAsync(path,"committed");await notified.Task.WaitAsync(TimeSpan.FromSeconds(30));await test.Wait("notify-committed.txt");
+        await File.WriteAllTextAsync(path,"committed");
+        try{await notified.Task.WaitAsync(TimeSpan.FromSeconds(30));await test.Wait("notify-committed.txt");}
+        catch{output.WriteLine("Root="+test.Local);output.WriteLine(System.Text.Json.JsonSerializer.Serialize(test.Repository.Uploads(test.Id)));output.WriteLine(System.Text.Json.JsonSerializer.Serialize(test.Manager.Operations));output.WriteLine(await test.Manager.ReadDiagnosticsAsync(test.Id));throw;}
     }
     [Fact(Timeout=60000)]
     public async Task EditingAfterRemoteReceiptCannotPublishCompletedNotification()
