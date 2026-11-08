@@ -78,7 +78,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
     [Theory(Timeout=60000)] [InlineData(0u)] [InlineData(1u)] [InlineData(2u)]
     public async Task PlaceholderMarkPreservesIdentityInSyncAndReadabilityAndRestoresPin(uint originalPin)
     {
-        await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"文件.bin");
+        await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"文件.bin");await File.ReadAllBytesAsync(path);
         if(originalPin==1)await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]));
         if(originalPin==2){using var attributes=CloudFilesNative.CreateFile(path,0x180,7,0,3,0x02200000,0);CloudFilesNative.Check(CloudFilesNative.SetPinIntent(attributes,2,0,0));}
         var before=CloudFilesNative.Inspect(path)!.Value;var stamp=LocalFileState.Read(path);var requests=test.Dav.Server.Requests.Count;
@@ -180,7 +180,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
     public async Task AlreadyExcludedPinIsPreservedWhenOwnRuleIsRemoved()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);
-        var definition=test.Repository.LoadDefinitions().Single();var path=Path.Combine(test.Local,"文件.bin");
+        var definition=test.Repository.LoadDefinitions().Single();var path=Path.Combine(test.Local,"文件.bin");await File.ReadAllBytesAsync(path);
         using(var handle=CloudFilesNative.CreateFile(path,0x180,7,0,3,0x02200000,0))CloudFilesNative.Check(CloudFilesNative.SetPinIntent(handle,3,0,0));
         var store=new FileExclusionMarkerStore(Path.Combine(test.Repository.DataDirectory,"prior-excluded"),test.Id);store.Reconcile(definition,"文件.bin",true);
         Assert.Equal(new[]{"2"},CloudCustomStateReader.Read(path).Ids);new FileExclusionMarkerStore(Path.Combine(test.Repository.DataDirectory,"prior-excluded"),test.Id).Reconcile(definition,"文件.bin",false);
@@ -218,7 +218,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
     [Fact(Timeout=60000)]
     public async Task NativeFailureBlocksUploadAndRestartCanRestoreOwnedMark()
     {
-        await using var test=await UploadFlowTests.Fixture.Create(false);var definition=test.Repository.LoadDefinitions().Single();var path=Path.Combine(test.Local,"文件.bin");var before=CloudFilesNative.Inspect(path)!.Value;
+        await using var test=await UploadFlowTests.Fixture.Create(false);var definition=test.Repository.LoadDefinitions().Single();var path=Path.Combine(test.Local,"文件.bin");await File.ReadAllBytesAsync(path);var before=CloudFilesNative.Inspect(path)!.Value;
         var store=new FileExclusionMarkerStore(test.Repository.DataDirectory,test.Id){SetPinForTests=(_,_)=>unchecked((int)0x80070005)};
         Assert.ThrowsAny<Exception>(()=>store.Reconcile(definition,"文件.bin",true));Assert.Contains("80070005",store.Describe());Assert.Equal(before.Info.PinState,CloudFilesNative.Inspect(path)!.Value.Info.PinState);
         var otherDirectory=Path.Combine(test.Repository.DataDirectory,"marker-restart");store=new(otherDirectory,test.Id);store.Reconcile(definition,"文件.bin",true);

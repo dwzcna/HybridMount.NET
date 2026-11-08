@@ -8,7 +8,7 @@ namespace HybridMount.Services.Mounting;
 /// <summary>原生排除标记的身份日志；每挂载独立文件，原子落盘后才改属性，不存正文或凭据。</summary>
 internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
 {
-    internal sealed record Mark(string Path,string Identity,uint PreviousPin,string Phase,LocalFileStamp Before,DateTimeOffset AttemptUtc,string? Error=null);
+    internal sealed record Mark(string Path,string Identity,uint PreviousPin,string Phase,LocalFileStamp Before,DateTimeOffset AttemptUtc,string? Error=null,uint? OwnedPin=null);
     internal sealed record Result(LocalFileStamp? Before,LocalFileStamp? After,bool Changed);
     private readonly string _path=Path.Combine(directory,"ExclusionMarkers",mountId.ToString("N")+".json");
     private readonly object _gate=new();
@@ -23,7 +23,7 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
         {
             var loaded=File.Exists(_path)?JsonSerializer.Deserialize<Dictionary<string,Mark>>(File.ReadAllText(_path))??throw new IOException("排除标记日志为空。"):[];
             if(loaded.Any(x=>x.Value is null||x.Key!=x.Value.Identity||x.Value.Before is null||x.Value.Before.Identity!=x.Key||string.IsNullOrEmpty(x.Value.Path)||
-                x.Value.PreviousPin is not(0 or 1 or 2 or 3 or 4)||x.Value.Phase is not("Applied" or "ApplyPending" or "RestorePending")))throw new IOException("排除标记日志字段无效。");
+                x.Value.PreviousPin is not(0 or 1 or 2 or 3 or 4)||x.Value.OwnedPin is not(null or 0 or 2 or 3)||x.Value.Phase is not("Applied" or "NativeDeferred" or "ApplyPending" or "RestorePending")))throw new IOException("排除标记日志字段无效。");
             foreach(var mark in loaded.Values)RelativePaths.Normalize(mark.Path);
             return _marks=loaded;
         }
@@ -86,7 +86,8 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
         lock(_gate)
         {
             var marks=Load();var errors=marks.Values.Where(x=>x.Error is not null).ToArray();
-            return $"排除标记：已记录 {marks.Count}；待完成 {marks.Values.Count(x=>x.Phase!="Applied")}"+
+            return $"排除标记：已记录 {marks.Count}；待完成 {marks.Values.Count(x=>x.Phase is not("Applied" or "NativeDeferred"))}"+
+                $"；原生标记等待完整内容 {marks.Values.Count(x=>x.Phase=="NativeDeferred")}"+
                 string.Concat(errors.Select(x=>$"\n{x.Path}：{x.Error}"));
         }
     }
@@ -109,10 +110,12 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
             marks.TryGetValue(before.Identity,out var prior);
             if(!excluded&&prior is null)return new(before,before,false);
             var pin=ReadPin(probe,info?.Info.PinState);
+            var deferred=excluded&&NeedsNativeDeferral(probe,path,before.Length,info is not null);
+            var desired=excluded?(deferred?DeferredPin(prior?.PreviousPin??pin):CloudFilesNative.PinStateExcluded):prior!.PreviousPin;
             var text=excluded?CloudItemStateProperty.ExclusionText:"";var icon=excluded?CloudItemStateProperty.ExclusionIcon:"";
             if(prior?.Error is not null&&prior.Path==relative&&prior.Phase==(excluded?"ApplyPending":"RestorePending")&&prior.AttemptUtc.AddSeconds(30)>DateTimeOffset.UtcNow)
                 return new(prior.Before,before,false);
-            if(excluded&&pin==CloudFilesNative.PinStateExcluded&&prior is {Phase:"Applied",Error:null}&&prior.Path==relative&&
+            if(excluded&&pin==desired&&prior is {Error:null}&&prior.Phase==(deferred?"NativeDeferred":"Applied")&&prior.Path==relative&&
                 !CloudItemStateProperty.Plan(definition,path,CloudItemStateProperty.ExclusionId,text,icon).Changed)
                 return new(prior.Before,before,false);
             if(!CloudRootRegistration.IsOwnedRoot(definition))throw new IOException("原生根身份无法确认，排除规则生效但系统标记未执行。");
@@ -121,17 +124,19 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
             if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
             var guarded=LocalFileState.Read(handle);if(guarded.Identity!=before.Identity||guarded.IsDirectory)throw new IOException("排除标记文件身份已变化。");
             before=guarded;info=CloudFilesNative.Inspect(handle);pin=ReadPin(handle,info?.Info.PinState);
-            var record=new Mark(relative,before.Identity,prior?.PreviousPin??pin,excluded?"ApplyPending":"RestorePending",before,DateTimeOffset.UtcNow);
+            deferred=excluded&&NeedsNativeDeferral(handle,path,before.Length,info is not null);
+            desired=excluded?(deferred?DeferredPin(prior?.PreviousPin??pin):CloudFilesNative.PinStateExcluded):prior!.PreviousPin;
+            var record=new Mark(relative,before.Identity,prior?.PreviousPin??pin,excluded?"ApplyPending":"RestorePending",before,DateTimeOffset.UtcNow,OwnedPin:excluded?desired:prior?.OwnedPin??(prior?.Phase=="NativeDeferred"?DeferredPin(prior.PreviousPin):CloudFilesNative.PinStateExcluded));
             marks[before.Identity]=record;Save();var written=false;
             try
             {
                 // 解除排除时保留用户后来修改的固定意图；此前就已排除的文件恢复为EXCLUDED。
-                if(excluded?pin!=CloudFilesNative.PinStateExcluded:pin==CloudFilesNative.PinStateExcluded&&record.PreviousPin!=pin)
+                if(excluded?pin!=desired:pin==record.OwnedPin&&record.PreviousPin!=pin)
                 {
-                    CloudFilesNative.Check(SetPinForTests?.Invoke(handle,excluded?CloudFilesNative.PinStateExcluded:record.PreviousPin)??CloudFilesNative.SetPinIntent(handle,excluded?CloudFilesNative.PinStateExcluded:record.PreviousPin,0,0));
+                    CloudFilesNative.Check(SetPinForTests?.Invoke(handle,desired)??CloudFilesNative.SetPinIntent(handle,desired,0,0));
                     written=true;
                 }
-                if(excluded&&(ReadPin(handle,CloudFilesNative.Inspect(handle)?.Info.PinState)!=CloudFilesNative.PinStateExcluded||info is null&&CloudShellState.Read(path).ProviderState!=9))
+                if(excluded&&(ReadPin(handle,CloudFilesNative.Inspect(handle)?.Info.PinState)!=desired||info is null&&CloudShellState.Read(path).ProviderState!=9))
                     throw new IOException("系统排除状态无法可靠读回；上传仍保持排除。");
                 if(excluded&&!_definitionReady)
                 {
@@ -145,7 +150,7 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
                     info?.Info.InSyncState!=current?.Info.InSyncState||info?.Info.OnDiskSize!=current?.Info.OnDiskSize||
                     (info is null?current is not null:current is null||!info.Value.Identity.SequenceEqual(current.Value.Identity)))
                     throw new IOException("标记后的文件内容、身份或同步状态不一致，保留恢复记录。");
-                if(excluded)marks[before.Identity]=record with{Phase="Applied"};else marks.Remove(before.Identity);
+                if(excluded)marks[before.Identity]=record with{Phase=deferred?"NativeDeferred":"Applied"};else marks.Remove(before.Identity);
                 Save();return new(prior?.Before??before,after,written);
             }
             catch(Exception error)when(error is IOException or UnauthorizedAccessException or Win32Exception or COMException or OperationCanceledException)
@@ -157,6 +162,15 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
             }
         }
     }
+    /// <summary>冷占位EXCLUDED会被Shell解释为等待下载；只查本地范围和PARTIAL标记（含零字节），不读取正文或强制水合。</summary>
+    private static bool NeedsNativeDeferral(SafeFileHandle handle,string path,long length,bool placeholder)
+    {
+        if(!placeholder)return false;
+        if(!CloudFilesNative.GetFileInformationByHandleEx(handle,9,out var tag,8))throw new Win32Exception(Marshal.GetLastWin32Error());
+        return (CloudFilesNative.CfGetPlaceholderStateFromAttributeTag(tag.Attributes,tag.Tag)&0x10)!=0||!CloudFilesNative.HasFullContent(path,length);
+    }
+    /// <summary>暂缓期间撤销本功能造成的固定等待；原意图已落盘，解除规则时按身份恢复，不触发下载。</summary>
+    private static uint DeferredPin(uint previous)=>previous==2?2u:0u;
     /// <summary>普通文件没有CF占位信息；直接读属性固定意图，EXCLUDED须再经Shell只读属性确认，不能为读回而转换占位。</summary>
     private static uint ReadPin(SafeFileHandle handle,uint? cloudPin)
     {

@@ -95,6 +95,17 @@ public sealed class NativeExtensionTests
         [DllImport("shell32.dll", CharSet=CharSet.Unicode)] private static extern int SHCreateItemFromParsingName(string path, nint context, in Guid iid, out nint item);
         [DllImport("shell32.dll")] private static extern int SHCreateShellItemArrayFromShellItem(nint item, in Guid iid, out nint array);
     }
+    /// <summary>暂缓原生EXCLUDED的冷文件仍隐藏两项菜单，不水合，不访问远端。</summary>
+    [Fact(Timeout=60000)]
+    public async Task DeferredColdExclusionHidesBothNativeExtensionCommands()
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false);
+        var path=Path.Combine(test.Local,"文件.bin");await test.Manager.SetFileExclusionRulesAsync(test.Id,[new(FileExclusionMatchKind.Suffix,".bin")]);
+        Assert.NotEqual(3u,CloudFilesNative.Inspect(path)!.Value.Info.PinState);Assert.Equal(1u,CloudShellState.Read(path).ProviderState);
+        var requests=test.Dav.Server.Requests.Count;using var extension=new NativeExtension();
+        Assert.NotEqual(0u,extension.State(path,true));Assert.NotEqual(0u,extension.State(path,false));
+        Assert.Equal(requests,test.Dav.Server.Requests.Count);Assert.Equal(0,CloudFilesNative.Inspect(path)!.Value.Info.OnDiskSize);
+    }
     /// <summary>三个原生命令正确发送中文、引号和反斜杠，选择的文件内容不变。</summary>
     [Fact]
     public async Task NativeComAndPipeRoundTrip()

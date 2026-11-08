@@ -14,6 +14,7 @@
 #include <sddl.h>
 #include <algorithm>
 #include <memory>
+#include <propsys.h>
 static_assert(offsetof(CF_SYNC_ROOT_STANDARD_INFO, SyncRootIdentity) == 1056);
 static_assert(offsetof(CF_PLACEHOLDER_STANDARD_INFO, FileIdentity) == 60);
 static_assert(sizeof(CF_CALLBACK_INFO) == 152);
@@ -68,8 +69,29 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
     auto guid = std::wstring(L"{") + id.GetRawBuffer(nullptr) + L"}";
     return SUCCEEDED(CLSIDFromString(guid.c_str(), &mount));
 }
+    /// <summary>仅元数据查询本产品排除图标；冷文件暂缓原生Pin时菜单仍隐藏。失败保守隐藏，不读正文或联网。</summary>
+    bool ExclusionVisible(const std::wstring& path) {
+        ComPtr<IPropertyStore> source,memory;
+        PROPERTYKEY key{};
+        if(FAILED(SHGetPropertyStoreFromParsingName(path.c_str(),nullptr,GPS_DEFAULT,IID_PPV_ARGS(&source)))||
+           FAILED(PSGetPropertyKeyFromName(L"System.StorageProviderCustomStates",&key)))return true;
+        struct Value { PROPVARIANT Data{};~Value(){PropVariantClear(&Data);} } container,ids;
+        if(FAILED(source->GetValue(key,&container.Data)))return true;
+        if(container.Data.vt==VT_EMPTY)return false;
+        if(container.Data.vt!=(VT_VECTOR|VT_UI1)||container.Data.caub.cElems==0||container.Data.caub.cElems>1048576||!container.Data.caub.pElems)return true;
+        if(FAILED(PSCreateMemoryPropertyStore(IID_PPV_ARGS(&memory))))return true;
+        ComPtr<IPersistSerializedPropStorage> persistence;
+        if(FAILED(memory.As(&persistence))||FAILED(persistence->SetPropertyStorage(reinterpret_cast<PCUSERIALIZEDPROPSTORAGE>(container.Data.caub.pElems),container.Data.caub.cElems)))return true;
+        const PROPERTYKEY idsKey={{0xfceff153,0xe839,0x4cf3,{0xa9,0xe7,0xea,0x22,0x83,0x20,0x94,0xb8}},121};
+        if(FAILED(memory->GetValue(idsKey,&ids.Data)))return true;
+        if(ids.Data.vt==VT_EMPTY)return false;
+        if(ids.Data.vt!=(VT_VECTOR|VT_LPWSTR)||ids.Data.calpwstr.cElems>256||!ids.Data.calpwstr.pElems)return true;
+        for(ULONG i=0;i<ids.Data.calpwstr.cElems;++i)if(ids.Data.calpwstr.pElems[i]&&wcscmp(ids.Data.calpwstr.pElems[i],L"2")==0)return true;
+        return false;
+    }
     /// <summary>只读属性句柄确认完整缓存；排除或无法确认的文件不暴露缓存动作，不读取正文。</summary>
     DWORD CacheActions(const std::wstring& path) {
+        if(ExclusionVisible(path))return 0;
         auto raw=CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_BACKUP_SEMANTICS,nullptr);
         if(raw==INVALID_HANDLE_VALUE)return 0;
         struct Handle{HANDLE Value;~Handle(){CloseHandle(Value);}} handle{raw};
