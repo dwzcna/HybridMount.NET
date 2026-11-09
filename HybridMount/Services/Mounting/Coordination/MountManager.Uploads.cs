@@ -87,7 +87,7 @@ public sealed partial class MountManager
         root.BaselineObserver=null;root.WriteObserver=null;root.CapacityObserver=null;
     }
     /// <summary>上传记录与普通任务共享任务页；持久阶段优先于旧任务历史的中断转换。</summary>
-    private static MountOperationSnapshot UploadSnapshot(LocalUpload item)=>item.ToSnapshot();
+    private MountOperationSnapshot UploadSnapshot(LocalUpload item)=>DescribeOperationWait(item.ToSnapshot(),item.SourcePath);
     private void PublishUpload(LocalUpload? item,Exception? error=null)
     {if(item is null)return;item=_repository.Upload(item.Id)??item;
         if(_roots.TryGetValue(item.MountId,out var root)&&FileExclusionRules.Matches(root.Definition,item)&&FileExclusionRules.Pause(item)!=item)

@@ -134,7 +134,7 @@ public sealed partial class MountManager : IAsyncDisposable
             _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,_repository.Uploads(root.Definition.Id).Count(UploadAttentionRules.NeedsAttention)+RenameIntents(root.Definition.Id).Count(x=>x.NeedsAttention)+(_renameErrors.ContainsKey(root.Definition.Id)?1:0));
     }
     /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
-    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(x=>x.ToSnapshot()).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).ToArray();
+    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).ToArray();
     public IReadOnlyList<MountOperationSnapshot> Operations
     {
         get
@@ -143,6 +143,8 @@ public sealed partial class MountManager : IAsyncDisposable
             foreach(var upload in _repository.Uploads())
                 if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id))
                     history[upload.Id]=UploadSnapshot(upload) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
+            foreach(var root in _roots.Values)foreach(var pending in RemotePendingFor(root))
+                if(pending.State is not("Completed" or "Superseded")&&!(pending.State=="Canceled"&&pending.MetadataOnly)||history.ContainsKey(pending.Id))history[pending.Id]=DescribeOperationWait(RemoteTask(pending),pending.Path);
             foreach(var rename in RenameIntents())if(!rename.Finished||history.ContainsKey(rename.Id))history[rename.Id]=rename.Snapshot();
             foreach(var problem in RenameJournalIssues())history[problem.Id]=problem;
             foreach(var job in _jobs.Values)
@@ -314,7 +316,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 catch(SourceRescanRequiredException)
                 {runtime.RescanSoon=true;root.Detection=new("S3 完整对账",Error:"远端持续变化，初始扫描暂未稳定；连接保留，后台立即继续完整扫描。");}
                 finally{await root.Gate.WaitAsync().ConfigureAwait(false);}
-                refreshed=RemotePendingFor(root).Where(x=>x.State is not("Completed" or "Superseded")).Select(x=>new MountItemResult(x.Path,"Conflict",x.Error??"远端变更待处理。")).ToArray();
+                refreshed=RemotePendingFor(root).Where(x=>x.State is not("Completed" or "Superseded")&&!(x.State=="Canceled"&&x.MetadataOnly)).Select(x=>new MountItemResult(x.Path,"Conflict",x.Error??"远端变更待处理。")).ToArray();
             }
             else refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();Status(root,"已连接",RefreshSummary(refreshed));
@@ -521,7 +523,7 @@ public sealed partial class MountManager : IAsyncDisposable
                     finally{root.Gate.Release();}
                     var before=RemotePendingFor(root).ToDictionary(x=>x.Id,x=>x.State);
                     await DetectRemoteNowAsync(root,true,job.Cancel.Token).ConfigureAwait(false);
-                    var applied=RemotePendingFor(root).Where(x=>x.State!="Superseded"&&(x.State!="Completed"||!before.TryGetValue(x.Id,out var old)||old!="Completed")).ToArray();
+                    var applied=RemotePendingFor(root).Where(x=>x.State!="Superseded"&&!(x.State=="Canceled"&&x.MetadataOnly)&&(x.State!="Completed"||!before.TryGetValue(x.Id,out var old)||old!="Completed")).ToArray();
                     job.Snapshot=job.Snapshot with{Total=applied.Length};
                     foreach(var change in applied)Result(job,change.Path,change.State=="Completed"?"Completed":"Conflict",change.Error??(change.Entry is null?"远端删除已清理。":"远端版本已应用。"));
                     Update(job,applied.Any(x=>x.State!="Completed")?"PartialFailure":"Completed");return;
@@ -704,7 +706,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private void Update(Job job,string state,string? error=null)
     {var next=job.Snapshot with{State=state,Error=error};OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();}
     private void Save(Job job){_repository.SaveOperation(job.Snapshot);Notify();}
-    public MountOperationSnapshot? GetOperation(string id)=>RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id));
+    public MountOperationSnapshot? GetOperation(string id)=>RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_roots.Values.SelectMany(RemotePendingFor).FirstOrDefault(x=>x.Id==id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id));
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
     public bool Cancel(string id)
     {

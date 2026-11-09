@@ -13,7 +13,13 @@ internal static class CloudRootPolicy
     internal static Facts Read(string path)
     {
         var value=NativeRuntimeClient.Get().RootInfoAsync(path).GetAwaiter().GetResult();CloudFilesNative.Check(value.GetProperty("hresult").GetInt32());
-        return new(value.GetProperty("hydration").GetUInt16(),value.GetProperty("modifier").GetUInt16(),value.GetProperty("population").GetUInt32(),value.GetProperty("inSync").GetUInt32(),value.GetProperty("hardlink").GetUInt32(),value.GetProperty("status").GetUInt32(),value.GetProperty("provider").GetString()!,value.GetProperty("version").GetString()!,value.GetProperty("identity").GetBytesFromBase64(),NativeRuntimeProtocol.Read<long>(value.GetProperty("fileId")));
+        return Parse(value);
+    }
+    /// <summary>32位策略位保留有符号旧宿主与无符号新宿主的全部位；超出32位仍拒绝，不将故障状态误当零。</summary>
+    internal static Facts Parse(System.Text.Json.JsonElement value)
+    {
+        static uint Bits(System.Text.Json.JsonElement raw)=>raw.TryGetUInt32(out var bits)?bits:raw.TryGetInt32(out var signed)?unchecked((uint)signed):raw.GetUInt32();
+        return new(value.GetProperty("hydration").GetUInt16(),value.GetProperty("modifier").GetUInt16(),Bits(value.GetProperty("population")),Bits(value.GetProperty("inSync")),Bits(value.GetProperty("hardlink")),Bits(value.GetProperty("status")),value.GetProperty("provider").GetString()!,value.GetProperty("version").GetString()!,value.GetProperty("identity").GetBytesFromBase64(),NativeRuntimeProtocol.Read<long>(value.GetProperty("fileId")));
     }
 #if HYBRIDMOUNT_HEADLESS_TEST
     /// <summary>仅测试编译比较三种原生策略；调用方限制在本轮独立根，更新前后核对身份及其他策略。</summary>

@@ -8,6 +8,8 @@ public sealed partial class MountManager
 #if HYBRIDMOUNT_HEADLESS_TEST
     internal bool BrowsePreviewsForTests{get;set;}
     internal bool ObserveExplorerForTests{get;set;}
+    internal Action<string>? ThumbnailNotificationForTests{set=>_previews.ThumbnailNotificationForTests=value;}
+    internal void PreviewObservationForTests(Guid id,IReadOnlyList<string> paths,bool complete)=>Root(id).Session!.PreviewObservationForTests(paths,complete);
     private bool PreviewObservationEnabled=>ObserveExplorerForTests;
     private bool BrowseDrivenPreviews=>BrowsePreviewsForTests;
     internal void ApplyPreviewDemandForTests(Guid id,IReadOnlyList<string> paths){var root=Root(id);ApplyPreviewDemand(root,root.Session!,paths);}
@@ -20,7 +22,7 @@ public sealed partial class MountManager
     {
         if(!BrowseDrivenPreviews||!CustomPreviewsAvailable||IsStopping||root.RemovalRequested||!root.Definition.ThumbnailsEnabled||!ReferenceEquals(root.Session,session))return;
         var selected=paths.Where(path=>Path.IsPathFullyQualified(path)&&MountPathGuard.IsUnder(root.Definition.LocalPath,path)).Select(path=>Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var entries=_repository.Entries(root.Definition.Id).Where(entry=>selected.Contains(entry.LocalPath)&&!entry.Deleted&&!entry.IsDirectory&&entry.Materialized&&entry.RemotePresence!=RemotePresence.Deleted).Take(128).ToArray();
+        var entries=_repository.Entries(root.Definition.Id).Where(entry=>selected.Contains(entry.LocalPath)&&!entry.Deleted&&!entry.IsDirectory&&entry.Materialized&&entry.RemotePresence!=RemotePresence.Deleted).OrderBy(x=>x.Id,StringComparer.Ordinal).Take(128).ToArray();
         var signature=string.Join("|",entries.Select(x=>x.Id+":"+x.LocalPath+":"+x.Version))+":"+DateTime.UtcNow.Ticks/TimeSpan.FromSeconds(30).Ticks;
         lock(_previewDemandGate){if(_previewDemand.TryGetValue(root.Definition.Id,out var previous)&&previous.Signature==signature)return;_previewDemand[root.Definition.Id]=(signature,entries.Select(x=>x.Id).ToHashSet(StringComparer.Ordinal));}
         _previews.SetBrowseDemand(root.Definition,entries,RemoteThumbnailsAllowed);
@@ -50,7 +52,7 @@ public sealed partial class MountManager
         _previews.ConfigureMount(root.Definition);
         if(enabled){_previews.ResumeMount(id);if(!BrowseDrivenPreviews)foreach(var entry in _repository.Entries(id))_previews.Queue(root.Definition,entry);}
         else await _previews.CancelMountAsync(id).ConfigureAwait(false);
-        SetPreviewObservation(root,enabled);CloudFilesNative.NotifyItemUpdated(root.Definition.LocalPath);Notify();
+        SetPreviewObservation(root,enabled);Notify();
     }
     private (Runtime Root,MountEntry Entry)? PreviewTarget(string path)
     {
@@ -113,7 +115,8 @@ public sealed partial class MountManager
                 budget=PreviewRangeBudget.ForLocal(length,local.ReadAsync);
             }
             else budget=new PreviewRangeBudget(source!,new SourceEntry(entry.Id,entry.SourcePath,false,length,DateTimeOffset.MinValue,entry.Version));
-            var frames=await new PreviewWorkerClient(diagnostic:code=>{_previews.RecordOutcome(mount.Id,"媒体解码",code,true);_logger.Queue("缩略图","Warning",$"媒体解码失败；HRESULT=0x{code:X8}");}).DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget.ReadAsync,token).ConfigureAwait(false);
+            var frames=await new PreviewWorkerClient(diagnostic:code=>{_previews.RecordOutcome(mount.Id,"媒体解码",code,true);_logger.Queue("缩略图","Warning",$"媒体解码失败；HRESULT=0x{code:X8}");}).DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget,token).ConfigureAwait(false);
+            if(frames is null&&budget.UnavailableReason is {} reason)_previews.RecordOutcome(mount.Id,"预览不可用："+reason);
             // 解码结束先归还oplock；上传／清空可能已持有根锁，不能带着正文保护引用重新等待该锁。
             await ReleaseLocal().ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);

@@ -7,7 +7,7 @@ public sealed partial class MountManager
     {
         long freed=0;foreach(var root in _roots.Values)freed+=await CompletePendingUnpinsAsync(root,token).ConfigureAwait(false);return freed;
     }
-    private async Task<long> CompletePendingUnpinsAsync(Runtime root,CancellationToken token)
+    private async Task<long> CompletePendingUnpinsAsync(Runtime root,CancellationToken token,IReadOnlyList<MountEntry>? candidates=null)
     {
         long freed=0;
         {
@@ -19,7 +19,7 @@ public sealed partial class MountManager
                 MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
                 var entries=_repository.Entries(root.Definition.Id);
                 var protectedPaths=_repository.Uploads(root.Definition.Id).Where(x=>x.State!="Completed").Select(x=>x.LocalPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                foreach(var entry in entries.Where(e=>e.Materialized&&!e.IsDirectory&&!e.Deleted&&!e.Protected&&e.RemotePresence!=RemotePresence.Deleted))
+                foreach(var entry in (candidates??entries).Where(e=>e.Materialized&&!e.IsDirectory&&!e.Deleted&&!e.Protected&&e.RemotePresence!=RemotePresence.Deleted))
                 {
                     token.ThrowIfCancellationRequested();
                     if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath)||protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;

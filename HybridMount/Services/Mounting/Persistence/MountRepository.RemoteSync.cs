@@ -87,7 +87,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var cmd=db.CreateCommand();
-            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND (path=$p OR substr($p,1,length(path)+1)=path||'/'))"+string.Concat(_protocolStorage.Select(module=>module.PendingPredicate is {} predicate?" OR ("+predicate+")":""));
+            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND NOT (json_extract(json,'$.State')='Canceled' AND coalesce(json_extract(json,'$.MetadataOnly'),0)=1) AND (path=$p OR substr($p,1,length(path)+1)=path||'/'))"+string.Concat(_protocolStorage.Select(module=>module.PendingPredicate is {} predicate?" OR ("+predicate+")":""));
             cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$p",path);return cmd.ExecuteScalar() is not null;
         }
     }

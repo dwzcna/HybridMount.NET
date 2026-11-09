@@ -14,29 +14,38 @@ public sealed partial class MountManager
         public readonly object Sync=new();
         public readonly Dictionary<string,(string Version,DateTimeOffset Next)> Retry=[];
         public FileSystemWatcher? Watcher;
+        private readonly HashSet<string> _dirty=new(StringComparer.OrdinalIgnoreCase),_afterDownload=new(StringComparer.OrdinalIgnoreCase);
+        // 一批可能同时包含多个固定项；未取得下载名额的路径在活动下载归还后重新核验，不能丢到30秒补扫。
+        public void Defer(string path){lock(Sync)_afterDownload.Add(path);}
+        public void ResumeDeferred(){lock(Sync){foreach(var path in _afterDownload)_dirty.Add(path);_afterDownload.Clear();}}
+        private bool _full=true;private int _cursor;
+        public void Record(string? path){lock(Sync){if(_stopping)return;if(path is null||_dirty.Count>=512){_full=true;_cursor=0;_dirty.Clear();}else _dirty.Add(path.Replace('\\','/'));}Wake();}
+        public void RequestFull()=>Record(null);
+        public MountEntry[] Take(IReadOnlyList<MountEntry> entries){lock(Sync){var dirty=_dirty.ToArray();_dirty.Clear();var selected=entries.Where(x=>dirty.Any(path=>RelativePaths.Contains(path,x.LocalPath))).Take(65).ToList();if(selected.Count>64){selected.RemoveAt(64);_full=true;_cursor=0;}if(Active is {} active)selected.Insert(0,active);if(_full){var count=Math.Max(0,64-selected.Count);selected.AddRange(entries.Skip(_cursor).Take(count));_cursor+=count;if(_cursor>=entries.Count){_full=false;_cursor=0;}}return selected.DistinctBy(x=>x.Id).ToArray();}}
+        public bool HasMore {get{lock(Sync)return _full||_dirty.Count>0;}}
         public Task Work=Task.CompletedTask,Download=Task.CompletedTask,Cancellation=Task.CompletedTask;
         public MountEntry? Active;
         public CancellationTokenSource? DownloadStop;
         private bool _stopping;private int _disposed;
         public void Wake(){lock(Sync){if(!_stopping&&Signal.CurrentCount==0)Signal.Release();}}
         public void RequestStop(){lock(Sync){if(_stopping)return;_stopping=true;Cancellation=Stop.CancelAsync();}}
-        public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Session.PinWorkCompleted-=Wake;Watcher?.Dispose();DownloadStop?.Dispose();Stop.Dispose();Signal.Dispose();}
+        public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Session.PinWorkCompleted-=Record;Watcher?.Dispose();DownloadStop?.Dispose();Stop.Dispose();Signal.Dispose();}
     }
     private void StartPinIntents(Runtime root)
     {
         lock(root.ConnectionSync)
         {
             if(root.Pins is not null||!root.PinIntentsEnabled||root.Session is null||root.RemovalRequested||root.Definition.RemovalPending||IsStopping)return;
-            var runtime=new PinIntentRuntime(root.Session,_stop.Token);root.Pins=runtime;runtime.Session.PinWorkCompleted+=runtime.Wake;
+            var runtime=new PinIntentRuntime(root.Session,_stop.Token);root.Pins=runtime;runtime.Session.PinWorkCompleted+=runtime.Record;
             var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.Attributes|NotifyFilters.FileName|NotifyFilters.DirectoryName};
             // 普通文件沿用原内容监控；只有排除文件的属性变化才额外请求上传扫描以恢复系统标记。
             watcher.Changed+=(_,change)=>
             {
-                runtime.Wake();
+                runtime.Record(change.Name);
                 if(FileExclusionRules.Matches(root.Definition.ExclusionRules,change.Name??"")&&root.Uploads is {} uploads)
                 {uploads.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow);uploads.RequestScan();}
             };
-            watcher.Created+=(_,_)=>runtime.Wake();watcher.Deleted+=(_,_)=>runtime.Wake();watcher.Renamed+=(_,_)=>runtime.Wake();watcher.Error+=(_,_)=>runtime.Wake();
+            watcher.Created+=(_,change)=>runtime.Record(change.Name);watcher.Deleted+=(_,change)=>runtime.Record(change.Name);watcher.Renamed+=(_,change)=>{runtime.Record(change.OldName);runtime.Record(change.Name);};watcher.Error+=(_,_)=>runtime.RequestFull();
             runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Wake();runtime.Work=Task.Run(()=>PinIntentLoopAsync(root,runtime));
         }
     }
@@ -57,15 +66,15 @@ public sealed partial class MountManager
         {
             while(!token.IsCancellationRequested)
             {
-                await runtime.Signal.WaitAsync(TimeSpan.FromSeconds(30),token).ConfigureAwait(false);
+                if(!runtime.HasMore&&!await runtime.Signal.WaitAsync(TimeSpan.FromSeconds(30),token).ConfigureAwait(false))runtime.RequestFull();
                 await Task.Delay(100,token).ConfigureAwait(false); // 合并原生递归固定和水合产生的属性事件。
-                if(runtime.Download.IsCompleted){await runtime.Download.ConfigureAwait(false);runtime.DownloadStop?.Dispose();runtime.DownloadStop=null;runtime.Active=null;}
-                MountEntry? candidate=null;var activeWanted=false;
+                if(runtime.Download.IsCompleted){await runtime.Download.ConfigureAwait(false);runtime.DownloadStop?.Dispose();runtime.DownloadStop=null;runtime.Active=null;runtime.ResumeDeferred();}
+                MountEntry? candidate=null;var activeWanted=false;MountEntry[] entriesForUnpin=[];
                 await root.Gate.WaitAsync(token).ConfigureAwait(false);
                 try
                 {
                     if(!ReferenceEquals(root.Pins,runtime)||!ReferenceEquals(root.Session,runtime.Session)||root.RemovalRequested||root.Definition.RemovalPending)break;
-                    var entries=_repository.Entries(root.Definition.Id);
+                    var allEntries=_repository.Entries(root.Definition.Id);var entries=runtime.Take(allEntries);entriesForUnpin=entries;
                     foreach(var excluded in entries.Where(x=>x.Materialized&&!x.IsDirectory&&!x.Deleted&&FileExclusionRules.Matches(root.Definition.ExclusionRules,x.LocalPath)))
                         try
                         {
@@ -76,12 +85,13 @@ public sealed partial class MountManager
                     var protectedPaths=_repository.Uploads(root.Definition.Id).Where(x=>x.State!="Completed").Select(x=>x.LocalPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
                     foreach(var entry in entries.Where(x=>x.Materialized&&!x.IsDirectory&&!x.Deleted&&!x.Protected&&x.RemotePresence!=RemotePresence.Deleted))
                     {
-                        if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath)||protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;
+                        if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath)||protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(allEntries,entry.SourcePath) is not null)continue;
                         try
                         {
                             var intent=runtime.Session.ReadPinIntent(entry);
                             if(runtime.Active is {} active&&active.Id==entry.Id&&active.Version==entry.Version&&active.LocalPath==entry.LocalPath&&intent.Pinned)activeWanted=true;
-                            if(!intent.NeedsDownload||candidate is not null||!runtime.Download.IsCompleted)continue;
+                            if(!intent.NeedsDownload)continue;
+                            if(candidate is not null||!runtime.Download.IsCompleted){runtime.Defer(entry.LocalPath);continue;}
                             lock(runtime.Sync)if(runtime.Retry.TryGetValue(entry.Id,out var retry)&&retry.Version==entry.Version&&retry.Next>DateTimeOffset.UtcNow)continue;
                             candidate=entry;
                         }
@@ -90,7 +100,7 @@ public sealed partial class MountManager
                 }
                 finally{root.Gate.Release();}
                 if(runtime.Active is not null&&!activeWanted&&runtime.DownloadStop is {} cancel)await cancel.CancelAsync().ConfigureAwait(false);
-                await CompletePendingUnpinsAsync(root,token).ConfigureAwait(false);
+                await CompletePendingUnpinsAsync(root,token,entriesForUnpin).ConfigureAwait(false);
                 if(candidate is not null&&runtime.Download.IsCompleted)
                 {
                     runtime.Active=candidate;runtime.DownloadStop=CancellationTokenSource.CreateLinkedTokenSource(token);

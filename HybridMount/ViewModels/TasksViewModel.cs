@@ -94,8 +94,8 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public void RecheckSelected()
     {
         if(_disposed||_manager.IsStopping)return;
-        if(Selected is not {Operation:"excludedRename"} selected){Status="请选择改名排除收尾任务。";return;}
-        try{Status=_manager.RecheckExcludedRename(selected.Id)?"已请求只读核对；不会因此重新执行远端改名。":"当前任务正在执行或已经结束。";}catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请选择上传、远端更新或改名排除收尾任务。";return;}
+        try{Status=_manager.RecheckOperation(selected.Id)?"已请求只读核对；不会因此授权覆盖或重新发送。":"当前任务正在执行或已经结束。";}catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public bool BeginCopy()
     {

@@ -41,7 +41,7 @@ public sealed class UploadIssueIntegrationTests
         await using var area=new Area(kind);var row=area.Put("one");var ui=new Dispatcher();var navigation=new Navigation();var focus=new TaskFocusService(navigation);
         using var vm=new TasksViewModel(area.Manager,ui,focus);Assert.Empty(vm.Operations);
         Assert.True(focus.ShowIssues(area.Id,["one.txt"]));ui.Drain();Assert.True(vm.IssuesOnly);Assert.Equal(row.Id,Assert.Single(vm.Operations).Id);
-        Assert.Equal("specific reason",vm.Selected!.DisplayIssueReason);vm.RetrySelected();ui.Drain();Assert.Contains("正在重试",vm.Selected!.DisplayState);Assert.Equal("specific reason",vm.Selected.DisplayIssueReason);
+        Assert.Equal("specific reason",vm.Selected!.DisplayIssueReason);vm.RetrySelected();ui.Drain();Assert.Contains("正在重试",vm.Selected!.DisplayState);Assert.Equal("specific reason",vm.Selected.DisplayIssueReason);Assert.Equal("等待挂载连接。",vm.Selected.WaitingReason);Assert.Equal("specific reason",vm.Selected.Attention!.Reason);
         var queued=area.Repository.Upload(row.Id)!;vm.RetrySelected();Assert.Equal(queued,area.Repository.Upload(row.Id));
         Assert.True(focus.ShowIssues(area.Id,["missing.txt"]));ui.Drain();Assert.Empty(vm.Operations);
         focus.ShowIssues(area.Id);ui.Drain();Assert.Single(vm.Operations);vm.SelectedJobId=row.Id;vm.CancelSelected();ui.Drain();Assert.Empty(vm.Operations);Assert.Empty(area.Manager.UploadIssues);

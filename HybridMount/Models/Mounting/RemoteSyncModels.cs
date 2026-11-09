@@ -10,7 +10,7 @@ public sealed record RemoteShadowEntry(SourceEntry Entry,long Observation=0);
 /// <summary>持久的本地待应用事件；游标可以前进，因为事件、阶段和快照均可重放。</summary>
 public sealed record RemotePendingChange(string Id,Guid MountId,string Scope,string Path,SourceEntry? Entry,
     string State="Pending",string? Error=null,string? SnapshotPath=null,string? Sha256=null,string? OriginalStamp=null,
-    string? EntryId=null,long UploadGeneration=0,uint PinState=0,string? OldVersion=null);
+    string? EntryId=null,long UploadGeneration=0,uint PinState=0,string? OldVersion=null,bool MetadataOnly=false);
 /// <summary>挂载的检测状态，不包含内部游标。</summary>
 public sealed record RemoteDetectionStatus(string Mode="尚未检测",DateTimeOffset? LastSuccessUtc=null,string? Error=null,DateTimeOffset? LastEventUtc=null,int PendingHints=0,string QueueMode="尚未启动",string? QueueError=null);
 

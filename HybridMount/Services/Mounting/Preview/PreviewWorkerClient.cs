@@ -17,21 +17,29 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
         return Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe");
     }
     /// <summary>一个工作进程生成四个尺寸，共用读取预算；任何失败均由调用者回退图标，finally 只结束本次创建的进程。</summary>
-    public async Task<Dictionary<int,byte[]>?> DecodeAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]>> read,CancellationToken token=default)
+    public Task<Dictionary<int,byte[]>?> DecodeAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]>> read,CancellationToken token=default)
+        =>DecodeCoreAsync(extension,length,async(offset,count,cancel)=>await read(offset,count,cancel).ConfigureAwait(false),token);
+    /// <summary>预览不可用由状态结束，不制造正常分支异常；首次预算窗口失败时不启动解码子进程。</summary>
+    internal async Task<Dictionary<int,byte[]>?> DecodeAsync(string extension,long length,PreviewRangeBudget budget,CancellationToken token=default)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        if(length>0&&await budget.TryReadAsync(0,(int)Math.Min(length,PreviewRangeBudget.WindowBytes),deadline.Token).ConfigureAwait(false) is null)return null;
+        return await DecodeCoreAsync(extension,length,budget.TryReadAsync,deadline.Token).ConfigureAwait(false);
+    }
+    private async Task<Dictionary<int,byte[]>?> DecodeCoreAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]?>> read,CancellationToken token)
     {
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(10));var stopping=timeout.Token;
-        var start=new ProcessStartInfo(Path.GetFullPath(executable??DefaultExecutable())){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};start.ArgumentList.Add("--preview-worker");
-        using var process=Process.Start(start)??throw new IOException("无法启动预览工作进程。");using var job=CreateJobObject(0,null);
+        using var child=BackgroundPreviewProcess.Start(executable??DefaultExecutable());var process=child.Process;using var job=CreateJobObject(0,null);Task? drain=null;
         var limits=new ExtendedLimits{Basic=new BasicLimits{Flags=0x2000|0x100},ProcessMemoryLimit=(nuint)(512L*1024*1024)};
         try
         {
             if(job.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
             if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf<ExtendedLimits>())||!AssignProcessToJobObject(job,process.Handle))throw new Win32Exception(Marshal.GetLastWin32Error());
-            var drain=process.StandardError.BaseStream.CopyToAsync(Stream.Null,stopping);
-            await IpcProtocol.WriteAsync(process.StandardInput.BaseStream,new PreviewWorkerPacket("decode",Extension:extension.ToLowerInvariant(),Length:length),stopping).ConfigureAwait(false);
+            child.Resume();drain=child.Error.CopyToAsync(Stream.Null,stopping);
+            await IpcProtocol.WriteAsync(child.Input,new PreviewWorkerPacket("decode",Extension:extension.ToLowerInvariant(),Length:length),stopping).ConfigureAwait(false);
             while(true)
             {
-                var message=await IpcProtocol.ReadAsync<PreviewWorkerPacket>(process.StandardOutput.BaseStream,stopping).ConfigureAwait(false);
+                var message=await IpcProtocol.ReadAsync<PreviewWorkerPacket>(child.Output,stopping).ConfigureAwait(false);
                 if(message.Kind=="unsupported"){if(message.HResult is {} code)diagnostic?.Invoke(code);return null;}
                 if(message.Kind=="result")
                 {
@@ -44,14 +52,15 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
                     await process.WaitForExitAsync(stopping).ConfigureAwait(false);await drain.ConfigureAwait(false);return process.ExitCode==0?frames:null;
                 }
                 if(message.Kind!="read"||message.Offset<0||message.Count is <1 or >PreviewRangeBudget.WindowBytes||message.Offset>length-message.Count)throw new IOException("工作进程读取越界。");
-                var data=await read(message.Offset,message.Count,stopping).ConfigureAwait(false);if(data.Length!=message.Count)throw new IOException("预览读取长度不符。");
-                await IpcProtocol.WriteAsync(process.StandardInput.BaseStream,new PreviewWorkerPacket("data",Data:data),stopping).ConfigureAwait(false);
+                var data=await read(message.Offset,message.Count,stopping).ConfigureAwait(false);if(data is null)return null;if(data.Length!=message.Count)throw new IOException("预览读取长度不符。");
+                await IpcProtocol.WriteAsync(child.Input,new PreviewWorkerPacket("data",Data:data),stopping).ConfigureAwait(false);
             }
         }
         finally
         {
             // 进程对象来自本次 Start，Job 只包含此子进程，不按名称选取或影响用户实例。
             if(!process.HasExited){try{process.Kill();}catch(InvalidOperationException)when(process.HasExited){}await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);}
+            if(drain is not null)try{await drain.ConfigureAwait(false);}catch(OperationCanceledException)when(stopping.IsCancellationRequested){}catch(IOException){}
         }
     }
     [StructLayout(LayoutKind.Sequential)]private struct BasicLimits{public long ProcessTime,JobTime;public uint Flags;public nuint MinimumWorkingSet,MaximumWorkingSet;public uint ActiveProcesses;public nuint Affinity;public uint Priority,Scheduling;}

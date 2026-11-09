@@ -10,7 +10,7 @@ public sealed partial class MountManager
     {
         foreach(var obsolete in _repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).Where(x=>x.State=="Superseded"))DeleteRemoteSnapshot(obsolete.SnapshotPath);
         var pending=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope)
-            .Where(x=>x.State is not("Completed" or "Superseded" or "Canceled"))
+            .Where(x=>x.State is not("Completed" or "Superseded")&&(x.State!="Canceled"||x.Entry is {IsDirectory:true}&&!x.MetadataOnly))
             .OrderBy(x=>x.Entry is null?1:0).ThenBy(x=>x.Path.Count(c=>c=='/')).ToArray();
         foreach(var prior in pending)
         {
@@ -22,7 +22,8 @@ public sealed partial class MountManager
             try
             {
                 current=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==prior.Id);
-                if(current.State is "Completed" or "Canceled" or "Superseded")continue;
+                if(current.State=="Canceled"){await RecheckCanceledDirectoryAsync(root,runtime,current,request.Token).ConfigureAwait(false);continue;}
+                if(current.State is "Completed" or "Superseded")continue;
                 if(!await SuppressExcludedRenameEchoAsync(root,runtime,current,request.Token).ConfigureAwait(false)&&!await CompleteUnchangedObservationAsync(root,runtime,current,request.Token).ConfigureAwait(false))
                     current=await ApplyRemoteItemAsync(root,runtime,current,request.Token).ConfigureAwait(false);
                 else current=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==current.Id);
@@ -65,6 +66,7 @@ public sealed partial class MountManager
             if(RenameBlocksSource(root.Definition.Id,pending.Path))return pending;
             var entries=_repository.Entries(root.Definition.Id);entry=entries.FirstOrDefault(x=>x.SourcePath.Equals(pending.Path,StringComparison.OrdinalIgnoreCase));
             var uploads=_repository.Uploads(root.Definition.Id).Where(x=>UploadRules.SourceContains(pending.Path,x.SourcePath)&&UploadRules.Unfinished(x)).ToArray();
+            if(TryCompleteDirectoryObservation(root,runtime,pending,entry,uploads))return _repository.AllRemotePending(root.Definition.Id).Single(x=>x.Id==pending.Id);
             if(uploads.Any(UploadRules.InFlight))throw new IOException("同路径上传已发送，等待其回执或未知结果核对后再应用远端变化。");
             if(pending.Entry is not {} metadata)
             {

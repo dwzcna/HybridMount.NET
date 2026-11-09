@@ -48,6 +48,7 @@
                         <TextBlock Text="{x:Bind IssueTimeText}" Visibility="{x:Bind views:TextVisibility.ForText(IssueTimeText),Mode=OneTime}"/>
                         <TextBlock Text="{x:Bind IssueStage}" Visibility="{x:Bind views:TextVisibility.ForText(IssueStage),Mode=OneTime}"/>
                         <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ProgressPercent}"/>
+                        <TextBlock Text="{x:Bind DisplayWaitDetails}" TextWrapping="Wrap" Visibility="{x:Bind views:TextVisibility.ForText(DisplayWaitDetails),Mode=OneTime}"/>
                         <TextBlock Text="{x:Bind DisplayIssueReason}" TextWrapping="Wrap" Visibility="{x:Bind views:TextVisibility.ForText(DisplayIssueReason),Mode=OneTime}"/>
                     </StackPanel>
                 </DataTemplate>

@@ -7,10 +7,10 @@ public sealed partial class CloudMountSession
 {
     private readonly SharedAsyncWork<string,bool> _pinnedHydration=new();
     /// <summary>资源真正归还后仅唤醒固定维护，不进入上传扫描；停止时由消费者解除订阅。</summary>
-    internal event Action? PinWorkCompleted;
+    internal event Action<string>? PinWorkCompleted;
     internal Func<Task>? PinResourcesReleasingForTests {get;set;}
-    private void NotifyPinWorkCompleted()
-    {if(PinWorkCompleted is {} handlers)foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.Queue("固定意图","Warning",error.GetType().Name);}}
+    private void NotifyPinWorkCompleted(string entryId)
+    {if(_stop.IsCancellationRequested)return;var entry=_repository.Entries(_mount.Id).FirstOrDefault(x=>x.Id==entryId);if(entry is null)return;if(PinWorkCompleted is {} handlers)foreach(Action<string> handler in handlers.GetInvocationList())try{handler(entry.LocalPath);}catch(Exception error){_logger.Queue("固定意图","Warning",error.GetType().Name);}}
     private readonly ConcurrentDictionary<string,SemaphoreSlim> _pinGates=new();
     /// <summary>只查属性和本地范围；调用者持根锁且已排除上传及远端屏障，不读取正文或改变固定意图。</summary>
     internal (bool Pinned,bool NeedsDownload) ReadPinIntent(MountEntry entry)
@@ -42,6 +42,6 @@ public sealed partial class CloudMountSession
             },cancel).ConfigureAwait(false);
             var stamp=NativeRuntimeArguments.Stamp(result);if(stamp.Usn!=0)RecordLocalWrite(entry,stamp);_localContentReady?.Invoke(entry);return true;
         }
-        finally{gate.Release();NotifyPinWorkCompleted();}
+        finally{gate.Release();NotifyPinWorkCompleted(entry.Id);}
     },token);
 }

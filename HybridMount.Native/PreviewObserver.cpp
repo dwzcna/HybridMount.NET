@@ -1,4 +1,5 @@
 #include "PreviewObserver.h"
+#include "VisiblePreviewItems.h"
 #include "NativeFile.h"
 #include "RuntimeOperations.h"
 #include "CloudFileOperations.h"
@@ -31,13 +32,11 @@ Json Views(const std::set<std::string>& mounts){
         // 文件系统PIDL可被云侧栏别名包裹；只接受本地file:///地址，随后仍须核验同步根身份。
         if(!directory){BSTR location{};if(SUCCEEDED(browser->get_LocationURL(&location))&&location){std::wstring url(location,SysStringLen(location));SysFreeString(location);if(url.starts_with(L"file:///")){std::wstring decoded(32768,L'\0');DWORD length=static_cast<DWORD>(decoded.size());if(SUCCEEDED(PathCreateFromUrlW(url.c_str(),decoded.data(),&length,0)))try{decoded.resize(wcslen(decoded.c_str()));directory=FullPath(decoded);}catch(...){}}}}
         ViewDiagnostics["directoryAvailable"]=directory.has_value();if(!directory||directory->size()>4096)continue;stage="root";auto marker=RootMarker(*directory);if(!mounts.contains(GuidN(marker.at("MountId"))))continue;
-        ViewDiagnostics["accepted"]=ViewDiagnostics["accepted"].get<int>()+1;stage="visible";Json paths=Json::array();int start=-1;
-        while(paths.size()<64&&total<128) {
-            int visible{};if(FAILED(folderView->GetVisibleItem(start,FALSE,&visible))||visible<=start)break;start=visible;PITEMID_CHILD child{};if(FAILED(folderView->Item(visible,&child)))continue;Pidl childOwner{child};
-            ComPtr<IShellItem> item;if(FAILED(SHCreateItemWithParent(root,folder.Get(),child,IID_PPV_ARGS(&item))))continue;auto path=ItemPath(item.Get(),*directory);if(!path||path->size()>4096||!Media(*path))continue;
-            paths.push_back(Utf8(*path));++total;
-        }
-        result.push_back({{"directory",Utf8(*directory)},{"paths",std::move(paths)}});
+        ViewDiagnostics["accepted"]=ViewDiagnostics["accepted"].get<int>()+1;stage="viewport";auto sample=ReadVisiblePreviewItems(view.Get(),folderView.Get(),*directory);
+        ViewDiagnostics["strategy"]="UIA.viewport";ViewDiagnostics["candidates"]=ViewDiagnostics.value("candidates",0)+sample.Candidates;
+        if(!sample.Complete&&ViewDiagnostics["failures"].size()<16)ViewDiagnostics["failures"].push_back({{"stage",stage},{"hresult",sample.Error}});
+        Json paths=Json::array();for(auto& path:sample.Paths){if(total>=128)break;paths.push_back(path);++total;}
+        result.push_back({{"directory",Utf8(*directory)},{"complete",sample.Complete},{"paths",std::move(paths)}});
     }catch(const Failure& error){if(ViewDiagnostics["failures"].size()<16)ViewDiagnostics["failures"].push_back({{"stage",stage},{"hresult",error.Code}});}catch(...){/* 一个关闭中或非文件系统窗口不能阻止其他视图。 */}
     return result;
 }
@@ -46,7 +45,7 @@ struct Child {
     explicit Child(const std::map<std::string,Json>& roots){
         Handle write;SECURITY_ATTRIBUTES security{sizeof(security),nullptr,TRUE};WinCheck(CreatePipe(&Output.Value,&write.Value,&security,0));WinCheck(SetHandleInformation(Output.Value,HANDLE_FLAG_INHERIT,0));
         SIZE_T size{};InitializeProcThreadAttributeList(nullptr,1,0,&size);std::vector<BYTE> memory(size);auto attributes=reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(memory.data());WinCheck(InitializeProcThreadAttributeList(attributes,1,0,&size));struct Attributes{LPPROC_THREAD_ATTRIBUTE_LIST Value;~Attributes(){DeleteProcThreadAttributeList(Value);}} owner{attributes};
-        HANDLE inherited[]{write.Value};WinCheck(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited,sizeof(inherited),nullptr,nullptr));STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof(startup);startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES;startup.StartupInfo.hStdOutput=write.Value;startup.lpAttributeList=attributes;
+        HANDLE inherited[]{write.Value};WinCheck(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited,sizeof(inherited),nullptr,nullptr));STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof(startup);startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES|STARTF_FORCEOFFFEEDBACK;startup.StartupInfo.hStdOutput=write.Value;startup.lpAttributeList=attributes;
         Job.Value=CreateJobObjectW(nullptr,nullptr);WinCheck(Job.Value!=nullptr);JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE|JOB_OBJECT_LIMIT_PROCESS_MEMORY;limits.ProcessMemoryLimit=128ULL*1024*1024;WinCheck(SetInformationJobObject(Job.Value,JobObjectExtendedLimitInformation,&limits,sizeof(limits)));
         auto executable=ModuleDirectory()+L"\\HybridMount.Native.exe",arguments=L"\""+executable+L"\" --preview-observer";for(auto& [_,root]:roots)arguments+=L" "+Wide(GuidN(root.at("mountId")));PROCESS_INFORMATION info{};WinCheck(CreateProcessW(executable.c_str(),arguments.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW|CREATE_SUSPENDED|EXTENDED_STARTUPINFO_PRESENT,nullptr,ModuleDirectory().c_str(),&startup.StartupInfo,&info));Process.Value=info.hProcess;Handle thread(info.hThread);
         if(!AssignProcessToJobObject(Job.Value,Process.Value)){TerminateProcess(Process.Value,1);throw Failure(HRESULT_FROM_WIN32(GetLastError()));}WinCheck(ResumeThread(thread.Value)!=static_cast<DWORD>(-1));
@@ -62,6 +61,8 @@ int RunPreviewObserver(const std::vector<std::string>& mounts)noexcept {
 struct PreviewObserver::Impl {
     RuntimeHost& Host;Handle Stopping{CreateEventW(nullptr,TRUE,FALSE,nullptr)};std::mutex Gate;std::map<std::string,Json> Roots;std::thread Worker;
     explicit Impl(RuntimeHost& host):Host(host),Worker([this]{Run();}){}
+    /// <summary>观察进程失败时仅取消预览需求；不影响CFAPI连接，也不让旧视口任务无期限保留。</summary>
+    void CancelDemand()noexcept{try{std::map<std::string,Json> roots;{std::lock_guard lock(Gate);roots=Roots;}for(auto& [session,root]:roots)Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",Json::array()},{"complete",true},{"observation",{{"strategy","UIA.viewport"},{"failures",Json::array({{{"stage","observer"},{"hresult",HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)}}})}}}}}});}catch(...){}}
     void Run()noexcept {
         ULONGLONG retry{};while(WaitForSingleObject(Stopping.Value,100)==WAIT_TIMEOUT) {
             {std::lock_guard lock(Gate);if(Roots.empty())continue;}if(GetTickCount64()<retry)continue;
@@ -75,19 +76,19 @@ struct PreviewObserver::Impl {
                     if(expected&&buffer.size()==expected){
                         auto frame=Parse(std::string(buffer.begin(),buffer.end()),1024*1024);Require(frame.at("kind")=="previewViews"&&frame.at("views").is_array()&&frame.at("views").size()<=16);heartbeat=GetTickCount64();expected=0;
                         for(auto& [session,root]:roots)try {
-                            auto base=FullPath(Text(root,"rootPath"));Json paths=Json::array();std::set<std::wstring> seen;ValidateRuntimeRoot(root);
+                            auto base=FullPath(Text(root,"rootPath"));Json paths=Json::array();std::set<std::wstring> seen;bool complete=true;ValidateRuntimeRoot(root);
                             for(auto& view:frame.at("views")){
                                 auto directory=FullPath(Text(view,"directory"));if(!(SamePath(base,directory)||(directory.size()>base.size()&&directory[base.size()]==L'\\'&&SamePath(base,directory.substr(0,base.size())))))continue;
-                                Require(view.at("paths").is_array()&&view.at("paths").size()<=64);
+                                if(!view.value("complete",true)){complete=false;continue;}Require(view.at("paths").is_array()&&view.at("paths").size()<=64);
                                 for(auto& item:view.at("paths")){auto path=FullPath(Wide(item.get<std::string>()));if(path.size()>4096||path.size()<=directory.size()||path[directory.size()]!=L'\\'||!SamePath(directory,path.substr(0,directory.size()))||path.find(L'\\',directory.size()+1)!=std::wstring::npos||!Media(path)||!seen.insert(path).second)continue;if(paths.size()<128)paths.push_back(Utf8(path));}
                             }
-                            Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",paths},{"observation",frame.value("diagnostics",Json::object())}}}});
+                            Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",paths},{"complete",complete},{"observation",frame.value("diagnostics",Json::object())}}}});
                         }catch(...){/* 根刚断开或身份变化时丢弃提示，不能关闭CFAPI通道。 */}
                     }
                     Require(GetTickCount64()-heartbeat<5000,HRESULT_FROM_WIN32(ERROR_TIMEOUT));Require(WaitForSingleObject(child.Process.Value,0)==WAIT_TIMEOUT,HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE));
                 }
-            }catch(const Failure& error){if(!Host.IsStopping())RecordNativeFailure("NativeRuntime",error.Code,"PreviewObserver");retry=GetTickCount64()+10000;}
-            catch(...){retry=GetTickCount64()+10000;}
+            }catch(const Failure& error){if(!Host.IsStopping())RecordNativeFailure("NativeRuntime",error.Code,"PreviewObserver");CancelDemand();retry=GetTickCount64()+10000;}
+            catch(...){CancelDemand();retry=GetTickCount64()+10000;}
         }
     }
 };

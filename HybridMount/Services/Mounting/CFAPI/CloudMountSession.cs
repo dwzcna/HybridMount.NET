@@ -32,7 +32,15 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     /// <summary>最近一次观察的有界计数快照；不枚举Shell或读取源，供完整诊断直接查询。</summary>
     internal string PreviewObservationDescription=>Volatile.Read(ref _previewObservation);
     /// <summary>仅观察当前连接代次；没有图片或凭据经过此命令。</summary>
-    internal void ObservePreviews(bool enabled)=>Runtime.Invoke("observePreviews",SessionArgs(new{enabled}));
+    internal void ObservePreviews(bool enabled){Runtime.Invoke("observePreviews",SessionArgs(new{enabled}));Volatile.Write(ref _previewObservation,enabled?"已启动，等待视口采样":"已关闭");}
+    /// <summary>只保留采样策略、数量和数值错误码，失败样本明确显示而不触发重新观察或源读取。</summary>
+    private static string DescribePreviewObservation(JsonElement value)
+    {
+        static int Count(JsonElement item,string name,int maximum)=>item.TryGetProperty(name,out var raw)&&raw.TryGetInt32(out var number)?Math.Clamp(number,0,maximum):0;
+        var strategy=value.TryGetProperty("strategy",out var mode)&&mode.ValueKind==JsonValueKind.String&&mode.GetString()=="UIA.viewport"?"只读视口":"等待采样";
+        var failure="";if(value.TryGetProperty("failures",out var failures)&&failures.ValueKind==JsonValueKind.Array)foreach(var item in failures.EnumerateArray().Take(16))if(item.TryGetProperty("hresult",out var raw)&&raw.TryGetInt32(out var code))failure=$"；最近采样HRESULT=0x{code:X8}";
+        return $"策略={strategy}；窗口={Count(value,"windows",32)}；已匹配目录={Count(value,"accepted",16)}；候选={Count(value,"candidates",4096)}{failure}；UTC={DateTimeOffset.UtcNow:O}";
+    }
     private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<string,FetchRequest> _fetches=new();
 
@@ -64,6 +72,10 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         try{_runtime.Invoke("connectRoot",SessionArgs(new{blockHydration=_clearing}));_connected=true;}
         catch{_runtime.EventReceived-=OnNativeEvent;_runtime.Failed-=OnRuntimeFailed;throw;}
     }
+#if HYBRIDMOUNT_HEADLESS_TEST
+    /// <summary>隔离回归通过真实事件入口注入采样状态；生产二进制不包含测试接口。</summary>
+    internal void PreviewObservationForTests(IReadOnlyList<string> paths,bool complete)=>OnNativeEvent(new(_mount.Id.ToString("N"),_sessionId,"previewDemand",NativeRuntimeProtocol.Element(new{paths,complete})));
+#endif
     private void OnReadDiagnostic(SourceReadDiagnostic value)
     {if(_diagnostics)_logger.Queue("水合诊断","Information",$"source={value.Strategy}; downloaded={value.DownloadedBytes}; fallback={value.FallbackReason??"none"}; completed={value.Completed}");}
     private void OnRuntimeFailed(Exception error)
@@ -77,7 +89,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(message.Event=="previewDemand")
         {
             if(_clearing||_stop.IsCancellationRequested)return;
-            try{if(data.TryGetProperty("observation",out var observation)&&observation.ValueKind==JsonValueKind.Object){var windows=observation.TryGetProperty("windows",out var w)&&w.TryGetInt32(out var wc)?Math.Clamp(wc,0,32):0;var accepted=observation.TryGetProperty("accepted",out var a)&&a.TryGetInt32(out var ac)?Math.Clamp(ac,0,16):0;Volatile.Write(ref _previewObservation,$"窗口={windows}；已匹配目录={accepted}；UTC={DateTimeOffset.UtcNow:O}");}var paths=data.GetProperty("paths");if(paths.ValueKind!=JsonValueKind.Array||paths.GetArrayLength()>128)throw new IOException("预览提示数量无效。");var items=paths.EnumerateArray().Select(x=>x.GetString()??throw new IOException("预览提示为空。")).ToArray();if(items.Any(x=>x.Length>4096))throw new IOException("预览路径过长。");PreviewDemandReceived?.Invoke(items);}
+            try{if(data.TryGetProperty("observation",out var observation)&&observation.ValueKind==JsonValueKind.Object){Volatile.Write(ref _previewObservation,DescribePreviewObservation(observation));}if(data.TryGetProperty("complete",out var complete)&&complete.ValueKind==JsonValueKind.False)return;var paths=data.GetProperty("paths");if(paths.ValueKind!=JsonValueKind.Array||paths.GetArrayLength()>128)throw new IOException("预览提示数量无效。");var items=paths.EnumerateArray().Select(x=>x.GetString()??throw new IOException("预览提示为空。")).ToArray();if(items.Any(x=>x.Length>4096))throw new IOException("预览路径过长。");PreviewDemandReceived?.Invoke(items);}
             catch(Exception error){_logger.QueueException("缩略图","Warning","目录预览提示未处理",error,_mount.Id.ToString("N"));}
             return;
         }
@@ -99,7 +111,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         {_logger.Queue("CFAPI","Error",$"原生回调未完成：type={data.GetProperty("type").GetInt32()}；HRESULT=0x{data.GetProperty("hresult").GetInt32():X8}");return;}
         var id=data.GetProperty("entryId").GetString()!;
         if(message.Event=="open"){_open.AddOrUpdate(id,1,(_,value)=>value+1);return;}
-        if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(!_clearing&&!_stop.IsCancellationRequested)_localChanged?.Invoke();QueueContentNotification(id);return;}
+        if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(!_clearing&&!_stop.IsCancellationRequested)_localChanged?.Invoke();NotifyPinWorkCompleted(id);QueueContentNotification(id);return;}
         var captured=data.Clone();QueueNativeNotification(()=>
         {
             var entries=_repository.Entries(_mount.Id);var entry=entries.FirstOrDefault(x=>x.Id==id);if(entry is null)return;
@@ -172,7 +184,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         }
         finally
         {
-            lease?.Dispose();_reading.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(_diagnostics)_logger.Queue("水合诊断","Information",$"entry={id}; pid={process.Id}; image={process.Image}; offset={offset}; length={length}; priority={info.Priority}; explicit={explicitHydration}; queueMs={queueMs:F0}; firstBlockMs={firstBlockMs:F0}; transferred={bytesTransferred}; elapsedMs={Stopwatch.GetElapsedTime(queued).TotalMilliseconds:F0}; result={outcome}");
+            lease?.Dispose();_reading.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));NotifyPinWorkCompleted(id);if(_diagnostics)_logger.Queue("水合诊断","Information",$"entry={id}; pid={process.Id}; image={process.Image}; offset={offset}; length={length}; priority={info.Priority}; explicit={explicitHydration}; queueMs={queueMs:F0}; firstBlockMs={firstBlockMs:F0}; transferred={bytesTransferred}; elapsedMs={Stopwatch.GetElapsedTime(queued).TotalMilliseconds:F0}; result={outcome}");
         }
     }
     /// <summary>阻止新增水合和重命名，取消并等候在途读取；保留删除确认回调。</summary>

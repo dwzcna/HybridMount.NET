@@ -79,6 +79,8 @@ public static class CloudFilesNative
     [DllImport("shell32.dll",EntryPoint="SHChangeNotify",CharSet=CharSet.Unicode)] private static extern void ShellChangeNotify(uint change,uint flags,string path,nint second);
     /// <summary>Unicode 路径通知采用不等待 Shell 的刷新模式；调用前必须释放资源句柄。</summary>
     public static void NotifyItemUpdated(string path)=>ShellChangeNotify(0x2000,0x3005,path,0);
+    /// <summary>缩略图已落库后只排队单文件更新，由Shell缓冲合并；不强制刷新或阻塞Explorer的输入与光标。</summary>
+    internal static void NotifyThumbnailUpdated(string path)=>ShellChangeNotify(0x2000,0x0005,path,0);
     public static bool IsCloudTag(uint tag) => (tag & 0xffff0fff) == 0x9000001a;
     public static bool IsCloudPath(string path){var value=ReadNative(path);return value.Placeholder is not null||IsCloudTag(value.Tag);}
     public static bool HasFullContent(string path,long size){var result=ReadNative(path,ranges:true);return result.Stamp.Length==size&&(result.Placeholder is null||result.Full);}
