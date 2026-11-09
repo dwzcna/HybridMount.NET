@@ -8,7 +8,7 @@ param(
     [switch]$Test,
     [switch]$ExperimentalThumbnails,
     [switch]$WithoutThumbnails,
-    [ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='Menus',
+    [ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails',
     [string]$CertificateThumbprint
 )
 $ErrorActionPreference = 'Stop'
@@ -17,7 +17,6 @@ if($ExperimentalThumbnails -and $WithoutThumbnails){throw '缩略图构建参数
 if(($ExperimentalThumbnails -or $WithoutThumbnails) -and $PSBoundParameters.ContainsKey('ShellProfile')){throw '不要混用旧参数与ShellProfile。'}
 if($ExperimentalThumbnails){$ShellProfile='MenusAndThumbnails'}
 if($WithoutThumbnails){$ShellProfile='Menus'}
-if($ShellProfile -eq 'MenusAndThumbnails'){throw '云缩略图自动绑定尚未通过原生状态验收；正式构建请使用Menus或Native。'}
 if ($Package -and $Deployment -eq 'Unpackaged') { throw '非打包模式不能生成 MSIX；请使用 -Deployment Packaged。' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $validation = Join-Path $repoRoot 'artifacts\validation'

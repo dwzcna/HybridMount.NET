@@ -98,7 +98,13 @@ public static class ThumbnailPackageProbe
     /// <summary>真实Shell图像工厂THUMBNAILONLY，不直接创建本产品CLSID；像素来自DB而非实际正文。</summary>
     private static ImageResult Image(string path)
     {
-        var status=NativePreviewInterop.ShellImage(path,64,8,out var bitmap);if(status<0||bitmap==0)return new(status,0,0,0,false);
+        var status=NativePreviewInterop.ShellImage(path,64,8,out var bitmap);return DescribeImage(status,bitmap);
+    }
+    /// <summary>单文件强制提取仍由Windows决定处理器；与显式COM对照独立记录。</summary>
+    internal static object ForcedImage(string path){var status=NativePreviewInterop.ShellCachedImage(path,64,out var bitmap);return DescribeImage(status,bitmap);}
+    private static ImageResult DescribeImage(int status,nint bitmap)
+    {
+        if(status<0||bitmap==0)return new(status,0,0,0,false);
         try{var metadata=new byte[32];Assert.Equal(32,GetObject(bitmap,32,metadata));var width=BitConverter.ToInt32(metadata,4);var height=Math.Abs(BitConverter.ToInt32(metadata,8));Assert.InRange(width,1,256);Assert.InRange(height,1,256);var pixels=new byte[width*height*4];var info=new BitmapInfo{Size=40,Width=width,Height=-height,Planes=1,Bits=32};var dc=CreateCompatibleDC(0);try{Assert.Equal(height,GetDIBits(dc,bitmap,0,(uint)height,pixels,ref info,0));}finally{DeleteDC(dc);}var count=0;for(var offset=0;offset<pixels.Length;offset+=4)if(pixels[offset+2] is >=167 and <=173&&pixels[offset+3]>240)count++;return new(status,width,height,count,count>width*height*0.8);}
         finally{NativePreviewInterop.DeleteObject(bitmap);}
     }

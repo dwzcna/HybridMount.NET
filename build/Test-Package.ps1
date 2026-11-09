@@ -1,6 +1,6 @@
 ﻿# 检查实际交付包，不把成功编译当作打包内容正确的证据。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='Menus')
+param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
@@ -73,9 +73,9 @@ try {
     if($ShellProfile -eq 'Native'){if($cloud[0].ChildNodes.Count -or $verbs.Count){throw '原生配置意外含扩展。'}}
     elseif($ShellProfile -eq 'Menus'){if($cloud[0].ChildNodes.Count -or $verbs.Count -ne 3 -or @($verbs|Where-Object {$_.Clsid -ne $menu}).Count){throw '独立动态菜单注册不符。'}}
     else{
-        if($cloud[0].ChildNodes.Count -ne 5 -or $verbs.Count -ne 1 -or $verbs[0].Clsid -ne $menu){throw '云菜单和缩略图组合不完整或重复。'}
+        if($cloud[0].ChildNodes.Count -ne 5 -or $verbs.Count -ne 3 -or @($verbs|Where-Object {$_.Clsid -ne $menu}).Count -or $cloud[0].SelectSingleNode("*[local-name()='CloudFilesContextMenus']").ChildNodes.Count){throw '云菜单和缩略图组合不完整或重复。'}
         $handler=$cloud[0].SelectSingleNode("*[local-name()='ThumbnailProviderHandler']");if(!$handler -or $handler.Clsid -ne $thumb){throw '云缩略图入口不符。'}
-        foreach($name in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler')){$node=$cloud[0].SelectSingleNode("*[local-name()='$name']");if(!$node -or $node.HasAttribute('Clsid')){throw '不得注册未实现的云处理器。'}}
+        foreach($name in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler')){$node=$cloud[0].SelectSingleNode("*[local-name()='$name']");if(!$node -or $node.Clsid -ne '00000000-0000-0000-0000-000000000000'){throw '未提供处理器必须明确为GUID_NULL，不得登记虚构COM类。'}}
     }
     $excluded=$manifest.SelectNodes("//*[local-name()='ExcludedDirectory']")
     if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\NativePreview\Packaged\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}

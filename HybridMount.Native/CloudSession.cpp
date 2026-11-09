@@ -12,15 +12,26 @@ void Ack(const CF_CALLBACK_INFO& info,CF_CALLBACK_TYPE type,NTSTATUS status){aut
 std::wstring CallbackPath(const Json& root,PCWSTR raw){Require(raw!=nullptr);std::wstring path(raw);Require(path.size()<=32767);if(path.size()>1&&path.front()==L'\\'&&path[1]!=L'\\')path=Text(root,"rootPath").substr(0,2)+path;return FullPath(path);}
 }
 struct CloudSession::Impl {
-    RuntimeHost& Host;Json Root;std::string Mount,Session;CF_CONNECTION_KEY Connection{};mutable std::mutex Gate;bool Clearing{},Stopped{};
+    RuntimeHost& Host;Json Root;std::string Mount,Session;CF_CONNECTION_KEY Connection{};mutable std::mutex Gate;std::mutex ConnectionGate;std::mutex CallbackGate;std::condition_variable CallbackWake;size_t Callbacks{};bool Clearing{},Stopped{},Detached{};
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+    std::atomic<int> FinishFailures{},DisconnectFailures{};Handle TestCallbackRelease{CreateEventW(nullptr,TRUE,FALSE,nullptr)};
+#endif
     struct Fetch {CF_OPERATION_INFO Operation{};std::string Id,Entry;long long Offset{},Length{},Start{},End{},Next{};bool Canceled{},Done{};std::mutex Gate;};
     std::map<std::string,std::shared_ptr<Fetch>> Fetches;std::map<std::string,int> Opens;std::set<std::string> Blocked;std::map<std::string,ULONGLONG> LastReads;
     explicit Impl(RuntimeHost& host,const Json& root):Host(host),Root(root),Mount(GuidN(root.at("mountId"))),Session(GuidN(root.at("sessionId"))),Clearing(root.value("blockHydration",false)){}
-    bool Event(const char* name,Json data){return Host.Send({{"kind","event"},{"mountId",Mount},{"sessionId",Session},{"event",name},{"data",std::move(data)}});}
+    bool Event(const char* name,Json data,bool waitForCapacity=true){auto sent=Host.Send({{"kind","event"},{"mountId",Mount},{"sessionId",Session},{"event",name},{"data",std::move(data)}},waitForCapacity);if(!sent&&waitForCapacity&&!Host.IsStopping())Host.Close("NativeStateEvent",E_FAIL);return sent;}
     std::string Entry(const CF_CALLBACK_INFO& info){Require(info.FileIdentity&&info.FileIdentityLength>0&&info.FileIdentityLength<=4096);auto marker=Parse(std::string(static_cast<const char*>(info.FileIdentity),info.FileIdentityLength),4096);Require(GuidN(marker.at("MountId"))==Mount,E_ACCESSDENIED);auto id=marker.at("EntryId").get<std::string>();Require(!id.empty()&&id.size()<=4096);return id;}
+    /// <summary>回调票据只在进出时持锁，允许CfExecute同步重入；断开后等待全部票据归还再销毁上下文。</summary>
+    struct CallbackTicket {
+        Impl* Owner{};
+        explicit CallbackTicket(Impl* owner){std::lock_guard lock(owner->CallbackGate);if(!owner->Detached){++owner->Callbacks;Owner=owner;}}
+        ~CallbackTicket(){if(Owner){std::lock_guard lock(Owner->CallbackGate);--Owner->Callbacks;Owner->CallbackWake.notify_all();}}
+    };
+    void Detach(){std::unique_lock lock(CallbackGate);Detached=true;CallbackWake.wait(lock,[this]{return Callbacks==0;});}
     template<CF_CALLBACK_TYPE Type> static void CALLBACK Callback(const CF_CALLBACK_INFO* info,const CF_CALLBACK_PARAMETERS* parameters)noexcept{
         if(!info||!parameters||!info->CallbackContext)return;auto self=static_cast<Impl*>(const_cast<void*>(info->CallbackContext));
-        try{self->Dispatch(Type,*info,*parameters);}catch(...){try{if constexpr(Type==CF_CALLBACK_TYPE_FETCH_DATA)Complete(Operation(*info,CF_OPERATION_TYPE_TRANSFER_DATA),parameters->FetchData.RequiredFileOffset.QuadPart,parameters->FetchData.RequiredLength.QuadPart,UnavailableStatus);if constexpr(Type==CF_CALLBACK_TYPE_NOTIFY_DELETE||Type==CF_CALLBACK_TYPE_NOTIFY_RENAME)Ack(*info,Type,static_cast<NTSTATUS>(0xc0000022));self->Event("callbackFailure",{{"type",Type},{"hresult",E_FAIL}});}catch(...){}}
+        CallbackTicket callback(self);if(!callback.Owner)return;
+        try{self->Dispatch(Type,*info,*parameters);}catch(...){try{if constexpr(Type==CF_CALLBACK_TYPE_FETCH_DATA)Complete(Operation(*info,CF_OPERATION_TYPE_TRANSFER_DATA),parameters->FetchData.RequiredFileOffset.QuadPart,parameters->FetchData.RequiredLength.QuadPart,UnavailableStatus);if constexpr(Type==CF_CALLBACK_TYPE_NOTIFY_DELETE||Type==CF_CALLBACK_TYPE_NOTIFY_RENAME)Ack(*info,Type,static_cast<NTSTATUS>(0xc0000022));self->Event("callbackFailure",{{"type",Type},{"hresult",E_FAIL}});}catch(...){self->Host.Close("NativeCallbackFailure",E_FAIL);}}
     }
     void Dispatch(CF_CALLBACK_TYPE type,const CF_CALLBACK_INFO& info,const CF_CALLBACK_PARAMETERS& parameters){
         auto entry=Entry(info);
@@ -29,7 +40,7 @@ struct CloudSession::Impl {
             fetch->Start=fetch->Offset/4096*4096;const auto end=fetch->Offset+fetch->Length;fetch->End=end>LLONG_MAX-4095?info.FileSize.QuadPart:std::min(info.FileSize.QuadPart,(end+4095)/4096*4096);fetch->Next=fetch->Start;
             {std::lock_guard lock(Gate);if(Clearing||Stopped||Blocked.contains(entry)){Complete(fetch->Operation,fetch->Offset,fetch->Length,CanceledStatus);return;}Fetches.emplace(fetch->Id,fetch);LastReads[entry]=GetTickCount64();}
             const auto pid=info.ProcessInfo?info.ProcessInfo->ProcessId:0;std::wstring image=info.ProcessInfo&&info.ProcessInfo->ImagePath?PathFindFileNameW(info.ProcessInfo->ImagePath):L"unknown";if(image.size()>260)image=L"unknown";
-            if(!Event("fetch",{{"fetchId",fetch->Id},{"entryId",entry},{"offset",std::to_string(fetch->Offset)},{"length",std::to_string(fetch->Length)},{"priority",info.PriorityHint},{"explicit",(parameters.FetchData.Flags&CF_CALLBACK_FETCH_DATA_FLAG_EXPLICIT_HYDRATION)!=0},{"processId",pid},{"image",Utf8(image)}})){
+            if(!Event("fetch",{{"fetchId",fetch->Id},{"entryId",entry},{"offset",std::to_string(fetch->Offset)},{"length",std::to_string(fetch->Length)},{"priority",info.PriorityHint},{"explicit",(parameters.FetchData.Flags&CF_CALLBACK_FETCH_DATA_FLAG_EXPLICIT_HYDRATION)!=0},{"processId",pid},{"image",Utf8(image)}},false)){
                 {std::lock_guard lock(Gate);Fetches.erase(fetch->Id);}Complete(fetch->Operation,fetch->Offset,fetch->Length,UnavailableStatus);
             }return;
         }
@@ -57,9 +68,11 @@ struct CloudSession::Impl {
     }
 };
 CloudSession::CloudSession(RuntimeHost& host,const Json& root):_impl(std::make_unique<Impl>(host,root)){}
-CloudSession::~CloudSession(){try{Stop();}catch(...){}}
+CloudSession::~CloudSession()noexcept{try{Stop();}catch(...){if(_impl->Connection.Internal){_impl->Detach();
+    // 断开失败时保留驱动持有的回调上下文；已在途回调排空后不再访问Host，内存由进程退出回收。
+    _impl.release();}}}
 const Json& CloudSession::Root()const{return _impl->Root;}
-void CloudSession::Connect(){auto& p=*_impl;CF_CALLBACK_REGISTRATION callbacks[]{
+void CloudSession::Connect(){auto& p=*_impl;std::lock_guard connection(p.ConnectionGate);{std::lock_guard lock(p.Gate);Require(!p.Stopped,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));}CF_CALLBACK_REGISTRATION callbacks[]{
     {CF_CALLBACK_TYPE_FETCH_DATA,Impl::Callback<CF_CALLBACK_TYPE_FETCH_DATA>},{CF_CALLBACK_TYPE_CANCEL_FETCH_DATA,Impl::Callback<CF_CALLBACK_TYPE_CANCEL_FETCH_DATA>},
     {CF_CALLBACK_TYPE_NOTIFY_FILE_OPEN_COMPLETION,Impl::Callback<CF_CALLBACK_TYPE_NOTIFY_FILE_OPEN_COMPLETION>},{CF_CALLBACK_TYPE_NOTIFY_FILE_CLOSE_COMPLETION,Impl::Callback<CF_CALLBACK_TYPE_NOTIFY_FILE_CLOSE_COMPLETION>},
     {CF_CALLBACK_TYPE_NOTIFY_DELETE,Impl::Callback<CF_CALLBACK_TYPE_NOTIFY_DELETE>},{CF_CALLBACK_TYPE_NOTIFY_DELETE_COMPLETION,Impl::Callback<CF_CALLBACK_TYPE_NOTIFY_DELETE_COMPLETION>},
@@ -75,13 +88,36 @@ void CloudSession::Transfer(const RuntimeBlock& block){
     std::lock_guard lock(fetch->Gate);Require(!fetch->Canceled&&!fetch->Done,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));Require(block.Offset==fetch->Next&&block.Offset>=fetch->Start&&block.Offset<=fetch->End&&static_cast<long long>(block.Bytes.size())<=fetch->End-block.Offset);
     Check(Complete(fetch->Operation,block.Offset,static_cast<long long>(block.Bytes.size()),0,block.Bytes.data()));fetch->Next+=block.Bytes.size();
 }
+/// <summary>确认完成之后才退休请求；CfExecute瞬态失败保留同一请求供幂等重试，不提前解除活动保护。</summary>
 void CloudSession::Finish(const std::string& id,NTSTATUS status){
-    std::shared_ptr<Impl::Fetch> fetch;{std::lock_guard lock(_impl->Gate);auto found=_impl->Fetches.find(id);if(found==_impl->Fetches.end())return;fetch=found->second;_impl->Fetches.erase(found);}
-    std::lock_guard lock(fetch->Gate);if(fetch->Done)return;fetch->Done=true;if(status==0){if(!fetch->Canceled&&fetch->Next>=fetch->Offset+fetch->Length)return;status=UnavailableStatus;}
-    auto code=Complete(fetch->Operation,fetch->Offset,fetch->Length,status);if(fetch->Canceled&&CanceledCompletion(code))return;Check(code);
+    std::shared_ptr<Impl::Fetch> fetch;{std::lock_guard lock(_impl->Gate);auto found=_impl->Fetches.find(id);if(found==_impl->Fetches.end())return;fetch=found->second;}
+    {std::lock_guard lock(fetch->Gate);if(fetch->Done)return;
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+        if(_impl->FinishFailures.load()>0){--_impl->FinishFailures;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}
+#endif
+        if(!(status==0&&!fetch->Canceled&&fetch->Next>=fetch->Offset+fetch->Length)){
+            if(status==0)status=UnavailableStatus;auto code=Complete(fetch->Operation,fetch->Offset,fetch->Length,status);
+            if(!CanceledCompletion(code)&&code!=HRESULT_FROM_WIN32(ERROR_NOT_FOUND))Check(code);
+        }
+        fetch->Done=true;
+    }
+    {std::lock_guard lock(_impl->Gate);auto found=_impl->Fetches.find(id);if(found!=_impl->Fetches.end()&&found->second==fetch)_impl->Fetches.erase(found);}
 }
 void CloudSession::BeginClear(){auto& p=*_impl;std::vector<std::string> ids;{std::lock_guard lock(p.Gate);p.Clearing=true;for(auto& [id,fetch]:p.Fetches){ids.push_back(id);}}
     for(auto& id:ids){{std::shared_ptr<Impl::Fetch> fetch;{std::lock_guard lock(p.Gate);auto found=p.Fetches.find(id);if(found!=p.Fetches.end())fetch=found->second;}if(fetch){std::lock_guard lock(fetch->Gate);fetch->Canceled=true;}}p.Event("cancelFetch",{{"fetchId",id}});try{Finish(id,CanceledStatus);}catch(...){}}
 }
-void CloudSession::Stop(){auto& p=*_impl;{std::lock_guard lock(p.Gate);if(p.Stopped)return;p.Stopped=true;}BeginClear();if(p.Connection.Internal){auto key=p.Connection;p.Connection={};Check(CfDisconnectSyncRoot(key));}}
+void CloudSession::Stop(){auto& p=*_impl;std::lock_guard connection(p.ConnectionGate);{std::lock_guard lock(p.Gate);if(p.Stopped&&!p.Connection.Internal)return;p.Stopped=true;}BeginClear();if(p.Connection.Internal){
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+    if(p.DisconnectFailures.load()>0){--p.DisconnectFailures;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}
+#endif
+    Check(CfDisconnectSyncRoot(p.Connection));p.Connection={};
+    // 平台停止新增回调后仍须排空已进入的回调，再允许销毁其上下文；不能把API返回当作回调已退栈。
+    p.Detach();std::lock_guard lock(p.Gate);p.Fetches.clear();p.Opens.clear();}}
 }
+
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+namespace hm {
+void CloudSession::HoldTestCallback(){Impl::CallbackTicket callback(_impl.get());Require(callback.Owner!=nullptr);_impl->Event("testCallback",Json::object());Require(WaitForSingleObject(_impl->TestCallbackRelease.Value,10000)==WAIT_OBJECT_0,HRESULT_FROM_WIN32(ERROR_TIMEOUT));}
+void CloudSession::ReleaseTestCallback(){WinCheck(SetEvent(_impl->TestCallbackRelease.Value));}
+void CloudSession::SetTestFailures(int finish,int disconnect){Require(finish>=0&&finish<=3&&disconnect>=0&&disconnect<=3);_impl->FinishFailures=finish;_impl->DisconnectFailures=disconnect;}}
+#endif

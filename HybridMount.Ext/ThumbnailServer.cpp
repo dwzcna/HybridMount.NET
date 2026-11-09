@@ -10,7 +10,7 @@ namespace {
         IFACEMETHODIMP CreateInstance(IUnknown* outer,REFIID iid,void** result) override{
             if(!result)return E_POINTER;*result=nullptr;if(outer)return CLASS_E_NOAGGREGATION;
             if(_source.Closing->load())return CO_E_SERVER_STOPPING;
-            return _thumbnail?CreateThumbnailHandler(iid,result,&_source):CreateMenuHandler(iid,result);
+            if(_thumbnail)TraceShellProbe(L"ThumbnailFactory");return _thumbnail?CreateThumbnailHandler(iid,result,&_source):CreateMenuHandler(iid,result);
         }
         IFACEMETHODIMP LockServer(BOOL lock) override{if(lock){++_locks;++g_objects;}else{auto count=_locks.load();while(count>0&&!_locks.compare_exchange_weak(count,count-1)){}if(count==0)return E_UNEXPECTED;--g_objects;}return S_OK;}
     };

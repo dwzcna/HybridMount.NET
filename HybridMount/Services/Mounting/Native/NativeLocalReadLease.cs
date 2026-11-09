@@ -3,7 +3,7 @@ namespace HybridMount.Services.Mounting;
 internal sealed class NativeLocalReadLease:IAsyncDisposable
 {
     private readonly NativeRuntimeClient _runtime;private readonly Guid _mount,_id;private int _closed;
-    internal LocalFileStamp Stamp{get;}
+    internal LocalFileStamp Stamp{get;private set;}
     private NativeLocalReadLease(NativeRuntimeClient runtime,Guid mount,Guid id,LocalFileStamp stamp){_runtime=runtime;_mount=mount;_id=id;Stamp=stamp;}
     internal static async Task<NativeLocalReadLease> OpenAsync(MountDefinition mount,MountEntry entry,CancellationToken token)
     {
@@ -14,5 +14,5 @@ internal sealed class NativeLocalReadLease:IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _closed)!=0,this);var bytes=await _runtime.ReadLocalRangeAsync(_mount,_id,offset,buffer.Length,token).ConfigureAwait(false);bytes.CopyTo(buffer);return new(true,bytes.Length);
     }
-    public async ValueTask DisposeAsync(){if(Interlocked.Exchange(ref _closed,1)!=0||!_runtime.IsAvailable)return;await _runtime.InvokeAsync("closeLocalRead",new{mountId=_mount,leaseId=_id}).ConfigureAwait(false);}
+    public async ValueTask DisposeAsync(){if(Interlocked.Exchange(ref _closed,1)!=0||!_runtime.IsAvailable)return;var result=await _runtime.InvokeAsync("closeLocalRead",new{mountId=_mount,leaseId=_id}).ConfigureAwait(false);Stamp=NativeRuntimeArguments.Stamp(result);}
 }
