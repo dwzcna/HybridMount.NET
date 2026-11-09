@@ -9,11 +9,8 @@ internal static class Program
     {
         // 维护入口必须先于 WinUI、单实例、托盘和任何挂载服务；无有效私有握手时立即退出。
         if(ShellMaintenanceProcess.IsMaintenanceEntry()||args.Length>0&&args[0]=="--shell-maintenance")return Services.HostDiagnosticStore.Run("ShellMaintenance",()=>ShellMaintenanceProcess.Run(args));
-        if(ThumbnailServer.IsEntry(args))return Services.HostDiagnosticStore.Run("ShellServer",()=>ThumbnailServer.Run(args));
-        if(args is ["--preview-worker"])
-        {
-            var result=1;var thread=new Thread(()=>result=Services.HostDiagnosticStore.Run("PreviewWorker",PreviewWorker.Run));thread.SetApartmentState(ApartmentState.MTA);thread.Start();thread.Join();return result;
-        }
+        if(ThumbnailServer.IsEntry(args))return 2; // COM入口只由HybridMount.Native.exe承接。
+        if(args is ["--preview-worker"])return 2; // 解码只由纯C++隔离工作进程承接。
         return Services.HostDiagnosticStore.Run("Startup",()=>
         {
         WinRT.ComWrappersSupport.InitializeComWrappers();

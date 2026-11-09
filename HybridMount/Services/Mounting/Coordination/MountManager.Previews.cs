@@ -52,13 +52,8 @@ public sealed partial class MountManager
     {
         if(!CustomPreviewsAvailable||!_roots.TryGetValue(mount.Id,out var root))return null;
         allowRemote=allowRemote&&(LegacyRemotePreviewsAllowed||RemoteThumbnailsAllowed); // 仅新按需请求允许有界远端预览。
-        CloudFilesNative.ProtectedHandle? handle=null;var referenced=false;Stream? local=null;LocalFileStamp? stamp=null;Common.IFileSource? source=null;long length=0;
-        void ReleaseLocal()
-        {
-            local?.Dispose();local=null;
-            if(referenced&&handle is not null){CloudFilesNative.CfReleaseProtectedHandle(handle);referenced=false;}
-            handle?.Dispose();handle=null;
-        }
+        NativeLocalReadLease? local=null;LocalFileStamp? stamp=null;Common.IFileSource? source=null;long length=0;
+        async ValueTask ReleaseLocal(){if(local is {} lease){local=null;await lease.DisposeAsync().ConfigureAwait(false);}}
         try
         {
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
@@ -71,8 +66,7 @@ public sealed partial class MountManager
                 length=new FileInfo(path).Length;source=root.Source;
                 if(CloudFilesNative.HasFullContent(path,length))
                 {
-                    stamp=LocalFileState.Read(path);handle=CloudFilesNative.OpenRead(path);referenced=CloudFilesNative.CfReferenceProtectedHandle(handle);if(!referenced)return null;
-                    local=new ProtectedResourceStream(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(handle),length);
+                    local=await NativeLocalReadLease.OpenAsync(root.Definition,entry,token).ConfigureAwait(false);stamp=local.Stamp;
                 }
                 else if(!allowRemote||entry.Protected||info!.Value.Info.InSyncState!=1||info.Value.Info.ModifiedSize!=0)return null;
             }
@@ -80,15 +74,12 @@ public sealed partial class MountManager
             PreviewRangeBudget budget;
             if(local is not null)
             {
-                budget=new PreviewRangeBudget(length,(offset,buffer,cancel)=>
-                {
-                    cancel.ThrowIfCancellationRequested();local.Position=offset;var bytes=new byte[buffer.Length];var read=local.Read(bytes,0,bytes.Length);bytes.AsMemory(0,read).CopyTo(buffer);return ValueTask.FromResult(new PreviewRangeResult(true,read));
-                });
+                budget=new PreviewRangeBudget(length,local.ReadAsync);
             }
             else budget=new PreviewRangeBudget(source!,new SourceEntry(entry.Id,entry.SourcePath,false,length,DateTimeOffset.MinValue,entry.Version));
             var frames=await new PreviewWorkerClient().DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget.ReadAsync,token).ConfigureAwait(false);
             // 解码结束先归还oplock；上传／清空可能已持有根锁，不能带着正文保护引用重新等待该锁。
-            ReleaseLocal();
+            await ReleaseLocal().ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
@@ -100,6 +91,6 @@ public sealed partial class MountManager
             }
             finally{root.Gate.Release();}
         }
-        finally{ReleaseLocal();}
+        finally{await ReleaseLocal().ConfigureAwait(false);}
     }
 }

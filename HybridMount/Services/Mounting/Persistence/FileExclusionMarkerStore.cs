@@ -14,8 +14,10 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
     private readonly object _gate=new();
     private Dictionary<string,Mark>? _marks;
     private bool _definitionReady;
-    /// <summary>实例级故障注入；生产始终调用原有CfSetPinState封装。</summary>
+#if HYBRIDMOUNT_HEADLESS_TEST
+    /// <summary>仅测试检查点故障注入；参数句柄无效，不跨进程借出文件。</summary>
     internal Func<SafeFileHandle,uint,int>? SetPinForTests {get;set;}
+#endif
     private Dictionary<string,Mark> Load()
     {
         if(_marks is not null)return _marks;
@@ -96,88 +98,50 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
     {
         lock(_gate)
         {
-            token.ThrowIfCancellationRequested();
-            if(definition.Id!=mountId||definition.RemovalPending)throw new IOException("排除标记的挂载身份已变化。");
+            token.ThrowIfCancellationRequested();if(definition.Id!=mountId||definition.RemovalPending)throw new IOException("排除标记的挂载身份已变化。");
             var marks=Load();if(!excluded&&marks.Count==0)return new(null,null,false);
-            var path=RelativePaths.ToLocal(definition.LocalPath,relative);MountPathGuard.ValidateOperation(definition,path);
-            // 已完成标记只用共享属性读句柄检查，避免周期扫描阻挡正常打开和改名。
-            using var probe=CloudFilesNative.CreateFile(path,0x80,7,0,3,0x02200000,0);
-            if(probe.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
-            var before=LocalFileState.Read(probe);if(before.IsDirectory)return new(before,before,false);
-            var info=CloudFilesNative.Inspect(probe);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-            if(info is not null&&marker?.MountId!=mountId)throw new IOException("排除标记拒绝操作其他提供程序的占位。");
-            if(MountPathGuard.FileIdentity(path)!=before.Identity)throw new IOException("排除标记文件身份已变化。");
-            marks.TryGetValue(before.Identity,out var prior);
-            if(!excluded&&prior is null)return new(before,before,false);
-            var pin=ReadPin(probe,info?.Info.PinState);
-            var deferred=excluded&&NeedsNativeDeferral(probe,path,before.Length,info is not null);
-            var desired=excluded?(deferred?DeferredPin(prior?.PreviousPin??pin):CloudFilesNative.PinStateExcluded):prior!.PreviousPin;
-            var text=excluded?CloudItemStateProperty.ExclusionText:"";var icon=excluded?CloudItemStateProperty.ExclusionIcon:"";
-            if(prior?.Error is not null&&prior.Path==relative&&prior.Phase==(excluded?"ApplyPending":"RestorePending")&&prior.AttemptUtc.AddSeconds(30)>DateTimeOffset.UtcNow)
-                return new(prior.Before,before,false);
-            if(excluded&&pin==desired&&prior is {Error:null}&&prior.Phase==(deferred?"NativeDeferred":"Applied")&&prior.Path==relative&&
-                !CloudItemStateProperty.Plan(definition,path,CloudItemStateProperty.ExclusionId,text,icon).Changed)
-                return new(prior.Before,before,false);
-            if(!CloudRootRegistration.IsOwnedRoot(definition))throw new IOException("原生根身份无法确认，排除规则生效但系统标记未执行。");
-            // 只有实际修改时请求共享保护；DELETE权限只用于禁止外部改写和改名，不执行删除或正文读取。
-            using var handle=CloudFilesNative.CreateFile(path,0x10180,1,0,3,0x02200000,0);
-            if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
-            var guarded=LocalFileState.Read(handle);if(guarded.Identity!=before.Identity||guarded.IsDirectory)throw new IOException("排除标记文件身份已变化。");
-            before=guarded;info=CloudFilesNative.Inspect(handle);pin=ReadPin(handle,info?.Info.PinState);
-            deferred=excluded&&NeedsNativeDeferral(handle,path,before.Length,info is not null);
-            desired=excluded?(deferred?DeferredPin(prior?.PreviousPin??pin):CloudFilesNative.PinStateExcluded):prior!.PreviousPin;
-            var record=new Mark(relative,before.Identity,prior?.PreviousPin??pin,excluded?"ApplyPending":"RestorePending",before,DateTimeOffset.UtcNow,OwnedPin:excluded?desired:prior?.OwnedPin??(prior?.Phase=="NativeDeferred"?DeferredPin(prior.PreviousPin):CloudFilesNative.PinStateExcluded));
-            marks[before.Identity]=record;Save();var written=false;
+            if(excluded&&!_definitionReady){CloudRootRegistration.EnsureExclusionDefinitionAsync(definition,token).GetAwaiter().GetResult();_definitionReady=true;}
+            var path=RelativePaths.ToLocal(definition.LocalPath,relative);Mark? record=null,prior=null;LocalFileStamp? before=null,after=null;var changed=false;var completed=false;
             try
             {
-                // 解除排除时保留用户后来修改的固定意图；此前就已排除的文件恢复为EXCLUDED。
-                if(excluded?pin!=desired:pin==record.OwnedPin&&record.PreviousPin!=pin)
+                NativeRuntimeClient.Get().InvokeAsync("applyExclusion",NativeRuntimeArguments.Root(definition,new{path,excluded,text=excluded?CloudItemStateProperty.ExclusionText:"",icon=excluded?CloudItemStateProperty.ExclusionIcon:""}),(stage,data)=>
                 {
-                    CloudFilesNative.Check(SetPinForTests?.Invoke(handle,desired)??CloudFilesNative.SetPinIntent(handle,desired,0,0));
-                    written=true;
-                }
-                if(excluded&&(ReadPin(handle,CloudFilesNative.Inspect(handle)?.Info.PinState)!=desired||info is null&&CloudShellState.Read(path).ProviderState!=9))
-                    throw new IOException("系统排除状态无法可靠读回；上传仍保持排除。");
-                if(excluded&&!_definitionReady)
-                {
-                    CloudRootRegistration.EnsureExclusionDefinitionAsync(definition,token).ConfigureAwait(false).GetAwaiter().GetResult();_definitionReady=true;
-                }
-                // WinRT只修改本地元数据；后台同步桥接维持属性保护，系统写入开始后等实际完成才释放句柄。
-                written|=CloudItemStateProperty.SetAsync(definition,path,false,CloudItemStateProperty.ExclusionId,text,icon,token).ConfigureAwait(false).GetAwaiter().GetResult();
-                if(written&&!WriteClose(handle,0x000900ef,0,0,new byte[8],8,out _,0))throw new Win32Exception(Marshal.GetLastWin32Error());
-                var after=LocalFileState.Read(handle);var current=CloudFilesNative.Inspect(handle);
-                if(after.Identity!=before.Identity||MountPathGuard.FileIdentity(path)!=after.Identity||after.Length!=before.Length||after.LastWriteTime!=before.LastWriteTime||
-                    info?.Info.InSyncState!=current?.Info.InSyncState||info?.Info.OnDiskSize!=current?.Info.OnDiskSize||
-                    (info is null?current is not null:current is null||!info.Value.Identity.SequenceEqual(current.Value.Identity)))
-                    throw new IOException("标记后的文件内容、身份或同步状态不一致，保留恢复记录。");
-                if(excluded)marks[before.Identity]=record with{Phase=deferred?"NativeDeferred":"Applied"};else marks.Remove(before.Identity);
-                Save();return new(prior?.Before??before,after,written);
+                    if(stage is "exclusionProbe" or "exclusionGuarded")
+                    {
+                        before=NativeRuntimeArguments.Stamp(data);marks.TryGetValue(before.Identity,out prior);var pin=data.GetProperty("pinState").GetUInt32();var deferred=data.GetProperty("deferred").GetBoolean();
+                        if(!excluded&&prior is null)return Task.FromResult<object?>(new{proceed=false});
+                        if(prior?.Error is not null&&prior.Path==relative&&prior.Phase==(excluded?"ApplyPending":"RestorePending")&&prior.AttemptUtc.AddSeconds(30)>DateTimeOffset.UtcNow)return Task.FromResult<object?>(new{proceed=false});
+                        var desired=excluded?(deferred?DeferredPin(prior?.PreviousPin??pin):CloudFilesNative.PinStateExcluded):prior!.PreviousPin;
+                        record=new(relative,before.Identity,prior?.PreviousPin??pin,excluded?"ApplyPending":"RestorePending",before,DateTimeOffset.UtcNow,OwnedPin:excluded?desired:prior?.OwnedPin??(prior?.Phase=="NativeDeferred"?DeferredPin(prior.PreviousPin):CloudFilesNative.PinStateExcluded));
+                        if(excluded&&pin==desired&&prior is {Error:null}&&prior.Phase==(deferred?"NativeDeferred":"Applied")&&prior.Path==relative&&!CloudItemStateProperty.Plan(definition,path,2,CloudItemStateProperty.ExclusionText,CloudItemStateProperty.ExclusionIcon).Changed){record=null;return Task.FromResult<object?>(new{proceed=false});}
+                        if(stage=="exclusionProbe"){record=null;return Task.FromResult<object?>(new{proceed=true});}
+                        marks[before.Identity]=record;Save();var changePin=excluded?pin!=desired:pin==record.OwnedPin&&record.PreviousPin!=pin;
+#if HYBRIDMOUNT_HEADLESS_TEST
+                        if(changePin&&SetPinForTests is not null){using var invalid=new SafeFileHandle(-1,false);CloudFilesNative.Check(SetPinForTests(invalid,desired));}
+#endif
+                        return Task.FromResult<object?>(new{proceed=true,desired,changePin});
+                    }
+                    if(stage=="exclusionBegin")return Task.FromResult<object?>(null);
+                    if(stage is "exclusionCommit" or "exclusionProof")
+                    {
+                        after=NativeRuntimeArguments.Stamp(data);changed=data.GetProperty("changed").GetBoolean();if(stage=="exclusionCommit")
+                        {
+                            if(record is null)throw new IOException("排除标记缺少恢复记录。");
+                            if(excluded)marks[record.Identity]=record with{Phase=record.OwnedPin==CloudFilesNative.PinStateExcluded?"Applied":"NativeDeferred"};else marks.Remove(record.Identity);Save();completed=true;
+                        }
+                        return Task.FromResult<object?>(null);
+                    }
+                    throw new IOException("原生排除阶段无效。");
+                },token).GetAwaiter().GetResult();
+                return new(prior?.Before??before,after??before,changed);
             }
             catch(Exception error)when(error is IOException or UnauthorizedAccessException or Win32Exception or COMException or OperationCanceledException)
             {
-                marks[before.Identity]=record with{Error=$"{error.Message}；HRESULT=0x{error.HResult:X8}"};Save();
-                // 写入成功而后续确认失败时，仍吸收已证明无正文变化的自有元数据；错误及恢复阶段继续保留。
-                if(written){var after=LocalFileState.Read(handle);if(after.Identity==before.Identity&&MountPathGuard.FileIdentity(path)==after.Identity)return new(before,after,true,error);}
-                throw;
+                if(record is not null&&!completed){marks[record.Identity]=record with{Error=$"原生排除标记未完成；HRESULT=0x{error.HResult:X8}"};Save();}
+                if(changed&&before is not null&&after is not null)return new(before,after,true,error);throw;
             }
         }
     }
-    /// <summary>冷占位EXCLUDED会被Shell解释为等待下载；只查本地范围和PARTIAL标记（含零字节），不读取正文或强制水合。</summary>
-    private static bool NeedsNativeDeferral(SafeFileHandle handle,string path,long length,bool placeholder)
-    {
-        if(!placeholder)return false;
-        if(!CloudFilesNative.GetFileInformationByHandleEx(handle,9,out var tag,8))throw new Win32Exception(Marshal.GetLastWin32Error());
-        return (CloudFilesNative.CfGetPlaceholderStateFromAttributeTag(tag.Attributes,tag.Tag)&0x10)!=0||!CloudFilesNative.HasFullContent(path,length);
-    }
-    /// <summary>暂缓期间撤销本功能造成的固定等待；原意图已落盘，解除规则时按身份恢复，不触发下载。</summary>
+    /// <summary>暂缓期间撤销固定等待；解除规则时按身份恢复，不触发正文下载。</summary>
     private static uint DeferredPin(uint previous)=>previous==2?2u:0u;
-    /// <summary>普通文件没有CF占位信息；直接读属性固定意图，EXCLUDED须再经Shell只读属性确认，不能为读回而转换占位。</summary>
-    private static uint ReadPin(SafeFileHandle handle,uint? cloudPin)
-    {
-        if(cloudPin is {} pin)return pin;
-        if(!CloudFilesNative.GetFileInformationByHandleEx(handle,9,out var tag,8))throw new Win32Exception(Marshal.GetLastWin32Error());
-        return ((tag.Attributes&0x80000)!=0?1u:0)|((tag.Attributes&0x100000)!=0?2u:0);
-    }
-    [DllImport("kernel32.dll",EntryPoint="DeviceIoControl",SetLastError=true)]
-    private static extern bool WriteClose(SafeFileHandle handle,uint control,nint input,uint inputSize,byte[] output,uint outputSize,out uint returned,nint overlap);
 }

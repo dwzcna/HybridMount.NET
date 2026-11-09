@@ -11,12 +11,11 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class PreviewTests(ITestOutputHelper output)
 {
-    /// <summary>后台预览和元数据扫描也可短暂持有句柄；只对明确的 oplock 竞争进行有界等待。</summary>
-    private static async Task<CloudFilesNative.ProtectedHandle> OpenResourceReadAsync(string path)
+    /// <summary>测试的手动资源读取等待同文件后台预览归还oplock；只重试明确的共享竞争，不忽略其他失败。</summary>
+    private static async Task<NativeLocalReadLease> OpenNativeResourceAsync(MountDefinition mount,MountEntry entry)
     {
-        var deadline=DateTime.UtcNow.AddSeconds(5);
-        while(true)try{return CloudFilesNative.OpenRead(path);}
-        catch(System.Runtime.InteropServices.COMException error)when(error.HResult==unchecked((int)0x80070322)&&DateTime.UtcNow<deadline){await Task.Delay(20);}
+        var deadline=DateTime.UtcNow.AddSeconds(5);while(true)try{return await NativeLocalReadLease.OpenAsync(mount,entry,default);}
+        catch(System.Runtime.InteropServices.COMException error)when(error.HResult is unchecked((int)0x80070322) or unchecked((int)0x80070020)&&DateTime.UtcNow<deadline){await Task.Delay(20);}
     }
     internal static byte[] LargeExecutable()
     {
@@ -62,19 +61,18 @@ public sealed class PreviewTests(ITestOutputHelper output)
             using(var provider=new NativePreviewInterop(path))
             {
                 output.WriteLine("after Shell item: GET="+fixture.Server.Requests.Count(request=>request.Method=="GET"));
-                var elapsed=Stopwatch.StartNew();Assert.Equal(0,provider.Thumbnail(64,out var alpha,out var bitmap));
-                try{Assert.Equal(2u,alpha);Assert.NotEqual(0,bitmap);}finally{NativePreviewInterop.DeleteObject(bitmap);}
+                var elapsed=Stopwatch.StartNew();Assert.True(provider.Thumbnail(64,out var alpha,out var bitmap)<0);Assert.Equal(0u,alpha);Assert.Equal(0,bitmap);
                 output.WriteLine($"cold identity-only handler: {elapsed.ElapsedMilliseconds} ms; HTTP GET={fixture.Server.Requests.Count(request=>request.Method=="GET")}");
                 Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="GET");
                 Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
-                Assert.NotEmpty(requests);Assert.All(requests,request=>Assert.Equal("getPreview",request.Operation));
+                Assert.Empty(requests);
                 await manager.SetThumbnailsEnabledAsync(mount.Id,true);
                 var keep=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"keepOnDevice",[path]));Assert.Equal("Completed",keep.State);
                 var deadline=DateTime.UtcNow.AddSeconds(15);byte[]? png=null;
                 while(DateTime.UtcNow<deadline&&(png=manager.GetPreview(path,128)) is null)await Task.Delay(25);
                 Assert.NotNull(png);Assert.Equal(128,BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16)));
                 var gets=fixture.Server.Requests.Count(request=>request.Method=="GET");
-                Assert.Equal(0,provider.Thumbnail(80,out alpha,out bitmap));try{Assert.Equal(2u,alpha);Assert.Equal(128,NativePreviewInterop.BitmapWidth(bitmap));}finally{NativePreviewInterop.DeleteObject(bitmap);}
+                Assert.Equal(0,provider.Thumbnail(80,out alpha,out bitmap));try{Assert.Equal(2u,alpha);Assert.Equal(80,NativePreviewInterop.BitmapWidth(bitmap));}finally{NativePreviewInterop.DeleteObject(bitmap);}
                 Assert.Equal(gets,fixture.Server.Requests.Count(request=>request.Method=="GET"));
                 output.WriteLine("warm cache ready; dehydrate begins");
                 var free=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"freeSpace",[path]));Assert.Equal("Completed",free.State);
@@ -82,6 +80,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 Assert.Equal(0,provider.Thumbnail(128,out alpha,out bitmap));NativePreviewInterop.DeleteObject(bitmap);
                 Assert.Equal(gets,fixture.Server.Requests.Count(request=>request.Method=="GET"));
                 // 普通 File.Copy 继续按需读取，目标为挂载外的隔离临时文件，不执行 EXE。
+                await manager.SetPinIntentMonitoringForTestsAsync(mount.Id,false); // 本段单独核对只读资源保护；自动UNPIN收尾另有专项。
                 output.WriteLine("ordinary copy begins");
                 var copy=Path.Combine(fixture.Area,"copied.exe");await Task.Run(()=>File.Copy(path,copy)).WaitAsync(TimeSpan.FromSeconds(10));
                 Assert.Equal(fixture.Objects["large.exe"].Bytes,await File.ReadAllBytesAsync(copy));
@@ -89,9 +88,8 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 var attributes=File.GetAttributes(path);File.SetAttributes(path,attributes|FileAttributes.ReadOnly);
                 try
                 {
-                    using var readHandle=await OpenResourceReadAsync(path);Assert.True(CloudFilesNative.CfReferenceProtectedHandle(readHandle));
-                    try{using var content=new ProtectedResourceStream(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(readHandle),new FileInfo(path).Length);Assert.NotNull(ExeIconExtractor.Extract(content,32));}
-                    finally{CloudFilesNative.CfReleaseProtectedHandle(readHandle);}
+                    var current=repository.Entries(mount.Id).Single(item=>item.LocalPath=="large.exe");
+                    await using var lease=await OpenNativeResourceAsync(manager.Mounts.Single().Definition,current);var budget=new PreviewRangeBudget(lease.Stamp.Length,lease.ReadAsync);Assert.NotNull(await new PreviewWorkerClient().DecodeAsync(".exe",lease.Stamp.Length,budget.ReadAsync));
                 }
                 finally{File.SetAttributes(path,attributes);}
                 await WebDavTests.Finished(manager,manager.Queue(mount.Id,"freeSpace",[path]));
@@ -99,7 +97,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 fixture.Put("large.exe",LargeExecutable());var refresh=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"refresh"));Assert.Equal("Completed",refresh.State);
                 var newEntry=repository.Entries(mount.Id).Single(entry=>entry.LocalPath=="large.exe");Assert.NotEqual(oldEntry.Version,newEntry.Version);
                 Assert.NotEqual(ExePreviewCache.CacheKey(mount,oldEntry,64),ExePreviewCache.CacheKey(mount,newEntry,64));Assert.Null(manager.GetPreview(path,64));
-                manager.CacheLimitBytes=1;await manager.EnforceCacheLimitAsync();Assert.Null(manager.GetPreview(path,64));Assert.Empty(Directory.EnumerateFiles(Path.Combine(repository.DataDirectory,"Thumbnails"),"*.cache"));
+                manager.CacheLimitBytes=1;await manager.EnforceCacheLimitAsync();Assert.Null(manager.GetPreview(path,64));Assert.Empty(Directory.EnumerateFiles(ThumbnailCachePaths.DirectoryPath,"*.cache"));
             }
             using(var other=new NativePreviewInterop(Path.Combine(local,"文件.bin")))
             {var count=requests.Count;Assert.Equal(unchecked((int)0x80004001),other.Thumbnail(64,out _,out var bitmap));Assert.Equal(0,bitmap);Assert.Equal(count,requests.Count);}
@@ -124,7 +122,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
             var before=fixture.Server.Requests.Count(request=>request.Method=="GET");
             using var native=new NativePreviewInterop(path,true,stage=>output.WriteLine($"{stage}: GET={fixture.Server.Requests.Count(request=>request.Method=="GET")}; full={CloudFilesNative.HasFullContent(path,new FileInfo(path).Length)}"));
             var afterBinding=fixture.Server.Requests.Count(request=>request.Method=="GET");
-            Assert.Equal(0,native.Thumbnail(32,out _,out var bitmap));NativePreviewInterop.DeleteObject(bitmap);
+            Assert.True(native.Thumbnail(32,out _,out var bitmap)<0);Assert.Equal(0,bitmap);
             var afterHandler=fixture.Server.Requests.Count(request=>request.Method=="GET");
             output.WriteLine($"Shell binding delta={afterBinding-before}; handler delta={afterHandler-afterBinding}; cloud thumbnail production registration remains disabled pending Explorer acceptance");
             Assert.Equal(afterBinding,afterHandler);
@@ -177,13 +175,15 @@ public sealed class PreviewTests(ITestOutputHelper output)
             {
                 Handler=request=>
                 {
+                    throw new Xunit.Sdk.XunitException("缩略图不应访问管道。");
+                    #pragma warning disable CS0162
                     if(failure=="timeout")Thread.Sleep(400);
                     return new(failure=="old"?1:2,failure=="wrongId"?Guid.NewGuid().ToString():request.RequestId,failure=="old"?"notImplemented":"ok","",PreviewPng:[1,2,3]);
+                    #pragma warning restore CS0162
                 }
             };server.Start();
             using var provider=new NativePreviewInterop(Path.Combine(local,"fallback.exe"));var watch=Stopwatch.StartNew();
-            Assert.Equal(0,provider.Thumbnail(80,out var alpha,out var bitmap));
-            try{Assert.Equal(2u,alpha);Assert.Equal(80,NativePreviewInterop.BitmapWidth(bitmap));}finally{NativePreviewInterop.DeleteObject(bitmap);}
+            Assert.True(provider.Thumbnail(80,out var alpha,out var bitmap)<0);Assert.Equal(0u,alpha);Assert.Equal(0,bitmap);
             output.WriteLine($"fallback={failure}; elapsedMs={watch.ElapsedMilliseconds}; HTTP GET=0");
             Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="GET");
             Assert.False(CloudFilesNative.HasFullContent(Path.Combine(local,"fallback.exe"),new FileInfo(Path.Combine(local,"fallback.exe")).Length));

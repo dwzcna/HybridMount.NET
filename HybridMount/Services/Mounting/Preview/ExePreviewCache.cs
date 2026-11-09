@@ -159,7 +159,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
             }
             else
             {
-                using var lease=_enter is null?null:await _enter(mount,entry,token).ConfigureAwait(false);if(_enter is null||lease is not null)Extract(mount,entry);
+                using var lease=_enter is null?null:await _enter(mount,entry,token).ConfigureAwait(false);if(_enter is null||lease is not null)await ExtractAsync(mount,entry,token).ConfigureAwait(false);
             }
         }
         catch(OperationCanceledException){if(!token.IsCancellationRequested)_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));}
@@ -167,37 +167,17 @@ public sealed class ExePreviewCache : IAsyncDisposable
         {_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));_diagnostic?.Invoke("预览回退："+error.GetType().Name);}
         finally{if(slot)_slots.Release();if(entered)gate.Release();_pending.TryRemove(key,out _);work.Completion.TrySetResult();work.Dispose();}
     }
-    private void Extract(MountDefinition mount,MountEntry entry)
+    /// <summary>兼容独立缓存调用；解码由原生隔离进程执行，正文只通过原生保护租约读取。</summary>
+    private async Task ExtractAsync(MountDefinition mount,MountEntry entry,CancellationToken token)
     {
-        var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);
-        // 排他 oplock 阻止并发脱水；只有完整、未修改且身份一致的内容才允许加载资源。
-        bool Valid()
+        var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+        if(marker?.MountId!=mount.Id||marker.EntryId!=entry.Id||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))return;
+        Dictionary<int,byte[]>? frames;LocalFileStamp before;
+        await using(var lease=await NativeLocalReadLease.OpenAsync(mount,entry,token).ConfigureAwait(false))
         {
-            var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-            return marker?.MountId==mount.Id&&marker.EntryId==entry.Id&&info!.Value.Info.ModifiedSize==0&&info.Value.Info.InSyncState==1&&CloudFilesNative.HasFullContent(path,new FileInfo(path).Length);
+            before=lease.Stamp;var budget=new PreviewRangeBudget(before.Length,lease.ReadAsync);frames=await new PreviewWorkerClient().DecodeAsync(Path.GetExtension(entry.LocalPath),before.Length,budget.ReadAsync,token).ConfigureAwait(false);
         }
-        // 冷占位必须在任何内容句柄打开前跳过，避免打开行为本身引发水合。
-        if(!Valid())return;
-        var changed=false;var frames=new Dictionary<int,byte[]>();
-        using var handle=CloudFilesNative.OpenRead(path);
-        if(!CloudFilesNative.CfReferenceProtectedHandle(handle)){_diagnostic?.Invoke("保护句柄不可引用。");return;}
-        try
-        {
-        if(!Valid())return;
-        // 使用同一受保护句柄读取 PE 资源，不再次打开原文件，不触发 oplock 自身失效。
-        using var content=new ProtectedResourceStream(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(handle),new FileInfo(path).Length);
-        foreach(var size in Sizes)
-        {
-            _stop.Token.ThrowIfCancellationRequested();if(Get(mount,entry,size) is not null)continue;
-            var png=ExeIconExtractor.Extract(content,size);if(png is null||png.Length>MaximumPngBytes){_diagnostic?.Invoke("未取得有界图标资源。");continue;}
-            MountPathGuard.ValidateOperation(mount,path);if(!Valid())return;
-            frames[size]=png;changed=true;
-        }
-
-        }
-        finally{CloudFilesNative.CfReleaseProtectedHandle(handle);}
-        handle.Dispose();
-        if(changed&&ConfigureMount(mount) is {} root&&ThumbnailCacheReader.Capture(root,entry) is {} binding&&_store.Publish(binding,frames)){_diagnostic?.Invoke("图标缓存已发布。");CloudFilesNative.NotifyItemUpdated(path);}
+        if(frames is not null&&LocalFileState.Read(path).Key==before.Key&&ConfigureMount(mount) is {} root&&ThumbnailCacheReader.Capture(root,entry) is {} binding&&_store.Publish(binding,frames))CloudFilesNative.NotifyItemUpdated(path);
     }
     public long UsageBytes=>_store.UsageBytes;
     /// <summary>后台统一回收数据库BLOB，不散落图片文件或手工删除WAL。</summary>

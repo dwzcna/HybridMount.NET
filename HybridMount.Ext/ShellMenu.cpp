@@ -49,7 +49,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
     if (FAILED(RoGetActivationFactory(HStringReference(RuntimeClass_Windows_Data_Json_JsonObject).Get(), IID_PPV_ARGS(&factory))) || FAILED(factory->Parse(HStringReference(json.c_str()).Get(), &root))) return false;
     HString product, id;
     double schema = 0;
-    if (FAILED(root->GetNamedString(HStringReference(L"Product").Get(), product.GetAddressOf())) || wcscmp(product.GetRawBuffer(nullptr), L"HybridMount.NET") != 0 ||
+    if (FAILED(root->GetNamedString(HStringReference(L"Product").Get(), product.GetAddressOf())) || wcscmp(product.GetRawBuffer(nullptr), hm::ProductScope().c_str()) != 0 ||
         FAILED(root->GetNamedNumber(HStringReference(L"Schema").Get(), &schema)) || schema != 1 ||
         FAILED(root->GetNamedString(HStringReference(L"MountId").Get(), id.GetAddressOf()))) return false;
     HString owner;

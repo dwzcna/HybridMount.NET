@@ -14,7 +14,7 @@ function Add-Element($parent,[string]$prefix,[string]$name,[string]$space,[hasht
 }
 $extension=Add-Element $extensions 'desktop3' 'Extension' $d3 @{Category='windows.cloudFiles'}
 $cloud=Add-Element $extension 'desktop3' 'CloudFiles' $d3 @{IconResource='Assets\HybridMount.png'}
-$menuId='F4A8FD0B-4055-4F23-8CC0-91B736B3E491';$thumbId='A65802EB-4D1C-4C7E-A519-34C76B9BB281'
+$menuId='59964FC1-D076-4DC1-9778-01F5833A5D4A';$thumbId='A749B295-9CB5-4F08-98D4-00EB47345E09'
 if($ShellProfile -eq 'MenusAndThumbnails'){
     # SDK要求完整子组；没有实现的处理器不设置CLSID，原生状态仍由系统提供。
     [void](Add-Element $cloud 'desktop3' 'CustomStateHandler' $d3)
@@ -31,7 +31,7 @@ if($ShellProfile -eq 'MenusAndThumbnails'){
 if($ShellProfile -ne 'Native'){
     $serverExtension=Add-Element $extensions 'com' 'Extension' $com @{Category='windows.comServer'}
     $servers=Add-Element $serverExtension 'com' 'ComServer' $com
-    $server=Add-Element $servers 'com' 'ExeServer' $com @{Executable='HybridMount.NET.exe';Arguments='--shell-server';DisplayName='HybridMount Shell'}
+    $server=Add-Element $servers 'com' 'ExeServer' $com @{Executable='HybridMount.Native.exe';Arguments='--shell-server';DisplayName='HybridMount Shell'}
     [void](Add-Element $server 'com' 'Class' $com @{Id=$menuId;DisplayName='HybridMount 动态菜单'})
     if($ShellProfile -eq 'MenusAndThumbnails'){[void](Add-Element $server 'com' 'Class' $com @{Id=$thumbId;DisplayName='HybridMount 数据库缩略图'})}
 }

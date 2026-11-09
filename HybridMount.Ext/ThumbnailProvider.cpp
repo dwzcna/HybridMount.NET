@@ -1,4 +1,6 @@
 #include "Extension.h"
+#include "../HybridMount.Native/ThumbnailCache.h"
+#include "../HybridMount.Native/NativeCommon.h"
 #include <thumbcache.h>
 #include <shellapi.h>
 #include <wincodec.h>
@@ -31,23 +33,6 @@ namespace {
         status=converter->CopyPixels(nullptr,width*4,width*height*4,static_cast<BYTE*>(pixels));
         if(FAILED(status)){DeleteObject(bitmap);return status;}*result=bitmap;return S_OK;
     }
-    /// <summary>系统通用程序图标不引用占位路径，不触发目标 EXE 的图标抽取或水合。</summary>
-    HRESULT Generic(UINT size,HBITMAP* result,const wchar_t* extension) {
-        SHSTOCKICONINFO stock{sizeof(stock)};SHFILEINFOW associated{};HRESULT status=S_OK;
-        const auto dummy=std::wstring(L"file")+extension;
-        if(_wcsicmp(extension,L".exe")!=0&&SHGetFileInfoW(dummy.c_str(),FILE_ATTRIBUTE_NORMAL,&associated,sizeof(associated),SHGFI_USEFILEATTRIBUTES|SHGFI_ICON|SHGFI_LARGEICON))stock.hIcon=associated.hIcon;
-        else status=SHGetStockIconInfo(SIID_APPLICATION,SHGSI_ICON|SHGSI_LARGEICON,&stock);
-        if(FAILED(status))return status;
-        void* pixels=nullptr;auto bitmap=Bitmap(size,&pixels);auto dc=CreateCompatibleDC(nullptr);
-        if(!bitmap||!dc){if(bitmap)DeleteObject(bitmap);if(dc)DeleteDC(dc);DestroyIcon(stock.hIcon);return E_OUTOFMEMORY;}
-        memset(pixels,0,size*size*4);auto previous=SelectObject(dc,bitmap);
-        const auto drawn=DrawIconEx(dc,0,0,stock.hIcon,static_cast<int>(size),static_cast<int>(size),0,nullptr,DI_NORMAL);
-        SelectObject(dc,previous);DeleteDC(dc);DestroyIcon(stock.hIcon);
-        if(!drawn){DeleteObject(bitmap);return E_FAIL;}
-        bool alpha=false;auto bytes=static_cast<BYTE*>(pixels);for(UINT offset=3;offset<size*size*4;offset+=4)alpha|=bytes[offset]!=0;
-        if(!alpha)for(UINT offset=3;offset<size*size*4;offset+=4)bytes[offset]=255;
-        *result=bitmap;return S_OK;
-    }
     /// <summary>初始化仅复制文件系统身份；只处理本产品根内支持的媒体，其余类型交还系统。</summary>
     class ThumbnailProvider final : public RuntimeClass<RuntimeClassFlags<ClassicCom>,IInitializeWithItem,IThumbnailProvider>,private ModuleLifetime {
         std::wstring _path;ThumbnailCacheSource _source;
@@ -75,13 +60,9 @@ namespace {
                     if(SUCCEEDED(status)&&bytes&&length>=8&&length<=384*1024){try{png.assign(bytes,bytes+length);}catch(...){CoTaskMemFree(bytes);return E_OUTOFMEMORY;}}
                     CoTaskMemFree(bytes);if(FAILED(status))return status;if(png.empty())return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
                     status=Decode(png,bitmap,std::min(size,256u));
-                }else{
-                    // 保留未注册的旧ABI供隔离回归；正式ExeServer始终走数据库回调。
-                    if(QueryCachedPreview(_path,bounded,png))status=Decode(png,bitmap);
-                    if(FAILED(status))status=Generic(bounded,bitmap,extension);
-                }
+                }else{png=hm::ReadCachedThumbnail(_path,bounded);status=Decode(png,bitmap,std::min(size,256u));}
                 if(SUCCEEDED(status))*alpha=WTSAT_ARGB;return status;
-            }catch(...){return E_OUTOFMEMORY;}
+            }catch(const hm::Failure& error){return error.Code;}catch(...){return E_FAIL;}
         }
     };
 }

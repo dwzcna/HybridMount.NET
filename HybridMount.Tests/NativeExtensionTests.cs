@@ -11,7 +11,7 @@ public sealed class NativeExtensionTests
     {
         private readonly nint _library;
         private nint _factory, _root;
-        private static readonly Guid CommandId = new("F4A8FD0B-4055-4F23-8CC0-91B736B3E491");
+        private static readonly Guid CommandId = new("59964FC1-D076-4DC1-9778-01F5833A5D4A");
         internal NativeExtension()
         {
             _library = NativeLibrary.Load(NativePreviewInterop.LibraryPath);

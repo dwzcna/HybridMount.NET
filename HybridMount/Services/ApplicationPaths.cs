@@ -1,11 +1,13 @@
 namespace HybridMount.Services;
 
-/// <summary>集中定位当前产品的数据和日志目录，包内与开发运行分别使用自身目录。</summary>
+/// <summary>实验分支的数据与身份；不读取或接管正式安装及另一部署模式的配置。</summary>
 public static class ApplicationPaths
 {
-    /// <summary>产品注册表设置根，不读取参考工程或旧命名的设置。</summary>
-    public const string RegistryPath = @"Software\HybridMount.NET";
-    /// <summary>当前产品可写数据目录。</summary>
+    public static string DeploymentScope => WinRegisterService.IsPackaged() ? "Packaged" : "Unpackaged";
+    public static string ProductScope => "HybridMount.NativePreview." + DeploymentScope;
+    public static string RegistryPath => @"Software\HybridMount.NET\NativePreview\" + DeploymentScope;
+    /// <summary>物理缓存根供纯原生宿主直读；包清单仅为缩略图子树排除虚拟化。</summary>
+    public static string PhysicalDataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HybridMount.NET", "NativePreview", DeploymentScope);
     public static string DataDirectory
     {
         get
@@ -13,9 +15,8 @@ public static class ApplicationPaths
 #if !HYBRIDMOUNT_HEADLESS_TEST
             if (WinRegisterService.IsPackaged()) return Windows.Storage.ApplicationData.Current.LocalFolder.Path;
 #endif
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HybridMount.NET");
+            return PhysicalDataDirectory;
         }
     }
-    /// <summary>日志目录；与远端文件或用户挂载内容分离。</summary>
     public static string LogsDirectory => Path.Combine(DataDirectory, "Logs");
 }

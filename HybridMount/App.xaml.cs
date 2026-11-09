@@ -160,6 +160,7 @@ public partial class App:Application
         await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("IssueNotificationsStop",async()=>{if(IssueNotifications is not null){IssueNotifications.Changed-=OnUploadIssueNotifications;await IssueNotifications.DisposeAsync();}});
         await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
+        await stages.RunAsync("NativeRuntimeStop",()=>NativeRuntimeClient.StopSharedAsync());
         stages.Run("UiSubscriptions",()=>{if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;if(Logger is not null)Logger.NotificationRequested-=OnNotification;});
         await stages.RunAsync("WindowResources",()=>MainWindow?.ReleaseResourcesAsync()??Task.CompletedTask);
         // 所有日志生产者已结束，再排空日志；后续阶段证据直接进入生命周期文件。

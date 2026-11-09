@@ -27,7 +27,7 @@ public sealed class ShellCustomStateRepairTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"foreign-property.txt");await File.WriteAllTextAsync(path,"unchanged content");
         var icon=new Uri(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png")).AbsoluteUri;
-        await StorageProviderItemProperties.SetAsync(await StorageFile.GetFileFromPathAsync(path),[new(){Id=42,Value="其他状态",IconResource=icon}]);
+        await NativeTestFiles.SetPropertiesAsync(path,new ShellCustomProperty(42,"其他状态",icon));
         await test.Manager.ScanUploadChangesAsync(test.Id);var row=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="foreign-property.txt");test.Repository.UpdateUpload(row.Id,x=>x with{State="Failed",Error="precise failure"});
         var network=test.Dav.Server.Requests.Count;await test.Manager.PublishUploadIssuesAsync();Assert.Equal("Published",test.Repository.Upload(row.Id)!.Attention!.ShellState);
         var published=CloudCustomStateReader.Read(path);Assert.Equal(new[]{"42","1"},published.Ids);Assert.Equal(2,published.Values.Count);Assert.Equal(2,published.Icons.Count);
@@ -42,7 +42,7 @@ public sealed class ShellCustomStateRepairTests
         var row=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="legacy-property.txt");test.Repository.UpdateUpload(row.Id,x=>x with{State="Failed",Error="old failure"});await test.Manager.PublishUploadIssuesAsync();
         test.Repository.UpdateUpload(row.Id,x=>x with{State="Canceled",CancelRequested=true});await test.Manager.PublishUploadIssuesAsync();
         // 重现旧API调用产生的编号1、文字0、图标0；不在Explorer里打开这个测试条目。
-        await StorageProviderItemProperties.SetAsync(await StorageFile.GetFileFromPathAsync(path),[new(){Id=1,Value="",IconResource=""}]);
+        await NativeTestFiles.SetPropertiesAsync(path,new ShellCustomProperty(1,"",""));
         var legacy=CloudCustomStateReader.Read(path);Assert.Equal(new[]{"1"},legacy.Ids);Assert.Empty(legacy.Values);Assert.Empty(legacy.Icons);
         test.Repository.UpdateUpload(row.Id,x=>x with{ObservedStamp=LocalFileState.Read(path).Key});await test.Manager.DisposeAsync();var identity=LocalFileState.Read(path).Identity;var network=test.Dav.Server.Requests.Count;
         test.Manager=new(test.Repository,test.Logger);await test.Manager.SetSchedulingForTestsAsync(test.Id,false);await test.Manager.PublishUploadIssuesAsync();

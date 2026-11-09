@@ -9,39 +9,11 @@ namespace HybridMount.Services.Mounting;
 /// <summary>只读Shell状态适配器；只查元数据属性，不允许慢速内容项，不请求图像、网络或同步状态写入。</summary>
 internal static class CloudShellState
 {
-    [StructLayout(LayoutKind.Sequential)] private struct PropertyKey{public Guid Format;public uint Id;}
-    [StructLayout(LayoutKind.Explicit,Size=24)] private struct Variant
-    {[FieldOffset(0)]public ushort Type;[FieldOffset(8)]public uint Value;}
-    [ComImport,Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IPropertyStore
-    {
-        [PreserveSig]int GetCount(out uint count);
-        [PreserveSig]int GetAt(uint index,out PropertyKey key);
-        [PreserveSig]int GetValue(in PropertyKey key,out Variant value);
-        [PreserveSig]int SetValue(in PropertyKey key,in Variant value);
-        [PreserveSig]int Commit();
-    }
-    /// <summary>调用线程建立COM范围，只取元数据，不允许GPS_OPENSLOWITEM；读取异常返回类型，不记录原始系统消息。</summary>
+    /// <summary>通过原生运行时查询公开属性；失败保留类型，绝不读取正文或请求缩略图。</summary>
     public static ShellFileStatus Read(string path)
     {
-        var initialized=CoInitializeEx(0,0);IPropertyStore? store=null;
-        try
-        {
-            if(initialized<0&&initialized!=unchecked((int)0x80010106))Marshal.ThrowExceptionForHR(initialized);
-            var id=typeof(IPropertyStore).GUID;
-            Marshal.ThrowExceptionForHR(SHGetPropertyStoreFromParsingName(path,0,0x40,in id,out store));
-            var properties=store??throw new COMException("Shell属性存储为空。");
-            uint? Value(string name)
-            {
-                Marshal.ThrowExceptionForHR(PSGetPropertyKeyFromName(name,out var key));
-                Marshal.ThrowExceptionForHR(properties.GetValue(in key,out var value));
-                try{return value.Type is 19 or 3?value.Value:null;}
-                finally{PropVariantClear(ref value);}
-            }
-            return new(Value("System.StorageProviderState"),Value("System.SyncTransferStatus"),Value("System.FilePlaceholderStatus"));
-        }
+        try{return NativeRuntimeProtocol.Read<ShellFileStatus>(NativeRuntimeClient.Get().Invoke("readShellState",new{path}));}
         catch(Exception error){return new(null,null,null,error.GetType().Name);}
-        finally{if(store is not null)Marshal.ReleaseComObject(store);if(initialized>=0)CoUninitialize();}
     }
     /// <summary>只读检测实际清单绑定；包内优先核对自身清单，非打包核对已安装的本产品包，不改持久偏好。</summary>
     public static ShellThumbnailCapability ThumbnailCapability()
@@ -50,7 +22,7 @@ internal static class CloudShellState
         if(!ShellExtensionPolicy.CustomThumbnailsEnabled)return new(false,packaged,ShellExtensionPolicy.PauseReason);
         try
         {
-            var packages=packaged?new[]{Windows.ApplicationModel.Package.Current}:new Windows.Management.Deployment.PackageManager().FindPackagesForUser(WindowsIdentity.GetCurrent().User!.Value).Where(p=>p.Id.Name=="dwzcn.HybridMount.NET").ToArray();
+            var packages=packaged?new[]{Windows.ApplicationModel.Package.Current}:new Windows.Management.Deployment.PackageManager().FindPackagesForUser(WindowsIdentity.GetCurrent().User!.Value).Where(p=>p.Id.Name=="dwzcn.HybridMount.NativePreview").ToArray();
             var registered=packaged&&packages.Any(package=>
             {
                 using var reader=XmlReader.Create(Path.Combine(package.InstalledLocation.Path,"AppxManifest.xml"),new(){DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=1024*1024});
@@ -64,7 +36,7 @@ internal static class CloudShellState
     internal static bool HasThumbnailBinding(XDocument manifest,Func<string,bool> exists)
     {
         XNamespace foundation="http://schemas.microsoft.com/appx/manifest/foundation/windows10",desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10/3",com="http://schemas.microsoft.com/appx/manifest/com/windows10";
-        var expected=new Guid("A65802EB-4D1C-4C7E-A519-34C76B9BB281");
+        var expected=new Guid("A749B295-9CB5-4F08-98D4-00EB47345E09");
         bool Matches(XAttribute? attribute)=>Guid.TryParse(attribute?.Value,out var value)&&value==expected;
         foreach(var application in manifest.Root?.Element(foundation+"Applications")?.Elements(foundation+"Application")??[])
         {
@@ -75,7 +47,7 @@ internal static class CloudShellState
                 var server=item.Parent;
                 if(server?.Name!=com+"ExeServer"||server.Attribute("Arguments")?.Value is not("--thumbnail-server" or "--shell-server"))continue;
                 var path=server.Attribute("Executable")?.Value;
-                if(path!="HybridMount.NET.exe"||application.Attribute("Executable")?.Value!=path)continue;
+                if(path!="HybridMount.Native.exe"||application.Attribute("Executable")?.Value!="HybridMount.NET.exe")continue;
                 if(exists(path)&&exists("HybridMount.Ext.dll"))return true;
             }
         }
@@ -85,7 +57,7 @@ internal static class CloudShellState
     internal static bool HasMenuBinding(XDocument manifest,Func<string,bool> exists)
     {
         XNamespace f="http://schemas.microsoft.com/appx/manifest/foundation/windows10",c="http://schemas.microsoft.com/appx/manifest/com/windows10";
-        var expected=new Guid("F4A8FD0B-4055-4F23-8CC0-91B736B3E491");
+        var expected=new Guid("59964FC1-D076-4DC1-9778-01F5833A5D4A");
         bool Matches(XAttribute? attribute)=>Guid.TryParse(attribute?.Value,out var id)&&id==expected;
         foreach(var application in manifest.Root?.Element(f+"Applications")?.Elements(f+"Application")??[])
         {
@@ -93,7 +65,7 @@ internal static class CloudShellState
             var extensions=application.Element(f+"Extensions");if(extensions is null)continue;
             if(!extensions.Descendants().Any(x=>x.Name.LocalName=="Verb"&&Matches(x.Attribute("Clsid"))))continue;
             foreach(var item in extensions.Elements(c+"Extension").Where(x=>x.Attribute("Category")?.Value=="windows.comServer").Descendants(c+"Class").Where(x=>Matches(x.Attribute("Id"))))
-                if(item.Parent?.Name==c+"ExeServer"&&item.Parent.Attribute("Executable")?.Value=="HybridMount.NET.exe"&&item.Parent.Attribute("Arguments")?.Value=="--shell-server"&&exists("HybridMount.NET.exe")&&exists("HybridMount.Ext.dll"))return true;
+                if(item.Parent?.Name==c+"ExeServer"&&item.Parent.Attribute("Executable")?.Value=="HybridMount.Native.exe"&&item.Parent.Attribute("Arguments")?.Value=="--shell-server"&&exists("HybridMount.Native.exe")&&exists("HybridMount.Ext.dll"))return true;
         }
         return false;
     }
@@ -125,7 +97,7 @@ internal static class CloudShellState
         try
         {
             var user=WindowsIdentity.GetCurrent().User!.Value;
-            var packages=new Windows.Management.Deployment.PackageManager().FindPackagesForUser(user).Where(p=>p.Id.Name=="dwzcn.HybridMount.NET").ToArray();
+            var packages=new Windows.Management.Deployment.PackageManager().FindPackagesForUser(user).Where(p=>p.Id.Name=="dwzcn.HybridMount.NativePreview").ToArray();
             if(packages.Length==0)lines.Add("本用户未安装HybridMount MSIX；Windows原生CFAPI状态不依赖自有扩展注册。");
             foreach(var package in packages)
             {
@@ -139,9 +111,4 @@ internal static class CloudShellState
         catch(Exception error){lines.Add("安装注册查询失败："+error.GetType().Name);}
         return string.Join(Environment.NewLine,lines);
     }
-    [DllImport("ole32.dll")]private static extern int CoInitializeEx(nint reserved,uint mode);
-    [DllImport("ole32.dll")]private static extern void CoUninitialize();
-    [DllImport("ole32.dll")]private static extern int PropVariantClear(ref Variant value);
-    [DllImport("propsys.dll",CharSet=CharSet.Unicode)]private static extern int PSGetPropertyKeyFromName(string name,out PropertyKey key);
-    [DllImport("shell32.dll",CharSet=CharSet.Unicode)]private static extern int SHGetPropertyStoreFromParsingName(string path,nint binding,uint flags,in Guid id,[MarshalAs(UnmanagedType.Interface)]out IPropertyStore? store);
 }

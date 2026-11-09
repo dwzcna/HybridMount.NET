@@ -106,10 +106,10 @@ internal sealed class RecoveryShellRegistration(bool includeWinRt=true):IRecover
         if(names.Any(x=>x.Owner!=_sid)||hidden.Any(x=>x.Owner!=_sid))throw new IOException("每根Shell注册或隐藏值的所有者不是当前用户。");
         return new(roots.ToArray(),names.ToArray(),namespaceId,hidden.ToArray());
     }
-    public void Unregister(string id)=>StorageProviderSyncRootManager.Unregister(id);
+    public void Unregister(string id)=>NativeRuntimeClient.Get().Invoke("unregisterKnownRoot",new{id});
     public void Cleanup(OrphanedMountCandidate root,RecoveryShellProof? proof,Action verifyContent)
     {
-        ValidateRoot(root);ValidateProof(root,proof);verifyContent();
+        ValidateRoot(root);ValidateProof(root,proof);using var registrationLease=RootRegistryLease.Acquire();verifyContent();
         // 先核验所有尚存快照，再开始删除；部分删除后的重试允许已不存在，绝不重新捕获变化的值。
         foreach(var item in (proof?.Roots??[]).Concat(proof?.Namespace??[]))
         {using var baseKey=RegistryKey.OpenBaseKey(item.Hive,RegistryView.Registry64);using var key=baseKey.OpenSubKey(item.Path);if(key is not null)AssertUnchanged(item,key);}

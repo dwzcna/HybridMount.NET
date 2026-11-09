@@ -37,7 +37,7 @@ internal sealed class OrphanedMountRecovery
         return result.OrderBy(x=>x.LocalPath,StringComparer.OrdinalIgnoreCase).ToArray();
     }
     internal static bool TryParseId(string value,string sid,out Guid id)
-    {var prefix="HybridMount.NET!"+sid+"!";id=Guid.Empty;return value.StartsWith(prefix,StringComparison.Ordinal)&&Guid.TryParseExact(value[prefix.Length..],"N",out id)&&id!=Guid.Empty;}
+    {var prefix=ApplicationPaths.ProductScope+"!"+sid+"!";id=Guid.Empty;return value.StartsWith(prefix,StringComparison.Ordinal)&&Guid.TryParseExact(value[prefix.Length..],"N",out id)&&id!=Guid.Empty;}
     private static bool Overlaps(string left,string right)=>MountPathGuard.IsUnder(left,right)||MountPathGuard.IsUnder(right,left);
     /// <summary>目录必须就是原生根本身，而非根的子目录；查询仅使用属性权限。未注册路径只允许继续已有的已清空注销日志。</summary>
     internal OrphanedMountCandidate Inspect(string path)
@@ -52,13 +52,7 @@ internal sealed class OrphanedMountRecovery
         {
             if(marker.Owner!=_sid||marker.MountId==Guid.Empty)throw new IOException("同步根不属于当前用户。");
             if(_managed().Any(x=>x.Id==marker.MountId))throw new IOException("该挂载ID仍被现有配置管理。");
-            var buffer=Marshal.AllocHGlobal(8);
-            try
-            {
-                CloudFilesNative.Check(CloudFilesNative.CfGetSyncRootInfoByPath(full,0,buffer,8,out var returned));
-                if(returned<8||Marshal.ReadInt64(buffer)!=BitConverter.ToInt64(Convert.FromHexString(identity),8))throw new IOException("所选目录是同步根的子目录，拒绝清理。");
-            }
-            finally{Marshal.FreeHGlobal(buffer);}
+            var facts=CloudRootPolicy.Read(full);if(facts.FileId!=BitConverter.ToInt64(Convert.FromHexString(identity),8))throw new IOException("所选目录是同步根的子目录，拒绝清理。");
             return new(marker.MountId,full,identity,CloudRootRegistration.Id(new(marker.MountId,"",full,false)),true);
         }
         if(CloudFilesNative.RootIdentity(full,strict:true) is not null)throw new IOException("不是可验证的本产品同步根。");

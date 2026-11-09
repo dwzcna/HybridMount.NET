@@ -104,7 +104,7 @@ internal sealed class MountRemovalCompletion(string directory,IRecoveryShellRegi
                 if(CloudFilesNative.RootIdentity(root.LocalPath,true) is not null)
                 {
                     if(!fallback)throw new IOException("WinRT注销后原生根仍存在，保留注销阶段。");
-                    VerifyContent();ValidateNative(root);CloudFilesNative.Check(UnregisterNative(root.LocalPath));
+                    VerifyContent();ValidateNative(root);NativeRuntimeClient.Get().Invoke("unregisterNativeRoot",NativeRuntimeArguments.Root(new(root.MountId,"",root.LocalPath,RootIdentity:root.RootIdentity)));
                 }
             }
             VerifyContent();if(exists&&CloudFilesNative.RootIdentity(root.LocalPath,true) is not null)throw new IOException("原生同步根仍存在。");
@@ -120,7 +120,7 @@ internal sealed class MountRemovalCompletion(string directory,IRecoveryShellRegi
     {
         var marker=MountPathGuard.ReadRoot(root.LocalPath);if(marker?.MountId!=root.MountId||marker.Owner!=WindowsIdentity.GetCurrent().User!.Value)throw new IOException("原生同步根身份或用户不匹配。");
         // 根自身FileId必须与CFAPI根FileId相同，不能注销父根的子目录。
-        var buffer=Marshal.AllocHGlobal(8);try{CloudFilesNative.Check(CloudFilesNative.CfGetSyncRootInfoByPath(root.LocalPath,0,buffer,8,out var returned));if(returned<8||Marshal.ReadInt64(buffer)!=BitConverter.ToInt64(Convert.FromHexString(root.RootIdentity),8))throw new IOException("目录不是原生根本身。");}finally{Marshal.FreeHGlobal(buffer);}
+        var facts=CloudRootPolicy.Read(root.LocalPath);if(facts.FileId!=BitConverter.ToInt64(Convert.FromHexString(root.RootIdentity),8))throw new IOException("目录不是原生根本身。");
     }
     internal static IDisposable? Hold(OrphanedMountCandidate root)
     {
@@ -160,5 +160,5 @@ internal sealed class MountRemovalCompletion(string directory,IRecoveryShellRegi
         }
         return Convert.ToHexString(hash.GetHashAndReset());
     }
-    [DllImport("CldApi.dll",EntryPoint="CfUnregisterSyncRoot",CharSet=CharSet.Unicode)]private static extern int UnregisterNative(string path);
+
 }

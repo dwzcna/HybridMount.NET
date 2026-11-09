@@ -1,0 +1,35 @@
+#include "LocalReadLeases.h"
+namespace hm {
+namespace {
+struct Lease {
+    HANDLE Protected{},Raw{};bool Referenced{};Json Root;std::wstring Path;FileState Before;std::mutex Gate;int Requests{};long long Bytes{};bool Closed{};
+    explicit Lease(const Json& data):Root(data){
+        ValidateRuntimeRoot(data);Path=FullPath(Text(data,"path"));auto root=FullPath(Text(data,"rootPath"));Require(Path.size()>root.size()&&Path[root.size()]==static_cast<wchar_t>(92)&&SamePath(root,Path.substr(0,root.size())),E_ACCESSDENIED);NoLinks(Path,true);
+        auto probe=OpenAttributes(Path);auto info=InspectPlaceholder(probe.Value);auto marker=Parse(std::string(info.Identity.begin(),info.Identity.end()),4096);Require(GuidN(marker.at("MountId"))==GuidN(data.at("mountId"))&&marker.at("EntryId")==data.at("entryId"),E_ACCESSDENIED);auto stamp=InspectFile(probe.Value);Require(!stamp.Directory&&HasFullContent(probe.Value,stamp.Length));
+        Check(CfOpenFileWithOplock(Path.c_str(),CF_OPEN_FILE_FLAG_EXCLUSIVE,&Protected));try{Referenced=CfReferenceProtectedHandle(Protected)!=FALSE;Require(Referenced,HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));Raw=CfGetWin32HandleFromProtectedHandle(Protected);Before=InspectFile(Raw);Require(Before.Identity==stamp.Identity,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        if(data.contains("expected")){auto& expected=data.at("expected");Require(Before.Identity==expected.at("identity").get<std::string>()&&Before.Length==Number(expected,"length")&&Before.LastWrite==Number(expected,"lastWriteTime")&&(Before.Usn==Number(expected,"usn")||(Before.Reasons&0x77)==0),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));}
+        else Require(Before.Key()==data.at("expectedStamp").get<std::string>(),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));info=InspectPlaceholder(Raw);Require(info.Identity==InspectPlaceholder(probe.Value).Identity&&HasFullContent(Raw,Before.Length));}catch(...){Close();throw;}
+    }
+    void Close(){if(Referenced){CfReleaseProtectedHandle(Protected);Referenced=false;}if(Protected){CfCloseHandle(Protected);Protected=nullptr;}}
+    ~Lease(){Close();}
+    std::vector<BYTE> Read(long long offset,int length){
+        std::lock_guard lock(Gate);Require(!Closed&&offset>=0&&offset<=Before.Length&&length>=0&&length<=256*1024&&length<=Before.Length-offset);Require(++Requests<=32&&(Bytes+=length)<=8*1024*1024,HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_QUOTA));ValidateRuntimeRoot(Root);Require(InspectFile(Raw).Key()==Before.Key(),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        std::vector<BYTE> bytes(length);DWORD done{};Handle event(CreateEventW(nullptr,TRUE,FALSE,nullptr));WinCheck(event.Value!=nullptr);OVERLAPPED io{};io.Offset=static_cast<DWORD>(offset);io.OffsetHigh=static_cast<DWORD>(static_cast<unsigned long long>(offset)>>32);io.hEvent=reinterpret_cast<HANDLE>(reinterpret_cast<ULONG_PTR>(event.Value)|1);
+        if(length&&!ReadFile(Raw,bytes.data(),static_cast<DWORD>(length),&done,&io)){auto code=GetLastError();Require(code==ERROR_IO_PENDING,HRESULT_FROM_WIN32(code));WinCheck(GetOverlappedResult(Raw,&io,&done,TRUE));}Require(done==static_cast<DWORD>(length));Require(InspectFile(Raw).Key()==Before.Key(),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));return bytes;
+    }
+};
+}
+struct LocalReadLeases::Impl{RuntimeHost& Host;std::mutex Gate;std::map<std::string,std::shared_ptr<Lease>> Leases;explicit Impl(RuntimeHost& host):Host(host){}};
+LocalReadLeases::LocalReadLeases(RuntimeHost& host):_impl(std::make_unique<Impl>(host)){}
+LocalReadLeases::~LocalReadLeases(){Stop();}
+Json LocalReadLeases::Execute(RuntimeCommand& command){
+    const auto& data=command.Data;const auto key=GuidN(data.at("leaseId"));auto& p=*_impl;
+    if(command.Operation=="openLocalRead"){
+        std::lock_guard lock(p.Gate);Require(p.Leases.size()<4&&!p.Leases.contains(key),HRESULT_FROM_WIN32(ERROR_BUSY));auto lease=std::make_shared<Lease>(data);p.Leases.emplace(key,lease);return {{"stamp",FileJson(lease->Before)}};
+    }
+    std::shared_ptr<Lease> lease;{std::lock_guard lock(p.Gate);auto found=p.Leases.find(key);Require(found!=p.Leases.end(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));lease=found->second;Require(GuidN(lease->Root.at("mountId"))==GuidN(data.at("mountId")),E_ACCESSDENIED);if(command.Operation=="closeLocalRead")p.Leases.erase(found);}
+    if(command.Operation=="closeLocalRead"){std::lock_guard lock(lease->Gate);lease->Closed=true;lease->Close();return Json::object();}
+    Require(command.Operation=="readLocalRange");Require(data.value("sessionId",Json{})==lease->Root.value("sessionId",Json{}),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));auto offset=Number(data,"offset");auto bytes=lease->Read(offset,data.at("count").get<int>());command.CheckCancel();p.Host.SendBlock(GuidN(data.at("readId")),key,offset,bytes);return {{"count",bytes.size()}};
+}
+void LocalReadLeases::Stop(){std::map<std::string,std::shared_ptr<Lease>> leases;{std::lock_guard lock(_impl->Gate);leases.swap(_impl->Leases);}for(auto& [_,lease]:leases){std::lock_guard lock(lease->Gate);lease->Closed=true;lease->Close();}}
+}

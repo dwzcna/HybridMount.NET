@@ -102,7 +102,14 @@ public sealed partial class MountManager
                         SnapshotStamp=(current.SnapshotStamp==before.Key||a.ShellOriginalStamp is not null&&a.ShellOriginalStamp==current.SnapshotStamp&&!UploadRules.ContentChanged(current.SnapshotStamp!,before))&&current.SnapshotIdentity==before.Identity&&current.SnapshotGeneration==current.Generation?after.Key:current.SnapshotStamp,
                         Attention=a with{ShellState=a.ResolvedUtc is null?"Published":"Cleared",ShellError=null,PublishedIdentity=after.Identity,ShellOriginalStamp=null}
                     });
-                },limit.Token,UploadAttentionRules.ShellText(_repository.Uploads(item.MountId),item.LocalPath,item.ObservedStamp.Split(':')[0]),IssuePropertyWrittenForTests is {} written?()=>written(item.Id):null).ConfigureAwait(false);
+                },limit.Token,UploadAttentionRules.ShellText(_repository.Uploads(item.MountId),item.LocalPath,item.ObservedStamp.Split(':')[0]),IssuePropertyWrittenForTests is {} written?()=>written(item.Id):null,proof:(before,after)=>
+                {
+                    root.ConflictMetadata.Record(item.LocalPath,before,after);_repository.UpdateUpload(item.Id,current=>current.Generation!=item.Generation||current.Attention!=journal?current:current with
+                    {
+                        ObservedStamp=current.ObservedStamp==before.Key?after.Key:current.ObservedStamp,
+                        SnapshotStamp=current.SnapshotStamp==before.Key&&current.SnapshotIdentity==before.Identity&&current.SnapshotGeneration==current.Generation?after.Key:current.SnapshotStamp
+                    });
+                }).ConfigureAwait(false);
                 if(IssuePropertyReleasedForTests is {} checkpoint)await checkpoint(item.Id).ConfigureAwait(false);
                 _issuePublicationRetry.Remove(item.Id);notify=RelativePaths.ToLocal(root.Definition.LocalPath,item.LocalPath);
             }

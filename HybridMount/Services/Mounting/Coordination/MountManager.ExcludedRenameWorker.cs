@@ -166,7 +166,7 @@ public sealed partial class MountManager
             if(row.MoveReceipt is null||row.EntryId is null)throw new IOException("占位文件缺少已确认的新云路径，保留现场。");
             var metadata=await source.GetMetadataAsync(row.DestinationPath!,token).ConfigureAwait(false);
             if(metadata.IsDirectory||!source.IsSameVersion(metadata.Version,row.MoveReceipt.Version))throw new SourceConflictException("下载前远端目标版本变化，保留两端。");
-            using(session.PrioritizeDownload(row.EntryId))using(var handle=CloudFilesNative.Open(local))await CloudFilesNative.HydrateAsync(handle,token).ConfigureAwait(false);
+            using(session.PrioritizeDownload(row.EntryId))await session.Runtime.InvokeAsync("hydrateFile",session.EntryArgs(new MountEntry(row.EntryId,row.DestinationPath!,row.LocalPath,row.MoveReceipt.Version,false,false,true,true)),token:token).ConfigureAwait(false);
             if(!CloudFilesNative.HasFullContent(local,length))throw new IOException("改名文件尚未完整下载，云端新文件保持。");
         }
         var proof=await CloudExcludedRenameLocalizer.VerifyAsync(root.Definition,row,token).ConfigureAwait(false);

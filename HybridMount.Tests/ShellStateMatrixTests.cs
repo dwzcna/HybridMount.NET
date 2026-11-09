@@ -17,12 +17,12 @@ public sealed class ShellStateMatrixTests(ITestOutputHelper output)
         await File.WriteAllTextAsync(path,"verified content");await test.Wait("shell-classify.txt");Log("converted",path);
         var converted=CloudShellState.Read(path);
         var pin=CloudFilesNative.Inspect(path)!.Value.Info.PinState;
-        using(var handle=CloudFilesNative.Open(path,true))CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,pin,0,0));
+        NativeTestFiles.Pin(path,pin);
         CloudFilesNative.NotifyItemUpdated(path);Log("same pin",path);
-        using(var handle=CloudFilesNative.Open(path,true))CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,2,0,0));
+        NativeTestFiles.Pin(path,2);
         CloudFilesNative.NotifyItemUpdated(path);Log("unpinned",path);
         Assert.Equal(10u,CloudShellState.Read(path).ProviderState);
-        using(var handle=CloudFilesNative.Open(path,true))CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,0,-1,0,0));
+        NativeTestFiles.Dehydrate(path);
         CloudFilesNative.NotifyItemUpdated(path);Log("unpin completed",path);Assert.Equal(1u,CloudShellState.Read(path).ProviderState);
         _ = await File.ReadAllBytesAsync(path);Log("reopened",path);
         Assert.Equal(2u,CloudShellState.Read(path).ProviderState);

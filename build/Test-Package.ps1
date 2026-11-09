@@ -7,7 +7,7 @@ $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
 try {
     $entries = @{}
     foreach ($entry in $archive.Entries) { $entries[$entry.FullName.Replace('\','/')] = $entry }
-    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.runtimeconfig.json','HybridMount.Ext.dll','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
+    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Native.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
         if (-not $entries.ContainsKey($required)) { throw "包缺少 $required" }
     }
     function Read-Bytes([string]$entryName) {
@@ -18,7 +18,7 @@ try {
     [xml]$props = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\Directory.Build.props') -Raw
     $version = [string]$props.Project.PropertyGroup[0].Version
     $binaryVersion=if(([version]$version).Revision -lt 0) { "$version.0" } else { $version }
-    if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NET') { throw 'MSIX 产品身份或版本不一致。' }
+    if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NativePreview') { throw 'MSIX 产品身份或版本不一致。' }
     if ($manifest.Package.Identity.ProcessorArchitecture -ne $Platform.ToLowerInvariant()) { throw '包声明架构不正确。' }
     # 主入口保持既有虚拟化；隐藏维护入口必须独立使用经隔离验证的win32App／mediumIL组合。
     $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")
@@ -33,10 +33,16 @@ try {
         throw '隐藏维护入口运行行为不正确，不能据此进行真实Shell清理。'
     }
     $expectedMachine = if ($Platform -eq 'ARM64') { 0xaa64 } else { 0x8664 }
-    foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','coreclr.dll')) {
+    foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','HybridMount.Native.exe','e_sqlite3.dll','coreclr.dll')) {
         $bytes = Read-Bytes $entryName
         $pe = [BitConverter]::ToInt32($bytes,0x3c)
         if ([BitConverter]::ToUInt16($bytes,$pe+4) -ne $expectedMachine) { throw "$entryName 架构不正确。" }
+    }
+    # C++后台和扩展不得含CLR头，也不能意外携带隔离测试操作。
+    foreach($entryName in @('HybridMount.Native.exe','HybridMount.Ext.dll')){
+        $bytes=Read-Bytes $entryName;$pe=[BitConverter]::ToInt32($bytes,0x3c);$optional=$pe+24
+        if([BitConverter]::ToUInt16($bytes,$optional) -ne 0x20b -or [BitConverter]::ToUInt32($bytes,$optional+112+14*8) -ne 0){throw "原生宿主含CLR入口：$entryName"}
+        if([Text.Encoding]::ASCII.GetString($bytes).Contains('testSetPin')){throw "发布包混入测试专用原生操作：$entryName"}
     }
     # 检查各缩放图的 PNG 头尺寸，防止旧资源或错误舍入混入发布包。
     foreach ($spec in @(@('HybridMountSquare44',44,44),@('HybridMountSquare150',150,150),@('HybridMountWide',310,150),@('HybridMountSplash',620,300),@('HybridMountStore',50,50))) {
@@ -60,10 +66,10 @@ try {
     if($ExpectCloudThumbnails -and $ShellProfile -ne 'MenusAndThumbnails'){throw '缩略图预期与Shell配置不一致。'}
     if($manifest.SelectNodes("//*[local-name()='Extension' and @Category='windows.fileTypeAssociation']").Count){throw '不得接管全局文件类型。'}
     $cloud=$manifest.SelectNodes("//*[local-name()='CloudFiles']");if($cloud.Count -ne 1 -or $cloud[0].IconResource -ne 'Assets\HybridMount.png'){throw '云提供程序声明不正确。'}
-    $classes=@($manifest.SelectNodes("//*[local-name()='ComServer']//*[local-name()='Class']"));$verbs=@($manifest.SelectNodes("//*[local-name()='Verb']"));$menu='F4A8FD0B-4055-4F23-8CC0-91B736B3E491';$thumb='A65802EB-4D1C-4C7E-A519-34C76B9BB281'
+    $classes=@($manifest.SelectNodes("//*[local-name()='ComServer']//*[local-name()='Class']"));$verbs=@($manifest.SelectNodes("//*[local-name()='Verb']"));$menu='59964FC1-D076-4DC1-9778-01F5833A5D4A';$thumb='A749B295-9CB5-4F08-98D4-00EB47345E09'
     $expected=if($ShellProfile -eq 'Native'){@()}elseif($ShellProfile -eq 'Menus'){@($menu)}else{@($menu,$thumb)}
     if($classes.Count -ne $expected.Count -or @($classes|Where-Object {$_.Id -notin $expected}).Count){throw 'COM类与所选配置不一致。'}
-    foreach($class in $classes){if($class.ParentNode.LocalName -ne 'ExeServer' -or $class.ParentNode.Executable -ne 'HybridMount.NET.exe' -or $class.ParentNode.Arguments -ne '--shell-server'){throw 'Shell类没有绑定独立早期宿主。'}}
+    foreach($class in $classes){if($class.ParentNode.LocalName -ne 'ExeServer' -or $class.ParentNode.Executable -ne 'HybridMount.Native.exe' -or $class.ParentNode.Arguments -ne '--shell-server'){throw 'Shell类没有绑定独立早期宿主。'}}
     if($ShellProfile -eq 'Native'){if($cloud[0].ChildNodes.Count -or $verbs.Count){throw '原生配置意外含扩展。'}}
     elseif($ShellProfile -eq 'Menus'){if($cloud[0].ChildNodes.Count -or $verbs.Count -ne 3 -or @($verbs|Where-Object {$_.Clsid -ne $menu}).Count){throw '独立动态菜单注册不符。'}}
     else{
@@ -72,7 +78,7 @@ try {
         foreach($name in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler')){$node=$cloud[0].SelectSingleNode("*[local-name()='$name']");if(!$node -or $node.HasAttribute('Clsid')){throw '不得注册未实现的云处理器。'}}
     }
     $excluded=$manifest.SelectNodes("//*[local-name()='ExcludedDirectory']")
-    if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
+    if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\NativePreview\Packaged\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
     if(-not $manifest.SelectNodes("//*[local-name()='Capability' and @Name='unvirtualizedResources']").Count){throw '缺少共享缓存所需的受限能力。'}
     Write-Host "包验证通过：$Platform / $version / 自包含 / Shell配置=$ShellProfile / 原生状态及维护入口保留，桌面效果另行验收。"
 

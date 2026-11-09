@@ -23,12 +23,11 @@ internal sealed unsafe class NativePreviewInterop : IDisposable
             return Path.Combine(directory.FullName,"artifacts","native-tests",RuntimeInformation.ProcessArchitecture==Architecture.Arm64?"ARM64":"x64",configuration,"HybridMount.Ext.dll");
         }
     }
-    internal NativePreviewInterop(string path,bool useShellBinding=false,Action<string>? observe=null)
+    internal NativePreviewInterop(string path,bool useShellBinding=false,Action<string>? observe=null,bool nativeServer=false)
     {
-        _library=NativeLibrary.Load(LibraryPath);
-        var clsid=new Guid("A65802EB-4D1C-4C7E-A519-34C76B9BB281");var factoryId=new Guid("00000001-0000-0000-C000-000000000046");
-        var create=(delegate* unmanaged[Stdcall]<Guid*,Guid*,nint*,int>)NativeLibrary.GetExport(_library,"DllGetClassObject");nint factory=0;
-        Assert.Equal(0,create(&clsid,&factoryId,&factory));_factory=factory;
+        var clsid=new Guid("A749B295-9CB5-4F08-98D4-00EB47345E09");var factoryId=new Guid("00000001-0000-0000-C000-000000000046");nint factory=0;
+        if(nativeServer){var code=CoGetClassObject(in clsid,4,0,in factoryId,out factory);if(code<0)Marshal.ThrowExceptionForHR(code);_factory=factory;}
+        else{_library=NativeLibrary.Load(LibraryPath);var create=(delegate* unmanaged[Stdcall]<Guid*,Guid*,nint*,int>)NativeLibrary.GetExport(_library,"DllGetClassObject");Assert.Equal(0,create(&clsid,&factoryId,&factory));_factory=factory;}
         var initializeId=new Guid("7F73BE3F-FB79-493C-A6C7-7EE14E245841");nint initialize=0;
         Assert.Equal(0,((delegate* unmanaged[Stdcall]<nint,nint,Guid*,nint*,int>)Table(_factory)[3])(_factory,0,&initializeId,&initialize));_initialize=initialize;
         var itemId=new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");nint item;
@@ -53,7 +52,8 @@ internal sealed unsafe class NativePreviewInterop : IDisposable
         try{nint result=0;status=((delegate* unmanaged[Stdcall]<nint,Size,uint,nint*,int>)Table(factory)[3])(factory,new Size{Width=size,Height=size},flags,&result);bitmap=result;return status;}
         finally{Release(factory);}
     }
-    public void Dispose(){Release(_thumbnail);Release(_initialize);Release(_factory);Assert.Equal(0,((delegate* unmanaged[Stdcall]<int>)NativeLibrary.GetExport(_library,"DllCanUnloadNow"))());NativeLibrary.Free(_library);}
+    public void Dispose(){Release(_thumbnail);Release(_initialize);Release(_factory);if(_library!=0){Assert.Equal(0,((delegate* unmanaged[Stdcall]<int>)NativeLibrary.GetExport(_library,"DllCanUnloadNow"))());NativeLibrary.Free(_library);}}
+    [DllImport("ole32.dll")]private static extern int CoGetClassObject(in Guid clsid,uint context,nint reserved,in Guid iid,out nint factory);
     [DllImport("shell32.dll",CharSet=CharSet.Unicode)] private static extern int SHCreateItemFromParsingName(string path,nint context,in Guid iid,out nint item);
     [DllImport("gdi32.dll",EntryPoint="GetObjectW")] private static extern int GetObject(nint bitmap,int length,byte[] data);
     internal static int BitmapWidth(nint bitmap){var bytes=new byte[32];Assert.Equal(32,GetObject(bitmap,bytes.Length,bytes));return BitConverter.ToInt32(bytes,4);}

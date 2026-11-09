@@ -24,7 +24,7 @@ public sealed class ThumbnailRequestTests
         Assert.Equal("queued",test.Manager.RequestThumbnail(path,64));for(var i=0;i<12;i++)test.Manager.RequestThumbnail(path,128);var png=await Ready(test,path);
         Assert.NotEmpty(png);var after=CloudFilesNative.Inspect(path)!.Value;Assert.Equal(before.Identity,after.Identity);Assert.Equal(before.Info.PinState,after.Info.PinState);Assert.Equal(before.Info.InSyncState,after.Info.InSyncState);Assert.Equal(before.Info.OnDiskSize,after.Info.OnDiskSize);Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
         Assert.InRange(test.Dav.Server.Requests.Count(r=>r.Method=="GET")-requests,1,32);Assert.DoesNotContain(test.Dav.Server.Requests,r=>r.Method is "PUT" or "MOVE" or "DELETE");
-        var directory=Path.Combine(test.Repository.DataDirectory,"Thumbnails");var database=ThumbnailCachePaths.ForMount(directory,test.Id);Assert.True(File.Exists(database));Assert.False(File.Exists(Path.Combine(directory,"thumbnails.db")));Assert.Equal(png,new ThumbnailCacheReader(directory,true).TryGet(path,64));
+        var directory=ThumbnailCachePaths.DirectoryPath;var database=ThumbnailCachePaths.ForMount(directory,test.Id);Assert.True(File.Exists(database));Assert.False(File.Exists(Path.Combine(directory,"thumbnails.db")));Assert.Equal(png,new ThumbnailCacheReader(directory,true).TryGet(path,64));
         await test.Manager.SetThumbnailsEnabledAsync(test.Id,false);Assert.Null(new ThumbnailCacheReader(directory,true).TryGet(path,64));requests=test.Dav.Server.Requests.Count(r=>r.Method=="GET");Assert.Equal("disabled",test.Manager.RequestThumbnail(path,64));Assert.Equal(requests,test.Dav.Server.Requests.Count(r=>r.Method=="GET"));
     }
     [Fact(Timeout=60000)]

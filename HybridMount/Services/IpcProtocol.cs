@@ -17,7 +17,7 @@ public static class IpcProtocol
     public const int MaximumPaths = 1024;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = 16 };
     /// <summary>按用户与登录会话隔离的管道名，和原生端保持一致。</summary>
-    public static string PipeName => $"HybridMount.NET.v2.{WindowsIdentity.GetCurrent().User?.Value ?? throw new InvalidOperationException("缺少用户 SID")}.{Process.GetCurrentProcess().SessionId}";
+    public static string PipeName => $"{ApplicationPaths.ProductScope}.v2.{WindowsIdentity.GetCurrent().User?.Value ?? throw new InvalidOperationException("缺少用户 SID")}.{Process.GetCurrentProcess().SessionId}";
 
     public static string LegacyPipeName => PipeName.Replace(".v2.",".v1.");
     /// <summary>验证请求结构；文件命令不探测或修改所选路径。</summary>

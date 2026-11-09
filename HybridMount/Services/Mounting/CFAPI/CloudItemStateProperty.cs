@@ -20,15 +20,7 @@ internal static class CloudItemStateProperty
     /// <summary>属性写入开始前响应取消；开始后等待系统实际完成再释放保护句柄，避免取消后的迟到写入。只读回编号、文字和图标，不读正文。</summary>
     internal static async Task<bool> SetAsync(MountDefinition mount,string path,bool directory,int id,string text,string icon,CancellationToken token)
     {
-        var change=Plan(mount,path,id,text,icon);if(!change.Changed)return false;
-        token.ThrowIfCancellationRequested();
-        IStorageItem item=directory?await StorageFolder.GetFolderFromPathAsync(path).AsTask(token).ConfigureAwait(false):await StorageFile.GetFileFromPathAsync(path).AsTask(token).ConfigureAwait(false);
-        token.ThrowIfCancellationRequested();
-        await StorageProviderItemProperties.SetAsync(item,change.Properties.Select(x=>new StorageProviderItemProperty{Id=x.Id,Value=x.Value,IconResource=x.Icon})).AsTask().ConfigureAwait(false);
-        var actual=CloudCustomStateReader.Read(path);
-        if(actual.ProviderId!=CloudRootRegistration.Id(mount)||actual.Ids.Count!=change.Properties.Count||actual.Values.Count!=actual.Ids.Count||actual.Icons.Count!=actual.Ids.Count||
-            actual.Ids.Where((x,i)=>x!=change.Properties[i].Id.ToString(System.Globalization.CultureInfo.InvariantCulture)||actual.Values[i]!=change.Properties[i].Value||actual.Icons[i]!=change.Properties[i].Icon).Any())
-            throw new IOException("自定义状态写后核对未通过，保留恢复记录。");
-        return true;
+        token.ThrowIfCancellationRequested();var args=NativeRuntimeArguments.Root(mount,new{path,propertyId=id,text,icon});var result=await(await NativeRuntimeClient.GetAsync().ConfigureAwait(false)).InvokeAsync("setProperty",args,token:token).ConfigureAwait(false);return result.GetProperty("changed").GetBoolean();
     }
+
 }

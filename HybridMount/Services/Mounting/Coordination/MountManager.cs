@@ -64,7 +64,7 @@ public sealed partial class MountManager : IAsyncDisposable
 #if HYBRIDMOUNT_HEADLESS_TEST
     private bool LegacyRemotePreviewsAllowed=>LegacyPreviewsForTests;
     private bool RemoteThumbnailsAllowed=>RemoteThumbnailsForTests;
-    private static string PreviewDirectory(MountRepository repository)=>Path.Combine(repository.DataDirectory,"Thumbnails");
+    private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
 #else
     private bool LegacyRemotePreviewsAllowed=>false;
     private bool RemoteThumbnailsAllowed=>CustomPreviewsAvailable;
@@ -286,6 +286,7 @@ public sealed partial class MountManager : IAsyncDisposable
         Status(root,"连接中");
         try
         {
+            await NativeRuntimeClient.PrepareConnectionAsync().ConfigureAwait(false);token.ThrowIfCancellationRequested();
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.Entries(root.Definition.Id).Any(entry=>entry.Materialized))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
             root.Source=await _factory.CreateAsync(root.Definition,_repository,false,token).ConfigureAwait(false);ObserveUploadSource(root);
@@ -299,7 +300,7 @@ public sealed partial class MountManager : IAsyncDisposable
             lock(_lifetime)
             {
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
-                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=()=>PinResourcesReleasingForTests?.Invoke()??Task.CompletedTask}; root.Session.Connect();
+                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=()=>PinResourcesReleasingForTests?.Invoke()??Task.CompletedTask}; ConnectSession(root);
             }
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
@@ -444,6 +445,24 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         finally{lock(root.ConnectionSync)root.ConnectionStops--;}
     }
+    /// <summary>原生会话故障先封闭所有生产者，再由应用所有者等待收尾；保留同步根和恢复记录。</summary>
+    private void ConnectSession(Runtime root)
+    {
+        var session=root.Session??throw new IOException("缺少原生挂载会话。");session.RuntimeFailed+=error=>
+        {
+            lock(_lifetime)
+            {
+                if(IsStopping||!ReferenceEquals(root.Session,session))return;
+                CancelConnection(root,reason:"NativeRuntimeFailure");RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
+                try
+                {
+                    var cleanup=OwnAsync(async cancel=>{await DisconnectOwnedAsync(root.Definition.Id,cancel).ConfigureAwait(false);Status(root,"原生后台已断开","已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。");},CancellationToken.None);
+                    _ = cleanup.ContinueWith(task=>{if(task.Exception is {} failure)_logger.QueueException("原生后台","Error","故障连接收尾未完成",failure,root.Definition.Id.ToString("N"));},CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted|TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
+                }
+                catch(OperationCanceledException)when(IsStopping){}
+            }
+        };session.Connect();
+    }
     private async Task DisconnectCoreAsync(Runtime root)
     {
         RequestUploadStop(root);RequestPinStop(root);var previewStop=_previews.CancelMountAsync(root.Definition.Id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
@@ -540,8 +559,7 @@ public sealed partial class MountManager : IAsyncDisposable
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
                         var session=root.Session;
                         if(operation=="keepOnDevice")session.RequestPin(entry);
-                        else using(var handle=CloudFilesNative.Open(path,true))
-                        {CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,2,0,0));if(!entry.IsDirectory)CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,0,-1,0,0));}
+                        else session.Runtime.Invoke("releaseFile",session.EntryArgs(entry));
                         if(operation=="keepOnDevice"&&!entry.IsDirectory)
                         {
                             root.Gate.Release();held=false;
@@ -620,7 +638,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var journal=PrepareRemoval(root,MountRemovalMode.ClearContents);
         if(journal.ContentCompleted){await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return true;}
         var registered=journal.Root.Registered;Status(root,"清空中");
-        if(registered&&root.Session is null){root.Session=new CloudMountSession(root.Definition,null,_repository,_logger,blockHydration:true);root.Session.Connect();}
+        if(registered&&root.Session is null){root.Session=new CloudMountSession(root.Definition,null,_repository,_logger,blockHydration:true);ConnectSession(root);}
         if(root.Session is not null)await root.Session.BeginClearAsync().ConfigureAwait(false);
         job.Cancel.Token.ThrowIfCancellationRequested();
         var failures=MountContentCleaner.Clear(root.Definition,registered,job.Cancel.Token,
@@ -644,7 +662,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(root.Session is null)
         {
             root.Source=await _factory.CreateAsync(mount,_repository,true,job.Cancel.Token).ConfigureAwait(false);
-            root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry));root.Session.Connect();
+            root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry));ConnectSession(root);
         }
         Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
         var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted&&!(entry.RemotePresence==RemotePresence.Deleted&&LocalMissing(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath)))).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
@@ -657,7 +675,7 @@ public sealed partial class MountManager : IAsyncDisposable
             if(entry.RemotePresence==RemotePresence.Deleted)
             {if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new IOException("远端已删除且本地尚不完整，保留配置与现有内容。");continue;}
             using(var priority=root.Session!.PrioritizeDownload(entry.Id))
-            using(var handle=CloudFilesNative.Open(path))await CloudFilesNative.HydrateAsync(handle,job.Cancel.Token).ConfigureAwait(false);
+            await root.Session!.Runtime.InvokeAsync("hydrateFile",root.Session.EntryArgs(entry),token:job.Cancel.Token).ConfigureAwait(false);
             if(!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))throw new IOException("文件尚未完整水合，停止移除。");
         }
         foreach(var entry in entries)
@@ -667,7 +685,7 @@ public sealed partial class MountManager : IAsyncDisposable
             if(info is not null)
             {
                 var marker=MountPathGuard.ReadEntry(info.Value.Identity);if(marker?.MountId!=mount.Id||marker.EntryId!=entry.Id)throw new IOException("占位归属不匹配，停止解除。");
-                using var handle=CloudFilesNative.Open(path,true);CloudFilesNative.Check(CloudFilesNative.CfRevertPlaceholder(handle,0,0));
+                root.Session!.Runtime.Invoke("revertLocal",root.Session.EntryArgs(entry));
             }
             Result(job,path,"Completed","已保留为普通本地文件。");
         }
@@ -749,10 +767,7 @@ public sealed partial class MountManager : IAsyncDisposable
                         var info=CloudFilesNative.Inspect(path);
                         if(info is null || info.Value.Info.PinState is not(0 or 2) || info.Value.Info.InSyncState!=1 || info.Value.Info.ModifiedSize!=0 || root.Session.IsActive(entry.Id))continue;
                         var marker=MountPathGuard.ReadEntry(info.Value.Identity);if(marker?.MountId!=root.Definition.Id||marker.EntryId!=entry.Id)continue;
-                        using var handle=CloudFilesNative.Open(path,true);
-                        var current=CloudFilesNative.Inspect(path);
-                        if(current?.Info.InSyncState!=1 || current?.Info.ModifiedSize!=0 || current?.Info.PinState is not(0 or 2))continue;
-                        CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,0,-1,1,0));freed+=info.Value.Info.OnDiskSize;
+                        var released=root.Session.Runtime.Invoke("trimFile",root.Session.EntryArgs(entry));if(released.GetProperty("changed").GetBoolean())freed+=NativeRuntimeProtocol.Read<long>(released.GetProperty("freed"));
                     }
                     catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){}
                 }

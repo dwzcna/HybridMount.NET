@@ -6,7 +6,7 @@ namespace HybridMount.Tests;
 public sealed class ShellUnpinTests
 {
     private static void Unpin(string path)
-    {using var handle=CloudFilesNative.Open(path,true);CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,2,0,0));}
+    {NativeTestFiles.Pin(path,2);}
 
     [Theory(Timeout=60000)]
     [InlineData(0L,15)][InlineData(long.MaxValue,15)][InlineData(0L,0)]

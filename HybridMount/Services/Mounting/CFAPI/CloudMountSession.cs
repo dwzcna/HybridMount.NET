@@ -23,14 +23,17 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly PriorityReadQueue _reads=new();
     private readonly SharedAsyncWork<string,SourceEntry> _metadata=new();
     private readonly bool _diagnostics=HydrationDiagnostics.Enabled;
-    private readonly List<CloudFilesNative.Callback> _callbacks = [];
-    private sealed record FetchRequest(string EntryId,long Transfer,long Request,long Offset,long Length,CancellationTokenSource Cancel,Task Work);
-    private readonly ConcurrentDictionary<long,FetchRequest> _fetches=new();
-    private long _nextFetch;
+    private NativeRuntimeClient? _runtime;
+    private readonly string _sessionId=Guid.NewGuid().ToString("N");
+    private sealed record NativeFetch(string FetchId,string EntryId,long Offset,long Length,byte Priority,bool Explicit,uint ProcessId,string Image);
+    internal event Action<Exception>? RuntimeFailed;
+    private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work);
+    private readonly ConcurrentDictionary<string,FetchRequest> _fetches=new();
+
     private Task? _dispose,_cancellation;
     private readonly HashSet<Task> _notifications=[];
     private readonly ConcurrentDictionary<string,int> _open = new(StringComparer.Ordinal);
-    private long _connection;
+    private bool _connected;
     private readonly ConcurrentDictionary<string,int> _explicitDownloads=new();
     private sealed class DownloadPriority(ConcurrentDictionary<string,int> counts,string id) : IDisposable
     {
@@ -44,108 +47,61 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false,Action<MountEntry>? localContentReady=null,Action? localChanged=null)
     { _localChanged=localChanged;_localContentReady=localContentReady;_mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
     internal event Action<LocalRenameNotice>? LocalRenameCompleted;
+    private Dictionary<string,object?> SessionArgs(object? extra=null)
+    {var args=NativeRuntimeArguments.Root(_mount,extra);args["sessionId"]=_sessionId;return args;}
+    internal Dictionary<string,object?> EntryArgs(MountEntry entry,object? extra=null)
+    {var args=NativeRuntimeArguments.Entry(_mount,entry,extra);args["sessionId"]=_sessionId;return args;}
+    internal NativeRuntimeClient Runtime=>_runtime??throw new IOException("原生挂载尚未连接。");
     public void Connect()
     {
-        var registrations=new List<CloudFilesNative.CallbackRegistration>();
-        foreach (var type in new uint[]{0,2,5,6,9,10,11,12})
-        {
-            var captured=type;
-            CloudFilesNative.Callback callback=(in CloudFilesNative.CallbackInfo info,nint parameters)=>Dispatch(captured,info,parameters);
-            _callbacks.Add(callback); registrations.Add(new(){Type=type,Callback=Marshal.GetFunctionPointerForDelegate(callback)});
-        }
-        registrations.Add(new(){Type=uint.MaxValue});
-        CloudFilesNative.Check(CloudFilesNative.CfConnectSyncRoot(_mount.LocalPath,registrations.ToArray(),0,6,out _connection));
+        _runtime=NativeRuntimeClient.Get();_runtime.EventReceived+=OnNativeEvent;_runtime.Failed+=OnRuntimeFailed;
+        try{_runtime.Invoke("connectRoot",SessionArgs(new{blockHydration=_clearing}));_connected=true;}
+        catch{_runtime.EventReceived-=OnNativeEvent;_runtime.Failed-=OnRuntimeFailed;throw;}
     }
     private void OnReadDiagnostic(SourceReadDiagnostic value)
-    { if(_diagnostics)_logger.Queue("水合诊断","Information",$"source={value.Strategy}; downloaded={value.DownloadedBytes}; fallback={value.FallbackReason??"none"}; completed={value.Completed}"); }
-    private static byte[] CopyIdentity(in CloudFilesNative.CallbackInfo info)
+    {if(_diagnostics)_logger.Queue("水合诊断","Information",$"source={value.Strategy}; downloaded={value.DownloadedBytes}; fallback={value.FallbackReason??"none"}; completed={value.Completed}");}
+    private void OnRuntimeFailed(Exception error)
     {
-        if (info.FileIdentityLength is < 1 or > 4096 || info.FileIdentity==0) return [];
-        var bytes=new byte[info.FileIdentityLength]; Marshal.Copy(info.FileIdentity,bytes,0,bytes.Length); return bytes;
+        _ = RequestStop();_logger.QueueException("原生后台","Error","CFAPI运行时已断开，保留恢复记录等待重新连接",error);RuntimeFailed?.Invoke(error);
     }
-    private string NativePath(in CloudFilesNative.CallbackInfo info,nint pointer)
+    private void OnNativeEvent(NativeRuntimeEvent message)
     {
-        var value=Marshal.PtrToStringUni(pointer) ?? throw new IOException("回调路径为空。");
-        if (!Path.IsPathFullyQualified(value)) value=Path.GetPathRoot(_mount.LocalPath)!.TrimEnd('\\')+value;
-        return Path.GetFullPath(value);
+        if(message.MountId!=_mount.Id.ToString("N")||message.SessionId!=_sessionId)return;
+        var data=message.Data;
+        if(message.Event=="fetch")
+        {
+            var fetch=NativeRuntimeProtocol.Read<NativeFetch>(data);
+            lock(_fetchGate)
+            {
+                if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
+                var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
+                _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work);if(_clearing)cancel.Cancel();start.SetResult();
+            }return;
+        }
+        if(message.Event=="cancelFetch")
+        {if(_fetches.TryGetValue(data.GetProperty("fetchId").GetString()!,out var fetch))try{fetch.Cancel.Cancel();}catch(ObjectDisposedException){}return;}
+        if(message.Event=="callbackFailure")
+        {_logger.Queue("CFAPI","Error",$"原生回调未完成：type={data.GetProperty("type").GetInt32()}；HRESULT=0x{data.GetProperty("hresult").GetInt32():X8}");return;}
+        var id=data.GetProperty("entryId").GetString()!;
+        if(message.Event=="open"){_open.AddOrUpdate(id,1,(_,value)=>value+1);return;}
+        if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(!_clearing&&!_stop.IsCancellationRequested)_localChanged?.Invoke();QueueContentNotification(id);return;}
+        var captured=data.Clone();QueueNativeNotification(()=>
+        {
+            var entries=_repository.Entries(_mount.Id);var entry=entries.FirstOrDefault(x=>x.Id==id);if(entry is null)return;
+            if(message.Event=="deleted")foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)&&item.RemotePresence!=RemotePresence.Deleted))_repository.SaveEntry(_mount.Id,child with{Deleted=true,Protected=true});
+            else if(message.Event=="renamed")
+            {
+                var full=captured.GetProperty("path").GetString()!;var oldFull=captured.GetProperty("oldPath").GetString()!;if(!MountPathGuard.IsUnder(_mount.LocalPath,full)||!MountPathGuard.IsUnder(_mount.LocalPath,oldFull))return;
+                var relative=Path.GetRelativePath(_mount.LocalPath,full).Replace('\\','/');var old=Path.GetRelativePath(_mount.LocalPath,oldFull).Replace('\\','/');
+                foreach(var child in entries.Where(item=>RelativePaths.Contains(old,item.LocalPath)))_repository.SaveEntry(_mount.Id,child with{LocalPath=relative+child.LocalPath[old.Length..],Protected=true});
+                if(!entry.IsDirectory)LocalRenameCompleted?.Invoke(new(old,relative,entry with{LocalPath=old}));
+            }
+        });
     }
-    private void Dispatch(uint type,CloudFilesNative.CallbackInfo info,nint parameters)
+    private void QueueNativeNotification(Action action)
     {
-        try
-        {
-            var marker=MountPathGuard.ReadEntry(CopyIdentity(info));
-            if (marker?.MountId!=_mount.Id || string.IsNullOrEmpty(marker.EntryId)) { if(type==0) Complete(info,0,0,unchecked((int)0xc000cf00)); return; }
-            if (type==0)
-            {
-                lock(_fetchGate)
-                {
-                var offset=Marshal.ReadInt64(parameters,16); var length=Marshal.ReadInt64(parameters,24);
-                if(_clearing||_metadataUpdating.Contains(marker.EntryId)){Complete(info,offset,length,unchecked((int)0xc000cf16),token:new CancellationToken(true));return;}
-                var explicitHydration=(Marshal.ReadInt32(parameters,8)&2)!=0||_explicitDownloads.GetValueOrDefault(marker.EntryId)>0;
-                var process=HydrationDiagnostics.CopyProcess(info.ProcessInfo);var queued=Stopwatch.GetTimestamp();
-                if(_diagnostics)_logger.Queue("水合诊断","Information",$"begin entry={marker.EntryId}; transfer={info.TransferKey}; request={info.RequestKey}; offset={offset}; length={length}; pid={process.Id}; image={process.Image}");
-                // 异步闭包只保留原生标量，回调返回后不得使用任何原生指针。
-                info.Context=info.VolumeGuidName=info.VolumeDosName=info.RootIdentity=info.FileIdentity=info.NormalizedPath=info.CorrelationVector=info.ProcessInfo=0;
-                var key=Interlocked.Increment(ref _nextFetch); var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
-                var start=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                var work=Task.Run(async()=>{ if(!await start.Task.ConfigureAwait(false)){cancel.Dispose();return;} try { await FetchAsync(info,marker.EntryId,offset,length,process,explicitHydration,queued,cancel.Token).ConfigureAwait(false); } finally { _fetches.TryRemove(key,out _); cancel.Dispose(); } });
-                // RequestKey 可以为零，同一 transfer 下也可同时请求不同范围；绝不能据此丢弃回调。
-                _fetches[key]=new(marker.EntryId,info.TransferKey,info.RequestKey,offset,length,cancel,work);
-                start.SetResult(true); return;
-                }
-            }
-            if(type==2)
-            {
-                var offset=Marshal.ReadInt64(parameters,16);var length=Marshal.ReadInt64(parameters,24);
-                foreach(var fetch in _fetches.Values.Where(fetch=>fetch.Transfer==info.TransferKey&&fetch.Request==info.RequestKey&&CancellationCovers(fetch.Offset,fetch.Length,offset,length)))
-                    try{fetch.Cancel.Cancel();}catch(ObjectDisposedException){}
-                return;
-            }
-            var self=info.ProcessInfo!=0 && Marshal.ReadInt32(info.ProcessInfo,4)==Environment.ProcessId;
-            if (type==5 && !self) { _open.AddOrUpdate(marker.EntryId,1,(_,value)=>value+1); return; }
-            if(type==6)
-            {
-                if(!self)
-                {
-                    _open.AddOrUpdate(marker.EntryId,0,(_,value)=>Math.Max(0,value-1));
-                    _localChanged?.Invoke();
-                    // 仅捕获托管身份，回调返回后在后台查询预览索引。
-                    QueueContentNotification(marker.EntryId);
-                }
-                return;
-            }
-            if (type==9) { Ack(info,6,0); return; }
-            if (type==11)
-            {
-                if(Volatile.Read(ref _clearing)) { Ack(info,7,unchecked((int)0xc0000022));return; }
-                var flags=Marshal.ReadInt32(parameters,8);
-                var target=NativePath(info,Marshal.ReadIntPtr(parameters,16));
-                if ((flags&4)==0 || !MountPathGuard.IsUnder(_mount.LocalPath,target)) { Ack(info,7,unchecked((int)0xc0000022)); return; }
-                MountPathGuard.ValidateOperation(_mount,Path.GetDirectoryName(target)!); Ack(info,7,0); return;
-            }
-            if (type==10 || type==12)
-            {
-                var entries=_repository.Entries(_mount.Id); var entry=entries.FirstOrDefault(entry=>entry.Id==marker.EntryId);
-                if(entry is null) return;
-                if(type==10)
-                    foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)&&item.RemotePresence!=RemotePresence.Deleted)) _repository.SaveEntry(_mount.Id,child with{Deleted=true,Protected=true});
-                else
-                {
-                    var target=NativePath(info,info.NormalizedPath);
-                    if(!MountPathGuard.IsUnder(_mount.LocalPath,target)) return;
-                    var relative=Path.GetRelativePath(_mount.LocalPath,target).Replace('\\','/');
-                    foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)))
-                        _repository.SaveEntry(_mount.Id,child with{LocalPath=relative+child.LocalPath[entry.LocalPath.Length..],Protected=true});
-                    if(!entry.IsDirectory)LocalRenameCompleted?.Invoke(new(entry.LocalPath,relative,entry));
-                }
-            }
-        }
-        catch(Exception error)
-        {
-            _logger.QueueException("CFAPI","Error",$"回调 {type} 失败",error);
-            if(type==0) try{Complete(info,0,0,unchecked((int)0xc000cf00));}catch(Exception secondary){_logger.QueueException("CFAPI","Warning","操作未完成",secondary);}
-            if(type==9 || type==11)try{Ack(info,type==9?6u:7u,unchecked((int)0xc0000022));}catch(Exception secondary){_logger.QueueException("CFAPI","Warning","操作未完成",secondary);}
-        }
+        lock(_fetchGate){if(_stop.IsCancellationRequested)return;var work=Task.Run(()=>{try{action();}catch(Exception error){_logger.QueueException("原生通知","Error","本地变更通知未完成",error);}});_notifications.Add(work);_ = work.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);}
     }
     /// <summary>只有取消区间完整覆盖该回调时才结束其等待；部分重叠继续服务剩余需要的数据，避免误伤其他请求。</summary>
     internal static bool CancellationCovers(long offset,long length,long cancelOffset,long cancelLength)
@@ -154,78 +110,42 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(cancelLength==-1)return true;
         var delta=offset-cancelOffset;return delta<=cancelLength&&length<=cancelLength-delta;
     }
-    private static void Ack(CloudFilesNative.CallbackInfo callback,uint type,int status)
-    {
-        var info=new CloudFilesNative.OperationInfo{StructSize=(uint)Marshal.SizeOf<CloudFilesNative.OperationInfo>(),Type=type,ConnectionKey=callback.ConnectionKey,TransferKey=callback.TransferKey,RequestKey=callback.RequestKey};
-        var parameters=new CloudFilesNative.OperationParameters{ParamSize=16,Status=status};
-        CloudFilesNative.Check(CloudFilesNative.CfExecute(info,ref parameters));
-    }
-    private static void Complete(CloudFilesNative.CallbackInfo callback,long offset,long length,int status,nint buffer=0,CancellationToken token=default)
-    {
-        var info=new CloudFilesNative.OperationInfo{StructSize=(uint)Marshal.SizeOf<CloudFilesNative.OperationInfo>(),ConnectionKey=callback.ConnectionKey,TransferKey=callback.TransferKey,RequestKey=callback.RequestKey};
-        var parameters=new CloudFilesNative.OperationParameters{ParamSize=40,Status=status,Offset=offset,Length=length,Buffer=buffer};
-        var result=CloudFilesNative.CfExecute(info,ref parameters);
-        // 系统可能先于提供程序终结取消的请求；只在本请求令牌确已取消时接受这三个终态。
-        if(token.IsCancellationRequested&&IsCanceledCompletion(result))return;CloudFilesNative.Check(result);
-    }
+    private Task FinishFetchAsync(NativeFetch fetch,int status)=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status}));
     internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3);
-    private async Task FetchAsync(CloudFilesNative.CallbackInfo info,string id,long offset,long length,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
+    private async Task FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {
-        IDisposable? lease=null;long bytesTransferred=0;double queueMs=0,firstBlockMs=-1;var outcome="ok";_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;
+        var id=info.EntryId;var offset=info.Offset;var length=info.Length;IDisposable? lease=null;long bytesTransferred=0;double queueMs=0,firstBlockMs=-1;var outcome="ok";_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;
         try
         {
-            lease=await _reads.EnterAsync(info.PriorityHint,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
-            var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id && !item.Deleted&&item.RemotePresence!=RemotePresence.Deleted) ?? throw new FileNotFoundException("占位身份不存在。");
-            var source=_source??throw new IOException("清空期间不提供内容读取。");
-            _remoteSnapshots.TryGetValue(id,out var staged);
+            lease=await _reads.EnterAsync(info.Priority,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
+            var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id&&!item.Deleted&&item.RemotePresence!=RemotePresence.Deleted)??throw new FileNotFoundException("占位身份不存在。");
+            var source=_source??throw new IOException("清空期间不提供内容读取。");_remoteSnapshots.TryGetValue(id,out var staged);
             if(staged is null&&_repository.HasPendingRemote(_mount.Id,entry.SourcePath))throw new SourceConflictException("远端更新待提交，暂缓旧版本水合。");
             var metadata=staged?.Metadata??await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
             await using var snapshot=staged is null?null:new FileStream(staged.Path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete,262144,FileOptions.Asynchronous|FileOptions.RandomAccess);
-            if(!source.IsSameVersion(metadata.Version,entry.Version)) throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
-            if(offset<0 || length<=0 || offset>metadata.Size || length>metadata.Size-offset) throw new IOException("系统请求范围越界。");
-            var start=offset/4096*4096; var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));
-            var localStamp=HydrationStamp(entry,metadata);
-            var bytes=new byte[256*1024]; var pin=GCHandle.Alloc(bytes,GCHandleType.Pinned);
-            try
-            {
-                if(snapshot is null)
-                    await source.ReadRangeSequentialAsync(metadata,start,end-start,(block,cancel)=>
-                    {
-                        cancel.ThrowIfCancellationRequested();block.CopyTo(bytes);Complete(info,start,block.Length,0,pin.AddrOfPinnedObject(),cancel);start+=block.Length;bytesTransferred+=block.Length;
-                        if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;return ValueTask.CompletedTask;
-                    },bytes.Length,token).ConfigureAwait(false);
-                else while(start<end)
+            if(!source.IsSameVersion(metadata.Version,entry.Version))throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
+            if(offset<0||length<=0||offset>metadata.Size||length>metadata.Size-offset)throw new IOException("系统请求范围越界。");
+            var start=offset/4096*4096;var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));var localStamp=HydrationStamp(entry,metadata);var fetchId=Guid.Parse(info.FetchId);
+            if(snapshot is null)
+                await source.ReadRangeSequentialAsync(metadata,start,end-start,async(block,cancel)=>
                 {
-                    token.ThrowIfCancellationRequested(); var count=(int)Math.Min(bytes.Length,end-start); var read=0;
-                    while(read<count)
-                    {
-                        int n;
-                        snapshot.Position=start+read;n=await snapshot.ReadAsync(bytes.AsMemory(read,count-read),token).ConfigureAwait(false);
-                        if(n==0)throw new EndOfStreamException();read+=n;
-                    }
-                    token.ThrowIfCancellationRequested(); Complete(info,start,count,0,pin.AddrOfPinnedObject(),token);start+=count;bytesTransferred+=count;
-                    if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
-                }
+                    cancel.ThrowIfCancellationRequested();await Runtime.TransferAsync(fetchId,start,block,cancel).ConfigureAwait(false);start+=block.Length;bytesTransferred+=block.Length;if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
+                },NativeRuntimeProtocol.BlockBytes,token).ConfigureAwait(false);
+            else
+            {
+                var bytes=new byte[NativeRuntimeProtocol.BlockBytes];while(start<end){token.ThrowIfCancellationRequested();var count=(int)Math.Min(bytes.Length,end-start);snapshot.Position=start;await snapshot.ReadExactlyAsync(bytes.AsMemory(0,count),token).ConfigureAwait(false);await Runtime.TransferAsync(fetchId,start,bytes.AsMemory(0,count),token).ConfigureAwait(false);start+=count;bytesTransferred+=count;if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;}
             }
-            finally { pin.Free(); }
-            if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);
-            RecordHydrationWrite(entry,metadata,localStamp);
-            _localContentReady?.Invoke(entry);
+            await FinishFetchAsync(info,0).ConfigureAwait(false);if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);RecordHydrationWrite(entry,metadata,localStamp);_localContentReady?.Invoke(entry);
         }
         catch(Exception error)
         {
-            var canceled=error is OperationCanceledException&&token.IsCancellationRequested;outcome=canceled?"canceled":"failed";
-            try { Complete(info,offset,length,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00),token:token); } catch(Exception completion) { _logger.Queue("CFAPI","Warning",$"请求结束：{completion.GetType().Name}"); }
-            if(!canceled)
-            {
-                if(error is not SourceConnectionException connection)_logger.QueueException("按需读取","Error","操作未完成",error);
-                else if(_networkFailures.ShouldWrite(connection.Diagnostic,out var suffix))_logger.QueueException("按需读取","Error","按需读取失败"+suffix,connection);
-            }
+            var canceled=(error is OperationCanceledException||error is System.Runtime.InteropServices.COMException native&&IsCanceledCompletion(native.HResult))&&token.IsCancellationRequested;outcome=canceled?"canceled":"failed";
+            try{await FinishFetchAsync(info,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}
+            if(!canceled){if(error is not SourceConnectionException connection)_logger.QueueException("按需读取","Error","操作未完成",error);else if(_networkFailures.ShouldWrite(connection.Diagnostic,out var suffix))_logger.QueueException("按需读取","Error","按需读取失败"+suffix,connection);}
         }
         finally
         {
-            lease?.Dispose();_reading.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));
-            if(_diagnostics)_logger.Queue("水合诊断","Information",$"entry={id}; pid={process.Id}; image={process.Image}; offset={offset}; length={length}; priority={info.PriorityHint}; explicit={explicitHydration}; queueMs={queueMs:F0}; firstBlockMs={firstBlockMs:F0}; transferred={bytesTransferred}; elapsedMs={Stopwatch.GetElapsedTime(queued).TotalMilliseconds:F0}; result={outcome}");
+            lease?.Dispose();_reading.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(_diagnostics)_logger.Queue("水合诊断","Information",$"entry={id}; pid={process.Id}; image={process.Image}; offset={offset}; length={length}; priority={info.Priority}; explicit={explicitHydration}; queueMs={queueMs:F0}; firstBlockMs={firstBlockMs:F0}; transferred={bytesTransferred}; elapsedMs={Stopwatch.GetElapsedTime(queued).TotalMilliseconds:F0}; result={outcome}");
         }
     }
     /// <summary>阻止新增水合和重命名，取消并等候在途读取；保留删除确认回调。</summary>
@@ -233,6 +153,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {
         FetchRequest[] pending;
         lock(_fetchGate) { _clearing=true;pending=_fetches.Values.ToArray(); }
+        if(_connected&&_runtime?.IsAvailable==true)await _runtime.InvokeAsync("clearRoot",SessionArgs()).ConfigureAwait(false);
         foreach(var item in pending)try{item.Cancel.Cancel();}catch(ObjectDisposedException){}
         await Task.WhenAll(pending.Select(item=>item.Work)).ConfigureAwait(false);
     }
@@ -241,43 +162,14 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     /// <summary>在排他 oplock 下验证干净状态并以 CFAPI 更新/脱水；失败保留旧索引版本。</summary>
     public bool RefreshPlaceholder(MountEntry entry,SourceEntry metadata)
     {
-        var path=RelativePaths.ToLocal(_mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(_mount,path);
         if(!BeginMetadataUpdate(entry.Id))return false;
-        try
-        {
-        // 元数据刷新使用排他只读句柄，避免写权限打开冷占位时诱发旧版本水合。
-        using var handle=CloudFilesNative.OpenRead(path);
-        if(!CloudFilesNative.CfReferenceProtectedHandle(handle))return false;
-        try
-        {
-            using var borrowed=new Microsoft.Win32.SafeHandles.SafeFileHandle(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(handle),false);
-            var info=CloudFilesNative.Inspect(borrowed);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-            if(info is null||marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||info.Value.Info.PinState is not(0 or 2)||IsActive(entry.Id))
-                throw new IOException($"占位刷新保护未满足：Identity={marker?.MountId==_mount.Id&&marker.EntryId==entry.Id}，Modified={info?.Info.ModifiedSize}，InSync={info?.Info.InSyncState}，Pin={info?.Info.PinState}，Active={IsActive(entry.Id)}，Open={_open.GetValueOrDefault(entry.Id)}，Reads={_reading.GetValueOrDefault(entry.Id)}，Fetches={_fetches.Values.Count(x=>x.EntryId==entry.Id)}。");
-            if(_mount.RootIdentity!=MountPathGuard.FileIdentity(_mount.LocalPath))throw new SourceConflictException("占位更新前根身份变化。");
-            CloudRemoteUpdate.UpdateMetadata(handle,borrowed,metadata);RecordProtectedWrite(entry,borrowed);return true;
-        }
-        finally{CloudFilesNative.CfReleaseProtectedHandle(handle);}
-        }
+        try{var result=Runtime.Invoke("refreshPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()}));RecordLocalWrite(entry,NativeRuntimeArguments.Stamp(result));return true;}
         finally{EndMetadataUpdate(entry.Id);}
     }
-    /// <summary>创建真实占位，不使用 File.WriteAllBytes 伪装；每个已创建条目单独记录。</summary>
+    /// <summary>原生端创建真实占位并返回文件戳；回执到达后才提交索引。</summary>
     public void CreatePlaceholder(MountEntry entry,SourceEntry metadata)
     {
-        var full=RelativePaths.ToLocal(_mount.LocalPath,entry.LocalPath);
-        MountPathGuard.ValidateOperation(_mount,Path.GetDirectoryName(full)!);
-        var identity=JsonSerializer.SerializeToUtf8Bytes(new MountPathGuard.EntryMarker(_mount.Id,entry.Id));
-        var pin=GCHandle.Alloc(identity,GCHandleType.Pinned);
-        try
-        {
-            var time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc();
-            var records=new[]{new CloudFilesNative.PlaceholderCreateInfo{RelativeName=Path.GetFileName(full),Metadata=new(){Basic=new(){CreationTime=time,LastWriteTime=time,LastAccessTime=time,ChangeTime=time,FileAttributes=metadata.IsDirectory?0x10u:0x80u},FileSize=metadata.Size},Identity=pin.AddrOfPinnedObject(),IdentityLength=(uint)identity.Length,Flags=metadata.IsDirectory?3u:2u}};
-            CloudFilesNative.Check(CloudFilesNative.CfCreatePlaceholders(Path.GetDirectoryName(full)!,records,1,1,out var processed));
-            CloudFilesNative.Check(records[0].Result); if(processed!=1) throw new IOException("占位创建未完成。");
-            _repository.SaveEntry(_mount.Id,entry with{Materialized=true});
-            RecordCreatedWrite(entry,metadata,records[0].CreateUsn);
-        }
-        finally { pin.Free(); }
+        var result=Runtime.Invoke("createPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()}));_repository.SaveEntry(_mount.Id,entry with{Materialized=true});var usn=NativeRuntimeProtocol.Read<long>(result.GetProperty("createUsn"));RecordCreatedWrite(entry,metadata,usn);
     }
     private void QueueContentNotification(string id)
     {
@@ -289,17 +181,20 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         }
     }
     /// <summary>同步禁止新水合，异步取消读取；不在根锁或回调内等待网络结束。</summary>
-    public Task RequestStop(){lock(_fetchGate){_clearing=true;return _cancellation??=_stop.CancelAsync();}}
+    public Task RequestStop(){lock(_fetchGate){_clearing=true;return _cancellation??=StopAdmissionAsync();}}
+    private async Task StopAdmissionAsync(){await _stop.CancelAsync().ConfigureAwait(false);if(_connected&&_runtime?.IsAvailable==true)await _runtime.InvokeAsync("clearRoot",SessionArgs()).ConfigureAwait(false);}
     public ValueTask DisposeAsync(){lock(_fetchGate)return new(_dispose??=StopAsync());}
     private async Task StopAsync()
     {
         await RequestStop().ConfigureAwait(false);
+        if(_connected&&_runtime?.IsAvailable==true)await _runtime.InvokeAsync("clearRoot",SessionArgs()).ConfigureAwait(false);
         await _pinnedHydration.DisposeAsync().ConfigureAwait(false);foreach(var gate in _pinGates.Values)gate.Dispose();
         Task[] pending;lock(_fetchGate)pending=_fetches.Values.Select(item=>item.Work).Concat(_notifications).ToArray();
         await Task.WhenAll(pending).ConfigureAwait(false);await _metadata.DisposeAsync().ConfigureAwait(false);
         // 回调已结束才断开 CFAPI；常规停止不注销持久同步根。
-        if(_connection!=0){CloudFilesNative.Check(CloudFilesNative.CfDisconnectSyncRoot(_connection));_connection=0;}
+        if(_connected&&_runtime?.IsAvailable==true)await _runtime.InvokeAsync("disconnectRoot",SessionArgs()).ConfigureAwait(false);_connected=false;
+        if(_runtime is not null){_runtime.EventReceived-=OnNativeEvent;_runtime.Failed-=OnRuntimeFailed;}
         if(_source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic-=OnReadDiagnostic;
-        _callbacks.Clear();_stop.Dispose();
+        _stop.Dispose();
     }
 }

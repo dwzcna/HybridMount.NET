@@ -37,7 +37,7 @@ namespace {
 		LocalFree(rawSid);
 		DWORD session = 0;
 		Check(ProcessIdToSessionId(GetCurrentProcessId(), &session) != FALSE);
-        auto name=L"\\\\.\\pipe\\HybridMount.NET.v2."+sid+L"."+std::to_wstring(session);
+        auto name=L"\\\\.\\pipe\\"+hm::ProductScope()+L".v2."+sid+L"."+std::to_wstring(session);
 #ifdef HYBRIDMOUNT_SHELL_PROBE_TAG
 #define HM_STRING2(value) #value
 #define HM_STRING(value) HM_STRING2(value)
@@ -202,41 +202,3 @@ static HRESULT QueueMenuRequest(const wchar_t* operation, std::vector<std::wstri
 
 HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> paths) noexcept { return QueueMenuRequest(keepOnDevice ? L"keepOnDevice" : L"freeSpace", std::move(paths)); }
 HRESULT QueueSyncIssuesRequest(std::vector<std::wstring> paths) noexcept { return QueueMenuRequest(L"showSyncIssues", std::move(paths)); }
-
-static bool QueryPreview(const std::wstring& path,UINT size,std::vector<BYTE>& png,const wchar_t* operation,ULONGLONG deadline) noexcept {
-    // 预览不复用菜单的重试／启动路径；旧版本、不响应或管道忙时立即回退。
-    const auto initialized=RoInitialize(RO_INIT_MULTITHREADED);
-    struct RoScope {HRESULT status;~RoScope(){if(SUCCEEDED(status))RoUninitialize();}} ro{initialized};
-    try {
-        const auto name=PipeName();Handle pipe(CreateFileW(name.c_str(),GENERIC_READ|GENERIC_WRITE,0,nullptr,OPEN_EXISTING,FILE_FLAG_OVERLAPPED|SECURITY_SQOS_PRESENT|SECURITY_IDENTIFICATION,nullptr));
-        if(pipe.value==INVALID_HANDLE_VALUE)return false;
-        GUID guid{};Check(SUCCEEDED(CoCreateGuid(&guid)));wchar_t id[40]{};Check(StringFromGUID2(guid,id,ARRAYSIZE(id))>0);
-        auto json=Utf8(L"{\"version\":2,\"requestId\":"+Quote(id)+L",\"operation\":"+Quote(operation)+L",\"paths\":["+Quote(path)+L"],\"previewSize\":"+std::to_wstring(size)+L"}");
-        auto length=static_cast<DWORD>(json.size());Check(length<=MaximumFrame);
-        Transfer(pipe.value,&length,sizeof(length),true,deadline);Transfer(pipe.value,json.data(),length,true,deadline);
-        Transfer(pipe.value,&length,sizeof(length),false,deadline);Check(length>0&&length<=768*1024);
-        std::vector<char> response(length);Transfer(pipe.value,response.data(),length,false,deadline);
-        ComPtr<ABI::Windows::Data::Json::IJsonObjectStatics> factory;ComPtr<ABI::Windows::Data::Json::IJsonObject> root;
-        Check(SUCCEEDED(RoGetActivationFactory(HStringReference(RuntimeClass_Windows_Data_Json_JsonObject).Get(),IID_PPV_ARGS(&factory))));
-        const auto text=Utf16(response);Check(SUCCEEDED(factory->Parse(HStringReference(text.c_str()).Get(),&root)));
-        HString correlation,status,encoded;double version=0;
-        Check(SUCCEEDED(root->GetNamedNumber(HStringReference(L"version").Get(),&version))&&version==2);
-        Check(SUCCEEDED(root->GetNamedString(HStringReference(L"requestId").Get(),correlation.GetAddressOf()))&&wcscmp(correlation.GetRawBuffer(nullptr),id)==0);
-        Check(SUCCEEDED(root->GetNamedString(HStringReference(L"status").Get(),status.GetAddressOf())));
-        if(wcscmp(status.GetRawBuffer(nullptr),L"ok")!=0) {
-            HString state;
-            if(wcscmp(operation,L"getPreview")==0&&SUCCEEDED(root->GetNamedString(HStringReference(L"previewStatus").Get(),state.GetAddressOf()))&&wcscmp(state.GetRawBuffer(nullptr),L"notFound")==0)
-                QueryPreview(path,size,png,L"requestLocalPreview",deadline);
-            return false;
-        }
-        Check(SUCCEEDED(root->GetNamedString(HStringReference(L"previewPng").Get(),encoded.GetAddressOf())));
-        UINT32 chars=0;auto base64=encoded.GetRawBuffer(&chars);Check(chars>0&&chars<=524288);
-        DWORD bytes=0;Check(CryptStringToBinaryW(base64,chars,CRYPT_STRING_BASE64,nullptr,&bytes,nullptr,nullptr)!=FALSE&&bytes<=384*1024);
-        png.resize(bytes);Check(CryptStringToBinaryW(base64,chars,CRYPT_STRING_BASE64,png.data(),&bytes,nullptr,nullptr)!=FALSE);png.resize(bytes);return true;
-    }catch(...){png.clear();return false;}
-}
-
-/// <summary>缓存命中直接返回；新服务允许时异步排队，共用 150ms 截止时间，旧服务不启动后台读取。</summary>
-bool QueryCachedPreview(const std::wstring& path,UINT size,std::vector<BYTE>& png) noexcept {
-    return QueryPreview(path,size,png,L"getPreview",GetTickCount64()+150);
-}

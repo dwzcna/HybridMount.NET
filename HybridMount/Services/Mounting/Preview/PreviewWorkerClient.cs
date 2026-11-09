@@ -12,15 +12,9 @@ public sealed class PreviewWorkerClient(string? executable=null)
     private static string DefaultExecutable()
     {
 #if HYBRIDMOUNT_HEADLESS_TEST
-        var root=new DirectoryInfo(Path.GetDirectoryName(typeof(PreviewWorkerClient).Assembly.Location)!);while(root is not null&&!File.Exists(Path.Combine(root.FullName,"Directory.Build.props")))root=root.Parent;
-        if(root is not null)
-        {
-            var config=typeof(PreviewWorkerClient).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration??"Debug";
-            var platform=RuntimeInformation.ProcessArchitecture==Architecture.Arm64?"ARM64":"x64";var runtime=platform=="ARM64"?"win-arm64":"win-x64";
-            foreach(var mode in new[]{"Unpackaged","Packaged"}){var path=Path.Combine(root.FullName,"HybridMount","bin",platform,config,mode,"net10.0-windows10.0.26100.0",runtime,"HybridMount.NET.exe");if(File.Exists(path)&&FileVersionInfo.GetVersionInfo(path).FileVersion==typeof(PreviewWorkerClient).Assembly.GetName().Version?.ToString())return path;}
-        }
+        var sibling=Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe");if(File.Exists(sibling))return sibling;
 #endif
-        return Path.Combine(AppContext.BaseDirectory,"HybridMount.NET.exe");
+        return Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe");
     }
     /// <summary>一个工作进程生成四个尺寸，共用读取预算；任何失败均由调用者回退图标，finally 只结束本次创建的进程。</summary>
     public async Task<Dictionary<int,byte[]>?> DecodeAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]>> read,CancellationToken token=default)

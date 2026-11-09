@@ -18,12 +18,10 @@ public sealed class ShellItemPropertyTests
         if(kind=="pinned")Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]))).State);
         if(kind=="placeholder")
         {
-            var factory=typeof(CloudRootRegistration).GetMethod("CreateDescriptorAsync",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!;
-            var legacy=await (Task<StorageProviderSyncRootInfo>)factory.Invoke(null,[test.Repository.LoadDefinitions().Single()])!;
-            Assert.Empty(legacy.StorageProviderItemPropertyDefinitions);StorageProviderSyncRootManager.Register(legacy);
+            await NativeRuntimeClient.Get().InvokeAsync("testResetDefinitions",NativeRuntimeArguments.Root(test.Repository.LoadDefinitions().Single()));
         }
         var root=MountPathGuard.ReadRoot(test.Local);var rootIdentity=MountPathGuard.FileIdentity(test.Local);
-        var native=Native(path);var before=LocalFileState.Read(path);var existing=test.Repository.Uploads(test.Id).FirstOrDefault(x=>x.LocalPath==Path.GetFileName(path));
+        var native=CloudFilesNative.Inspect(path);var before=LocalFileState.Read(path);var existing=test.Repository.Uploads(test.Id).FirstOrDefault(x=>x.LocalPath==Path.GetFileName(path));
         if(existing is null){existing=new(Guid.NewGuid().ToString("N"),test.Id,Path.GetFileName(path),Path.GetFileName(path),false,before.Key,1,"Failed",DateTimeOffset.UtcNow,Error:"precise failure");test.Repository.SaveUpload(existing);}
         else test.Repository.UpdateUpload(existing.Id,x=>x with{State="Failed",Error="precise failure"});
         var original=test.Repository.Upload(existing.Id)!;var network=test.Dav.Server.Requests.Count;
@@ -32,7 +30,7 @@ public sealed class ShellItemPropertyTests
         Assert.Equal(root,MountPathGuard.ReadRoot(test.Local));Assert.Equal(rootIdentity,MountPathGuard.FileIdentity(test.Local));
         Assert.Equal(network,test.Dav.Server.Requests.Count);Assert.Equal(before.Identity,LocalFileState.Read(path).Identity);
         var properties=CloudCustomStateReader.Read(path);Assert.Equal(new[]{"1"},properties.Ids);Assert.Equal(properties.Ids.Count,properties.Values.Count);Assert.Equal(properties.Ids.Count,properties.Icons.Count);
-        var after=Native(path);Assert.Equal(native?.Info.PinState,after?.Info.PinState);Assert.Equal(native?.Info.InSyncState,after?.Info.InSyncState);Assert.Equal(native?.Info.OnDiskSize,after?.Info.OnDiskSize);
+        var after=CloudFilesNative.Inspect(path);Assert.Equal(native?.Info.PinState,after?.Info.PinState);Assert.Equal(native?.Info.InSyncState,after?.Info.InSyncState);Assert.Equal(native?.Info.OnDiskSize,after?.Info.OnDiskSize);
         test.Repository.UpdateUpload(existing.Id,x=>x with{State="Canceled",CancelRequested=true});await test.Manager.PublishUploadIssuesAsync();
         var cleared=test.Repository.Upload(existing.Id)!;Assert.True(cleared.Attention!.ShellState=="Cleared",cleared.Attention.ShellError);Assert.Equal(network,test.Dav.Server.Requests.Count);
         Assert.DoesNotContain("1",CloudCustomStateReader.Read(path).Ids);
@@ -80,22 +78,10 @@ public sealed class ShellItemPropertyTests
         await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"文件.bin");var requests=test.Dav.Server.Requests.Count;
         using(var handle=CloudFilesNative.CreateFile(path,0x10180,1,0,3,0x02200000,0))
         {
-            Assert.False(handle.IsInvalid);Assert.Equal(0,Native(path)?.Info.OnDiskSize);
+            Assert.False(handle.IsInvalid);Assert.Equal(0,CloudFilesNative.Inspect(path)?.Info.OnDiskSize);
             Assert.ThrowsAny<IOException>(()=>{using var writer=new FileStream(path,FileMode.Open,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete);});
             Assert.ThrowsAny<IOException>(()=>File.Move(path,path+".other"));
         }
-        Assert.Equal(0,Native(path)?.Info.OnDiskSize);Assert.Equal(requests,test.Dav.Server.Requests.Count);
-    }
-    // 断开期间系统可能隐藏重解析标签，直接查询CFAPI，不能把标签隐藏误判为普通文件。
-    private static (CloudFilesNative.PlaceholderInfo Info,byte[] Identity)? Native(string path)
-    {
-        using var h=CloudFilesNative.CreateFile(path,0x80,7,0,3,0x02200000,0);var b=System.Runtime.InteropServices.Marshal.AllocHGlobal(8192);
-        try
-        {
-            if(CloudFilesNative.CfGetPlaceholderInfo(h,1,b,8192,out _)<0)return null;
-            var info=System.Runtime.InteropServices.Marshal.PtrToStructure<CloudFilesNative.PlaceholderInfo>(b);var identity=new byte[info.IdentityLength];
-            System.Runtime.InteropServices.Marshal.Copy(b+60,identity,0,identity.Length);return(info,identity);
-        }
-        finally{System.Runtime.InteropServices.Marshal.FreeHGlobal(b);}
+        Assert.Equal(0,CloudFilesNative.Inspect(path)?.Info.OnDiskSize);Assert.Equal(requests,test.Dav.Server.Requests.Count);
     }
 }

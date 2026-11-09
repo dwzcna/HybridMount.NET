@@ -20,19 +20,8 @@ internal static class CloudExcludedRenameLocalizer
     internal static void Detach(MountDefinition mount,ExcludedRenameIntent intent,Proof proof)
     {
         var path=RelativePaths.ToLocal(mount.LocalPath,intent.LocalPath);MountPathGuard.ValidateOperation(mount,path);
-        using var handle=CloudFilesNative.Open(path,true);if(!CloudFilesNative.CfReferenceProtectedHandle(handle))throw new IOException("无法引用改名文件的保护句柄。");
-        try
-        {
-            using var borrowed=new Microsoft.Win32.SafeHandles.SafeFileHandle(CloudFilesNative.CfGetWin32HandleFromProtectedHandle(handle),false);
-            var before=LocalFileState.Read(borrowed);var info=CloudFilesNative.Inspect(path);if(before.Identity!=intent.FileId||UploadRules.ContentChanged(proof.Stamp.Key,before)||info is not null&&!CloudFilesNative.HasFullContent(path,before.Length))throw new SourceConflictException("转换前文件变化或内容不完整，未退出占位。");
-            var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-            if(info is not null)
-            {
-                if(marker?.MountId!=mount.Id||marker.EntryId!=intent.EntryId&&marker.EntryId!=intent.UploadId)throw new IOException("改名占位身份不属于已确认条目。");
-                CloudFilesNative.Check(CloudFilesNative.CfRevertPlaceholder(handle,0,0));
-            }
-            var after=LocalFileState.Read(borrowed);if(after.Identity!=before.Identity||after.Length!=before.Length||after.LastWriteTime!=before.LastWriteTime||CloudFilesNative.Inspect(path) is not null)throw new IOException("改名文件退出占位后的身份或内容状态不符。");
-        }
-        finally{CloudFilesNative.CfReleaseProtectedHandle(handle);}
+        var args=NativeRuntimeArguments.Root(mount,new{path,entryId=intent.EntryId,uploadId=intent.UploadId,fileId=intent.FileId,proofStamp=proof.Stamp});
+        NativeRuntimeClient.Get().Invoke("detachExcluded",args);
     }
+
 }

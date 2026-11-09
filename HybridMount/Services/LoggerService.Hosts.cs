@@ -18,12 +18,12 @@ internal static class HostDiagnosticStore
             var family=new StringBuilder((int)length);if(GetCurrentPackageFamilyName(ref length,family)==0)
                 return Path.Combine(local,"Packages",family.ToString(),"LocalState","Logs","HostDiagnostics");
         }
-        return Path.Combine(local,"HybridMount.NET","Logs","HostDiagnostics");
+        return Path.Combine(ApplicationPaths.PhysicalDataDirectory,"Logs","HostDiagnostics");
     }
     /// <summary>只记录角色、UTC、类型及代码，不保留参数、路径、异常消息或Data；写入失败不覆盖原退出结果。</summary>
     internal static bool Record(string role,Exception? error=null,int? exitCode=null,string? directory=null)
     {
-        if(role is not("ShellMaintenance" or "ShellServer" or "PreviewWorker" or "Startup"))return false;
+        if(role is not("ShellMaintenance" or "ShellServer" or "PreviewWorker" or "Startup" or "NativeRuntime"))return false;
         try
         {
             var path=directory??DirectoryPath();Directory.CreateDirectory(path);
@@ -58,7 +58,7 @@ internal static class HostDiagnosticStore
                 if(stream.Length>16384)throw new IOException("宿主证据超过安全上限。");
                 var bytes=new byte[checked((int)stream.Length)];stream.ReadExactly(bytes);
                 var row=JsonSerializer.Deserialize<Entry>(bytes)??throw new IOException("宿主证据为空。");
-                if(row.Id!=id||row.Role is not("ShellMaintenance" or "ShellServer" or "PreviewWorker" or "Startup"))throw new IOException("宿主证据身份无效。");
+                if(row.Id!=id||row.Role is not("ShellMaintenance" or "ShellServer" or "PreviewWorker" or "Startup" or "NativeRuntime"))throw new IOException("宿主证据身份无效。");
                 result.Add(new(path,bytes,row with{Type=SafeDiagnostic.Field(row.Type)}));
                 if(result.Count==256)break;
             }

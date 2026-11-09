@@ -9,7 +9,7 @@ public sealed class StartupService(LoggerService logger) : IStartupService
     /// <summary>与本产品 MSIX 清单保持一致的独立启动标识。</summary>
     public const string TaskId = "HybridMountStartup";
     private const string RunPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValue = "HybridMount.NET";
+    private static string RunValue => ApplicationPaths.ProductScope;
     private static string StartupCommand => $"\"{Environment.ProcessPath ?? throw new InvalidOperationException("无法确定应用路径。")}\" --tray";
 
     /// <summary>查询已打包的系统状态，或开发运行的当前用户注册。</summary>

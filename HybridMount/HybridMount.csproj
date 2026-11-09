@@ -36,6 +36,7 @@
 		<Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="ThirdParty\**\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+		<Content Include="..\HybridMount.Native\bin\$(Platform)\$(Configuration)\HybridMount.Native.exe" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Native.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Manifest Include="$(ApplicationManifest)" />
 		<Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 	</ItemGroup>

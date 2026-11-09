@@ -58,7 +58,7 @@ public sealed partial class ExcludedRenameFlowTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var file=await Prepare(test,2*1024*1024,false);
         await File.ReadAllBytesAsync(file.Old);
-        using(var handle=CloudFilesNative.Open(file.Old,true))CloudFilesNative.Check(CloudFilesNative.CfDehydratePlaceholder(handle,65536,file.Bytes.Length-65536,0,0));
+        NativeTestFiles.Dehydrate(file.Old,65536,file.Bytes.Length-65536);
         Assert.False(CloudFilesNative.HasFullContent(file.Old,file.Bytes.Length));Assert.True(CloudFilesNative.Inspect(file.Old)!.Value.Info.OnDiskSize>0);
         File.Move(file.Old,file.New);await test.Manager.ScanUploadChangesAsync(test.Id);await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await Wait(test);
         Assert.Equal(file.Bytes,await File.ReadAllBytesAsync(file.New));Assert.Null(CloudFilesNative.Inspect(file.New));Assert.Equal(file.Identity,LocalFileState.Read(file.New).Identity);Assert.Contains(test.Dav.Server.Requests,x=>x.Method=="GET"&&x.Target.EndsWith("/123.bak",StringComparison.Ordinal));

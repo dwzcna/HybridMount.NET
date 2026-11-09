@@ -6,11 +6,12 @@
 #include <atomic>
 #include <string>
 #include <vector>
+#include "../HybridMount.Native/NativeIdentity.h"
 
 #ifdef HYBRIDMOUNT_SHELL_PROBE_ID
 inline constexpr CLSID HybridMountCommandId{HYBRIDMOUNT_SHELL_PROBE_ID^0x10000000,0x4055,0x4f23,{0x8c,0xc0,0x91,0xb7,0x36,0xb3,0xe4,0x91}};
 #else
-inline constexpr CLSID HybridMountCommandId{ 0xf4a8fd0b,0x4055,0x4f23,{0x8c,0xc0,0x91,0xb7,0x36,0xb3,0xe4,0x91} };
+inline constexpr CLSID HybridMountCommandId{ 0x59964fc1,0xd076,0x4dc1,{0x97,0x78,0x01,0xf5,0x83,0x3a,0x5d,0x4a} };
 #endif
 /// <summary>仅隔离Shell试验记录无路径的原生阶段；正式DLL无注册表写入或追踪副作用。</summary>
 inline void TraceShellProbe(const wchar_t* stage) noexcept {
@@ -44,10 +45,8 @@ HRESULT QueueSyncIssuesRequest(std::vector<std::wstring> paths) noexcept;
 #ifdef HYBRIDMOUNT_SHELL_PROBE_ID
 inline constexpr CLSID HybridMountThumbnailId{HYBRIDMOUNT_SHELL_PROBE_ID,0x4d1c,0x4c7e,{0xa5,0x19,0x34,0xc7,0x6b,0x9b,0xb2,0x81}};
 #else
-inline constexpr CLSID HybridMountThumbnailId{0xa65802eb,0x4d1c,0x4c7e,{0xa5,0x19,0x34,0xc7,0x6b,0x9b,0xb2,0x81}};
+inline constexpr CLSID HybridMountThumbnailId{0xa749b295,0x9cb5,0x4f08,{0x98,0xd4,0x00,0xeb,0x47,0x34,0x5e,0x09}};
 #endif
-/// <summary>缓存查询共用 150 毫秒截止时间；服务缺失时直接失败，绝不激活主程序。</summary>
-bool QueryCachedPreview(const std::wstring& path,UINT size,std::vector<BYTE>& png) noexcept;
 /// <summary>验证本机根身份，不打开文件内容；异常视为不归属。</summary>
 bool IsOwnedMountPath(const std::wstring& path,GUID& mount) noexcept;
 /// <summary>同一 DLL 内创建缩略图对象，由共享模块计数管理生命周期。</summary>

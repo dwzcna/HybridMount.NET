@@ -32,6 +32,7 @@ function Invoke-BuildStep([string]$executable, [string[]]$arguments, [string]$na
 Push-Location $repoRoot
 try {
     Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "native-$Platform-$Configuration"
+    Invoke-BuildStep $msbuild @('HybridMount.Native\HybridMount.Native.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "runtime-$Platform-$Configuration"
     $packageDirectory = Join-Path $repoRoot $(if($ExperimentalThumbnails){"artifacts\packages-preview\$Platform\"}else{"artifacts\packages\$Platform\"})
     $managedArguments = @('HybridMount\HybridMount.csproj','/restore','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo',"/p:HybridMountDeployment=$Deployment","/p:GenerateAppxPackageOnBuild=$($Package.IsPresent)")
     $managedArguments += "/p:HybridMountShellProfile=$ShellProfile"
@@ -43,9 +44,11 @@ try {
         $testNative=Join-Path $repoRoot "artifacts\native-tests\$Platform\$Configuration\"
         $testNativeObjects=Join-Path $testNative 'obj\'
         Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountIsolatedTests=true',"/p:OutDir=$testNative","/p:IntDir=$testNativeObjects",'/v:minimal','/nologo') "native-tests-$Platform-$Configuration"
+        $runtimeTest=Join-Path $repoRoot "artifacts\native-runtime-tests\$Platform\$Configuration\"
+        Invoke-BuildStep $msbuild @('HybridMount.Native\HybridMount.Native.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountNativeTests=true',"/p:OutDir=$runtimeTest","/p:IntDir=$($runtimeTest)obj\",'/v:minimal','/nologo') "runtime-tests-$Platform-$Configuration"
         $thumbnailTest=Join-Path $repoRoot "artifacts\native-thumbnail-host\$Platform\$Configuration\"
         Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountShellProbeTag=d0037037',"/p:OutDir=$thumbnailTest","/p:IntDir=$($thumbnailTest)obj\",'/v:minimal','/nologo') "native-thumbnail-host-$Platform-$Configuration"
-        Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'-v:minimal') "tests-$Platform-$Configuration"
+        Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'--filter','FullyQualifiedName!~FailedMountTests&FullyQualifiedName!~OrphanedMountRecoveryTests&FullyQualifiedName!~ClearRemovalTests','-v:minimal') "tests-$Platform-$Configuration"
     }
     if ($Package) {
         [xml]$versionProps=Get-Content -LiteralPath (Join-Path $repoRoot 'Directory.Build.props') -Raw

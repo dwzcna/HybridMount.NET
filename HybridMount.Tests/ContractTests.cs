@@ -48,7 +48,7 @@ public sealed class ContractTests
             Assert.True(service.Reload());
             Assert.Equal(new(AppearanceBackdrop.None, AppearanceTheme.Dark), service.Current);
             Assert.Equal("invalid", key.GetValue("AppearanceBackdrop"));
-            Assert.Equal(@"Software\HybridMount.NET", ApplicationPaths.RegistryPath);
+            Assert.Equal(@"Software\HybridMount.NET\NativePreview\Unpackaged", ApplicationPaths.RegistryPath);
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }

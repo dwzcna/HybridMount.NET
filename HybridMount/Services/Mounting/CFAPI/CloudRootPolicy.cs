@@ -12,15 +12,8 @@ internal static class CloudRootPolicy
     /// <summary>有界读取SDK标准根信息；不打开正文、不查询远端。</summary>
     internal static Facts Read(string path)
     {
-        var memory=Marshal.AllocHGlobal(8192);
-        try
-        {
-            CloudFilesNative.Check(CloudFilesNative.CfGetSyncRootInfoByPath(path,1,memory,8192,out var returned));
-            if(returned<1056)throw new IOException("原生根信息长度异常。");var length=Marshal.ReadInt32(memory,1052);if(length is <1 or >4096||1056+length>returned)throw new IOException("原生根身份长度异常。");
-            var bytes=new byte[length];Marshal.Copy(memory+1056,bytes,0,length);
-            return new((ushort)Marshal.ReadInt16(memory,8),(ushort)Marshal.ReadInt16(memory,10),(uint)Marshal.ReadInt32(memory,12),(uint)Marshal.ReadInt32(memory,16),(uint)Marshal.ReadInt32(memory,20),(uint)Marshal.ReadInt32(memory,24),Marshal.PtrToStringUni(memory+28,256)!.TrimEnd('\0'),Marshal.PtrToStringUni(memory+540,256)!.TrimEnd('\0'),bytes,Marshal.ReadInt64(memory));
-        }
-        finally{Marshal.FreeHGlobal(memory);}
+        var value=NativeRuntimeClient.Get().RootInfoAsync(path).GetAwaiter().GetResult();CloudFilesNative.Check(value.GetProperty("hresult").GetInt32());
+        return new(value.GetProperty("hydration").GetUInt16(),value.GetProperty("modifier").GetUInt16(),value.GetProperty("population").GetUInt32(),value.GetProperty("inSync").GetUInt32(),value.GetProperty("hardlink").GetUInt32(),value.GetProperty("status").GetUInt32(),value.GetProperty("provider").GetString()!,value.GetProperty("version").GetString()!,value.GetProperty("identity").GetBytesFromBase64(),NativeRuntimeProtocol.Read<long>(value.GetProperty("fileId")));
     }
 #if HYBRIDMOUNT_HEADLESS_TEST
     /// <summary>仅测试编译比较三种原生策略；调用方限制在本轮独立根，更新前后核对身份及其他策略。</summary>

@@ -32,63 +32,38 @@ public static class CloudFilesNative
     [StructLayout(LayoutKind.Sequential)] public struct PlaceholderInfo
     { public long OnDiskSize, ValidatedSize, ModifiedSize, PropertiesSize; public uint PinState, InSyncState; public long FileId, RootFileId; public uint IdentityLength; }
     [StructLayout(LayoutKind.Sequential)] public struct AttributeTag { public uint Attributes, Tag; }
+    public static void Check(int result) { if(result<0)Marshal.ThrowExceptionForHR(result); }
+#if HYBRIDMOUNT_HEADLESS_TEST
     /// <summary>保护句柄只能由 CfCloseHandle 释放。</summary>
     public sealed class ProtectedHandle : SafeHandleZeroOrMinusOneIsInvalid
     { public ProtectedHandle() : base(true) { } protected override bool ReleaseHandle() { CfCloseHandle(handle); return true; } }
-    public static void Check(int result) { if (result < 0) Marshal.ThrowExceptionForHR(result); }
     public static ProtectedHandle Open(string path, bool exclusive = false)
     { Check(CfOpenFileWithOplock(path, (uint)(exclusive ? 3 : 10), out var handle)); return handle; }
     /// <summary>后台资源读取只请求读权限和排他 oplock；调用方引用句柄后再核对完整性。</summary>
     public static ProtectedHandle OpenRead(string path)
     { Check(CfOpenFileWithOplock(path,1,out var handle));return handle; }
-    public static (PlaceholderInfo Info, byte[] Identity)? Inspect(string path)
+#endif
+    private static (PlaceholderInfo Info,byte[] Identity)? FromNative(NativePlaceholder? value)=>value is null?null:(new PlaceholderInfo{OnDiskSize=value.OnDiskSize,ValidatedSize=value.ValidatedSize,ModifiedSize=value.ModifiedSize,PropertiesSize=value.PropertiesSize,PinState=value.PinState,InSyncState=value.InSyncState,FileId=value.FileId,RootFileId=value.RootFileId,IdentityLength=(uint)value.Identity.Length},value.Identity);
+    internal static NativeFileSnapshot ReadNative(string path,bool ranges=false,string? expectedIdentity=null)
     {
-        using var handle = CreateFile(path, 0x80, 7, 0, 3, 0x02200000, 0);
-        if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
-        return Inspect(handle);
+        try{return NativeRuntimeClient.Get().InspectAsync(path,persisted:true,ranges:ranges,expectedIdentity:expectedIdentity).GetAwaiter().GetResult();}
+        catch(COMException error)when((unchecked((uint)error.HResult)&0xffff0000)==0x80070000){throw new Win32Exception(error.HResult&0xffff);}
     }
-    /// <summary>读取已引用句柄的占位信息；用于删除前核对，不重新解析文件路径。</summary>
-    public static (PlaceholderInfo Info,byte[] Identity)? Inspect(SafeFileHandle handle)
+    /// <summary>查询持久占位身份由原生提供程序完成，避免跨进程标签过滤误判为普通文件。</summary>
+    public static (PlaceholderInfo Info,byte[] Identity)? Inspect(string path)=>FromNative(ReadNative(path).Placeholder);
+    /// <summary>属性句柄只提供路径和文件ID证明；原生端从同一身份复核后返回模型，不借出句柄。</summary>
+    public static (PlaceholderInfo Info,byte[] Identity)? Inspect(SafeFileHandle handle)=>FromNative(ReadNative(HandlePath(handle),expectedIdentity:LocalFileState.Read(handle).Identity).Placeholder);
+    internal static string HandlePath(SafeFileHandle handle)
     {
-        if (!GetFileInformationByHandleEx(handle, 9, out AttributeTag tag, 8)) throw new Win32Exception(Marshal.GetLastWin32Error());
-        if ((CfGetPlaceholderStateFromAttributeTag(tag.Attributes, tag.Tag) & 1) == 0) return null;
-        return ReadPersistedPlaceholder(handle);
+        var text=new System.Text.StringBuilder(32768);var count=GetFinalPathNameByHandle(handle,text,(uint)text.Capacity,0);if(count==0||count>=text.Capacity)throw new Win32Exception(Marshal.GetLastWin32Error());var path=text.ToString();return path.StartsWith(@"\\?\",StringComparison.Ordinal)?path[4..]:path;
     }
-    /// <summary>已核验本产品根之后读取持久占位身份；断开时系统可能隐藏reparse标签，不能据此推断不是云文件。</summary>
-    internal static (PlaceholderInfo Info,byte[] Identity) InspectPersisted(string path)
+    [DllImport("kernel32.dll",EntryPoint="GetFinalPathNameByHandleW",CharSet=CharSet.Unicode,SetLastError=true)]private static extern uint GetFinalPathNameByHandle(SafeFileHandle handle,System.Text.StringBuilder path,uint count,uint flags);
+    internal static (PlaceholderInfo Info,byte[] Identity) InspectPersisted(string path)=>Inspect(path)??throw new Win32Exception(376);
+    public static byte[]? RootIdentity(string path,bool strict=false)
     {
-        using var handle=CreateFile(path,0x80,7,0,3,0x02200000,0);
-        if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());return ReadPersistedPlaceholder(handle);
-    }
-    private static (PlaceholderInfo Info,byte[] Identity) ReadPersistedPlaceholder(SafeFileHandle handle)
-    {
-        var buffer = Marshal.AllocHGlobal(8192);
-        try
-        {
-            Check(CfGetPlaceholderInfo(handle, 1, buffer, 8192, out _));
-            var info = Marshal.PtrToStructure<PlaceholderInfo>(buffer);
-            if (info.IdentityLength > 4096) throw new IOException("占位身份过长。");
-            var bytes = new byte[info.IdentityLength]; Marshal.Copy(buffer + 60, bytes, 0, bytes.Length); return (info, bytes);
-        }
-        finally { Marshal.FreeHGlobal(buffer); }
-    }
-    public static byte[]? RootIdentity(string path, bool strict = false)
-    {
-        var buffer = Marshal.AllocHGlobal(8192);
-        try
-        {
-            var result = CfGetSyncRootInfoByPath(path, 1, buffer, 8192, out _);
-            // 只有明确的“未位于同步根”可用于安全删除判定，其他原生错误必须保留。
-            if (result < 0)
-            {
-                if (strict && result is not (unchecked((int)0x80070186) or unchecked((int)0x80070195))) CheckRootQueryResult(result,path);
-                return null;
-            }
-            // SDK CF_SYNC_ROOT_STANDARD_INFO：IdentityLength 位于 1052，字节数据位于 1056。
-            var length = Marshal.ReadInt32(buffer,1052); if (length is < 1 or > 4096) return [];
-            var bytes = new byte[length]; Marshal.Copy(buffer+1056,bytes,0,length); return bytes;
-        }
-        finally { Marshal.FreeHGlobal(buffer); }
+        var result=NativeRuntimeClient.Get().RootInfoAsync(path).GetAwaiter().GetResult();var code=result.GetProperty("hresult").GetInt32();
+        if(code<0){if(strict&&code is not(unchecked((int)0x80070186) or unchecked((int)0x80070195)))CheckRootQueryResult(code,path);return null;}
+        return result.GetProperty("identity").GetBytesFromBase64();
     }
     /// <summary>严格根查询保留原HRESULT；卷未提供CFAPI功能时提示核验过滤器实例，不将失败当成“没有同步根”。</summary>
     internal static void CheckRootQueryResult(int result,string path)
@@ -105,25 +80,9 @@ public static class CloudFilesNative
     /// <summary>Unicode 路径通知采用不等待 Shell 的刷新模式；调用前必须释放资源句柄。</summary>
     public static void NotifyItemUpdated(string path)=>ShellChangeNotify(0x2000,0x3005,path,0);
     public static bool IsCloudTag(uint tag) => (tag & 0xffff0fff) == 0x9000001a;
-    public static bool IsCloudPath(string path)
-    {
-        using var handle = CreateFile(path,0x80,7,0,3,0x02200000,0);
-        return !handle.IsInvalid && GetFileInformationByHandleEx(handle,9,out AttributeTag tag,8) && IsCloudTag(tag.Tag);
-    }
-    public static bool HasFullContent(string path, long size)
-    {
-        if (size == 0) return true;
-        using var handle = CreateFile(path,0x80,7,0,3,0x02200000,0); if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error()); var buffer = Marshal.AllocHGlobal(65536);
-        try
-        {
-            Check(CfGetPlaceholderRangeInfo(handle,1,0,size,buffer,65536,out var returned));
-            long end = 0;
-            for (var offset=0; offset+16<=returned; offset+=16)
-            { var start=Marshal.ReadInt64(buffer,offset); var length=Marshal.ReadInt64(buffer,offset+8); if (start>end) return false; end=Math.Max(end,start+length); }
-            return end>=size;
-        }
-        finally { Marshal.FreeHGlobal(buffer); }
-    }
+    public static bool IsCloudPath(string path){var value=ReadNative(path);return value.Placeholder is not null||IsCloudTag(value.Tag);}
+    public static bool HasFullContent(string path,long size){var result=ReadNative(path,ranges:true);return result.Stamp.Length==size&&(result.Placeholder is null||result.Full);}
+#if HYBRIDMOUNT_HEADLESS_TEST
     [StructLayout(LayoutKind.Sequential)] private struct Overlap { public nint Internal,InternalHigh; public long Offset; public nint Event; }
     /// <summary>使用重叠 I/O 支持取消，取消后仍等待原生完成才释放缓冲和句柄。</summary>
     public static async Task HydrateAsync(ProtectedHandle handle,CancellationToken token)
@@ -168,8 +127,12 @@ public static class CloudFilesNative
     [DllImport("CldApi.dll")] public static extern int CfRevertPlaceholder(ProtectedHandle handle,uint flags,nint overlap);
     [DllImport("CldApi.dll")] public static extern int CfSetPinState(ProtectedHandle handle,uint state,uint flags,nint overlap);
     /// <summary>仅属性句柄设置原生固定意图，不因申请正文访问而隐式水合；调用者负责核对根及条目身份。</summary>
-    [DllImport("CldApi.dll",EntryPoint="CfSetPinState")] internal static extern int SetPinIntent(SafeFileHandle handle,uint state,uint flags,nint overlap);
+    internal static int SetPinIntent(SafeFileHandle handle,uint state,uint flags,nint overlap)
+    {
+        if(flags!=0||overlap!=0)throw new NotSupportedException();try{NativeRuntimeClient.Get().Invoke("testSetPin",new{path=HandlePath(handle),expectedIdentity=LocalFileState.Read(handle).Identity,pin=state});return 0;}catch(COMException error){return error.HResult;}
+    }
     [DllImport("CldApi.dll")] public static extern int CfGetPlaceholderRangeInfo(SafeHandle handle,uint infoClass,long offset,long length,nint buffer,uint size,out int returned);
+#endif
     [DllImport("kernel32.dll",EntryPoint="CreateFileW",CharSet=CharSet.Unicode,SetLastError=true)] public static extern SafeFileHandle CreateFile(string path,uint access,uint share,nint security,uint creation,uint flags,nint template);
     [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetFileInformationByHandleEx(SafeFileHandle handle,int infoClass,out AttributeTag info,uint size);
     [DllImport("kernel32.dll",EntryPoint="GetFileInformationByHandleEx",SetLastError=true)] public static extern bool GetFileId(SafeFileHandle handle,int infoClass,[Out] byte[] info,uint size);

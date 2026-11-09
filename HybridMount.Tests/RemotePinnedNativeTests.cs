@@ -24,7 +24,7 @@ public sealed class RemotePinnedNativeTests
                 session.Connect();var initial=await source.GetMetadataAsync("文件.bin");var entry=new MountEntry(Guid.NewGuid().ToString("N"),initial.Path,initial.Path,initial.Version,false);
                 repository.SaveEntry(mount.Id,entry);session.CreatePlaceholder(entry,initial);entry=repository.Entries(mount.Id).Single();
                 var path=Path.Combine(local,"文件.bin");
-                using(var handle=CloudFilesNative.Open(path)){CloudFilesNative.Check(CloudFilesNative.CfSetPinState(handle,1,0,0));await CloudFilesNative.HydrateAsync(handle,default);}
+                NativeTestFiles.Pin(path,1);await session.HydratePinnedAsync(entry,default);
                 // 原生完成可能先于回调 finally，等待其归还读取计数。
                 for(var i=0;session.IsActive(entry.Id)&&i<100;i++)await Task.Delay(10);
                 var before=LocalFileState.Read(path);var identity=CloudFilesNative.Inspect(path)!.Value.Identity;

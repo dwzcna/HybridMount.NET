@@ -8,7 +8,7 @@ namespace HybridMount.Services.Mounting;
 /// <summary>挂载根与操作路径的本机验证；不读取内容、不穿越普通重解析点。</summary>
 public static class MountPathGuard
 {
-    public const string Product = "HybridMount.NET";
+    public static string Product => ApplicationPaths.ProductScope;
     public static string NormalizeRoot(string path)
     {
         if (!Path.IsPathFullyQualified(path) || path.StartsWith("\\\\",StringComparison.Ordinal)) throw new IOException("只支持本地 NTFS 目录。");
@@ -61,7 +61,7 @@ public static class MountPathGuard
         foreach (var path in Directory.EnumerateFileSystemEntries(directory))
         {
             var attributes=File.GetAttributes(path);
-            if ((attributes & FileAttributes.ReparsePoint)!=0 && (CloudFilesNative.Inspect(path) is not null || CloudFilesNative.IsCloudPath(path))) return true;
+            if (CloudFilesNative.Inspect(path) is not null || (attributes & FileAttributes.ReparsePoint)!=0 && CloudFilesNative.IsCloudPath(path)) return true;
             if ((attributes & (FileAttributes.Directory|FileAttributes.ReparsePoint))==FileAttributes.Directory && ContainsCloudPlaceholders(path)) return true;
         }
         return false;
@@ -71,7 +71,7 @@ public static class MountPathGuard
     public static byte[] RootBytes(Guid id) => JsonSerializer.SerializeToUtf8Bytes(new RootMarker(Product,1,id,System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value));
     public static RootMarker? ReadRoot(string path)
     {
-        try { var bytes=CloudFilesNative.RootIdentity(path); var marker=bytes is null ? null : JsonSerializer.Deserialize<RootMarker>(bytes); return marker is { Product:Product,Schema:1 } ? marker : null; }
+        try { var bytes=CloudFilesNative.RootIdentity(path); var marker=bytes is null ? null : JsonSerializer.Deserialize<RootMarker>(bytes); return marker is { Schema:1 } && marker.Product==Product ? marker : null; }
         catch (JsonException) { return null; }
     }
     public static EntryMarker? ReadEntry(byte[] bytes) { try { return JsonSerializer.Deserialize<EntryMarker>(bytes); } catch (JsonException) { return null; } }

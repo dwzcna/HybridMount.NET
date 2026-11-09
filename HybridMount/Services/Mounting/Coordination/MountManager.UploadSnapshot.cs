@@ -60,7 +60,7 @@ public sealed partial class MountManager
                 var metadata=await source!.GetMetadataAsync(mapping!.SourcePath,token).ConfigureAwait(false);
                 if(!source.IsSameVersion(metadata.Version,item!.ExpectedVersion??mapping.Version))throw new SourceConflictException("远端版本变化，无法补齐本地修改过的部分占位；保留文件。");
                 using(var priority=session!.PrioritizeDownload(mapping.Id))
-                using(var handle=CloudFilesNative.Open(path!))await CloudFilesNative.HydrateAsync(handle,token).ConfigureAwait(false);
+                await session!.Runtime.InvokeAsync("hydrateFile",session.EntryArgs(mapping),token:token).ConfigureAwait(false);
                 if(!CloudFilesNative.HasFullContent(path!,new FileInfo(path!).Length))throw new SourceConflictException("修改过的占位尚未完整补齐，未开始上传。");
                 return;
             }

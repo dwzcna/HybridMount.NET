@@ -78,7 +78,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
     [Theory(Timeout=60000)] [InlineData(0u)] [InlineData(1u)] [InlineData(2u)]
     public async Task PlaceholderMarkPreservesIdentityInSyncAndReadabilityAndRestoresPin(uint originalPin)
     {
-        await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"文件.bin");await File.ReadAllBytesAsync(path);
+        await using var test=await UploadFlowTests.Fixture.Create(false);await test.Manager.SetPinIntentMonitoringForTestsAsync(test.Id,false);var path=Path.Combine(test.Local,"文件.bin");await File.ReadAllBytesAsync(path);
         if(originalPin==1)await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]));
         if(originalPin==2){using var attributes=CloudFilesNative.CreateFile(path,0x180,7,0,3,0x02200000,0);CloudFilesNative.Check(CloudFilesNative.SetPinIntent(attributes,2,0,0));}
         var before=CloudFilesNative.Inspect(path)!.Value;var stamp=LocalFileState.Read(path);var requests=test.Dav.Server.Requests.Count;
@@ -89,6 +89,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
         var job=await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]));Assert.Contains(job.Results,x=>x.Status=="Skipped"&&x.Message.Contains("已排除"));
         var free=await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"freeSpace",[path]));Assert.Contains(free.Results,x=>x.Status=="Skipped");
         using(var attributes=CloudFilesNative.CreateFile(path,0x180,7,0,3,0x02200000,0))CloudFilesNative.Check(CloudFilesNative.SetPinIntent(attributes,1,0,0));
+        await test.Manager.ScanUploadChangesAsync(test.Id);
         var wait=Stopwatch.StartNew();while(CloudFilesNative.Inspect(path)!.Value.Info.PinState!=3&&wait.Elapsed<TimeSpan.FromSeconds(5))await Task.Delay(50);
         Assert.Equal(3u,CloudFilesNative.Inspect(path)!.Value.Info.PinState);Assert.Equal(requests,test.Dav.Server.Requests.Count);
         // PinState可先于图标写入完成；通过根锁等本次属性事务收尾后验证可读性，不与保护句柄释放竞争。
@@ -167,7 +168,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
         var definition=test.Repository.LoadDefinitions().Single();var path=Path.Combine(test.Local,"文件.bin");var native=CloudFilesNative.Inspect(path)!.Value;
         var area=Path.Combine(test.Repository.DataDirectory,"icon-recovery");var store=new FileExclusionMarkerStore(area,test.Id);store.Reconcile(definition,"文件.bin",true);
         var original=CloudCustomStateReader.Read(path);Assert.True(original.Ids.Contains("2"),store.Describe());
-        await Windows.Storage.Provider.StorageProviderItemProperties.SetAsync(await Windows.Storage.StorageFile.GetFileFromPathAsync(path),[]);
+        await NativeTestFiles.SetPropertiesAsync(path);
         Assert.Empty(CloudCustomStateReader.Read(path).Ids);var requests=test.Dav.Server.Requests.Count;
         store=new(area,test.Id);Assert.True(store.Reconcile(definition,"文件.bin",true).Changed,store.Describe());var repaired=CloudCustomStateReader.Read(path);
         Assert.Equal(new[]{"2"},repaired.Ids);Assert.Equal(new[]{CloudItemStateProperty.ExclusionIcon},repaired.Icons);
@@ -183,7 +184,7 @@ public sealed class FileExclusionFlowTests(Xunit.Abstractions.ITestOutputHelper 
         var definition=test.Repository.LoadDefinitions().Single();var path=Path.Combine(test.Local,"文件.bin");await File.ReadAllBytesAsync(path);
         using(var handle=CloudFilesNative.CreateFile(path,0x180,7,0,3,0x02200000,0))CloudFilesNative.Check(CloudFilesNative.SetPinIntent(handle,3,0,0));
         var store=new FileExclusionMarkerStore(Path.Combine(test.Repository.DataDirectory,"prior-excluded"),test.Id);store.Reconcile(definition,"文件.bin",true);
-        Assert.Equal(new[]{"2"},CloudCustomStateReader.Read(path).Ids);new FileExclusionMarkerStore(Path.Combine(test.Repository.DataDirectory,"prior-excluded"),test.Id).Reconcile(definition,"文件.bin",false);
+        Assert.True(CloudCustomStateReader.Read(path).Ids.SequenceEqual(["2"]),store.Describe());new FileExclusionMarkerStore(Path.Combine(test.Repository.DataDirectory,"prior-excluded"),test.Id).Reconcile(definition,"文件.bin",false);
         Assert.Equal(3u,CloudFilesNative.Inspect(path)!.Value.Info.PinState);Assert.Empty(CloudCustomStateReader.Read(path).Ids);
     }
     [Fact(Timeout=60000)]
