@@ -6,7 +6,7 @@ namespace hm {
 class CloudSession {
     struct Impl;std::unique_ptr<Impl> _impl;
 public:
-    CloudSession(RuntimeHost& host,const Json& root);~CloudSession();
+    CloudSession(RuntimeHost& host,const Json& root);~CloudSession()noexcept;
     void Connect();void Stop();void BeginClear();
     const Json& Root()const;
     bool Active(const std::string& entry)const;
