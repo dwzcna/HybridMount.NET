@@ -23,9 +23,9 @@ internal sealed unsafe class NativePreviewInterop : IDisposable
             return Path.Combine(directory.FullName,"artifacts","native-tests",RuntimeInformation.ProcessArchitecture==Architecture.Arm64?"ARM64":"x64",configuration,"HybridMount.Ext.dll");
         }
     }
-    internal NativePreviewInterop(string path,bool useShellBinding=false,Action<string>? observe=null,bool nativeServer=false)
+    internal NativePreviewInterop(string path,bool useShellBinding=false,Action<string>? observe=null,bool nativeServer=false,Guid? serverClass=null)
     {
-        var clsid=new Guid("A749B295-9CB5-4F08-98D4-00EB47345E09");var factoryId=new Guid("00000001-0000-0000-C000-000000000046");nint factory=0;
+        var clsid=serverClass??new Guid("A749B295-9CB5-4F08-98D4-00EB47345E09");var factoryId=new Guid("00000001-0000-0000-C000-000000000046");nint factory=0;
         if(nativeServer){var code=CoGetClassObject(in clsid,4,0,in factoryId,out factory);if(code<0)Marshal.ThrowExceptionForHR(code);_factory=factory;}
         else{_library=NativeLibrary.Load(LibraryPath);var create=(delegate* unmanaged[Stdcall]<Guid*,Guid*,nint*,int>)NativeLibrary.GetExport(_library,"DllGetClassObject");Assert.Equal(0,create(&clsid,&factoryId,&factory));_factory=factory;}
         var initializeId=new Guid("7F73BE3F-FB79-493C-A6C7-7EE14E245841");nint initialize=0;

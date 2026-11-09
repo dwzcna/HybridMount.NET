@@ -103,6 +103,10 @@ RuntimeOperations::~RuntimeOperations()=default;
 Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+    // 合成事件仅验证队列；不查询或修改任何根，认证仍由私有运行时握手完成。
+    if(operation=="testStateEvents"){auto count=data.at("count").get<int>();Require(count>0&&count<=2048);for(int i=0;i<count;++i){command.CheckCancel();Require(_impl->Host.Send({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",GuidN(data.at("sessionId"))},{"event","testState"},{"data",{{"index",i}}}},true),HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE));}return Json::object();}
+#endif
     // 活动根的每次领域命令必须绑定本次连接代次；只读无根查询及未连接根使用身份核验。
     if(operation!="connectRoot"&&data.contains("mountId")){
         if(data.contains("sessionId"))_impl->Session(data);
@@ -121,6 +125,9 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     if(operation=="finishFetch"){_impl->Session(data)->Finish(GuidN(data.at("fetchId")),data.at("status").get<NTSTATUS>());return Json::object();}
     if(operation=="openLocalRead"||operation=="readLocalRange"||operation=="closeLocalRead")return _impl->Reads.Execute(command);
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+    if(operation=="testHoldCallback"){_impl->Session(data)->HoldTestCallback();return Json::object();}
+    if(operation=="testReleaseCallback"){_impl->Session(data)->ReleaseTestCallback();return Json::object();}
+    if(operation=="testCloudFaults"){_impl->Session(data)->SetTestFailures(data.value("finish",0),data.value("disconnect",0));return Json::object();}
     if(operation=="testResetDefinitions"){GuardRoot(data);auto info=Descriptor(data);info.StorageProviderItemPropertyDefinitions().Clear();winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::Register(info);return Json::object();}
     if(operation=="testSetCustomStates"){
         auto path=FullPath(Text(data,"path"));NoLinks(path,true);RootMarker(path);auto file=OpenAttributes(path);Require(InspectFile(file.Value).Identity==data.at("expectedIdentity").get<std::string>(),E_ACCESSDENIED);auto properties=winrt::single_threaded_vector<winrt::Windows::Storage::Provider::StorageProviderItemProperty>();Require(data.at("properties").size()<=256);

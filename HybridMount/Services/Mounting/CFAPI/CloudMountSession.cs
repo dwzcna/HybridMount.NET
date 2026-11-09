@@ -87,6 +87,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             lock(_fetchGate)
             {
                 if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
+                if(_metadataUpdating.Contains(fetch.EntryId)){var rejected=Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});_notifications.Add(rejected);_ = rejected.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
                 _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work);if(_clearing)cancel.Cancel();start.SetResult();
@@ -123,7 +124,20 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(cancelLength==-1)return true;
         var delta=offset-cancelOffset;return delta<=cancelLength&&length<=cancelLength-delta;
     }
-    private Task FinishFetchAsync(NativeFetch fetch,int status)=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status}));
+    /// <summary>完成回复丢失可幂等重试；穷尽后使未知运行时显式失效，不按静默时间解除有效读取保护。</summary>
+    private async Task FinishFetchAsync(NativeFetch fetch,int status)
+    {
+        try{await FinishFetchWithRetryAsync(()=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status})),()=>Runtime.IsAvailable).ConfigureAwait(false);}
+        catch(Exception error){if(Runtime.IsAvailable&&error is not OperationCanceledException&&error.HResult!=unchecked((int)0x80070490)&&!IsCanceledCompletion(error.HResult))Runtime.AbortForSafety(error);throw;}
+    }
+    /// <summary>最多三次确认，终态、停止及合作取消不重试；不重传任何正文。</summary>
+    internal static async Task FinishFetchWithRetryAsync(Func<Task> complete,Func<bool> available)
+    {
+        for(var attempt=0;;attempt++)
+            try{await complete().ConfigureAwait(false);return;}
+            catch(Exception error)when(attempt<2&&error is not OperationCanceledException&&available()&&error.HResult!=unchecked((int)0x80070490)&&!IsCanceledCompletion(error.HResult))
+            {await Task.Delay(attempt==0?100:500).ConfigureAwait(false);if(!available())throw;}
+    }
     internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3);
     private async Task FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {

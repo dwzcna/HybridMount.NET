@@ -166,6 +166,8 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         catch(Exception error){if(owner is not null)Interlocked.CompareExchange(ref owner.CheckpointFailure,error,null);code=error is OperationCanceledException?unchecked((int)0x800703e3):error.HResult;}
         try{await WriteAsync(new{kind="checkpointAck",checkpointId=message.GetProperty("checkpointId").GetString(),hresult=code,data=NativeRuntimeProtocol.Element(result)}).ConfigureAwait(false);}catch(Exception error){if(!_stop.IsCancellationRequested)Fail(error);}
     }
+    /// <summary>关键原生状态无法确认时封闭此通道，保留挂载注册与恢复数据，禁止伪造成功。</summary>
+    internal void AbortForSafety(Exception error)=>Fail(error);
     private void Fail(Exception error)
     {
         if(Interlocked.Exchange(ref _failed,1)!=0)return;_ = _stop.CancelAsync();_control.Dispose();_data.Dispose();foreach(var request in _pending.Values)request.Completion.TrySetException(new IOException("原生运行时连接中断；已发送操作的结果须核对。",error));
