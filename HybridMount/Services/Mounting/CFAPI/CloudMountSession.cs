@@ -74,6 +74,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             lock(_fetchGate)
             {
                 if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
+                if(_metadataUpdating.Contains(fetch.EntryId)){_ = Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
                 _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work);if(_clearing)cancel.Cancel();start.SetResult();
