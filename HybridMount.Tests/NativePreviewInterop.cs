@@ -45,6 +45,24 @@ internal sealed unsafe class NativePreviewInterop : IDisposable
     }
     [StructLayout(LayoutKind.Sequential)] private struct Size{public int Width,Height;}
     /// <summary>调用系统真实图像工厂测量自动入口；不指定本产品处理器，不把此调用等同于 GUI 验收。</summary>
+    /// <summary>真实系统缩略图缓存选择器；强制提取仅针对本轮单个文件，不清理全局缓存、不直接创建产品类。</summary>
+    internal static int ShellCachedImage(string path,int size,out nint bitmap)
+    {
+        bitmap=0;var initialized=CoInitializeEx(0,2);nint cache=0,item=0,shared=0;
+        try
+        {
+            var cacheClass=new Guid("50EF4544-AC9F-4A8E-B21B-8A26180DB13F");var cacheId=new Guid("F676C15D-596A-4CE2-8234-33996F445DB1");
+            var code=CreateThumbnailCache(in cacheClass,0,1,in cacheId,out cache);if(code<0)return code;
+            var itemId=new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");code=SHCreateItemFromParsingName(path,0,in itemId,out item);if(code<0)return code;
+            uint flags=0;Guid id=default;nint result=0;
+            code=((delegate* unmanaged[Stdcall]<nint,nint,uint,uint,nint*,uint*,Guid*,int>)(*(void***)cache)[3])(cache,item,(uint)size,0x24,&result,&flags,&id);shared=result;if(code<0)return code;
+            nint detached=0;code=((delegate* unmanaged[Stdcall]<nint,nint*,int>)(*(void***)shared)[7])(shared,&detached);if(code>=0)bitmap=detached;return code;
+        }
+        finally{if(shared!=0)Marshal.Release(shared);if(item!=0)Marshal.Release(item);if(cache!=0)Marshal.Release(cache);if(initialized>=0)CoUninitialize();}
+    }
+    [DllImport("ole32.dll")]private static extern int CoInitializeEx(nint reserved,uint flags);
+    [DllImport("ole32.dll")]private static extern void CoUninitialize();
+    [DllImport("ole32.dll",EntryPoint="CoCreateInstance")]private static extern int CreateThumbnailCache(in Guid clsid,nint outer,uint context,in Guid iid,out nint value);
     internal static int ShellImage(string path,int size,uint flags,out nint bitmap)
     {
         var iid=new Guid("BCC18B79-BA16-442F-80C4-8A59C30C463B");var status=SHCreateItemFromParsingName(path,0,in iid,out var factory);

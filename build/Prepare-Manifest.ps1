@@ -1,6 +1,6 @@
 ﻿# 只修改构建副本；三个配置分别验证，保持主应用、启动任务及维护入口。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Source,[Parameter(Mandatory)][string]$Destination,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='Menus',[ValidateSet('true','false')][string]$Thumbnails)
+param([Parameter(Mandatory)][string]$Source,[Parameter(Mandatory)][string]$Destination,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails',[ValidateSet('true','false')][string]$Thumbnails)
 $ErrorActionPreference='Stop'
 if($Thumbnails){if($PSBoundParameters.ContainsKey('ShellProfile')){throw '不要混用旧缩略图参数与ShellProfile。'};$ShellProfile=if($Thumbnails -eq 'true'){'MenusAndThumbnails'}else{'Native'}}
 [xml]$manifest=[IO.File]::ReadAllText($Source)
@@ -16,14 +16,14 @@ $extension=Add-Element $extensions 'desktop3' 'Extension' $d3 @{Category='window
 $cloud=Add-Element $extension 'desktop3' 'CloudFiles' $d3 @{IconResource='Assets\HybridMount.png'}
 $menuId='59964FC1-D076-4DC1-9778-01F5833A5D4A';$thumbId='A749B295-9CB5-4F08-98D4-00EB47345E09'
 if($ShellProfile -eq 'MenusAndThumbnails'){
-    # SDK要求完整子组；没有实现的处理器不设置CLSID，原生状态仍由系统提供。
-    [void](Add-Element $cloud 'desktop3' 'CustomStateHandler' $d3)
+    # SDK要求完整子组；GUID_NULL明确表示不提供处理器，绝不为这些保留空值登记COM类。
+    [void](Add-Element $cloud 'desktop3' 'CustomStateHandler' $d3 @{Clsid='00000000-0000-0000-0000-000000000000'})
     [void](Add-Element $cloud 'desktop3' 'ThumbnailProviderHandler' $d3 @{Clsid=$thumbId})
-    [void](Add-Element $cloud 'desktop3' 'ExtendedPropertyHandler' $d3)
-    [void](Add-Element $cloud 'desktop3' 'BannersHandler' $d3)
-    $menus=Add-Element $cloud 'desktop3' 'CloudFilesContextMenus' $d3
-    [void](Add-Element $menus 'desktop3' 'Verb' $d3 @{Id='HybridMount';Clsid=$menuId})
-}elseif($ShellProfile -eq 'Menus'){
+    [void](Add-Element $cloud 'desktop3' 'ExtendedPropertyHandler' $d3 @{Clsid='00000000-0000-0000-0000-000000000000'})
+    [void](Add-Element $cloud 'desktop3' 'BannersHandler' $d3 @{Clsid='00000000-0000-0000-0000-000000000000'})
+    [void](Add-Element $cloud 'desktop3' 'CloudFilesContextMenus' $d3)
+}
+if($ShellProfile -ne 'Native'){
     $menuExtension=Add-Element $extensions 'desktop4' 'Extension' $d4 @{Category='windows.fileExplorerContextMenus'}
     $menus=Add-Element $menuExtension 'desktop4' 'FileExplorerContextMenus' $d4
     foreach($type in @('*','Directory','Directory\Background')){$item=Add-Element $menus 'desktop5' 'ItemType' $d5 @{Type=$type};[void](Add-Element $item 'desktop5' 'Verb' $d5 @{Id='HybridMount';Clsid=$menuId})}

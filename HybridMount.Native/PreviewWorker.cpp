@@ -16,8 +16,8 @@ public:
     IFACEMETHODIMP Read(void* buffer,ULONG count,ULONG* read)override{
         if(read)*read=0;if(!buffer&&count)return STG_E_INVALIDPOINTER;
         try{
-            auto size=static_cast<DWORD>(std::min<long long>(std::min<ULONG>(count,256*1024),_length-_position));if(!size)return count?S_FALSE:S_OK;
-            std::lock_guard lock(_channel->Gate);WriteFrame(_channel->Output,{{"kind","read"},{"offset",_position},{"count",size}});auto response=ReadFrame(_channel->Input);Require(response.at("kind")=="data");auto bytes=Base64(response.at("data").get<std::string>());Require(bytes.size()==size);memcpy(buffer,bytes.data(),size);_position+=size;if(read)*read=size;return size==count?S_OK:S_FALSE;
+            auto size=static_cast<DWORD>(std::min<long long>(count,_length-_position));if(!size)return count?S_FALSE:S_OK;
+            std::lock_guard lock(_channel->Gate);DWORD copied{};while(copied<size){auto take=std::min<DWORD>(size-copied,256*1024);WriteFrame(_channel->Output,{{"kind","read"},{"offset",_position},{"count",take}});auto response=ReadFrame(_channel->Input);Require(response.at("kind")=="data");auto bytes=Base64(response.at("data").get<std::string>());Require(bytes.size()==take);memcpy(static_cast<BYTE*>(buffer)+copied,bytes.data(),take);_position+=take;copied+=take;if(read)*read=copied;}return size==count?S_OK:S_FALSE;
         }catch(const Failure& error){return error.Code;}catch(...){return E_FAIL;}
     }
     IFACEMETHODIMP Seek(LARGE_INTEGER move,DWORD origin,ULARGE_INTEGER* position)override{
@@ -77,6 +77,6 @@ int RunPreviewWorker()noexcept{
             struct Memory{BYTE* Value;~Memory(){CoTaskMemFree(Value);}} memory{bytes};Check(status);Require(bytes&&count>=8&&count<=384*1024);frames[std::to_string(size)]=Base64(bytes,count);
         }
         WriteFrame(channel->Output,{{"kind","result"},{"frames",frames}});return 0;
-    }catch(...){try{WriteFrame(channel->Output,{{"kind","unsupported"}});}catch(...){}return 1;}
+    }catch(const Failure& error){try{WriteFrame(channel->Output,{{"kind","unsupported"},{"hResult",error.Code}});}catch(...){}return 1;}catch(...){try{WriteFrame(channel->Output,{{"kind","unsupported"},{"hResult",E_FAIL}});}catch(...){}return 1;}
 }
 }

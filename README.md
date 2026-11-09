@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.44 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.45 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 本分支 `codex/native-backend` 基于 .42，未包含 .43；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
@@ -40,7 +40,7 @@ AWS S3 的“SQS 事件加速”使用同区域 Standard Queue。每台机器需
 
 打包模式通过独立 Shell 宿主提供 HybridMount.NET 菜单：完整水合文件仅显示“释放空间”，未完整水合文件仅显示“始终保留在此设备上”；排除文件隐藏这两个动作。目录可包含不同状态，因此保留两项，执行时逐项核验。根外不显示本产品动作。Windows 原生状态列、文件图标及固定／释放入口保持。非打包模式继续使用系统入口和应用内操作，不接管其他包的注册。
 
-缩略图由纯 C++ COM 宿主直接只读每挂载 SQLite BLOB 库，命中与未命中均不经过 NamedPipe、不联网、不水合，也不启动 C# 主程序；媒体解码由独立原生工作进程完成。缓存命中和主挂载断开后的显式 COM 位图已通过隔离验证，但 **Explorer 自动选择处理器仍未完成，实验包继续门控自动注册**。默认包保留独立菜单和空 CloudFiles 声明，隐藏缩略图开关并保留原偏好；不后台生成不可用缩略图。自动选择处理器与原生状态、系统菜单的组合需单独验收，见 [0.0.9.44 验收记录](docs/Validation-0.0.9.44.md)。
+缩略图由纯 C++ COM 宿主直接只读每挂载 SQLite BLOB 库。完整本地文件无缓存时可由独立原生进程限时解码；仅联机／部分水合文件只用有效缓存，未命中保留普通图标。Shell 取图不经过 NamedPipe、不联网、不水合或启动主程序。已运行应用按 Explorer 当前目录的可见媒体有界生成，发布后刷新单个文件，不在连接时遍历整根预生成；本地修改只用完整本地内容。默认 MSIX 已声明真实缩略图类，独立菜单和 Windows 原生状态保持；挂载设置可按需开启，原有关闭偏好不会自动开启。系统自动选择、生成后刷新及卸载注销已通过隔离 MSIX 自动验证，实际 Explorer 目视、侧栏与磁盘路径布局、正式安装及 ARM64 实机仍待测，见 [0.0.9.45 验收记录](docs/Validation-0.0.9.45.md)。
 
 本地NTFS卷还需附加Windows Cloud Files过滤器CldFlt。服务显示RUNNING不代表每个卷都有实例；0x80070001的严格根查询失败会提示目标卷及管理员核验命令，应用不会自动修改系统驱动。
 
@@ -77,7 +77,7 @@ Explorer 继续通过原生后台的 Windows 自定义存储提供程序属性�
 
 Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64 / ARM64，主工程默认打包运行并提供“打包和发布”菜单。非打包构建使用脚本参数 `-Deployment Unpackaged`；两种部署共用这两个配置，输出按架构、配置、Packaged / Unpackaged 隔离。部署和清单生成逻辑集中于 `build/HybridMount.Packaging.targets`，主工程文件只保留编译、依赖及资源声明。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.44`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.44`，构建会拒绝版本不一致，自动增加修订号保持关闭。
+使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props，当前为 `0.0.9.45`；供向导读取的 Package.appxmanifest 必须同步为四段 `0.0.9.45`，构建会拒绝版本不一致，自动增加修订号保持关闭。
 
 在根目录使用 PowerShell 7：
 
@@ -96,11 +96,11 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 .\build\Update-Assets.ps1
 ```
 
-本分支实验产物位于 `artifacts\packages\<架构>`，构建日志、TRX 与包哈希位于 `artifacts\validation`。实验构建仅支持 `-ShellProfile Menus`（默认）或 `Native`；云缩略图组合及旧实验参数保持门控。ARM64 可以交叉构建，测试运行必须在 ARM64 主机进行。直接构建主工程前，先构建同架构、同配置的扩展和原生后台；推荐使用脚本或 slnx。
+本分支实验产物位于 `artifacts\packages\<架构>`，构建日志、TRX 与包哈希位于 `artifacts\validation`。实验构建默认 `-ShellProfile MenusAndThumbnails`，也支持仅菜单 `Menus` 或系统集成 `Native`。ARM64 可以交叉构建，测试运行必须在 ARM64 主机进行。直接构建主工程前，先构建同架构、同配置的扩展和原生后台；推荐使用脚本或 slnx。
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.44.md](docs/Validation-0.0.9.44.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版验证细节及待测项目见 [docs/Validation-0.0.9.45.md](docs/Validation-0.0.9.45.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 真实自动同步验收为显式操作，可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

@@ -29,6 +29,8 @@ public:
     std::function<void(const RuntimeBlock&)> Content;
     std::function<void()> Stopping;
     bool Send(Json value,bool waitForCapacity=false)noexcept;
+    /// <summary>预览提示独立合并且允许丢弃，绝不占用关键回调的512条队列。</summary>
+    void SendPreview(Json value)noexcept;
     bool IsStopping()const noexcept;
     DWORD ParentProcessId()const noexcept;
     Json Checkpoint(RuntimeCommand& command,const std::string& stage,const Json& data,bool beginIrreversible=false,bool safety=false);

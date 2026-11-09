@@ -4,6 +4,7 @@
 #include "CloudProperties.h"
 #include "LocalReadLeases.h"
 #include "RootRegistryGuard.h"
+#include "PreviewObserver.h"
 #include <charconv>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
@@ -94,7 +95,7 @@ Json RegisterRoot(const Json& data){
 }
 }
 void ValidateRuntimeRoot(const Json& data,bool registered){GuardRoot(data,registered);}
-struct RuntimeOperations::Impl{RuntimeHost& Host;LocalReadLeases Reads;std::mutex Gate;std::map<std::string,std::shared_ptr<CloudSession>> Sessions;explicit Impl(RuntimeHost& host):Host(host),Reads(host){}
+struct RuntimeOperations::Impl{RuntimeHost& Host;LocalReadLeases Reads;PreviewObserver Previews;std::mutex Gate;std::map<std::string,std::shared_ptr<CloudSession>> Sessions;explicit Impl(RuntimeHost& host):Host(host),Reads(host),Previews(host){}
     std::shared_ptr<CloudSession> Session(const Json& data){std::lock_guard lock(Gate);auto key=GuidN(data.at("sessionId"));auto found=Sessions.find(key);Require(found!=Sessions.end(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));Require(GuidN(found->second->Root().at("mountId"))==GuidN(data.at("mountId")),E_ACCESSDENIED);return found->second;}
 };
 RuntimeOperations::RuntimeOperations(RuntimeHost& host):_impl(std::make_unique<Impl>(host)){}
@@ -112,7 +113,8 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
         {std::lock_guard lock(_impl->Gate);for(auto& [_,other]:_impl->Sessions)Require(GuidN(other->Root().at("mountId"))!=GuidN(data.at("mountId")),HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS));Require(_impl->Sessions.emplace(key,session).second);}
         try{session->Connect();}catch(...){std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(key);throw;}return {{"sessionId",key}};
     }
-    if(operation=="disconnectRoot"){auto session=_impl->Session(data);session->Stop();std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(GuidN(data.at("sessionId")));return Json::object();}
+    if(operation=="observePreviews"){auto session=_impl->Session(data);auto root=session->Root();GuardRoot(root);_impl->Previews.Configure(root,data.at("enabled").get<bool>());return Json::object();}
+    if(operation=="disconnectRoot"){auto session=_impl->Session(data);_impl->Previews.Remove(GuidN(data.at("sessionId")));session->Stop();std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(GuidN(data.at("sessionId")));return Json::object();}
     if(operation=="clearRoot"){_impl->Session(data)->BeginClear();return Json::object();}
     if(operation=="activity")return _impl->Session(data)->Activity(data.at("entryId"));
     if(operation=="blockEntry"){_impl->Session(data)->SetBlocked(data.at("entryId"),data.at("blocked"));return Json::object();}
@@ -151,9 +153,9 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
         if(data.contains("sessionId"))session=_impl->Session(data);else if(data.contains("mountId")){std::lock_guard lock(_impl->Gate);for(auto& [_,candidate]:_impl->Sessions)if(GuidN(candidate->Root().at("mountId"))==GuidN(data.at("mountId"))){session=candidate;break;}}
         bool handled{};auto result=ExecuteCloudFile(_impl->Host,command,session.get(),handled);if(handled)return result;
     }
-    if(operation=="ping")return {{"ready",true},{"scope",Utf8(ProductScope())}};
+    if(operation=="ping")return {{"ready",true},{"scope",Utf8(ProductScope())},{"aumid",Utf8(ApplicationId())}};
     throw Failure(E_NOTIMPL);
 }
 void RuntimeOperations::Content(const RuntimeBlock& block){std::vector<std::shared_ptr<CloudSession>> sessions;{std::lock_guard lock(_impl->Gate);for(auto& [_,session]:_impl->Sessions)sessions.push_back(session);}for(auto& session:sessions)if(session->OwnsFetch(block.FetchId)){session->Transfer(block);return;}throw Failure(HRESULT_FROM_WIN32(ERROR_NOT_FOUND));}
-void RuntimeOperations::Stop(){_impl->Reads.Stop();std::vector<std::shared_ptr<CloudSession>> sessions;{std::lock_guard lock(_impl->Gate);for(auto& [_,session]:_impl->Sessions)sessions.push_back(session);}for(auto& session:sessions)session->BeginClear();}
+void RuntimeOperations::Stop(){_impl->Previews.Stop();_impl->Reads.Stop();std::vector<std::shared_ptr<CloudSession>> sessions;{std::lock_guard lock(_impl->Gate);for(auto& [_,session]:_impl->Sessions)sessions.push_back(session);}for(auto& session:sessions)session->BeginClear();}
 }

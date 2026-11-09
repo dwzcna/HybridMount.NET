@@ -27,6 +27,12 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly string _sessionId=Guid.NewGuid().ToString("N");
     private sealed record NativeFetch(string FetchId,string EntryId,long Offset,long Length,byte Priority,bool Explicit,uint ProcessId,string Image);
     internal event Action<Exception>? RuntimeFailed;
+    internal event Action<IReadOnlyList<string>>? PreviewDemandReceived;
+    private string _previewObservation="尚未收到目录观察结果";
+    /// <summary>最近一次观察的有界计数快照；不枚举Shell或读取源，供完整诊断直接查询。</summary>
+    internal string PreviewObservationDescription=>Volatile.Read(ref _previewObservation);
+    /// <summary>仅观察当前连接代次；没有图片或凭据经过此命令。</summary>
+    internal void ObservePreviews(bool enabled)=>Runtime.Invoke("observePreviews",SessionArgs(new{enabled}));
     private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<string,FetchRequest> _fetches=new();
 
@@ -68,6 +74,13 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {
         if(message.MountId!=_mount.Id.ToString("N")||message.SessionId!=_sessionId)return;
         var data=message.Data;
+        if(message.Event=="previewDemand")
+        {
+            if(_clearing||_stop.IsCancellationRequested)return;
+            try{if(data.TryGetProperty("observation",out var observation)&&observation.ValueKind==JsonValueKind.Object){var windows=observation.TryGetProperty("windows",out var w)&&w.TryGetInt32(out var wc)?Math.Clamp(wc,0,32):0;var accepted=observation.TryGetProperty("accepted",out var a)&&a.TryGetInt32(out var ac)?Math.Clamp(ac,0,16):0;Volatile.Write(ref _previewObservation,$"窗口={windows}；已匹配目录={accepted}；UTC={DateTimeOffset.UtcNow:O}");}var paths=data.GetProperty("paths");if(paths.ValueKind!=JsonValueKind.Array||paths.GetArrayLength()>128)throw new IOException("预览提示数量无效。");var items=paths.EnumerateArray().Select(x=>x.GetString()??throw new IOException("预览提示为空。")).ToArray();if(items.Any(x=>x.Length>4096))throw new IOException("预览路径过长。");PreviewDemandReceived?.Invoke(items);}
+            catch(Exception error){_logger.QueueException("缩略图","Warning","目录预览提示未处理",error,_mount.Id.ToString("N"));}
+            return;
+        }
         if(message.Event=="fetch")
         {
             var fetch=NativeRuntimeProtocol.Read<NativeFetch>(data);
