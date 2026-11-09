@@ -8,7 +8,7 @@
 using namespace Microsoft::WRL;
 
 namespace {
-    constexpr UINT64 PixelLimit=32000000;
+    constexpr UINT64 PixelLimit=64000000;
     /// <summary>有界 WIC 缩放及 PNG 编码；仅处理工作进程提供的字节流，不打开挂载路径。</summary>
     HRESULT Encode(IWICImagingFactory* factory,IWICBitmapSource* source,UINT size,BYTE** png,DWORD* length) {
         UINT width=0,height=0;auto hr=source->GetSize(&width,&height);if(FAILED(hr))return hr;
@@ -33,6 +33,10 @@ namespace {
         ComPtr<IWICImagingFactory> factory;ComPtr<IWICBitmapDecoder> decoder;ComPtr<IWICBitmapFrameDecode> frame;
         auto hr=CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory));if(FAILED(hr))return hr;
         if(FAILED(hr=factory->CreateDecoderFromStream(input,nullptr,WICDecodeMetadataCacheOnDemand,&decoder))||FAILED(hr=decoder->GetFrame(0,&frame)))return hr;
+        // 优先用容器自带的小图；方向变换仍采用原帧元数据，避免大照片为小图分配全部像素。
+        ComPtr<IWICBitmapSource> source=frame;ComPtr<IWICBitmapSource> embedded;
+        if(FAILED(frame->GetThumbnail(&embedded)))decoder->GetPreview(&embedded);
+        if(embedded){UINT width{},height{};if(SUCCEEDED(embedded->GetSize(&width,&height))&&std::max(width,height)>=size&&static_cast<UINT64>(width)*height<=PixelLimit)source=embedded;}
         ComPtr<IWICMetadataQueryReader> metadata;PROPVARIANT orientation{};PropVariantInit(&orientation);
         if(SUCCEEDED(frame->GetMetadataQueryReader(&metadata))&&SUCCEEDED(metadata->GetMetadataByName(L"/app1/ifd/{ushort=274}",&orientation))&&orientation.vt==VT_UI2) {
             WICBitmapTransformOptions transform=WICBitmapTransformRotate0;
@@ -40,9 +44,9 @@ namespace {
             case 5:transform=static_cast<WICBitmapTransformOptions>(WICBitmapTransformRotate90|WICBitmapTransformFlipHorizontal);break;case 6:transform=WICBitmapTransformRotate90;break;
             case 7:transform=static_cast<WICBitmapTransformOptions>(WICBitmapTransformRotate270|WICBitmapTransformFlipHorizontal);break;case 8:transform=WICBitmapTransformRotate270;break;default:break;}
             PropVariantClear(&orientation);
-            if(transform!=WICBitmapTransformRotate0){ComPtr<IWICBitmapFlipRotator> rotated;if(FAILED(hr=factory->CreateBitmapFlipRotator(&rotated))||FAILED(hr=rotated->Initialize(frame.Get(),transform)))return hr;return Encode(factory.Get(),rotated.Get(),size,png,length);}
+            if(transform!=WICBitmapTransformRotate0){ComPtr<IWICBitmapFlipRotator> rotated;if(FAILED(hr=factory->CreateBitmapFlipRotator(&rotated))||FAILED(hr=rotated->Initialize(source.Get(),transform)))return hr;return Encode(factory.Get(),rotated.Get(),size,png,length);}
         }else PropVariantClear(&orientation);
-        return Encode(factory.Get(),frame.Get(),size,png,length);
+        return Encode(factory.Get(),source.Get(),size,png,length);
     }
     /// <summary>从可寻址流取得首个视频帧；不访问 URL，不启用网络解析或硬件变换。</summary>
     HRESULT Video(IStream* input,UINT size,BYTE** png,DWORD* length) {

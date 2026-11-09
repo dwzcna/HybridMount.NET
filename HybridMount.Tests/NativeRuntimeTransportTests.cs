@@ -76,6 +76,15 @@ public sealed class NativeRuntimeTransportTests
         }
         finally{File.Delete(path);Directory.Delete(area);}
     }
+    /// <summary>事件消费者停滞时显式报告通道故障，不能静默丢事件后继续宣称运行正常；停止仍能排空。</summary>
+    [Fact(Timeout=30000)]
+    public async Task SaturatedStateEventsFailExplicitlyAndWakeWaitingCommand()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var release=new ManualResetEventSlim();var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var failed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        runtime.EventReceived+=value=>{if(value.Event=="testState"){entered.TrySetResult();release.Wait(TimeSpan.FromSeconds(10));}};runtime.Failed+=_=>failed.TrySetResult();
+        try{var work=runtime.InvokeAsync("testStateEvents",new{mountId=Guid.NewGuid(),sessionId=Guid.NewGuid(),count=2048});await Task.WhenAny(entered.Task,work).WaitAsync(TimeSpan.FromSeconds(5));if(work.IsFaulted)await work;await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));await failed.Task.WaitAsync(TimeSpan.FromSeconds(5));Assert.False(runtime.IsAvailable);await Assert.ThrowsAnyAsync<Exception>(()=>work.WaitAsync(TimeSpan.FromSeconds(5)));}
+        finally{release.Set();}
+    }
     [Fact(Timeout=30000)]
     public async Task TerminatedOwnedProcessWakesPendingCallsAndDisposalDoesNotUnregisterAnything()
     {

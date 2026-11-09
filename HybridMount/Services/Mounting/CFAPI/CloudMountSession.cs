@@ -27,6 +27,12 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly string _sessionId=Guid.NewGuid().ToString("N");
     private sealed record NativeFetch(string FetchId,string EntryId,long Offset,long Length,byte Priority,bool Explicit,uint ProcessId,string Image);
     internal event Action<Exception>? RuntimeFailed;
+    internal event Action<IReadOnlyList<string>>? PreviewDemandReceived;
+    private string _previewObservation="尚未收到目录观察结果";
+    /// <summary>最近一次观察的有界计数快照；不枚举Shell或读取源，供完整诊断直接查询。</summary>
+    internal string PreviewObservationDescription=>Volatile.Read(ref _previewObservation);
+    /// <summary>仅观察当前连接代次；没有图片或凭据经过此命令。</summary>
+    internal void ObservePreviews(bool enabled)=>Runtime.Invoke("observePreviews",SessionArgs(new{enabled}));
     private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<string,FetchRequest> _fetches=new();
 
@@ -68,12 +74,20 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {
         if(message.MountId!=_mount.Id.ToString("N")||message.SessionId!=_sessionId)return;
         var data=message.Data;
+        if(message.Event=="previewDemand")
+        {
+            if(_clearing||_stop.IsCancellationRequested)return;
+            try{if(data.TryGetProperty("observation",out var observation)&&observation.ValueKind==JsonValueKind.Object){var windows=observation.TryGetProperty("windows",out var w)&&w.TryGetInt32(out var wc)?Math.Clamp(wc,0,32):0;var accepted=observation.TryGetProperty("accepted",out var a)&&a.TryGetInt32(out var ac)?Math.Clamp(ac,0,16):0;Volatile.Write(ref _previewObservation,$"窗口={windows}；已匹配目录={accepted}；UTC={DateTimeOffset.UtcNow:O}");}var paths=data.GetProperty("paths");if(paths.ValueKind!=JsonValueKind.Array||paths.GetArrayLength()>128)throw new IOException("预览提示数量无效。");var items=paths.EnumerateArray().Select(x=>x.GetString()??throw new IOException("预览提示为空。")).ToArray();if(items.Any(x=>x.Length>4096))throw new IOException("预览路径过长。");PreviewDemandReceived?.Invoke(items);}
+            catch(Exception error){_logger.QueueException("缩略图","Warning","目录预览提示未处理",error,_mount.Id.ToString("N"));}
+            return;
+        }
         if(message.Event=="fetch")
         {
             var fetch=NativeRuntimeProtocol.Read<NativeFetch>(data);
             lock(_fetchGate)
             {
                 if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
+                if(_metadataUpdating.Contains(fetch.EntryId)){var rejected=Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});_notifications.Add(rejected);_ = rejected.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
                 _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work);if(_clearing)cancel.Cancel();start.SetResult();
@@ -110,7 +124,20 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(cancelLength==-1)return true;
         var delta=offset-cancelOffset;return delta<=cancelLength&&length<=cancelLength-delta;
     }
-    private Task FinishFetchAsync(NativeFetch fetch,int status)=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status}));
+    /// <summary>完成回复丢失可幂等重试；穷尽后使未知运行时显式失效，不按静默时间解除有效读取保护。</summary>
+    private async Task FinishFetchAsync(NativeFetch fetch,int status)
+    {
+        try{await FinishFetchWithRetryAsync(()=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status})),()=>Runtime.IsAvailable).ConfigureAwait(false);}
+        catch(Exception error){if(Runtime.IsAvailable&&error is not OperationCanceledException&&error.HResult!=unchecked((int)0x80070490)&&!IsCanceledCompletion(error.HResult))Runtime.AbortForSafety(error);throw;}
+    }
+    /// <summary>最多三次确认，终态、停止及合作取消不重试；不重传任何正文。</summary>
+    internal static async Task FinishFetchWithRetryAsync(Func<Task> complete,Func<bool> available)
+    {
+        for(var attempt=0;;attempt++)
+            try{await complete().ConfigureAwait(false);return;}
+            catch(Exception error)when(attempt<2&&error is not OperationCanceledException&&available()&&error.HResult!=unchecked((int)0x80070490)&&!IsCanceledCompletion(error.HResult))
+            {await Task.Delay(attempt==0?100:500).ConfigureAwait(false);if(!available())throw;}
+    }
     internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3);
     private async Task FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {
