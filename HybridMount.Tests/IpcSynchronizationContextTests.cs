@@ -95,4 +95,32 @@ public sealed class IpcSynchronizationContextTests
         public override void Flush()=>throw new NotSupportedException();public override int Read(byte[] buffer,int offset,int count)=>throw new NotSupportedException();public override void Write(byte[] buffer,int offset,int count)=>throw new NotSupportedException();
         public override long Seek(long offset,SeekOrigin origin)=>throw new NotSupportedException();public override void SetLength(long value)=>throw new NotSupportedException();
     }
+    /// <summary>已有配置的构造只建立检查中快照，启动核对在不泵消息的调用上下文外完成。</summary>
+    [Fact(Timeout=30000)]
+    public async Task StartupInspectionDoesNotBlockCallerContext()
+    {
+        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UiInspect."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UiInspect\"+Guid.NewGuid().ToString("N");
+        try
+        {
+            var repository=new MountRepository(Path.Combine(area,"data"),registry);repository.SaveDefinition(new(Guid.NewGuid(),"inspect",local,false,RootIdentity:MountPathGuard.FileIdentity(local),RegistrationStage:MountRegistrationStage.NotRegistered));await using var logger=new LoggerService(Path.Combine(area,"logs.db"));await using var manager=new MountManager(repository,logger,new RejectingFactory());
+            Assert.Equal("检查中",Assert.Single(manager.Mounts).Status);
+            var state=await WithoutMessagePump(async()=>{await manager.StartAsync().ConfigureAwait(false);return Assert.Single(manager.Mounts).Status;});Assert.Equal("未连接",state);
+        }
+        finally{Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);Directory.Delete(area,true);}
+    }
+    /// <summary>新增和凭据保存即使预热后台也离开UI；工厂只记录上下文并拒绝，不联网或注册根。</summary>
+    [Fact(Timeout=30000)]
+    public async Task AddAndCredentialSaveLeaveCallerContext()
+    {
+        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UiEdit."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UiEdit\"+Guid.NewGuid().ToString("N");
+        try
+        {
+            var repository=new MountRepository(Path.Combine(area,"data"),registry);await using var logger=new LoggerService(Path.Combine(area,"logs.db"));var factory=new RejectingFactory();await using var manager=new MountManager(repository,logger,factory);await NativeRuntimeClient.PrepareConnectionAsync();
+            async Task<bool> Add(){try{await manager.AddAsync("edit",local,false,source:new(FileSourceKind.WebDav,"https://example.invalid/")).ConfigureAwait(false);return false;}catch(IOException){return true;}}
+            Assert.True(await WithoutMessagePump(Add));var id=Assert.Single(manager.Mounts).Definition.Id;
+            async Task<bool> Edit(){try{await manager.UpdateCredentialsAsync(id,new("user","test")).ConfigureAwait(false);return false;}catch(IOException){return true;}}
+            Assert.True(await WithoutMessagePump(Edit));Assert.Equal(2,factory.Calls);Assert.Null(factory.CallerContext);Assert.Null(CloudFilesNative.RootIdentity(local,true));
+        }
+        finally{Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);Directory.Delete(area,true);}
+    }
 }

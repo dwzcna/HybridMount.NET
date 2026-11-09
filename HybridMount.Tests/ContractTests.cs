@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Pipes;
 using HybridMount.ViewModels;
+using HybridMount.Services.Mounting.Persistence;
 using Microsoft.Win32;
 
 namespace HybridMount.Tests;
@@ -51,6 +52,22 @@ public sealed class ContractTests
             Assert.Equal(@"Software\HybridMount.NET\NativePreview\Unpackaged", ApplicationPaths.RegistryPath);
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
+    }
+    [Theory]
+    [InlineData(true,"Packaged")][InlineData(false,"Unpackaged")]
+    public void DeploymentRegistryPathsMatchTheDefinitionStoreLayout(bool packaged,string scope)
+    {
+        var root=@"Software\HybridMount.NET\NativePreview\"+scope;
+        Assert.Equal(root,ApplicationPaths.RegistryPathFor(packaged));
+        Assert.Equal(root+@"\Mounts\"+scope,ApplicationPaths.MountDefinitionsRegistryPathFor(packaged));
+        Assert.Equal(ApplicationPaths.RegistryPathFor(WinRegisterService.IsPackaged()),ApplicationPaths.RegistryPath);
+    }
+    [Fact]
+    public void MissingDefinitionKeyIsReadOnlyAndReturnsNoMounts()
+    {
+        var path=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
+        var store=new RegistryMountDefinitionStore(path);Assert.Empty(store.LoadDefinitions());
+        using var key=Registry.CurrentUser.OpenSubKey(path);Assert.Null(key);
     }
     /// <summary>打开失败不能用默认值覆盖无法读取的正式配置。</summary>
     [Fact]

@@ -40,6 +40,21 @@ public sealed class PageViewModelTests
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }
 
+    [Theory]
+    [InlineData(0,false)]
+    [InlineData(2,false)]
+    [InlineData(2,true)]
+    public async Task Saved_roots_wait_for_startup_inspection_and_publish_completion(int count,bool failSave)
+    {
+        await using var area=new Area();if(count==0)area.Store.Items.Clear();
+        for(var index=0;index<area.Store.Items.Count;index++)area.Store.Items[index]=area.Store.Items[index] with{RegistrationStage=MountRegistrationStage.Unknown};
+        area.Store.FailSave=failSave;await using var manager=new MountManager(area.Repository,area.Logger);using var vm=new MountsViewModel(manager,area.Ui);
+        Assert.Equal(count,vm.Items.Count);
+        foreach(var row in vm.Items){Assert.Equal("检查中",row.Snapshot.Status);Assert.False(row.CanEdit);Assert.False(row.Actions.CanConnect);Assert.False(row.Actions.CanRemove);}
+        await manager.StartAsync();area.Ui.Drain();
+        foreach(var row in vm.Items){Assert.NotEqual("检查中",row.Snapshot.Status);Assert.False(row.Snapshot.IsConnected);if(failSave){Assert.Equal("需要恢复",row.Snapshot.Status);Assert.NotEmpty(row.Snapshot.Detail);}}
+        if(count>0)Assert.Equal(0,area.Ui.Pending);
+    }
     [Fact]
     public async Task ExclusionDraftsPreserveCustomRowsAcrossRefreshAndFailedSave()
     {
@@ -101,7 +116,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Mount_rows_are_stable_and_id_commands_do_not_follow_changed_selection()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        await using var area=new Area();await area.Manager.StartAsync();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
         vm.SelectedMountId=a.Id;var first=vm.Items.Single(x=>x.Id==a.Id);Assert.True(first.IsSelected);
         vm.SelectedMountId=b.Id;vm.RefreshNow();Assert.Same(first,vm.Items.Single(x=>x.Id==a.Id));Assert.False(first.IsSelected);Assert.True(vm.Items.Single(x=>x.Id==b.Id).IsSelected);
         vm.UpdateCapacityDraft(a.Id,false,"3","GB");await vm.SaveCapacityAsync(a.Id);Assert.Equal(b.Id,vm.SelectedMountId);Assert.Equal(3_000_000_000,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.MaximumCapacityBytes);Assert.Null(area.Manager.Mounts.Single(x=>x.Definition.Id==b.Id).Definition.MaximumCapacityBytes);

@@ -84,7 +84,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public Task RunForMountAsync(Guid id,Func<MountSnapshot,Task> work)=>FindMount(id) is {} mount?RunMountAsync(id,()=>work(mount)):Task.CompletedTask;
     /// <summary>配置表单只读取应用已保存的凭据与根编辑权限；不发起连接。</summary>
     public SourceCredentials ReadCredentials(Guid id)=>_manager.GetCredentials(id);
-    public bool CanEditRemoteRoot(Guid id)=>!IsStopping&&_manager.CanEditRemoteRoot(id);
+    public Task<bool> CanEditRemoteRootAsync(Guid id)=>IsStopping?Task.FromResult(false):_manager.CanEditRemoteRootAsync(id);
     /// <summary>只读探测继续由应用登记、取消和等待；页面关闭使用自己的等待令牌。</summary>
     public Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,CancellationToken token)
         =>_manager.TestConnectionAsync(settings,credentials,token);

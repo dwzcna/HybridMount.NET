@@ -27,7 +27,7 @@ public sealed record MountActionState(bool CanOpen,bool CanConnect,bool CanCance
         if(mount is null||stopping)return new(false,false,false,false,false,false,false,"连接","移除挂载");
         var pending=mount.Definition.RemovalPending;
         var removing=mount.ActiveOperation is "remove" or "clearAndRemove";
-        var available=!busy&&!mount.IsConnecting&&!mount.IsDisconnecting&&!removing;
+        var available=!busy&&mount.Status!="检查中"&&!mount.IsConnecting&&!mount.IsDisconnecting&&!removing;
         var edit=available&&!pending&&mount.Definition.Source is not null;
         var connected=available&&!pending&&mount.IsConnected;
         var remove=pending?mount.Definition.RemovalMode==MountRemovalMode.ClearContents?"继续清空并移除":"继续下载并移除":

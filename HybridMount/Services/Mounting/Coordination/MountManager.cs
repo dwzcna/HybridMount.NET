@@ -15,6 +15,8 @@ public sealed partial class MountManager : IAsyncDisposable
         public CancellationTokenSource? Connecting;
         public Task ConnectionSignal=Task.CompletedTask;
         public Task ConnectionFinished=Task.CompletedTask;
+        public bool RequiresInspection;
+        public Task? Inspection;
         public int ConnectionStops;
         public string? ConnectionStopReason;
         public bool RemovalRequested;
@@ -103,11 +105,7 @@ public sealed partial class MountManager : IAsyncDisposable
         _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
         {
-            var root=new Runtime(definition);_roots[definition.Id]=root;
-            try { InspectRegistration(root); }
-            catch(Exception error) { root.Status="需要恢复";root.Detail=error.Message;_logger.QueueException("挂载恢复","Warning","同步根注册核对失败，保留原配置",error,definition.Id.ToString("N")); }
-            if(definition.RemovalPending)
-                try{RemovalStatus(root);}catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
+            _roots[definition.Id]=new Runtime(definition){RequiresInspection=true,Status="检查中",Detail=""};
         }
     }
     private sealed class PreviewLease(SemaphoreSlim gate) : IDisposable
@@ -172,13 +170,31 @@ public sealed partial class MountManager : IAsyncDisposable
     public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);_issuePublishing??=Task.Run(PublishIssueLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
     private async Task InitializeAsync()
     {
+        foreach(var root in _roots.Values){if(IsStopping)return;try{await EnsureInspectionAsync(root).ConfigureAwait(false);}catch(OperationCanceledException)when(IsStopping){return;}}
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))
             try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.QueueException("恢复挂载","Error","操作未完成",error); }
+    }
+    /// <summary>同根共享一次启动核对；连接、编辑和收尾先等待，调用者不能在持根锁时进入。</summary>
+    private Task EnsureInspectionAsync(Runtime root){lock(root.ConnectionSync)return root.RequiresInspection?root.Inspection??=InspectStartupRootAsync(root):Task.CompletedTask;}
+    /// <summary>始终离开调用上下文后取得根锁核对注册；退出使用应用令牌，失败保留原配置与恢复入口。</summary>
+    private async Task InspectStartupRootAsync(Runtime root)
+    {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        await root.Gate.WaitAsync(_stop.Token).ConfigureAwait(false);
+        try
+        {
+            try{InspectRegistration(root);root.Status="未连接";root.Detail="";}
+            catch(Exception error){root.Status="需要恢复";root.Detail=error.Message;_logger.QueueException("挂载恢复","Warning","同步根注册核对失败，保留原配置",error,root.Definition.Id.ToString("N"));}
+            if(root.Definition.RemovalPending)
+                try{RemovalStatus(root);}catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
+        }
+        finally{root.Gate.Release();Notify();}
     }
     public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true,IReadOnlyList<FileExclusionRule>? exclusions=null)
         =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults())),token);
     private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload,IReadOnlyList<FileExclusionRule> exclusions)
     {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         MountDefinition definition;
         await _configurationGate.WaitAsync(token).ConfigureAwait(false);
         try { definition = SaveNewMountCore(name, directory, autoConnect, source, credentials, false, token,exclusions:exclusions); }
@@ -191,7 +207,8 @@ public sealed partial class MountManager : IAsyncDisposable
         =>OwnAsync(cancel=>UpdateCredentialsCoreAsync(id,credentials,cancel,settings),token);
     private async Task UpdateCredentialsCoreAsync(Guid id,SourceCredentials credentials,CancellationToken token,FileSourceConfiguration? settings)
     {
-        var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
             CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
@@ -225,10 +242,13 @@ public sealed partial class MountManager : IAsyncDisposable
         }
     }
     /// <summary>只有实际无注册、无云占位、无物化索引的从未注册条目可改变远端根。</summary>
+    /// <summary>后台只读核验远端根能否编辑；应用拥有查询，取消或失败不会改配置或注册。</summary>
+    public Task<bool> CanEditRemoteRootAsync(Guid id,CancellationToken token=default)
+        =>OwnAsync(async cancel=>{await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);cancel.ThrowIfCancellationRequested();return CanEditRemoteRoot(id);},token);
     public bool CanEditRemoteRoot(Guid id)
     {
         var root=Root(id);
-        if(root.Definition.RemovalPending || root.Definition.RegistrationStage!=MountRegistrationStage.NotRegistered)return false;
+        if(root.Status=="检查中" || root.Definition.RemovalPending || root.Definition.RegistrationStage!=MountRegistrationStage.NotRegistered)return false;
         lock(root.ConnectionSync)if(root.RemovalRequested || root.Connecting is not null)return false;
         return !CloudRootRegistration.IsOwnedRoot(root.Definition) && !CloudFilesNative.IsCloudPath(root.Definition.LocalPath) && !MountPathGuard.ContainsCloudPlaceholders(root.Definition.LocalPath) &&
             !_repository.Entries(id).Any(e=>e.Materialized);
@@ -265,7 +285,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public Task ConnectAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>ConnectOwnedAsync(id,cancel),token);
     private async Task ConnectOwnedAsync(Guid id,CancellationToken token)
     {
-        var root=Root(id); await root.Gate.WaitAsync(token).ConfigureAwait(false);
+        var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false); await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try { await ConnectCoreAsync(root,token).ConfigureAwait(false); }
         finally { root.Gate.Release(); }
     }
@@ -435,7 +455,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public Task DisconnectAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>DisconnectOwnedAsync(id,cancel),token);
     private async Task DisconnectOwnedAsync(Guid id,CancellationToken token)
     {
-        var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
+        var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
             CancelConnection(root);
@@ -514,6 +534,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var held=false;var changedPaths=new List<string>();
             try
             {
+                await EnsureInspectionAsync(root).ConfigureAwait(false);
                 if(removing)await Task.WhenAll(previewStop,StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
                 if(operation=="refresh"&&root.Source is IRemoteChangeSource)
                 {

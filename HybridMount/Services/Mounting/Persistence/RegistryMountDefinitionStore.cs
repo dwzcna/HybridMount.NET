@@ -7,7 +7,7 @@ namespace HybridMount.Services.Mounting.Persistence;
 /// <summary>只负责 HKCU 定义与缓存偏好，保持原键名和值类型；所有失败直接报告，不用默认值回写。</summary>
 internal sealed class RegistryMountDefinitionStore(string? registryPath) : IMountDefinitionStore
 {
-    private readonly string _registry=registryPath??ApplicationPaths.RegistryPath+@"\Mounts\"+(WinRegisterService.IsPackaged()?"Packaged":"Unpackaged");
+    private readonly string _registry=registryPath??ApplicationPaths.MountDefinitionsRegistryPathFor(WinRegisterService.IsPackaged());
     private readonly object _gate=new();
     public IReadOnlyList<MountDefinition> LoadDefinitions()
     {

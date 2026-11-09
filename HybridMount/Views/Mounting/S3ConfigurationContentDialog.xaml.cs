@@ -27,7 +27,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             EndpointField.PlaceholderText=_kind==FileSourceKind.S3?"https://s3.example.com":"https://dav.example.com/dav/";
             if(existing is not null)
             {
-                var editable=model.CanEditRemoteRoot(existing.Id);var source=existing.Source!;
+                var editable=false;var source=existing.Source!;
                 NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
                 EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;HttpField.IsChecked=source.AllowHttp;HttpField.IsEnabled=editable;
                 AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;
@@ -40,8 +40,20 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
             model.Refreshed+=Refresh;model.StateChanged+=Refresh;model.PropertyChanged+=ModelPropertyChanged;_loading=false;Refresh();
+            if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
+    }
+    /// <summary>后台核验可编辑性，返回窗口线程后再次检查生命周期，关闭后不更新任何控件。</summary>
+    private async Task LoadRemoteRootEditabilityAsync(Guid id)
+    {
+        var dispatcher=DispatcherQueue;
+        try
+        {
+            var editable=await _model.CanEditRemoteRootAsync(id).ConfigureAwait(false);
+            dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;HttpField.IsEnabled=editable;BucketField.IsReadOnly=!editable;PrefixField.IsReadOnly=!editable;});
+        }
+        catch(Exception error){dispatcher.TryEnqueue(()=>{if(Stopped)return;ErrorBar.Message=error.Message;ErrorBar.IsOpen=true;});}
     }
     private void ModelPropertyChanged(object? sender,System.ComponentModel.PropertyChangedEventArgs args){if(!_disposed&&args.PropertyName==nameof(MountsViewModel.Status))StatusText.Text=_model.Status;}
     private void Refresh()

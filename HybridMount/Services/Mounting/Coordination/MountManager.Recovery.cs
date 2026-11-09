@@ -6,8 +6,8 @@ public sealed partial class MountManager
 {
     /// <summary>只读合并可见的两模式定义用于排除受管根；不复制、保存或接管另一模式的配置。</summary>
     private IReadOnlyList<MountDefinition> RecoveryManagedDefinitions()=>_roots.Values.Select(x=>x.Definition).Concat(_repository.LoadDefinitions())
-        .Concat(new RegistryMountDefinitionStore(ApplicationPaths.RegistryPath+@"\Mounts\Packaged").LoadDefinitions())
-        .Concat(new RegistryMountDefinitionStore(ApplicationPaths.RegistryPath+@"\Mounts\Unpackaged").LoadDefinitions()).ToArray();
+        .Concat(new RegistryMountDefinitionStore(ApplicationPaths.MountDefinitionsRegistryPathFor(true)).LoadDefinitions())
+        .Concat(new RegistryMountDefinitionStore(ApplicationPaths.MountDefinitionsRegistryPathFor(false)).LoadDefinitions()).ToArray();
     private OrphanedMountRecovery Recovery()=>new(Path.Combine(_repository.DataDirectory,"Recovery"),RecoveryManagedDefinitions,_logger,RemovalShellForTests??_removalShell,ensureRunning:ThrowIfStopping);
     /// <summary>发现遗留根由应用生命周期持有；退出取消并等待，不在UI线程枚举或隐式删除。</summary>
     public Task<IReadOnlyList<OrphanedMountCandidate>> DiscoverOrphanedMountsAsync(CancellationToken token=default)=>OwnAsync(async cancel=>

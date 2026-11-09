@@ -92,7 +92,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
     private async Task TrimCoreAsync()
     {
-        try{var freed=await Task.Run(()=>_mounts!.EnforceCacheLimitAsync());if(!_disposed)CacheStatus=$"本次回收 {freed/(1024d*1024):F1} MiB，当前占用约 {_mounts!.CacheUsageBytes/(1024d*1024):F1} MiB。";}
+        try{var result=await Task.Run(async()=>{var freed=await _mounts!.EnforceCacheLimitAsync().ConfigureAwait(false);return (Freed:freed,Usage:_mounts.CacheUsageBytes);});if(!_disposed)CacheStatus=$"本次回收 {result.Freed/(1024d*1024):F1} MiB，当前占用约 {result.Usage/(1024d*1024):F1} MiB。";}
         catch(Exception error){if(!_disposed)CacheStatus=error.Message;_logger?.QueueException("缓存","Warning","缓存操作失败",error);}
         finally{_trimming=false;if(!_disposed)OnPropertyChanged(nameof(CanEditCache));}
     }

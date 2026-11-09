@@ -19,6 +19,7 @@ public sealed class FailedMountTests
         await File.WriteAllTextAsync(Path.Combine(test.Local,"local.txt"),"keep unless clear");
         if(legacy)test.Repository.SaveDefinition(mount with{RegistrationStage=MountRegistrationStage.Unknown});
         await test.RestartAsync();Assert.True(test.Manager.CanEditRemoteRoot(mount.Id));
+        Assert.True(await test.Manager.CanEditRemoteRootAsync(mount.Id));
         var result=await WebDavTests.Finished(test.Manager,test.Manager.Queue(mount.Id,clear?"clearAndRemove":"remove"));
         Assert.True(result.State=="Completed",result.Error);Assert.Empty(test.Manager.Mounts);
         Assert.Equal(1,test.Factory.Calls);Assert.True(Directory.Exists(test.Local));
@@ -36,6 +37,14 @@ public sealed class FailedMountTests
         Assert.Equal(options,Assert.Single(test.Repository.LoadDefinitions()).Source);
         Assert.Equal("new-user",test.Manager.GetCredentials(mount.Id).UserName);
         Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(mount.Id,"remove"))).State);
+    }
+    [Fact]
+    public async Task AsyncRemoteRootCheckRejectsMissingMountAndCancellation()
+    {
+        await using var test=new Fixture();
+        await Assert.ThrowsAsync<IOException>(()=>test.Manager.CanEditRemoteRootAsync(Guid.NewGuid()));
+        using var cancel=new CancellationTokenSource();cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>test.Manager.CanEditRemoteRootAsync(Guid.NewGuid(),cancel.Token));
     }
     [Fact]
     public async Task InvalidEditedInputPreservesSavedSettingsAndCredentials()
@@ -92,6 +101,7 @@ public sealed class FailedMountTests
         var mount=await owner.AddAsync("owned",test.Local,false,source:new(FileSourceKind.WebDav,"https://original.example/dav/"));
         Assert.Equal(MountRegistrationStage.Registered,Assert.Single(owner.Mounts).Definition.RegistrationStage);
         Assert.False(owner.CanEditRemoteRoot(mount.Id));
+        Assert.False(await owner.CanEditRemoteRootAsync(mount.Id));
         await Assert.ThrowsAsync<IOException>(()=>owner.UpdateCredentialsAsync(mount.Id,new(),settings:mount.Source! with{Endpoint="https://changed.example/dav/"}));
         Assert.Equal(mount.Source,Assert.Single(owner.Mounts).Definition.Source);
         var foreign=mount with{Id=Guid.NewGuid(),RegistrationStage=MountRegistrationStage.Unknown};
@@ -117,6 +127,7 @@ public sealed class FailedMountTests
             else
             {
                 Assert.False(orphan.CanEditRemoteRoot(mount.Id));
+                Assert.False(await orphan.CanEditRemoteRootAsync(mount.Id));
                 Assert.Equal("Completed",(await WebDavTests.Finished(orphan,orphan.Queue(mount.Id,"remove"))).State);
             }
         }
