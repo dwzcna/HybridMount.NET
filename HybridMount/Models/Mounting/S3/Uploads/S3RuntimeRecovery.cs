@@ -2,8 +2,11 @@ using System.Text.Json;
 
 namespace HybridMount.Services.Mounting;
 
-public sealed partial class S3FileSource : IMountSourceRuntime
+public sealed partial class S3FileSource : IMountSourceRuntime, IMountNetworkSource
 {
+    private MountQueueBinding? _queueBinding;
+    MountQueueBinding? IMountNetworkSource.QueueBinding=>_queueBinding;
+    void IMountNetworkSource.BindQueue(MountQueueBinding binding)=>_queueBinding=binding;
     private DateTimeOffset _lastRecoveryWarning=DateTimeOffset.MinValue;
     private void RecoveryWarning(int quarantined,int deferred)
     {

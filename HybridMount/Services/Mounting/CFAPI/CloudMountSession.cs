@@ -14,6 +14,8 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly Action<MountEntry>? _localContentReady;
     private readonly Action? _localChanged;
     private readonly IFileSource? _source;
+    private readonly MountQueueBinding? _queueBinding;
+    private readonly ConcurrentDictionary<string,MountingTask> _downloadTasks=new();
     private readonly object _fetchGate=new();
     private bool _clearing;
     private readonly MountRepository _repository;
@@ -49,17 +51,22 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly ConcurrentDictionary<string,int> _open = new(StringComparer.Ordinal);
     private bool _connected;
     private readonly ConcurrentDictionary<string,int> _explicitDownloads=new();
-    private sealed class DownloadPriority(ConcurrentDictionary<string,int> counts,string id) : IDisposable
+    private sealed class DownloadPriority(ConcurrentDictionary<string,int> counts,ConcurrentDictionary<string,MountingTask> tasks,string id) : IDisposable
     {
         private int _released;
-        public void Dispose(){if(Interlocked.Exchange(ref _released,1)==0)counts.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));}
+        public void Dispose(){if(Interlocked.Exchange(ref _released,1)==0&&counts.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1))==0)tasks.TryRemove(id,out _);}
     }
     /// <summary>为应用中明确提交的下载建立优先级范围；也覆盖系统在显式水合调用前产生的隐式打开请求。</summary>
-    public IDisposable PrioritizeDownload(string id){_explicitDownloads.AddOrUpdate(id,1,(_,value)=>value+1);return new DownloadPriority(_explicitDownloads,id);}
+    public IDisposable PrioritizeDownload(string id)
+    {
+        _explicitDownloads.AddOrUpdate(id,1,(_,value)=>value+1);
+        if(_queueBinding is {} binding)_downloadTasks.TryAdd(id,TasksQueueService.CurrentTask is {} parent&&parent.MountId==_mount.Id?parent:new("pin:"+_mount.Id+":"+id,_mount.Id,binding.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"keepOnDevice",EntryId:id));
+        return new DownloadPriority(_explicitDownloads,_downloadTasks,id);
+    }
     private readonly ConcurrentDictionary<string,int> _reading=new();
     private readonly ConcurrentDictionary<string,DateTimeOffset> _lastRead=new();
     public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false,Action<MountEntry>? localContentReady=null,Action? localChanged=null)
-    { _localChanged=localChanged;_localContentReady=localContentReady;_mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
+    { _localChanged=localChanged;_localContentReady=localContentReady;_mount=mount; _source=source;_queueBinding=(source as IMountNetworkSource)?.QueueBinding; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
     internal event Action<LocalRenameNotice>? LocalRenameCompleted;
     internal event Action<string>? RenameRejected;
     private Dictionary<string,object?> SessionArgs(object? extra=null)
@@ -108,7 +115,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
                 if(_metadataUpdating.Contains(fetch.EntryId)){var rejected=Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});_notifications.Add(rejected);_ = rejected.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
+                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{using var cancelOwner=_queueBinding?.Queue.RegisterCancellation("read:"+fetch.FetchId,()=>{if(!cancel.IsCancellationRequested)_=cancel.CancelAsync();return true;});await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
                 _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work);if(_clearing)cancel.Cancel();start.SetResult();
             }return;
         }
@@ -176,8 +183,11 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         var id=info.EntryId;var offset=info.Offset;var length=info.Length;IDisposable? lease=null;long bytesTransferred=0;double queueMs=0,firstBlockMs=-1;var outcome="ok";_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;
         try
         {
-            lease=await _reads.EnterAsync(info.Priority,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
+            if(_queueBinding is null)lease=await _reads.EnterAsync(info.Priority,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
             var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id&&!item.Deleted&&item.RemotePresence!=RemotePresence.Deleted)??throw new FileNotFoundException("占位身份不存在。");
+            var ownedHydration=info.Explicit||info.ProcessId==(uint)Runtime.ProcessId||info.ProcessId==(uint)Environment.ProcessId;
+            var parent=ownedHydration?_downloadTasks.GetValueOrDefault(id):null; // 外部普通打开保持P0，不因同文件正在固定而降级。
+            using var queueTask=_queueBinding?.Queue.Enter(_queueBinding,parent??new("read:"+info.FetchId,_mount.Id,_queueBinding.Generation,MountingPriority.Demand,DateTimeOffset.UtcNow,"download",entry.SourcePath,entry.Id,entry.Version));
             var source=_source??throw new IOException("清空期间不提供内容读取。");_remoteSnapshots.TryGetValue(id,out var staged);
             if(staged is null&&_repository.HasPendingRemote(_mount.Id,entry.SourcePath))throw new SourceConflictException("远端更新待提交，暂缓旧版本水合。");
             var metadata=staged?.Metadata??await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
@@ -185,14 +195,34 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             if(!source.IsSameVersion(metadata.Version,entry.Version))throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0||length<=0||offset>metadata.Size||length>metadata.Size-offset)throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096;var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));var localStamp=HydrationStamp(entry,metadata);var fetchId=Guid.Parse(info.FetchId);
+            async ValueTask Transfer(ReadOnlyMemory<byte> block,CancellationToken cancel)
+            {cancel.ThrowIfCancellationRequested();await Runtime.TransferAsync(fetchId,start,block,cancel).ConfigureAwait(false);start+=block.Length;bytesTransferred+=block.Length;if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;}
             if(snapshot is null)
-                await source.ReadRangeSequentialAsync(metadata,start,end-start,async(block,cancel)=>
+            {
+                if(_queueBinding is null)await source.ReadRangeSequentialAsync(metadata,start,end-start,Transfer,NativeRuntimeProtocol.BlockBytes,token).ConfigureAwait(false);
+                else while(start<end)
                 {
-                    cancel.ThrowIfCancellationRequested();await Runtime.TransferAsync(fetchId,start,block,cancel).ConfigureAwait(false);start+=block.Length;bytesTransferred+=block.Length;if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
-                },NativeRuntimeProtocol.BlockBytes,token).ConfigureAwait(false);
+                    // 缓冲名额只跨一个范围块；大固定下载不能在所有后续块之前封住按需读取。
+                    using var buffer=await _reads.EnterStrictAsync(parent?.Priority??MountingPriority.Demand,token).ConfigureAwait(false);
+                    var bytes=System.Buffers.ArrayPool<byte>.Shared.Rent(NativeRuntimeProtocol.BlockBytes);
+                    try
+                    {
+                        var count=(int)Math.Min(NativeRuntimeProtocol.BlockBytes,end-start);var filled=0;
+                        while(filled<count){var read=await source.ReadRangeAsync(metadata,start+filled,bytes.AsMemory(filled,count-filled),token).ConfigureAwait(false);if(read<=0||read>count-filled)throw new EndOfStreamException("远端区间提前结束。");filled+=read;}
+                        await Transfer(bytes.AsMemory(0,count),token).ConfigureAwait(false);
+                    }
+                    finally{System.Buffers.ArrayPool<byte>.Shared.Return(bytes,clearArray:true);}
+                }
+            }
             else
             {
-                var bytes=new byte[NativeRuntimeProtocol.BlockBytes];while(start<end){token.ThrowIfCancellationRequested();var count=(int)Math.Min(bytes.Length,end-start);snapshot.Position=start;await snapshot.ReadExactlyAsync(bytes.AsMemory(0,count),token).ConfigureAwait(false);await Runtime.TransferAsync(fetchId,start,bytes.AsMemory(0,count),token).ConfigureAwait(false);start+=count;bytesTransferred+=count;if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;}
+                while(start<end)
+                {
+                    using var buffer=_queueBinding is null?null:await _reads.EnterStrictAsync(parent?.Priority??MountingPriority.Demand,token).ConfigureAwait(false);token.ThrowIfCancellationRequested();
+                    var bytes=System.Buffers.ArrayPool<byte>.Shared.Rent(NativeRuntimeProtocol.BlockBytes);
+                    try{var count=(int)Math.Min(NativeRuntimeProtocol.BlockBytes,end-start);snapshot.Position=start;await snapshot.ReadExactlyAsync(bytes.AsMemory(0,count),token).ConfigureAwait(false);await Transfer(bytes.AsMemory(0,count),token).ConfigureAwait(false);}
+                    finally{System.Buffers.ArrayPool<byte>.Shared.Return(bytes,clearArray:true);}
+                }
             }
             await FinishFetchAsync(info,0).ConfigureAwait(false);if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);RecordHydrationWrite(entry,metadata,localStamp);_localContentReady?.Invoke(entry);
         }

@@ -16,6 +16,8 @@ public sealed partial class MountManager
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
             if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path))continue;
+            var parentPriority=TasksQueueService.CurrentTask?.Priority;
+            using var queueTask=TasksQueue.EnterTask(root.Definition.Id,prior.Id,parentPriority>=MountingPriority.User?parentPriority.Value:MountingPriority.Transaction,"remoteUpdate",prior.Path,prior.EntryId,prior.Entry?.Version);
             using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
             lock(runtime.Sync){runtime.CurrentId=prior.Id;runtime.Request=request;}
             var current=prior;

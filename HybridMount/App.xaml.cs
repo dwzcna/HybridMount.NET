@@ -33,6 +33,7 @@ public partial class App:Application
     public IUiDispatcher UiDispatcher{get;private set;}=null!;
     public TaskFocusService TaskFocus{get;private set;}=null!;
     public UploadIssueNotificationService IssueNotifications{get;private set;}=null!;
+    public TasksQueueService TasksQueue{get;private set;}=null!;
     public MountManager Mounts{get;private set;}=null!;
     public App()=>InitializeComponent();
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
@@ -56,7 +57,7 @@ public partial class App:Application
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
             Appearance=new AppearanceSettingsService();if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
             Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
-            Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger){StopObserver=RecordMountStop};
+            TasksQueue=new();Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger,tasksQueue:TasksQueue){StopObserver=RecordMountStop};
             TaskFocus=new(Navigation);IssueNotifications=new(Mounts);IssueNotifications.Changed+=OnUploadIssueNotifications;
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}
@@ -152,6 +153,7 @@ public partial class App:Application
         // 先向所有生产者发信号；一个服务的取消回调不能阻挡另一个服务收到停止通知。
         stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
         stages.Run("SignalLegacyIpc",()=>{_ = _legacyIpc?.RequestStop();});
+        stages.Run("SignalTaskQueue",()=>TasksQueue?.RequestStop());
         stages.Run("SignalMounts",()=>Mounts?.RequestStop());
         stages.Run("SignalTaskFocus",()=>TaskFocus?.RequestStop());
         stages.Run("SignalNavigation",()=>Navigation.RequestStop());
@@ -160,6 +162,7 @@ public partial class App:Application
         await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("IssueNotificationsStop",async()=>{if(IssueNotifications is not null){IssueNotifications.Changed-=OnUploadIssueNotifications;await IssueNotifications.DisposeAsync();}});
         await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
+        await stages.RunAsync("TaskQueueStop",()=>TasksQueue?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("NativeRuntimeStop",()=>NativeRuntimeClient.StopSharedAsync());
         stages.Run("UiSubscriptions",()=>{if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;if(Logger is not null)Logger.NotificationRequested-=OnNotification;});
         await stages.RunAsync("WindowResources",()=>MainWindow?.ReleaseResourcesAsync()??Task.CompletedTask);

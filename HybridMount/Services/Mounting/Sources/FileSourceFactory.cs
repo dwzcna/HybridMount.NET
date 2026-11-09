@@ -35,6 +35,7 @@ public sealed class FileSourceFactory : IFileSourceFactory
         var source = adapter(config, new CredentialStore(repository.DataDirectory).Load(mount.Id), cacheDirectory);
         try
         {
+            if(source is IMountNetworkSource network&&TasksQueueService.CurrentBinding is {} binding)network.BindQueue(binding);
             if(source is IMountSourceRuntime runtime)runtime.AttachRuntime(mount,repository);
             await source.ProbeAsync(token).ConfigureAwait(false);return source;
         }

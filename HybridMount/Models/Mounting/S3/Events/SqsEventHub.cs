@@ -5,7 +5,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>同进程同队列一个 receiver；跨机器必须使用独立队列，消息确认以所有相关挂载提示持久化为界。</summary>
-internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? factory=null) : IAsyncDisposable
+internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? factory=null,TasksQueueService? tasksQueue=null) : IAsyncDisposable
 {
     internal sealed record Subscriber(MountDefinition Mount,string Scope,Action<DateTimeOffset> Wake,Action<string?> Error);
     private sealed class Group(string key,string fingerprint,ISqsQueueClient client)
@@ -45,15 +45,16 @@ internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConf
                 catch{await client.DisposeAsync();throw;}
                 var replacement=new Group(key,fingerprint,client);
                 if(group is not null){foreach(var pair in group.Subscribers)replacement.Subscribers.Add(pair.Key,pair.Value);group.Stop.Dispose();}
-                group=replacement;_groups[key]=group;group.Subscribers.Add(subscriber.Mount.Id,subscriber);group.Work=Task.Run(()=>RunAsync(group));
+                group=replacement;_groups[key]=group;group.Subscribers.Add(subscriber.Mount.Id,subscriber);group.Work=tasksQueue is null?Task.Run(()=>RunAsync(group)):tasksQueue.RunObserverAsync(new MountingObserver("sqs:"+Hash(group.Key),null,cancel=>RunAsync(group,cancel)),group.Stop.Token);
             }
             else group.Subscribers.Add(subscriber.Mount.Id,subscriber);
             return new Lease(this,key,subscriber.Mount.Id);
         }
         finally{_gate.Release();}
     }
-    private async Task RunAsync(Group group)
+    private async Task RunAsync(Group group,CancellationToken observerToken=default)
     {
+        using var observerStop=observerToken.UnsafeRegister(static state=>((CancellationTokenSource)state!).Cancel(),group.Stop);
         var failures=0;
         try
         {

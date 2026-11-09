@@ -7,7 +7,6 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private readonly object _remoteJournalLock=new();
-    private readonly SemaphoreSlim _remoteSlots=new(2,2);
     private sealed class RemoteSyncRuntime(IFileSource source,CloudMountSession session,RemoteSyncEngine engine,CancellationToken parent) : IDisposable
     {
         public readonly IFileSource Source=source;
@@ -35,7 +34,7 @@ public sealed partial class MountManager
             if(root.RemoteSync is {} existing)
             {
                 if(startLoop&&!existing.LoopStarted&&!existing.Stopping&&root.Definition.RemoteAutoDetectEnabled&&!IsStopping)
-                {existing.LoopStarted=true;existing.Work=Task.Run(()=>RemoteLoopAsync(root,existing));}
+                {existing.LoopStarted=true;existing.Work=TasksQueue.RunObserverAsync(new MountingObserver("remote:"+root.Definition.Id,root.Definition.Id,cancel=>RemoteLoopAsync(root,existing,cancel)),existing.Stop.Token);}
                 if(startLoop)StartRemoteEvents(root,existing);
                 return;
             }
@@ -45,7 +44,7 @@ public sealed partial class MountManager
             _repository.ActivateRemoteScope(root.Definition.Id,scope);
             var runtime=new RemoteSyncRuntime(root.Source,root.Session,new(root.Definition.Id,scope,root.Source,changes,_repository,root.ChangeSession),_stop.Token);root.RemoteSync=runtime;
             changes.RestoreObservations(_repository.RemoteShadow(root.Definition.Id,scope));
-            if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=Task.Run(()=>RemoteLoopAsync(root,runtime));StartRemoteEvents(root,runtime);}
+            if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=TasksQueue.RunObserverAsync(new MountingObserver("remote:"+root.Definition.Id,root.Definition.Id,cancel=>RemoteLoopAsync(root,runtime,cancel)),runtime.Stop.Token);StartRemoteEvents(root,runtime);}
         }
     }
     private static void RequestRemoteStop(Runtime root){lock(root.ConnectionSync)root.RemoteSync?.RequestStop();}
@@ -64,8 +63,9 @@ public sealed partial class MountManager
         lock(root.ConnectionSync)if(ReferenceEquals(root.RemoteSync,runtime))root.RemoteSync=null;
         runtime.Dispose();
     }
-    private async Task RemoteLoopAsync(Runtime root,RemoteSyncRuntime runtime)
+    private async Task RemoteLoopAsync(Runtime root,RemoteSyncRuntime runtime,CancellationToken observerToken=default)
     {
+        using var observerStop=observerToken.UnsafeRegister(static state=>((RemoteSyncRuntime)state!).RequestStop(),runtime);
         var failures=0;var next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource||root.ChangeSession.Fallback is not null||runtime.Engine.Mode.StartsWith("完整对账")?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
         if(runtime.RescanSoon||_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).Any(x=>x.State is not("Completed" or "Canceled" or "Superseded")))next=TimeSpan.Zero;
         while(!runtime.Stop.IsCancellationRequested)
@@ -78,6 +78,7 @@ public sealed partial class MountManager
                 next=TimeSpan.FromSeconds(runtime.Source is IRemoteSnapshotSource||runtime.Engine.Mode.StartsWith("完整对账")?root.Definition.RemoteFullSeconds:root.Definition.RemoteIncrementalSeconds);
             }
             catch(OperationCanceledException)when(runtime.Stop.IsCancellationRequested){break;}
+            catch(OperationCanceledException){next=TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds);}
             catch(Exception error)
             {
                 root.Detection=root.Detection with{Mode=runtime.Engine.Mode,Error=error is SourceRescanRequiredException?"远端持续变化，三次完整扫描未能稳定完成；5 秒后继续，现有内容保持保护。":error.Message};Notify();
@@ -96,6 +97,7 @@ public sealed partial class MountManager
     /// <summary>手动刷新请求完整基线，关闭自动检测仍可执行；全程属于连接停止及应用退出所有者。</summary>
     private async Task DetectRemoteNowAsync(Runtime root,bool full,CancellationToken token)
     {
+        using var queueTask=TasksQueue.EnterTask(root.Definition.Id,TasksQueueService.CurrentTask?.Id??Guid.NewGuid().ToString("N"),MountingPriority.User,"refresh");
         StartRemoteSync(root);var runtime=root.RemoteSync??throw new IOException("远端尚未连接。");
         try{await DetectRemoteAsync(root,runtime,full,token).ConfigureAwait(false);}
         catch(SourceRescanRequiredException){runtime.RescanSoon=true;if(runtime.LoopStarted)runtime.Wake();throw;}
@@ -106,12 +108,14 @@ public sealed partial class MountManager
         ReferenceEquals(root.RemoteSync,runtime)&&ReferenceEquals(root.Session,runtime.Session)&&ReferenceEquals(root.Source,runtime.Source)&&_roots.ContainsKey(root.Definition.Id);
     private async Task DetectRemoteAsync(Runtime root,RemoteSyncRuntime runtime,bool full,CancellationToken token)
     {
+        var parent=TasksQueueService.CurrentTask;
+        using var queueTask=TasksQueue.EnterTask(root.Definition.Id,parent?.MountId==root.Definition.Id?parent.Id:Guid.NewGuid().ToString("N"),parent?.MountId==root.Definition.Id?parent.Priority:MountingPriority.Observation,"remoteScan");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,runtime.Stop.Token);token=linked.Token;
+        using var cancelOwner=TasksQueue.RegisterCancellation(TasksQueueService.CurrentTask!.Id,()=>{if(!linked.IsCancellationRequested)_=linked.CancelAsync();return true;});
         await runtime.Serial.WaitAsync(token).ConfigureAwait(false);
         try
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
-            await _remoteSlots.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
@@ -128,7 +132,6 @@ public sealed partial class MountManager
                     PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
             }
             catch(Exception error){if(error is not OperationCanceledException)_logger.QueueException("远端检测","Warning","远端检测未完成",error,root.Definition.Id.ToString("N"));root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
-            finally{_remoteSlots.Release();}
         }
         finally{runtime.Serial.Release();}
     }

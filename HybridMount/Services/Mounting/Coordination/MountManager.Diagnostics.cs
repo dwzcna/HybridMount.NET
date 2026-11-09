@@ -30,6 +30,7 @@ public sealed partial class MountManager
         text.AppendLine(FileExclusionStatus(id));
         foreach(var rename in RenameIntents(id).Where(x=>!x.Finished))text.Append("改名排除收尾：").Append(rename.OldLocalPath).Append(" → ").Append(rename.LocalPath).Append("；远端旧路径：").Append(rename.SourcePath).Append(" → ").Append(rename.DestinationPath??rename.LocalPath).Append("；移动已确认：").Append(rename.RemoteMoved).Append("；阶段：").Append(rename.StageText).Append("；文件身份：").Append(rename.FileId).Append("；本地已独立：").Append(rename.LocalDetached).Append("；").AppendLine(rename.Error??"无错误");
         if(_renameErrors.TryGetValue(id,out var journalError))text.Append("改名日志错误：").AppendLine(journalError.Error);
+        foreach(var step in TasksQueue.QueueSnapshots.Where(x=>x.Task.MountId==id))text.Append("统一任务队列：").Append(step.Task.Id).Append("；优先级：").Append(step.EffectivePriority).Append("；阶段：").Append(step.Phase).Append("；等待：").AppendLine(step.WaitingReason??"无");
         text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);
         text.Append("缩略图库：").AppendLine(ThumbnailCachePaths.ForMount(PreviewDirectory(_repository),id));
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));

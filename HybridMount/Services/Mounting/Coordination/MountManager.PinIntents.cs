@@ -3,7 +3,6 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
-    private readonly SemaphoreSlim _pinSlots=new(2,2);
     internal Func<CancellationToken,Task>? PinResourcesReleasingForTests {get;set;}
     /// <summary>一个连接拥有一个属性意图消费者；通知只合并唤醒，不进入上传队列，不在监控线程读取文件。</summary>
     private sealed class PinIntentRuntime(CloudMountSession session,CancellationToken token) : IDisposable
@@ -46,7 +45,7 @@ public sealed partial class MountManager
                 {uploads.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow);uploads.RequestScan();}
             };
             watcher.Created+=(_,change)=>runtime.Record(change.Name);watcher.Deleted+=(_,change)=>runtime.Record(change.Name);watcher.Renamed+=(_,change)=>{runtime.Record(change.OldName);runtime.Record(change.Name);};watcher.Error+=(_,_)=>runtime.RequestFull();
-            runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Wake();runtime.Work=Task.Run(()=>PinIntentLoopAsync(root,runtime));
+            runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Wake();runtime.Work=TasksQueue.RunObserverAsync(new MountingObserver("pin:"+root.Definition.Id,root.Definition.Id,cancel=>PinIntentLoopAsync(root,runtime,cancel)),runtime.Stop.Token);
         }
     }
     private static void RequestPinStop(Runtime root){lock(root.ConnectionSync)root.Pins?.RequestStop();}
@@ -59,8 +58,9 @@ public sealed partial class MountManager
     /// <summary>旧维护单元测试可停止自动消费者，单独验证显式缓存入口；不保存设置或改变原生意图。</summary>
     internal async Task SetPinIntentMonitoringForTestsAsync(Guid id,bool enabled)
     {var root=Root(id);root.PinIntentsEnabled=enabled;if(enabled)StartPinIntents(root);else{RequestPinStop(root);await StopPinIntentsAsync(root).ConfigureAwait(false);}}
-    private async Task PinIntentLoopAsync(Runtime root,PinIntentRuntime runtime)
+    private async Task PinIntentLoopAsync(Runtime root,PinIntentRuntime runtime,CancellationToken observerToken=default)
     {
+        using var observerStop=observerToken.UnsafeRegister(static state=>((PinIntentRuntime)state!).RequestStop(),runtime);
         var token=runtime.Stop.Token;
         try
         {
@@ -114,10 +114,11 @@ public sealed partial class MountManager
     }
     private async Task DownloadPinIntentAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,CancellationToken token)
     {
-        var entered=false;string? changed=null;
+        using var queueTask=TasksQueue.EnterTask(root.Definition.Id,"pin:"+root.Definition.Id+":"+entry.Id,MountingPriority.User,"keepOnDevice",entry.SourcePath,entry.Id,entry.Version);
+        using var cancelOwner=TasksQueue.RegisterCancellation("pin:"+root.Definition.Id+":"+entry.Id,()=>{if(runtime.DownloadStop is {} stop&&!stop.IsCancellationRequested)_=stop.CancelAsync();return true;});
+        string? changed=null;
         try
         {
-            await _pinSlots.WaitAsync(token).ConfigureAwait(false);entered=true;
             // 会话内单飞拥有保护句柄，网络期间不持根锁；FETCH_DATA继续负责版本和远端屏障检查。
             await runtime.Session.HydratePinnedAsync(entry,token).ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
@@ -133,7 +134,7 @@ public sealed partial class MountManager
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         catch(Exception error)
         {lock(runtime.Sync)runtime.Retry[entry.Id]=(entry.Version,DateTimeOffset.UtcNow.AddSeconds(30));_logger.QueueException("固定下载","Warning","后台固定下载未完成",error,entry.Id);}
-        finally{if(entered)_pinSlots.Release();if(changed is not null)NotifyFileState(changed);runtime.Wake();}
+        finally{if(changed is not null)NotifyFileState(changed);runtime.Wake();}
     }
     /// <summary>原生保护句柄和根锁归还后发布实际状态；失败只影响Shell刷新，不重写同步标记。</summary>
     private void NotifyFileState(string path)

@@ -24,7 +24,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
         public readonly MountDefinition Mount=mount;public readonly MountEntry Entry=entry;public readonly bool Remote=remote,Browse=browse;
         public readonly CancellationTokenSource Cancel=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         public readonly TaskCompletionSource Completion=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public readonly object Sync=new();public bool Disposed;
+        public readonly object Sync=new();public bool Disposed,UserCanceled;
         public Task RequestCancel(){lock(Sync)return Disposed||Cancel.IsCancellationRequested?Task.CompletedTask:Cancel.CancelAsync();}
         public void Dispose(){lock(Sync){if(Disposed)return;Disposed=true;Cancel.Dispose();}}
     }
@@ -127,6 +127,12 @@ public sealed class ExePreviewCache : IAsyncDisposable
         foreach(var work in canceled)_=work.RequestCancel();
         foreach(var entry in entries)Queue(mount,entry,remote,true);
     }
+    /// <summary>任务页取消当前单文件预览，不关闭根开关；同一工作不立即自行重排，后续浏览可重建瞬时需求。</summary>
+    internal bool CancelEntry(Guid mount,string entry)
+    {
+        var pending=_pending.Values.Where(x=>x.Mount.Id==mount&&x.Entry.Id==entry).ToArray();
+        foreach(var work in pending){lock(work.Sync)work.UserCanceled=true;_=work.RequestCancel();}return pending.Length>0;
+    }
     /// <summary>关闭／断开先阻止新任务，再取消并等待此挂载所有工作；不持有根锁等待其他挂载。</summary>
     public async Task CancelMountAsync(Guid mount)
     {
@@ -193,7 +199,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
         {
             if(slot)_slots.Release();if(entered)gate.Release();_pending.TryRemove(key,out _);
             (MountDefinition Mount,MountEntry Entry,bool Remote)? restart=null;
-            lock(_schedule){if(work.Browse&&token.IsCancellationRequested&&_browseDemand.TryGetValue(mount.Id,out var current)&&current.Entries.TryGetValue(entry.Id,out var latest))restart=(current.Mount,latest,current.Remote);}
+            lock(_schedule){if(work.Browse&&!work.UserCanceled&&token.IsCancellationRequested&&_browseDemand.TryGetValue(mount.Id,out var current)&&current.Entries.TryGetValue(entry.Id,out var latest))restart=(current.Mount,latest,current.Remote);}
             work.Completion.TrySetResult();work.Dispose();
             if(restart is {} next)Queue(next.Mount,next.Entry,next.Remote,true);
         }

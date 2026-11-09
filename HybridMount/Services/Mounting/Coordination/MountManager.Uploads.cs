@@ -5,7 +5,6 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
-    private readonly SemaphoreSlim _uploadSlots=new(2,2);
     /// <summary>每根一个调度器；监控回调只唤醒，扫描和网络操作在后台进行。</summary>
     private sealed class UploadRuntime : IDisposable
     {

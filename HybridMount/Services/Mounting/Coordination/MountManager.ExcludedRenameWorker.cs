@@ -7,13 +7,17 @@ public sealed partial class MountManager
     /// <summary>每根串行消费，网络不持根锁；失败只阻挡相关文件，未知结果只自动核对一次。</summary>
     private async Task<bool> TryRunExcludedRenameAsync(Runtime root,UploadRuntime runtime,CancellationToken token)
     {
-        var row=RenameIntents(root.Definition.Id).FirstOrDefault(x=>x.Runnable&&(root.SchedulingEnabled||x.ReadOnlyRequested||x.CancelRequested)&&
-            !(x.Stage=="WaitingUpload"&&x.UploadId is {} id&&_repository.Upload(id) is {} upload&&UploadRules.InFlight(upload)));
+        var row=RenameIntents(root.Definition.Id).Where(x=>x.Runnable&&(root.SchedulingEnabled||x.ReadOnlyRequested||x.CancelRequested)&&
+            !(x.Stage=="WaitingUpload"&&x.UploadId is {} id&&_repository.Upload(id) is {} upload&&UploadRules.InFlight(upload)))
+            .OrderByDescending(x=>x.RetryRequested||x.ReadOnlyRequested).ThenBy(x=>x.CreatedUtc).FirstOrDefault();
         if(row is null)return false;
-        await _uploadSlots.WaitAsync(token).ConfigureAwait(false);using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
-        lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0){_uploadSlots.Release();return false;}runtime.CurrentId=row.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
+        var uploadCandidate=UploadRules.NextUpload(UploadCandidates(root),DateTimeOffset.UtcNow);
+        var user=row.RetryRequested||row.ReadOnlyRequested;
+        if(uploadCandidate is not null&&(uploadCandidate.ExplicitRequest&&!user||uploadCandidate.ExplicitRequest==user&&uploadCandidate.ChangedUtc<row.CreatedUtc))return false;
+        using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
+        lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0){return false;}runtime.CurrentId=row.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
         try{await RunExcludedRenameAsync(root,row,request.Token).ConfigureAwait(false);}
-        finally{Task cancellation;lock(runtime.Sync){runtime.CurrentId=null;runtime.Request=null;cancellation=runtime.RequestCancellation;}await cancellation.ConfigureAwait(false);_uploadSlots.Release();runtime.PulseIdle();}
+        finally{Task cancellation;lock(runtime.Sync){runtime.CurrentId=null;runtime.Request=null;cancellation=runtime.RequestCancellation;}await cancellation.ConfigureAwait(false);runtime.PulseIdle();}
         return true;
     }
     /// <summary>跨会话、账户或根身份不沿用原改名授权；只有同一连接作用域才能收尾。</summary>
@@ -27,6 +31,7 @@ public sealed partial class MountManager
     /// <summary>Moving先落盘；任何未知结果均只读核对两端及回执，显式重试才允许继续写操作。</summary>
     private async Task RunExcludedRenameAsync(Runtime root,ExcludedRenameIntent initial,CancellationToken token)
     {
+        using var queueTask=TasksQueue.EnterTask(initial.MountId,initial.Id,initial.RetryRequested||initial.ReadOnlyRequested?MountingPriority.User:MountingPriority.Transaction,"excludedRename",initial.SourcePath);
         var journal=RenameJournal(initial.MountId);var row=initial;var source=root.Source!;var session=root.Session!;var readingOutcome=false;
         try
         {

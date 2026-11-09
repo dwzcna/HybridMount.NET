@@ -1,8 +1,11 @@
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
-public sealed partial class WebDavFileSource : IMountSourceRuntime
+public sealed partial class WebDavFileSource : IMountSourceRuntime, IMountNetworkSource
 {
+    private MountQueueBinding? _queueBinding;
+    MountQueueBinding? IMountNetworkSource.QueueBinding=>_queueBinding;
+    void IMountNetworkSource.BindQueue(MountQueueBinding binding)=>_queueBinding=binding;
     string IMountSourceRuntime.RemoteScope(long revision)=>RemoteScope(revision);
     string? IMountSourceRuntime.ConnectionDiagnostics=>CapabilitySnapshot?.ToString();
     event Action? IMountSourceRuntime.CapacityInvalidated {add=>_capacityInvalidated+=value;remove=>_capacityInvalidated-=value;}

@@ -8,7 +8,7 @@ namespace HybridMount.ViewModels;
 /// <summary>将应用级后台任务快照合并派发到 UI，不拥有或停止任务。</summary>
 public sealed class TasksViewModel : ObservableObject, IDisposable
 {
-    private readonly MountManager _manager;
+    private readonly TasksQueueService _queue;
     private readonly IUiDispatcher _dispatcher;
     private int _pending;
     private readonly TaskFocusService? _focus;
@@ -32,7 +32,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public bool CanClearCompleted=>CanClear(TaskHistoryClearMode.Completed);
     public bool CanClearFailed=>CanClear(TaskHistoryClearMode.Failed);
     public bool CanClearAll=>CanClear(TaskHistoryClearMode.All);
-    private bool CanClear(TaskHistoryClearMode mode)=>!_disposed&&!_manager.IsStopping&&!_clearingHistory&&_manager.Operations.Any(operation=>TaskHistoryRules.Matches(mode,operation.State));
+    private bool CanClear(TaskHistoryClearMode mode)=>!_disposed&&!_queue.IsStopping&&!_clearingHistory&&_queue.Operations.Any(operation=>TaskHistoryRules.Matches(mode,operation.State));
     private void NotifyClearState(){OnPropertyChanged(nameof(CanClearCompleted));OnPropertyChanged(nameof(CanClearFailed));OnPropertyChanged(nameof(CanClearAll));}
     public Task ClearCompletedAsync()=>ClearHistoryAsync(TaskHistoryClearMode.Completed);
     public Task ClearFailedAsync()=>ClearHistoryAsync(TaskHistoryClearMode.Failed);
@@ -45,24 +45,24 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         var label=mode==TaskHistoryClearMode.Completed?"已完成":mode==TaskHistoryClearMode.Failed?"失败及部分失败":"已结束";
         try
         {
-            var count=await _manager.ClearOperationHistoryAsync(mode);
+            var count=await _queue.ClearOperationHistoryAsync(mode);
             if(!_disposed)Status=count==0?$"没有可清除的{label}历史；进行中或待恢复的任务已保留。":$"已清除 {count} 条{label}任务历史；进行中和待处理任务保留。";
         }
-        catch(OperationCanceledException)when(_manager.IsStopping){if(!_disposed)Status="程序正在退出，已停止清理。";}
-        catch(Exception error){if(!_disposed)Status="清除失败："+error.Message;_manager.ReportDiagnosticException("任务历史","清除任务历史失败",error);}
+        catch(OperationCanceledException)when(_queue.IsStopping){if(!_disposed)Status="程序正在退出，已停止清理。";}
+        catch(Exception error){if(!_disposed)Status="清除失败："+error.Message;_queue.ReportDiagnosticException("任务历史","清除任务历史失败",error);}
         finally{_clearingHistory=false;if(!_disposed){Refresh();NotifyClearState();}}
     }
     /// <summary>当前操作提示。</summary>
     public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
     public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value)){if(value){_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));}Refresh();}}}
     public bool ConflictsOnly{get=>_conflictsOnly;set{if(!_disposed&&SetProperty(ref _conflictsOnly,value)){if(value){_issuesOnly=false;OnPropertyChanged(nameof(IssuesOnly));}Refresh();}}}
-    public string IssueViewTitle=>_filterMount is {} id?"同步问题 · "+(_manager.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??"挂载"):"同步问题";
+    public string IssueViewTitle=>_filterMount is {} id?"同步问题 · "+(_queue.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??"挂载"):"同步问题";
     public bool HasIssueFilter=>_filterMount is not null||_filterPaths.Count>0;
     public void ClearIssueFilter(){_filterMount=null;_filterPaths=[];Refresh();}
     public string? SelectedLocation()
     {
-        if(_disposed||_manager.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择同步问题。";return null;}
-        try{return _manager.SyncIssueLocalPath(selected.Id);}catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return null;}
+        if(_disposed||_queue.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择同步问题。";return null;}
+        try{return _queue.SyncIssueLocalPath(selected.Id);}catch(Exception error){Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return null;}
     }
     private void FocusChanged()
     {
@@ -80,26 +80,26 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public string CopyContentNotice=>"已有上传快照时，副本使用该快照，后续本地编辑不会改变副本。没有快照时，将使用上传准备时的当前本地内容，而不是冲突时的内容。";
     public void CancelSelected()
     {
-        if(_disposed||_manager.IsStopping)return;
+        if(_disposed||_queue.IsStopping)return;
         if(Selected is not {} selected){Status="请先选择任务。";return;}
-        try{Status=_manager.Cancel(selected.Id)?selected.Operation=="excludedRename"?"已请求停止收尾；已完成的云端改名或目标复制会保留。":"已请求取消；已完成的步骤保留，已删除内容不会恢复。":"任务已结束或不存在。";}catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        try{Status=_queue.Cancel(selected.Id)?selected.Operation=="excludedRename"?"已请求停止收尾；已完成的云端改名或目标复制会保留。":"已请求取消；已完成的步骤保留，已删除内容不会恢复。":"任务已结束或不存在。";}catch(Exception error){Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public void RetrySelected()
     {
-        if(_disposed||_manager.IsStopping)return;
+        if(_disposed||_queue.IsStopping)return;
         if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择上传、远端更新或排除改名收尾任务。";return;}
-        try{Status=_manager.RetryUpload(selected.Id)?"已提交重试；如挂载未连接，请先在挂载页连接。":"当前任务不能重试。";}catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        try{Status=_queue.RetryUpload(selected.Id)?"已提交重试；如挂载未连接，请先在挂载页连接。":"当前任务不能重试。";}catch(Exception error){Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     /// <summary>只读核对改名收尾，不授权再次删除或重新上传。</summary>
     public void RecheckSelected()
     {
-        if(_disposed||_manager.IsStopping)return;
+        if(_disposed||_queue.IsStopping)return;
         if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请选择上传、远端更新或改名排除收尾任务。";return;}
-        try{Status=_manager.RecheckOperation(selected.Id)?"已请求只读核对；不会因此授权覆盖或重新发送。":"当前任务正在执行或已经结束。";}catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        try{Status=_queue.RecheckOperation(selected.Id)?"已请求只读核对；不会因此授权覆盖或重新发送。":"当前任务正在执行或已经结束。";}catch(Exception error){Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public bool BeginCopy()
     {
-        if(_disposed||_manager.IsStopping||_dialogBusy)return false;
+        if(_disposed||_queue.IsStopping||_dialogBusy)return false;
         if(Selected is not {Operation:"upload"} selected){Status="请先选择上传任务。";return false;}
         _dialogBusy=true;_dialogJob=selected.Id;
         var original=selected.ItemPath??"副本";var extension=Path.GetExtension(original);CopyPath=original[..(original.Length-extension.Length)]+" (副本)"+extension;return true;
@@ -107,17 +107,17 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     /// <summary>捕获的原任务只可提交一次；选择切换不改变副本的来源，应用服务仍校验远端目标。</summary>
     public void SubmitCopy()
     {
-        if(_disposed||_manager.IsStopping||!_dialogBusy||_dialogJob is not {} id)return;
+        if(_disposed||_queue.IsStopping||!_dialogBusy||_dialogJob is not {} id)return;
         _dialogJob=null;
-        try{SelectedJobId=_manager.UploadAsCopy(id,CopyPath.Trim());Status="副本任务已提交；目标已存在时会拒绝覆盖。";}
-        catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        try{SelectedJobId=_queue.UploadAsCopy(id,CopyPath.Trim());Status="副本任务已提交；目标已存在时会拒绝覆盖。";}
+        catch(Exception error){Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public MountOperationSnapshot? BeginResults()
     {
-        if(_disposed||_manager.IsStopping||_dialogBusy)return null;
+        if(_disposed||_queue.IsStopping||_dialogBusy)return null;
         if(Selected is not {} selected){Status="请先选择任务。";return null;}
-        try{var result=IssuesOnly?selected:_manager.GetOperation(selected.Id)??selected;_dialogBusy=true;return result;}
-        catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return null;}
+        try{var result=IssuesOnly?selected:_queue.GetOperation(selected.Id)??selected;_dialogBusy=true;return result;}
+        catch(Exception error){Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return null;}
     }
     /// <summary>关闭比较只取消本次准备，不取消原冲突；已开始的受保护写入由应用完成安全收尾。</summary>
     public void EndDialog(){_comparisonCancel?.Cancel();_comparisonCancel?.Dispose();_comparisonCancel=null;_comparison=null;_dialogBusy=false;_dialogJob=null;if(!_disposed)NotifyConflict();}
@@ -136,7 +136,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     /// <summary>捕获原事务ID，选择切换不会把比较授权转移到其他文件。</summary>
     public async Task<bool> BeginConflictAsync()
     {
-        if(_disposed||_manager.IsStopping||_dialogBusy||_conflictBusy)return false;
+        if(_disposed||_queue.IsStopping||_dialogBusy||_conflictBusy)return false;
         if(Selected?.Operation=="excludedRename"){Status="此任务请使用重新核对、重试或取消收尾；目标已存在时不会自动覆盖。";return false;}
         if(Selected is not{Operation:"upload" or "remoteUpdate"} selected){Status="请先选择文件冲突。";return false;}
         var owner=new CancellationTokenSource();_dialogBusy=true;_dialogJob=selected.Id;_comparisonCancel=owner;await RefreshConflictAsync();return !_disposed&&_dialogBusy&&_dialogJob==selected.Id&&_comparisonCancel==owner;
@@ -145,9 +145,9 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_disposed||_conflictBusy||!_dialogBusy||_dialogJob is not {} id||_comparisonCancel is null)return;
         var owner=_comparisonCancel;_conflictBusy=true;_comparison=null;_conflictStatus="正在只读核对两端信息…";NotifyConflict();
-        try{var compared=await _manager.CompareConflictAsync(id,owner.Token);if(!_disposed&&_dialogJob==id&&_comparisonCancel==owner){_comparison=compared;_conflictStatus="核对时间："+compared.ObservedUtc.ToLocalTime().ToString("G");}}
+        try{var compared=await _queue.CompareConflictAsync(id,owner.Token);if(!_disposed&&_dialogJob==id&&_comparisonCancel==owner){_comparison=compared;_conflictStatus="核对时间："+compared.ObservedUtc.ToLocalTime().ToString("G");}}
         catch(OperationCanceledException){if(!_disposed&&_comparisonCancel==owner)_conflictStatus="核对已停止。";}
-        catch(Exception error){if(!_disposed&&_comparisonCancel==owner)_conflictStatus=error.Message;_manager.ReportDiagnosticException("冲突处理","任务页面冲突操作未完成",error);_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        catch(Exception error){if(!_disposed&&_comparisonCancel==owner)_conflictStatus=error.Message;_queue.ReportDiagnosticException("冲突处理","任务页面冲突操作未完成",error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
         finally{_conflictBusy=false;if(!_disposed)NotifyConflict();}
     }
     /// <summary>直接选择调用独立条件取舍流程；失败使旧比较失效，禁止重复点击重发。</summary>
@@ -155,13 +155,14 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(!(useLocal?CanResolveWithLocal:CanResolveWithRemote)||_comparison is not {} compared||_comparisonCancel is null)return false;
         _conflictBusy=true;_conflictStatus=useLocal?"正在等待当前任务完成，随后冻结本地内容并提交条件上传…":"正在等待当前任务完成，随后备份本地、下载并核验远端内容…";NotifyConflict();
-        try{var result=await _manager.ResolveConflictAsync(compared,useLocal,_comparisonCancel.Token);if(!_disposed){Status=result;_conflictStatus=result;}return true;}
+        try{var result=await _queue.ResolveConflictAsync(compared,useLocal,_comparisonCancel.Token);if(!_disposed){Status=result;_conflictStatus=result;}return true;}
         catch(OperationCanceledException){if(!_disposed)_conflictStatus="处理已停止；已保存的备份和恢复阶段保留。";return false;}
-        catch(Exception error){if(!_disposed)_conflictStatus=error.Message;_manager.ReportDiagnosticException("冲突处理","任务页面冲突操作未完成",error);_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return false;}
+        catch(Exception error){if(!_disposed)_conflictStatus=error.Message;_queue.ReportDiagnosticException("冲突处理","任务页面冲突操作未完成",error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return false;}
         finally{_comparison=null;_conflictBusy=false;if(!_disposed){Refresh();NotifyConflict();}}
     }
     /// <summary>在 UI 线程订阅应用级任务；释放时解除订阅。</summary>
-    public TasksViewModel(MountManager manager,IUiDispatcher dispatcher,TaskFocusService? focus=null) { _dispatcher=dispatcher;_manager=manager;_focus=focus;_manager.Changed+=Changed;if(focus is not null)focus.Changed+=FocusChanged;Refresh();ApplyFocus(); }
+    public TasksViewModel(MountManager manager,IUiDispatcher dispatcher,TaskFocusService? focus=null):this(manager.TasksQueue,dispatcher,focus) { }
+    public TasksViewModel(TasksQueueService queue,IUiDispatcher dispatcher,TaskFocusService? focus=null) { _dispatcher=dispatcher;_queue=queue;_focus=focus;_queue.Changed+=Changed;if(focus is not null)focus.Changed+=FocusChanged;Refresh();ApplyFocus(); }
     private void Changed()
     {
         if(_disposed || Interlocked.Exchange(ref _pending,1)!=0)return;
@@ -170,10 +171,10 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void Refresh()
     {
         if(_disposed)return;
-        try { var source=_issuesOnly||_conflictsOnly?(_conflictsOnly?_manager.Conflicts:_manager.SyncIssues).Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_manager.Operations;
+        try { var source=_issuesOnly||_conflictsOnly?(_conflictsOnly?_queue.Conflicts:_queue.SyncIssues).Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_queue.Operations;
             var snapshots=OperationDisplayOrder.Sort(source);OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
-        catch(Exception error) { Status=error.Message;_manager.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
+        catch(Exception error) { Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>
-    public void Dispose() { EndDialog();_disposed=true;_manager.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
+    public void Dispose() { EndDialog();_disposed=true;_queue.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
 }

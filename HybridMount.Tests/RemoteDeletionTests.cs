@@ -115,7 +115,11 @@ public sealed class RemoteDeletionTests
         try
         {
             await File.WriteAllTextAsync(path,"edited during deletion");await entered.Task.WaitAsync(TimeSpan.FromSeconds(25));test.Dav.Objects.TryRemove("racing.txt",out _);
-            var result=await Refresh(test);Assert.Equal("PartialFailure",result.State);Assert.Equal("edited during deletion",await File.ReadAllTextAsync(path));release.TrySetResult();
+            var refresh=test.Manager.Queue(test.Id,"refresh");var queuedDeadline=DateTime.UtcNow.AddSeconds(10);
+            while(!test.Manager.TasksQueue.QueueSnapshots.Any(x=>x.Task.Id==refresh&&x.WaitingReason is not null)&&DateTime.UtcNow<queuedDeadline)await Task.Delay(20);
+            Assert.Contains(test.Manager.TasksQueue.QueueSnapshots,x=>x.Task.Id==refresh&&x.WaitingReason is not null);
+            Assert.Equal("edited during deletion",await File.ReadAllTextAsync(path));release.TrySetResult();
+            var result=await WebDavTests.Finished(test.Manager,refresh);Assert.Equal("PartialFailure",result.State);
             var deadline=DateTime.UtcNow.AddSeconds(20);
             while(DateTime.UtcNow<deadline)
             {

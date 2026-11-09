@@ -51,6 +51,7 @@ internal sealed class StagingRetrySchedule
 {
     private readonly ConcurrentDictionary<string,DateTimeOffset> _due=new(StringComparer.Ordinal);
     internal void Defer(string id,DateTimeOffset now)=>_due[id]=now+StagingDiskSpace.RecheckDelay;
+    internal DateTimeOffset? NextRetryUtc(string id)=>_due.TryGetValue(id,out var next)?next:null;
     internal void Reset(string id)=>_due.TryRemove(id,out _);
     internal bool ShouldWait(RemotePendingChange item,DateTimeOffset now)
     {

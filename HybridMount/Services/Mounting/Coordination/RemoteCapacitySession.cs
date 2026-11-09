@@ -55,6 +55,10 @@ internal sealed class RemoteCapacitySession : IAsyncDisposable
             _publish(current);
         }
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){ }
+        catch(OperationCanceledException)
+        {
+            RemoteCapacitySnapshot current;lock(_sync){if(_stopping||revision!=_revision)return;current=_snapshot=_snapshot with{IsRefreshing=false,Error="已停止本次容量核实，保留上次值。"};}_publish(current);
+        }
         catch(Exception error)
         {
             RemoteCapacitySnapshot current;

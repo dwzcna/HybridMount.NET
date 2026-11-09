@@ -41,7 +41,7 @@ public sealed partial class MountManager
     {
         lock(_lifetime)
         {
-            if(IsStopping)return;Volatile.Write(ref _stopping,1);
+            if(IsStopping)return;Volatile.Write(ref _stopping,1);TasksQueue.RequestStop();
             var signals=new List<Task>{_stop.CancelAsync(),_previews.RequestStop()};
             foreach(var root in _roots.Values)
             {
@@ -90,7 +90,8 @@ public sealed partial class MountManager
                 finally{root.Gate.Release();}
             }).ConfigureAwait(false);
         }
-        foreach(var job in _jobs.Values)job.Cancel.Dispose();_remoteSlots.Dispose();_uploadSlots.Dispose();_pinSlots.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_stop.Dispose();
+        if(_ownsTasksQueue)await Step("TasksQueue",()=>TasksQueue.DisposeAsync().AsTask()).ConfigureAwait(false);
+        foreach(var job in _jobs.Values)job.Cancel.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_stop.Dispose();
         ObserveStop(errors.Count==0?"Stopped":"StoppedWithErrors",null);
         if(errors.Count!=0)throw new AggregateException("挂载停止时有资源未正常释放。",errors);
     }

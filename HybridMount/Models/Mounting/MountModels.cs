@@ -43,6 +43,11 @@ public sealed record MountItemResult(string Path, string Status, string Message)
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,
     IReadOnlyList<MountItemResult> Results, string? Error, Guid? MountId = null, string? ItemPath = null, long BytesTransferred = 0, long TotalBytes = 0, bool? IsDirectory = null, string? RemotePath = null,UploadAttention? Attention=null,string? RecoveryPath=null)
 {
+    [System.Text.Json.Serialization.JsonIgnore] public MountingPriority? Priority {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public DateTimeOffset? SubmittedUtc {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public DateTimeOffset? NextRetryUtc {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public string? QueuePhase {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public string SchedulingText=>Priority is {} priority?$"P{(600-(int)priority)/100} · {QueuePhase??"业务处理"}"+(NextRetryUtc is {} retry?" · 下次重试："+retry.ToLocalTime().ToString("G"):""):"";
     /// <summary>SQLite 首次提交顺序，仅供展示排序，持久记录仍由原表行序决定。</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public long SubmissionOrder {get;init;}

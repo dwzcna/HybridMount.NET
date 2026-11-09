@@ -40,6 +40,7 @@ public sealed partial class MountManager
         _=OwnAsync(async token=>
         {
             using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,runtime.Stop.Token);
+            using var cancelOwner=TasksQueue.RegisterCancellation(id,()=>{if(!linked.IsCancellationRequested)_=linked.CancelAsync();return true;});
             try
             {
                 await runtime.Serial.WaitAsync(linked.Token).ConfigureAwait(false);

@@ -57,6 +57,11 @@ public sealed partial class S3FileSource
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
         {
+            var networkLease=await MountingHttpScheduler.AcquireAsync(owner._queueBinding,request.Method.Method is "GET" or "HEAD" or "OPTIONS"?MountingPriority.Observation:MountingPriority.Transaction,token).ConfigureAwait(false);
+            HttpResponseMessage? response=null;
+            try
+            {
+            token.ThrowIfCancellationRequested();
             // SDK内部再次进入HTTP管线也不能重放同一修改；每个CallCore独立拥有发送边界。
             if(Hints.Value is {Mutation:true} attempt&&request.Method.Method is not("GET" or "HEAD" or "OPTIONS")&&Interlocked.Exchange(ref attempt.MutationSends,1)!=0)
                 throw new HttpRequestException("S3修改已进入发送阶段，拒绝内部重发；结果由持久事务只读核对。");
@@ -67,7 +72,6 @@ public sealed partial class S3FileSource
                 request.Headers.ExpectContinue=false;
             }
             owner.HttpAttemptForTests?.Invoke($"{request.Method.Method};content={request.Content?.GetType().Name};length={request.Content?.Headers.ContentLength};expect={request.Headers.ExpectContinue};version={request.Version}");
-            HttpResponseMessage response;
             using var idle=CancellationTokenSource.CreateLinkedTokenSource(token);idle.CancelAfter(owner.InactivityTimeout);
             if(request.Content is {} content)request.Content=new S3IdleContent(content,()=>owner.InactivityTimeout,()=>idle.CancelAfter(owner.InactivityTimeout));
             try { response=await base.SendAsync(request,idle.Token).ConfigureAwait(false); }
@@ -95,7 +99,9 @@ public sealed partial class S3FileSource
                     catch(System.Xml.XmlException) { }
                 }
             }
-            return response;
+            MountingHttpScheduler.OwnResponse(response,networkLease);networkLease=null;return response;
+            }
+            finally{if(networkLease is not null){response?.Dispose();networkLease.Dispose();}}
         }
     }
     /// <summary>包装请求及响应正文；发送进度续期头部等待，正文消费拥有独立的无进展超时。</summary>

@@ -7,6 +7,15 @@ namespace HybridMount.Tests;
 public sealed class UploadBackoffTests
 {
     private static LocalUpload Item(DateTimeOffset now)=>new("upload",Guid.NewGuid(),"file","file",false,"stamp",1,"Waiting",now.AddSeconds(-10));
+    [Fact]
+    public void ReadyUploadsUseUserPriorityThenSubmissionTimeWithoutDirectoryPromotion()
+    {
+        var now=DateTimeOffset.UtcNow;var old=Item(now) with{Id="old",State="Queued",LocalPath="deep/file",SourcePath="deep/file"};
+        var directory=Item(now) with{Id="directory",State="Queued",ChangedUtc=old.ChangedUtc.AddSeconds(1),IsDirectory=true};
+        var user=Item(now) with{Id="user",State="Queued",ChangedUtc=old.ChangedUtc.AddSeconds(2),ExplicitRequest=true};
+        Assert.Same(user,UploadRules.NextUpload([directory,old,user],now));Assert.Same(old,UploadRules.NextUpload([directory,old],now));
+        Assert.Same(old,UploadRules.NextUpload([user with{NextAttemptUtc=now.AddMinutes(1),State="Waiting"},old],now));
+    }
     [Theory]
     [InlineData(0,true)][InlineData(408,true)][InlineData(425,true)][InlineData(429,true)]
     [InlineData(500,true)][InlineData(502,true)][InlineData(503,true)][InlineData(504,true)]

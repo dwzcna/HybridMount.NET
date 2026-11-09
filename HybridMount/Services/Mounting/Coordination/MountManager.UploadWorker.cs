@@ -27,8 +27,7 @@ public sealed partial class MountManager
                 var scan=runtime.Scans.Take(DateTimeOffset.UtcNow,runtime.TakeScanRequest(),path=>LocalWriteStampCache.Read(RelativePaths.ToLocal(root.Definition.LocalPath,path)));
                 if(scan is not null)await ScanLocalUploadsAsync(root,token,batch:scan).ConfigureAwait(false);
                 if(await TryRunExcludedRenameAsync(root,runtime,token).ConfigureAwait(false))continue;
-                var candidates=_repository.Uploads(root.Definition.Id).Where(x=>
-                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+                var candidates=UploadCandidates(root);
                 var now=DateTimeOffset.UtcNow;var item=UploadRules.NextUpload(candidates,now);
                 if(item is null)
                 {
@@ -41,14 +40,18 @@ public sealed partial class MountManager
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         catch(Exception error){_logger.QueueException("自动上传","Error","操作未完成",error);Status(root,root.Status,"自动上传监控已停止，请重新连接。" );}
     }
+    /// <summary>与改名收尾共享同一可运行候选集，冲突和退避不会挡住其他文件。</summary>
+    private LocalUpload[] UploadCandidates(Runtime root)=>_repository.Uploads(root.Definition.Id).Where(x=>
+                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
     private sealed class UploadReporter(Action<UploadProgress> action) : IProgress<UploadProgress>
     {public void Report(UploadProgress value)=>action(value);}
     /// <summary>发送前持久化快照及阶段；返回成功后先保存回执，再修改本地占位和索引。</summary>
     private async Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
     {
+        using var queueTask=TasksQueue.EnterTask(root.Definition.Id,selected.Id,selected.ExplicitRequest?MountingPriority.User:MountingPriority.Transaction,"upload",selected.SourcePath,selected.EntryId,selected.ExpectedVersion,selected.ChangedUtc);
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
-        Exception? failure=null;var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var transferSlot=false;var receiptSaved=false;var sendingStarted=false;
+        Exception? failure=null;var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var receiptSaved=false;var sendingStarted=false;
         LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current),failure);
         try
         {
@@ -62,7 +65,6 @@ public sealed partial class MountManager
             if(prepared is null)return;preparing=false;
             await UploadCheckpointAsync("Prepared",prepared).ConfigureAwait(false);
             capacity=await EnterUploadCapacityAsync(root,prepared,token).ConfigureAwait(false);
-            await _uploadSlots.WaitAsync(token).ConfigureAwait(false);transferSlot=true;
             await PrepareUploadDestinationAsync(root,prepared,token,capacity.Definition).ConfigureAwait(false);
             await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             if(!prepared.IsDirectory)await root.Source!.PrepareUploadAsync(prepared.SourcePath,new(prepared.ExpectedVersion,prepared.BaselineSha256),prepared.Total,token).ConfigureAwait(false);
@@ -104,7 +106,6 @@ public sealed partial class MountManager
         {
             if(capacity is not null)
             {if(!receiptSaved&&sendingStarted)capacity.Invalidate();capacity.Dispose();}
-            if(transferSlot)_uploadSlots.Release();
             Task canceled;lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;canceled=runtime.RequestCancellation;}
             await canceled.ConfigureAwait(false);runtime.PulseIdle();
         }

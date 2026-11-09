@@ -12,7 +12,7 @@ namespace HybridMount.Pages;
 public sealed partial class TasksPage : Page, IDisposable
 {
     /// <summary>UI 线程上的任务快照集合。</summary>
-    public TasksViewModel ViewModel { get; }=new(App.Current.Mounts,App.Current.UiDispatcher,App.Current.TaskFocus);
+    public TasksViewModel ViewModel { get; }=new(App.Current.TasksQueue,App.Current.UiDispatcher,App.Current.TaskFocus);
     private bool _restoring,_disposed;
     private readonly PageScrollBookmark _viewport=new();
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>

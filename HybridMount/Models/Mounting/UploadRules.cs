@@ -40,9 +40,9 @@ public static class UploadRules
             item.LastCheckedUtc is {} last?last+TimeSpan.FromSeconds(item.State is "OutcomeUnknown" or "WaitingCapacity"?60:3):DateTimeOffset.MinValue;
         var stable=item.ChangedUtc+TimeSpan.FromSeconds(2);return checkedAt>stable?checkedAt:stable;
     }
-    /// <summary>从调用方已筛选的候选中选择到期任务；目录及浅路径优先，无到期任务返回空。</summary>
+    /// <summary>从已筛选候选选择到期任务；用户请求优先，同级按提交时间，必要父目录由准备步骤继承优先级。</summary>
     public static LocalUpload? NextUpload(IEnumerable<LocalUpload> items,DateTimeOffset now)=>items.Where(item=>AttemptUtc(item)<=now)
-        .OrderBy(item=>item.SourcePath.Count(c=>c=='/')).ThenBy(item=>item.IsDirectory?0:1).ThenBy(item=>item.ChangedUtc).FirstOrDefault();
+        .OrderByDescending(item=>item.ExplicitRequest).ThenBy(item=>item.ChangedUtc).FirstOrDefault();
     /// <summary>计算下一任务或全量兜底扫描前的等待；唤醒和取消仍由调度器拥有。</summary>
     public static TimeSpan UploadWait(IEnumerable<LocalUpload> items,DateTimeOffset now,DateTimeOffset scanDue)
         =>TimeSpan.FromMilliseconds(Math.Max(1,(items.Select(AttemptUtc).Append(scanDue).Min()-now).TotalMilliseconds));

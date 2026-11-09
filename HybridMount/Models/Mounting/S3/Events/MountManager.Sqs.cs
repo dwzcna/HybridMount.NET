@@ -4,7 +4,7 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private SqsEventHub QueueEvents=>(SqsEventHub)_remoteEvents;
-    private IAsyncDisposable CreateRemoteEvents()=>new SqsEventHub(_repository,CreateQueueClient);
+    private IAsyncDisposable CreateRemoteEvents()=>new SqsEventHub(_repository,CreateQueueClient,TasksQueue);
     /// <summary>实例级队列传输注入，仅测试程序集可设置，不经持久配置或 IPC 暴露。</summary>
     internal Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? SqsClientForTests {get;set;}
     private ISqsQueueClient CreateQueueClient(FileSourceConfiguration source,SqsConfiguration options,SourceCredentials keys)=>SqsClientForTests?.Invoke(source,options,keys)??new SqsQueueClient(source,options,keys);

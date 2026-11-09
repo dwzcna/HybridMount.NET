@@ -36,6 +36,8 @@ public sealed partial class MountManager
                 Notify();
             },_stop.Token,root.CapacityStatus,query:async(force,cancel)=>
             {
+                var parent=TasksQueueService.CurrentTask;
+                using var queueTask=TasksQueue.EnterTask(definition.Id,parent?.Operation is "upload" or "capacityRefresh" or "capacity"?parent.Id:"capacity:"+definition.Id,parent?.Operation is "upload" or "capacityRefresh" or "capacity"?parent.Priority:MountingPriority.Maintenance,"capacity");
                 using var lease=await _capacities.EnterAsync(FileSourceFactory.CapacityWriteScope(definition),cancel).ConfigureAwait(false);
                 return await ReadCapacityAsync(lease,definition,source,force,cancel).ConfigureAwait(false);
             },failed:error=>_logger.QueueException("配额查询","Warning","容量查询失败，保留上次值",error,definition.Id.ToString("N")));
@@ -68,6 +70,7 @@ public sealed partial class MountManager
     /// <summary>页面按需读取五分钟缓存；单个等待者取消不取消共享查询，强制刷新也核实上传等待。</summary>
     public Task RefreshCapacityAsync(Guid id,bool force=false,CancellationToken token=default)=>OwnAsync(async cancel=>
     {
+        using var queueTask=TasksQueue.EnterTask(id,"capacity:"+id,MountingPriority.User,"capacityRefresh");
         var root=Root(id);RemoteCapacitySession? capacity;lock(root.ConnectionSync)capacity=root.Capacity;
         if(capacity is not null)await capacity.RefreshAsync(force,cancel).ConfigureAwait(false);
     },token);
@@ -82,6 +85,10 @@ public sealed partial class MountManager
     private async Task<RemoteCapacity> ReadCapacityAsync(CapacityCoordinator.Lease lease,MountDefinition definition,IFileSource source,bool force,CancellationToken token)
         =>await lease.ReadAsync(CapacityKey(definition),async cancel=>
         {
+            var parent=TasksQueueService.CurrentTask;
+            using var queueTask=TasksQueue.EnterTask(definition.Id,parent?.Operation is "upload" or "capacityRefresh" or "capacity"?parent.Id:"capacity:"+definition.Id,parent?.Operation is "upload" or "capacityRefresh" or "capacity"?parent.Priority:MountingPriority.Maintenance,"capacity");
+            using var request=CancellationTokenSource.CreateLinkedTokenSource(cancel);cancel=request.Token;
+            using var cancelOwner=TasksQueue.RegisterCancellation(TasksQueueService.CurrentTask!.Id,()=>{if(!request.IsCancellationRequested)_=request.CancelAsync();return true;});
             if(definition.CapacityAutoDetectEnabled)return await source.GetRemoteCapacityAsync(cancel).ConfigureAwait(false);
             if(source is not IRemoteUsageSource usage)throw new NotSupportedException("此文件源尚不能完整统计用量。");
             var value=await usage.GetRemoteUsageAsync(cancel).ConfigureAwait(false);

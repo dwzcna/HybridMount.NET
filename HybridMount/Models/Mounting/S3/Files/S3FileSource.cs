@@ -123,6 +123,8 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
     /// <summary>单个受版本约束的范围请求顺序交付分块；恢复仍验证版本，取消或消费者失败停止，不放宽严格预览。</summary>
     public async Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
     {
+        if(_queueBinding is not null)
+        {await SequentialRangeTransfer.DefaultAsync(this,entry,offset,length,sink,Math.Min(chunk,262144),token).ConfigureAwait(false);return;}
         var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();if(length==0)return;
         var version=Version(entry);var etag=RequiredETag(version);
         try

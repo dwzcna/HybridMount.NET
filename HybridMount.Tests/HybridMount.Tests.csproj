@@ -36,6 +36,8 @@
     <Compile Include="..\HybridMount\Models\ApplicationPage.cs" Link="Production\ApplicationPage.cs"/>
     <Compile Include="..\HybridMount\Common\INavigationService.cs" Link="Production\INavigationService.cs"/>
     <Compile Include="..\HybridMount\Services\NavigationService.cs" Link="Production\NavigationService.cs"/>
+    <Compile Include="..\HybridMount\Services\TasksQueueService*.cs" Link="Production\%(Filename)%(Extension)"/>
+    <Compile Include="..\HybridMount\Common\IMounting*.cs" Link="Production\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Services\TaskFocusService.cs" Link="Production\TaskFocusService.cs"/>
     <Compile Include="..\HybridMount\Common\IStartupService.cs" Link="Production\IStartupService.cs"/>
     <Compile Include="..\HybridMount\Common\IUiDispatcher.cs" Link="Production\IUiDispatcher.cs"/>

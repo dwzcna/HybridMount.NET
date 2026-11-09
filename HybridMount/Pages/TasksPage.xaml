@@ -44,6 +44,7 @@
                             <TextBlock Text="{x:Bind DisplayState}"/>
                             <TextBlock Text="{x:Bind ProgressText}" ToolTipService.ToolTip="{x:Bind ProgressDetail}" AutomationProperties.HelpText="{x:Bind ProgressDetail}"/>
                         </StackPanel>
+                        <TextBlock Text="{x:Bind SchedulingText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                         <TextBlock Text="{x:Bind DisplayTarget}" TextWrapping="Wrap"/>
                         <TextBlock Text="{x:Bind IssueTimeText}" Visibility="{x:Bind views:TextVisibility.ForText(IssueTimeText),Mode=OneTime}"/>
                         <TextBlock Text="{x:Bind IssueStage}" Visibility="{x:Bind views:TextVisibility.ForText(IssueStage),Mode=OneTime}"/>

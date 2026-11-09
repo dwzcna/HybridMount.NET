@@ -89,6 +89,8 @@ public sealed partial class MountManager
     private async Task<Dictionary<int,byte[]>?> RenderPreviewAsync(MountDefinition mount,MountEntry entry,bool allowRemote,CancellationToken token)
     {
         if(!CustomPreviewsAvailable||!_roots.TryGetValue(mount.Id,out var root))return null;
+        using var queueTask=TasksQueue.EnterTask(mount.Id,"preview:"+mount.Id+":"+entry.Id,MountingPriority.Thumbnail,"thumbnail",entry.SourcePath,entry.Id,entry.Version);
+        using var cancelOwner=TasksQueue.RegisterCancellation("preview:"+mount.Id+":"+entry.Id,()=>_previews.CancelEntry(mount.Id,entry.Id));
         allowRemote=allowRemote&&(LegacyRemotePreviewsAllowed||RemoteThumbnailsAllowed); // 仅新按需请求允许有界远端预览。
         NativeLocalReadLease? local=null;LocalFileStamp? stamp=null;Common.IFileSource? source=null;long length=0;
         async ValueTask ReleaseLocal(){if(local is {} lease){local=null;await lease.DisposeAsync().ConfigureAwait(false);stamp=lease.Stamp;}}
