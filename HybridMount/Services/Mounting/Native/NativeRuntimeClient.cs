@@ -127,7 +127,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 if(kind=="response")
                 {
                     var id=message.GetProperty("requestId").GetString()!;if(!_pending.TryGetValue(id,out var request))continue;
-                    var code=message.GetProperty("hresult").GetInt32();var stage=message.GetProperty("data").TryGetProperty("failureStage",out var nativeStage)&&nativeStage.GetString() is "root-enumeration" or "root-native-query" or "root-register"?nativeStage.GetString():"operation";if(code<0)request.Completion.TrySetException(request.CheckpointFailure??new COMException($"原生操作未完成（HRESULT=0x{code:X8}；{stage}）。",code));else request.Completion.TrySetResult(message.GetProperty("data").Clone());
+                    var code=message.GetProperty("hresult").GetInt32();var stage=FailureStage(message.GetProperty("data"));if(code<0)request.Completion.TrySetException(request.CheckpointFailure??new COMException($"原生操作未完成（HRESULT=0x{code:X8}；{stage}）。",code));else request.Completion.TrySetResult(message.GetProperty("data").Clone());
                 }
                 else if(kind=="checkpoint")
                 {
@@ -142,6 +142,12 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         }
         catch(Exception error){if(!_stop.IsCancellationRequested)Fail(error);}
         finally{foreach(var item in _pending.Values)item.Completion.TrySetException(new IOException("原生运行时已断开；操作结果须核对。"));}
+    }
+    internal static string FailureStage(JsonElement data)
+    {
+        if(!data.TryGetProperty("failureStage",out var value)||value.ValueKind!=JsonValueKind.String)return "operation";
+        var stage=value.GetString();
+        return stage is "root-enumeration" or "root-native-query" or "root-register" or "std-exception"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
     }
     private async Task EventLoopAsync()
     {

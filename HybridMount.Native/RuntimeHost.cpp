@@ -5,9 +5,12 @@
 #include "NativeDiagnostics.h"
 #include <processthreadsapi.h>
 #include <winrt/base.h>
+#include <exception>
+#include <new>
 
 namespace hm {
 namespace {
+std::string JsonFailureDetail(const Json::exception& error){std::string result;const auto text=error.what();for(size_t i=0;text&&text[i]&&i<128;++i){const auto value=static_cast<unsigned char>(text[i]);result.push_back(value>=32&&value<=126?static_cast<char>(value):'?');}return result;}
 std::wstring Family(HANDLE process){UINT32 count{};auto status=GetPackageFamilyName(process,&count,nullptr);if(status==APPMODEL_ERROR_NO_PACKAGE)return {};Require(status==ERROR_INSUFFICIENT_BUFFER&&count<=2048);std::wstring result(count,L'\0');Require(GetPackageFamilyName(process,&count,result.data())==ERROR_SUCCESS);result.resize(count-1);return result;}
 [[maybe_unused]] std::wstring ProcessPath(HANDLE process){DWORD count=32768;std::wstring path(count,L'\0');WinCheck(QueryFullProcessImageNameW(process,0,path.data(),&count));path.resize(count);return path;}
 std::wstring User(HANDLE process){HANDLE raw{};WinCheck(OpenProcessToken(process,TOKEN_QUERY,&raw));Handle token(raw);DWORD count{};GetTokenInformation(raw,TokenUser,nullptr,0,&count);Require(count>0&&count<65536);std::vector<BYTE> bytes(count);WinCheck(GetTokenInformation(raw,TokenUser,bytes.data(),count,&count));LPWSTR sid{};WinCheck(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(bytes.data())->User.Sid,&sid));std::wstring result(sid);LocalFree(sid);return result;}
@@ -87,9 +90,13 @@ void RuntimeHost::Run(){
         Require(kind=="command");auto command=std::make_shared<RuntimeCommand>();command->Id=GuidN(frame.at("requestId"));command->Operation=frame.at("operation").get<std::string>();command->Data=frame.at("data");Require(command->Operation.size()<=64&&command->Data.is_object());
         {std::lock_guard lock(p.CallsGate);Require(p.Calls.emplace(command->Id,command).second);}
         const auto& op=command->Operation;const auto fast=op=="readShellState"||op=="readCustomState"||op=="queryFile"||op=="queryRoot"||op=="tagState"||op=="activity"||op=="blockEntry"||op=="finishFetch"||op=="clearRoot";
-        const auto accepted=(fast?p.Fast:p.Workers).Add([&,command]{Json result=Json::object();HRESULT code=S_OK;try{command->CheckCancel();Require(Execute!=nullptr);result=Execute(*command);}catch(const Failure& error){code=error.Code;result["failureStage"]=error.Stage;}catch(const winrt::hresult_error& error){code=error.code();}catch(...){code=E_FAIL;}Send({{"kind","response"},{"requestId",command->Id},{"hresult",code},{"data",result}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);});
+        const auto accepted=(fast?p.Fast:p.Workers).Add([&,command]{Json result=Json::object();HRESULT code=S_OK;try{command->CheckCancel();Require(Execute!=nullptr);result=Execute(*command);}catch(const Failure& error){code=error.Code;result["failureStage"]=error.Stage;}catch(const winrt::hresult_error& error){code=error.code();}catch(const Json::exception& error){code=E_INVALIDARG;result["failureStage"]="json:"+std::to_string(error.id);result["failureDetail"]=JsonFailureDetail(error);}catch(const std::bad_alloc&){code=E_OUTOFMEMORY;}catch(const std::exception&){code=E_FAIL;result["failureStage"]="std-exception";}catch(...){code=E_FAIL;}Send({{"kind","response"},{"requestId",command->Id},{"hresult",code},{"data",result}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);});
         if(!accepted){Send({{"kind","response"},{"requestId",command->Id},{"hresult",HRESULT_FROM_WIN32(ERROR_BUSY)},{"data",Json::object()}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);}
-    }}catch(const Failure& error){p.Close("NativeControlReader",error.Code);}catch(...){p.Close("NativeControlReader",E_FAIL);}
+    }}catch(const Failure& error){p.Close("NativeControlReader",error.Code);}
+    catch(const Json::exception& error){auto stage="NativeControlReader.json:"+std::to_string(error.id);p.Close(stage.c_str(),E_INVALIDARG);}
+    catch(const std::bad_alloc&){p.Close("NativeControlReader.out-of-memory",E_OUTOFMEMORY);}
+    catch(const std::exception&){p.Close("NativeControlReader.std-exception",E_FAIL);}
+    catch(...){p.Close("NativeControlReader",E_FAIL);}
     p.Close();if(Stopping)Stopping();p.Workers.Stop();p.Fast.Stop();writer.join();data.join();
 }
 int RunRuntime(DWORD parent,const std::wstring& nonce)noexcept{

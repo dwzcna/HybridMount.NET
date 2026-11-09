@@ -6,6 +6,16 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class NativeRuntimeTransportTests
 {
+    [Theory]
+    [InlineData("json:302","json:302")]
+    [InlineData("json:403","json:403")]
+    [InlineData("std-exception","std-exception")]
+    [InlineData("json:302:untrusted","operation")]
+    public void NativeFailureStageKeepsOnlySafeProtocolStages(string value,string expected)
+    {
+        var data=NativeRuntimeProtocol.Element(new{failureStage=value});Assert.Equal(expected,NativeRuntimeClient.FailureStage(data));
+        Assert.Equal("operation",NativeRuntimeClient.FailureStage(NativeRuntimeProtocol.Element(new{})));
+    }
     [Fact(Timeout=30000)]
     public async Task QueriesPreserveExactFileStampAndConcurrentResponsesStayCorrelated()
     {
