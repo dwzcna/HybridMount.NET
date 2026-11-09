@@ -104,7 +104,7 @@ internal static class CloudShellState
                 using var reader=XmlReader.Create(Path.Combine(package.InstalledLocation.Path,"AppxManifest.xml"),new(){DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=1024*1024});
                 var manifest=XDocument.Load(reader);var cloud=manifest.Descendants().FirstOrDefault(e=>e.Name.LocalName=="CloudFiles");
                 lines.Add("已安装包："+package.Id.FullName);
-                lines.Add("CloudFiles声明："+(cloud is null?"无自定义云声明":!cloud.Elements().Any()?"仅提供程序图标；无自定义处理器":string.Join("、",cloud.Elements().Select(e=>e.Name.LocalName))));
+                lines.Add("CloudFiles声明："+(cloud is null?"无自定义云声明":!cloud.Elements().Any()?"仅提供程序图标；无自定义处理器":string.Join("、",cloud.Elements().Select(e=>e.Name.LocalName+(Guid.TryParse(e.Attribute("Clsid")?.Value,out var id)&&id==Guid.Empty?"（Windows默认，GUID_NULL）":"")))));
                 lines.Add("自定义云缩略图入口："+(HasThumbnailBinding(manifest,path=>File.Exists(Path.Combine(package.InstalledLocation.Path,path)))?"已绑定独立缓存宿主":"未启用；挂载开关不能替代安装注册。"));
             }
         }

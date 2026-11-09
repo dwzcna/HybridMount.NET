@@ -3,6 +3,42 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
+    private readonly object _previewDemandGate=new();
+    private readonly Dictionary<Guid,(string Signature,HashSet<string> Entries)> _previewDemand=new();
+#if HYBRIDMOUNT_HEADLESS_TEST
+    internal bool BrowsePreviewsForTests{get;set;}
+    internal bool ObserveExplorerForTests{get;set;}
+    private bool PreviewObservationEnabled=>ObserveExplorerForTests;
+    private bool BrowseDrivenPreviews=>BrowsePreviewsForTests;
+    internal void ApplyPreviewDemandForTests(Guid id,IReadOnlyList<string> paths){var root=Root(id);ApplyPreviewDemand(root,root.Session!,paths);}
+#else
+    private bool BrowseDrivenPreviews=>true;
+    private bool PreviewObservationEnabled=>true;
+#endif
+    /// <summary>浏览需求只查索引并进入有界队列；网络、解码和原生操作均不在事件读线程或UI执行。</summary>
+    private void ApplyPreviewDemand(Runtime root,CloudMountSession session,IReadOnlyList<string> paths)
+    {
+        if(!BrowseDrivenPreviews||!CustomPreviewsAvailable||IsStopping||root.RemovalRequested||!root.Definition.ThumbnailsEnabled||!ReferenceEquals(root.Session,session))return;
+        var selected=paths.Where(path=>Path.IsPathFullyQualified(path)&&MountPathGuard.IsUnder(root.Definition.LocalPath,path)).Select(path=>Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var entries=_repository.Entries(root.Definition.Id).Where(entry=>selected.Contains(entry.LocalPath)&&!entry.Deleted&&!entry.IsDirectory&&entry.Materialized&&entry.RemotePresence!=RemotePresence.Deleted).Take(128).ToArray();
+        var signature=string.Join("|",entries.Select(x=>x.Id+":"+x.LocalPath+":"+x.Version))+":"+DateTime.UtcNow.Ticks/TimeSpan.FromSeconds(30).Ticks;
+        lock(_previewDemandGate){if(_previewDemand.TryGetValue(root.Definition.Id,out var previous)&&previous.Signature==signature)return;_previewDemand[root.Definition.Id]=(signature,entries.Select(x=>x.Id).ToHashSet(StringComparer.Ordinal));}
+        _previews.SetBrowseDemand(root.Definition,entries,RemoteThumbnailsAllowed);
+    }
+    /// <summary>水合完成仅优先当前浏览项目；测试兼容路径仍可显式验证历史队列。</summary>
+    private void QueueLocalPreview(Runtime root,MountEntry entry)
+    {
+        if(BrowseDrivenPreviews){lock(_previewDemandGate){if(!_previewDemand.TryGetValue(root.Definition.Id,out var current)||!current.Entries.Contains(entry.Id))return;}}
+        _previews.Queue(root.Definition,entry,fromBrowse:BrowseDrivenPreviews);
+    }
+    private void SetPreviewObservation(Runtime root,bool enabled)
+    {
+        if(!PreviewObservationEnabled||!BrowseDrivenPreviews||!CustomPreviewsAvailable||root.Session is null)return;
+        try{root.Session.ObservePreviews(enabled&&root.Source is not null&&!root.RemovalRequested);}
+        catch(Exception error){_logger.QueueException("缩略图","Warning","目录观察未启用，挂载继续运行",error,root.Definition.Id.ToString("N"));}
+        if(!enabled)lock(_previewDemandGate)_previewDemand.Remove(root.Definition.Id);
+    }
+
     /// <summary>设置只改变指定挂载；关闭先持久化再取消工作，开启只预热完整本地内容。</summary>
     public Task SetThumbnailsEnabledAsync(Guid id,bool enabled,CancellationToken token=default)=>OwnAsync(cancel=>SetThumbnailsCoreAsync(id,enabled,cancel),token);
     private async Task SetThumbnailsCoreAsync(Guid id,bool enabled,CancellationToken token)
@@ -12,9 +48,9 @@ public sealed partial class MountManager
         try{if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("移除过程中不能更改缩略图。");var updated=root.Definition with{ThumbnailsEnabled=enabled};_repository.SaveDefinition(updated);root.Definition=updated;}
         finally{root.Gate.Release();}
         _previews.ConfigureMount(root.Definition);
-        if(enabled){_previews.ResumeMount(id);foreach(var entry in _repository.Entries(id))_previews.Queue(root.Definition,entry);}
+        if(enabled){_previews.ResumeMount(id);if(!BrowseDrivenPreviews)foreach(var entry in _repository.Entries(id))_previews.Queue(root.Definition,entry);}
         else await _previews.CancelMountAsync(id).ConfigureAwait(false);
-        CloudFilesNative.NotifyItemUpdated(root.Definition.LocalPath);Notify();
+        SetPreviewObservation(root,enabled);CloudFilesNative.NotifyItemUpdated(root.Definition.LocalPath);Notify();
     }
     private (Runtime Root,MountEntry Entry)? PreviewTarget(string path)
     {
@@ -53,7 +89,7 @@ public sealed partial class MountManager
         if(!CustomPreviewsAvailable||!_roots.TryGetValue(mount.Id,out var root))return null;
         allowRemote=allowRemote&&(LegacyRemotePreviewsAllowed||RemoteThumbnailsAllowed); // 仅新按需请求允许有界远端预览。
         NativeLocalReadLease? local=null;LocalFileStamp? stamp=null;Common.IFileSource? source=null;long length=0;
-        async ValueTask ReleaseLocal(){if(local is {} lease){local=null;await lease.DisposeAsync().ConfigureAwait(false);}}
+        async ValueTask ReleaseLocal(){if(local is {} lease){local=null;await lease.DisposeAsync().ConfigureAwait(false);stamp=lease.Stamp;}}
         try
         {
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
@@ -74,10 +110,10 @@ public sealed partial class MountManager
             PreviewRangeBudget budget;
             if(local is not null)
             {
-                budget=new PreviewRangeBudget(length,local.ReadAsync);
+                budget=PreviewRangeBudget.ForLocal(length,local.ReadAsync);
             }
             else budget=new PreviewRangeBudget(source!,new SourceEntry(entry.Id,entry.SourcePath,false,length,DateTimeOffset.MinValue,entry.Version));
-            var frames=await new PreviewWorkerClient().DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget.ReadAsync,token).ConfigureAwait(false);
+            var frames=await new PreviewWorkerClient(diagnostic:code=>{_previews.RecordOutcome(mount.Id,"媒体解码",code,true);_logger.Queue("缩略图","Warning",$"媒体解码失败；HRESULT=0x{code:X8}");}).DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget.ReadAsync,token).ConfigureAwait(false);
             // 解码结束先归还oplock；上传／清空可能已持有根锁，不能带着正文保护引用重新等待该锁。
             await ReleaseLocal().ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
