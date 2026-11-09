@@ -3,7 +3,7 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
-    internal Func<string,Task>? IssuePropertyWrittenForTests {get;set;}
+    internal Func<string,CancellationToken,Task>? IssuePropertyWrittenForTests {get;set;}
     internal Func<string,Task>? IssuePropertyReleasedForTests {get;set;}
     private Task? _issuePublishing;
     private readonly SemaphoreSlim _issuePublishGate=new(1,1);
@@ -102,7 +102,7 @@ public sealed partial class MountManager
                         SnapshotStamp=(current.SnapshotStamp==before.Key||a.ShellOriginalStamp is not null&&a.ShellOriginalStamp==current.SnapshotStamp&&!UploadRules.ContentChanged(current.SnapshotStamp!,before))&&current.SnapshotIdentity==before.Identity&&current.SnapshotGeneration==current.Generation?after.Key:current.SnapshotStamp,
                         Attention=a with{ShellState=a.ResolvedUtc is null?"Published":"Cleared",ShellError=null,PublishedIdentity=after.Identity,ShellOriginalStamp=null}
                     });
-                },limit.Token,UploadAttentionRules.ShellText(_repository.Uploads(item.MountId),item.LocalPath,item.ObservedStamp.Split(':')[0]),IssuePropertyWrittenForTests is {} written?()=>written(item.Id):null,proof:(before,after)=>
+                },limit.Token,UploadAttentionRules.ShellText(_repository.Uploads(item.MountId),item.LocalPath,item.ObservedStamp.Split(':')[0]),IssuePropertyWrittenForTests is {} written?cancel=>written(item.Id,cancel):null,proof:(before,after)=>
                 {
                     root.ConflictMetadata.Record(item.LocalPath,before,after);_repository.UpdateUpload(item.Id,current=>current.Generation!=item.Generation||current.Attention!=journal?current:current with
                     {

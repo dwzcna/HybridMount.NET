@@ -119,6 +119,7 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     if(operation=="finishFetch"){_impl->Session(data)->Finish(GuidN(data.at("fetchId")),data.at("status").get<NTSTATUS>());return Json::object();}
     if(operation=="openLocalRead"||operation=="readLocalRange"||operation=="closeLocalRead")return _impl->Reads.Execute(command);
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+    if(operation=="testManagedCheckpoint")return _impl->Host.Checkpoint(command,"test",Json::object());
     if(operation=="testResetDefinitions"){GuardRoot(data);auto info=Descriptor(data);info.StorageProviderItemPropertyDefinitions().Clear();winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::Register(info);return Json::object();}
     if(operation=="testSetCustomStates"){
         auto path=FullPath(Text(data,"path"));NoLinks(path,true);RootMarker(path);auto file=OpenAttributes(path);Require(InspectFile(file.Value).Identity==data.at("expectedIdentity").get<std::string>(),E_ACCESSDENIED);auto properties=winrt::single_threaded_vector<winrt::Windows::Storage::Provider::StorageProviderItemProperty>();Require(data.at("properties").size()<=256);

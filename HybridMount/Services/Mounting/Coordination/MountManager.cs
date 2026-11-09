@@ -302,7 +302,7 @@ public sealed partial class MountManager : IAsyncDisposable
             lock(_lifetime)
             {
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
-                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=()=>PinResourcesReleasingForTests?.Invoke()??Task.CompletedTask}; ConnectSession(root);
+                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
             }
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;

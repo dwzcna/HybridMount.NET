@@ -193,7 +193,7 @@ public sealed partial class MountManager
                 token.ThrowIfCancellationRequested();ValidateConflictSession(root,comparison,intent);
                 if(LocalFileState.Read(local).Key!=comparison.Stamp!.Key)throw new SourceConflictException("下载期间本地文件变化，未替换。");
                 _previews.Invalidate(root.Definition,intent.Resolution!.Entry.Id);
-                var final=CloudConflictReplacement.Apply(root.Definition,intent,stamp=>completed=_repository.CommitConflictRemote(intent,stamp),()=>intent=AdvanceConflict(intent,r=>r with{Phase="Committing"}),ConflictWriteForTests);
+                var final=await CloudConflictReplacement.ApplyAsync(root.Definition,intent,stamp=>completed=_repository.CommitConflictRemote(intent,stamp),()=>intent=AdvanceConflict(intent,r=>r with{Phase="Committing"}),ConflictWriteForTests,token).ConfigureAwait(false);
                 root.Session!.RecordLocalWrite(intent.Resolution!.Entry,final);
             }
             finally{root.Gate.Release();}

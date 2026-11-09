@@ -35,12 +35,12 @@ public sealed class RemotePinnedNativeTests
                 repository.SaveRemotePending(pending);
                 if(interruption)
                 {
-                    await Assert.ThrowsAsync<IOException>(()=>CloudRemoteUpdate.ApplyAsync(mount,entry,pending,session,(change,current)=>
+                    await Assert.ThrowsAsync<IOException>(()=>CloudRemoteUpdate.ApplyAsync(mount,entry,pending,session,(change,current,cancel)=>
                     {repository.CommitRemotePlaceholder(change,current);if(change.State=="Hydrating")throw new IOException("受控提交后中断");}));
                     pending=repository.RemotePending(mount.Id,"native").Single();entry=repository.Entries(mount.Id).Single();
                     for(var i=0;session.IsActive(entry.Id)&&i<200;i++)await Task.Delay(10);
                 }
-                await CloudRemoteUpdate.ApplyAsync(mount,entry,pending,session,(change,current)=>repository.CommitRemotePlaceholder(change,current));
+                await CloudRemoteUpdate.ApplyAsync(mount,entry,pending,session,(change,current,cancel)=>{cancel.ThrowIfCancellationRequested();repository.CommitRemotePlaceholder(change,current);});
                 Assert.Equal(identity,CloudFilesNative.Inspect(path)!.Value.Identity);Assert.Equal(before.Identity,LocalFileState.Read(path).Identity);
                 Assert.Equal(1u,CloudFilesNative.Inspect(path)!.Value.Info.PinState);Assert.Equal(1u,CloudFilesNative.Inspect(path)!.Value.Info.InSyncState);
                 Assert.Equal(bytes,await File.ReadAllBytesAsync(path));Assert.Equal("Completed",repository.RemotePending(mount.Id,"native").Single().State);

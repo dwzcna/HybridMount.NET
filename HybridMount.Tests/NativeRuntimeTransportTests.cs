@@ -6,6 +6,47 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class NativeRuntimeTransportTests
 {
+    [Fact(Timeout=15000)]
+    public async Task ManagedCheckpointAcknowledgesOnlyAfterTheHandlerReturns()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var returned=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);CancellationToken handlerToken=default;
+        var request=runtime.InvokeAsync("testManagedCheckpoint",new{},async(stage,_,token)=>{Assert.Equal("test",stage);handlerToken=token;entered.TrySetResult();await release.Task;returned.TrySetResult();return new{acknowledged=true};},cancel.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));cancel.Cancel();Assert.True(handlerToken.IsCancellationRequested);
+            Assert.False(request.IsCompleted);release.TrySetResult();await returned.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True((await runtime.InvokeAsync("ping",new{})).GetProperty("ready").GetBoolean());
+        }
+        finally{release.TrySetResult();}
+    }
+    [Theory(Timeout=25000)]
+    [InlineData(false)][InlineData(true)]
+    public async Task ManagedCheckpointCancellationAndShutdownAreBounded(bool stop)
+    {
+        var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken handlerToken=default;var persisted=false;
+        var request=runtime.InvokeAsync("testManagedCheckpoint",new{},async(_,_,token)=>{handlerToken=token;entered.TrySetResult();if(stop)await release.Task;else await Task.Delay(Timeout.Infinite,token);token.ThrowIfCancellationRequested();persisted=true;return null;},cancel.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if(stop){await runtime.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(18));await Assert.ThrowsAnyAsync<IOException>(()=>request);}
+            else{cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));}
+            Assert.True(handlerToken.IsCancellationRequested);Assert.False(persisted);
+        }
+        finally{release.TrySetResult();await runtime.DisposeAsync();}
+    }
+    [Fact(Timeout=15000)]
+    public async Task ManagedCheckpointWithoutCancellationReturnsItsResultAndMissingHandlerAborts()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
+        var result=await runtime.InvokeAsync("testManagedCheckpoint",new{},(_,_,token)=>{token.ThrowIfCancellationRequested();return Task.FromResult<object?>(new{acknowledged=true});});
+        Assert.True(result.GetProperty("acknowledged").GetBoolean());
+        var error=await Assert.ThrowsAsync<COMException>(()=>runtime.InvokeAsync("testManagedCheckpoint",new{}));Assert.Equal(unchecked((int)0x800703e3),error.HResult);
+    }
     [Fact(Timeout=30000)]
     public async Task QueriesPreserveExactFileStampAndConcurrentResponsesStayCorrelated()
     {

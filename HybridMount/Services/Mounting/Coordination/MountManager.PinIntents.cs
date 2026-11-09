@@ -4,7 +4,7 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private readonly SemaphoreSlim _pinSlots=new(2,2);
-    internal Func<Task>? PinResourcesReleasingForTests {get;set;}
+    internal Func<CancellationToken,Task>? PinResourcesReleasingForTests {get;set;}
     /// <summary>一个连接拥有一个属性意图消费者；通知只合并唤醒，不进入上传队列，不在监控线程读取文件。</summary>
     private sealed class PinIntentRuntime(CloudMountSession session,CancellationToken token) : IDisposable
     {

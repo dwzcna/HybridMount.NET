@@ -140,15 +140,17 @@ public sealed partial class MountManager
             if(generation!=pending.UploadGeneration||_repository.Uploads(root.Definition.Id).Any(x=>x.LocalPath==entry.LocalPath&&UploadRules.Unfinished(x)))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
             ValidateRemoteSnapshot(pending);
             _previews.Invalidate(root.Definition,entry.Id);
-            await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated)=>
+            await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated,checkpointToken)=>
             {
                 lock(_remoteJournalLock)
                 {
+                    checkpointToken.ThrowIfCancellationRequested();
                     var active=_repository.RemotePending(change.MountId,change.Scope).First(x=>x.Id==change.Id);
                     if(active.State=="Canceled"&&change.State=="Committing")throw new OperationCanceledException(token);
+                    checkpointToken.ThrowIfCancellationRequested();
                     _repository.CommitRemotePlaceholder(change,updated);_repository.SaveOperation(RemoteTask(change,change.State=="Completed"?change.Entry!.Size:0));Notify();
                 }
-            }).ConfigureAwait(false);
+            },token).ConfigureAwait(false);
             _previews.Queue(root.Definition,_repository.Entries(root.Definition.Id).Single(x=>x.Id==entry.Id));
             return _repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==pending.Id);
         }

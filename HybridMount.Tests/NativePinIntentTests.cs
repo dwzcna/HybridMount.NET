@@ -115,7 +115,7 @@ public sealed class NativePinIntentTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);test.Manager.CacheLimitBytes=0;var path=Path.Combine(test.Local,"文件.bin");
         var held=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        test.Manager.PinResourcesReleasingForTests=()=>{held.TrySetResult();return release.Task;};
+        test.Manager.PinResourcesReleasingForTests=_=>{held.TrySetResult();return release.Task;};
         try
         {
             SetPin(path,1);await held.Task.WaitAsync(TimeSpan.FromSeconds(5));Assert.True(CloudFilesNative.HasFullContent(path,test.Dav.Objects["文件.bin"].Bytes.Length));

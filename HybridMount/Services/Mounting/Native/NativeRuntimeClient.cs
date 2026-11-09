@@ -13,10 +13,13 @@ namespace HybridMount.Services.Mounting;
 /// <summary>当前进程拥有的原生运行时客户端；私有双管道认证，控制读循环从不等待UI或正文。</summary>
 internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
 {
-    private sealed class Pending(Func<string,JsonElement,Task<object?>>? checkpoint)
+    private static readonly TimeSpan CheckpointHandlerTimeout=TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan CheckpointStopTimeout=TimeSpan.FromSeconds(10);
+    private sealed class Pending(Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint,CancellationToken token=default)
     {
         internal readonly TaskCompletionSource<JsonElement> Completion=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal readonly Func<string,JsonElement,Task<object?>>? Checkpoint=checkpoint;
+        internal readonly Func<string,JsonElement,CancellationToken,Task<object?>>? Checkpoint=checkpoint;
+        internal readonly CancellationToken Token=token;
         internal int Canceled;
         internal int Irreversible;
         internal Exception? CheckpointFailure;
@@ -93,13 +96,13 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         if(!string.Equals(child.MainModule?.FileName,Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe"),StringComparison.OrdinalIgnoreCase))throw new IOException("原生对端部署路径不匹配。");
     }
     /// <summary>调用者取消时通知原生端并等实际终态；已经开始的写入仍由其安全收尾。</summary>
-    public async Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,Task<object?>>? checkpoint=null,CancellationToken token=default)
+    public async Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default)
     {
         token.ThrowIfCancellationRequested();ObjectDisposedException.ThrowIf(_stop.IsCancellationRequested,this);var payload=NativeRuntimeProtocol.Element(data);
         Guid? mount=payload.TryGetProperty("mountId",out var mountValue)&&Guid.TryParse(mountValue.GetString(),out var parsedMount)?parsedMount:null;
         if(operation!="connectRoot"&&mount is {} known&&!payload.TryGetProperty("sessionId",out _)&&_generations.TryGetValue(known,out var generation))
         {var fields=payload.EnumerateObject().ToDictionary(item=>item.Name,item=>(object?)item.Value.Clone());fields["sessionId"]=generation;payload=NativeRuntimeProtocol.Element(fields);}
-        var id=Guid.NewGuid().ToString("N");var pending=new Pending(checkpoint);if(!_pending.TryAdd(id,pending))throw new IOException("原生请求ID重复。");
+        var id=Guid.NewGuid().ToString("N");var pending=new Pending(checkpoint,token);if(!_pending.TryAdd(id,pending))throw new IOException("原生请求ID重复。");
         try
         {
             await WriteAsync(new{kind="command",requestId=id,operation,data=payload}).ConfigureAwait(false);
@@ -154,7 +157,12 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         try
         {
             if(!_pending.TryGetValue(message.GetProperty("requestId").GetString()!,out var request)||(request.Canceled!=0&&!((request.Irreversible!=0||message.GetProperty("stage").GetString()=="pinReleasing")&&message.TryGetProperty("safety",out var safety)&&safety.GetBoolean()))||request.Checkpoint is null)throw new OperationCanceledException();
-            owner=request;result=await request.Checkpoint(message.GetProperty("stage").GetString()!,message.GetProperty("data").Clone()).ConfigureAwait(false)??new{};if(message.TryGetProperty("beginIrreversible",out var irreversible)&&irreversible.GetBoolean())Interlocked.Exchange(ref request.Irreversible,1);
+            owner=request;
+            using var deadline=new CancellationTokenSource(CheckpointHandlerTimeout);
+            using var warning=deadline.Token.Register(()=>Trace.TraceWarning("原生检查点处理超过期限，已请求取消；等待处理器实际结束后才回复。"));
+            using var cancel=CancellationTokenSource.CreateLinkedTokenSource(request.Token,_stop.Token,deadline.Token);
+            result=await request.Checkpoint(message.GetProperty("stage").GetString()!,message.GetProperty("data").Clone(),cancel.Token).ConfigureAwait(false)??new{};
+            if(message.TryGetProperty("beginIrreversible",out var irreversible)&&irreversible.GetBoolean())Interlocked.Exchange(ref request.Irreversible,1);
         }
         catch(Exception error){if(owner is not null)Interlocked.CompareExchange(ref owner.CheckpointFailure,error,null);code=error is OperationCanceledException?unchecked((int)0x800703e3):error.HResult;}
         try{await WriteAsync(new{kind="checkpointAck",checkpointId=message.GetProperty("checkpointId").GetString(),hresult=code,data=NativeRuntimeProtocol.Element(result)}).ConfigureAwait(false);}catch(Exception error){if(!_stop.IsCancellationRequested)Fail(error);}
@@ -200,11 +208,13 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     }
     public async Task<NativeFileSnapshot> InspectAsync(string path,bool persisted=false,bool ranges=false,string? expectedIdentity=null,CancellationToken token=default)=>NativeRuntimeProtocol.Read<NativeFileSnapshot>(await InvokeAsync("queryFile",new{path,persisted,ranges,expectedIdentity},token:token).ConfigureAwait(false));
     public Task<JsonElement> RootInfoAsync(string path,CancellationToken token=default)=>InvokeAsync("queryRoot",new{path},token:token);
-    internal JsonElement Invoke(string operation,object data,Func<string,JsonElement,Task<object?>>? checkpoint=null)=>InvokeAsync(operation,data,checkpoint).GetAwaiter().GetResult();
+    internal JsonElement Invoke(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default)=>InvokeAsync(operation,data,checkpoint,token).GetAwaiter().GetResult();
     public ValueTask DisposeAsync(){lock(_pending)return new(_dispose??=StopAsync());}
     private async Task StopAsync()
     {
-        await _stop.CancelAsync().ConfigureAwait(false);_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();await _eventWorker.ConfigureAwait(false);await Task.WhenAll(_checkpoints.Values).ConfigureAwait(false);
+        var cancellation=_stop.CancelAsync();_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();await _eventWorker.ConfigureAwait(false);
+        try{await Task.WhenAll(_checkpoints.Values.Append(cancellation)).WaitAsync(CheckpointStopTimeout).ConfigureAwait(false);}
+        catch(TimeoutException){Trace.TraceWarning("停止原生运行时时检查点处理器未在期限内结束；继续退出，操作结果须核对。");}
         try{await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);}catch(TimeoutException){_job.Dispose();await _process.WaitForExitAsync().ConfigureAwait(false);}
         await _stderr.ConfigureAwait(false);_job.Dispose();_process.Dispose();
     }
