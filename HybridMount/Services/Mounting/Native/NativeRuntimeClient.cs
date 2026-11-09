@@ -58,9 +58,9 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     internal static Task PrepareConnectionAsync()=>GetAsync();
 #if HYBRIDMOUNT_HEADLESS_TEST
     /// <summary>测试独占运行时，不停止其他夹具的共享后台；只配合独立测试编译的原生映像。</summary>
-    internal static Task<NativeRuntimeClient> StartOwnedForTestsAsync()=>StartAsync();
+    internal static Task<NativeRuntimeClient> StartOwnedForTestsAsync(bool exitDuringHandshake=false)=>StartAsync(exitDuringHandshake);
 #endif
-    private static async Task<NativeRuntimeClient> StartAsync()
+    private static async Task<NativeRuntimeClient> StartAsync(bool exitDuringHandshake=false)
     {
         var nonce=Guid.NewGuid().ToString("N");var sid=WindowsIdentity.GetCurrent().User?.Value??throw new IOException("当前账户无SID。");var prefix=$"{ApplicationPaths.ProductScope}.runtime.v1.{sid}.{Process.GetCurrentProcess().SessionId}.{nonce}";
         var control=new NamedPipeServerStream(prefix+".control",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
@@ -69,24 +69,55 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         try
         {
             var path=Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe");
-            var info=new ProcessStartInfo(path){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardError=true};info.ArgumentList.Add("--runtime");info.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));info.ArgumentList.Add(nonce);
+            VerifyExecutable(path);
+            var info=new ProcessStartInfo(path){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardError=true};info.ArgumentList.Add(exitDuringHandshake?"--invalid-handshake-test-role":"--runtime");info.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));info.ArgumentList.Add(nonce);
             process=Process.Start(info)??throw new IOException("未能启动原生运行时。");
             job=CreateJobObject(0,null);if(job.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
             var limits=new ExtendedLimits{Basic=new(){Flags=0x2000}};if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf<ExtendedLimits>())||!AssignProcessToJobObject(job,process.Handle))throw new Win32Exception(Marshal.GetLastWin32Error());
             owner=new(control,data,process,job);owner._stderr=process.StandardError.BaseStream.CopyToAsync(Stream.Null);
             using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(12));var token=deadline.Token;
-            await Task.WhenAll(control.WaitForConnectionAsync(token),data.WaitForConnectionAsync(token)).ConfigureAwait(false);
-            VerifyPeer(control,process);VerifyPeer(data,process);
-            var hello=await IpcProtocol.ReadAsync<JsonElement>(control,token).ConfigureAwait(false);
-            var build=typeof(NativeRuntimeClient).Assembly.GetName().Version!.ToString();
-            if(hello.GetProperty("kind").GetString()!="hello"||hello.GetProperty("version").GetInt32()!=1||hello.GetProperty("nonce").GetString()!=nonce||hello.GetProperty("scope").GetString()!=ApplicationPaths.ProductScope||hello.GetProperty("processId").GetInt32()!=process.Id||hello.GetProperty("build").GetString()!=build)throw new IOException("原生运行时握手不匹配。");
-            await IpcProtocol.WriteAsync(control,new{kind="helloAck",version=1,nonce,build},token).ConfigureAwait(false);owner._eventWorker=owner.EventLoopAsync();owner._previewWorker=owner.PreviewLoopAsync();owner._reader=owner.ReadLoopAsync();owner._dataReader=owner.DataLoopAsync();return owner;
+            var handshake=HandshakeAsync(control,data,process,nonce,token);var exited=process.WaitForExitAsync(token);
+            try
+            {
+                if(await Task.WhenAny(handshake,exited).ConfigureAwait(false)==exited){await exited.ConfigureAwait(false);throw HandshakeExited(process.ExitCode);}
+                await handshake.ConfigureAwait(false);
+            }
+            finally
+            {
+                await deadline.CancelAsync().ConfigureAwait(false);
+                try{await handshake.ConfigureAwait(false);}catch(Exception) { }
+                try{await exited.ConfigureAwait(false);}catch(Exception) { }
+            }
+            owner._eventWorker=owner.EventLoopAsync();owner._previewWorker=owner.PreviewLoopAsync();owner._reader=owner.ReadLoopAsync();owner._dataReader=owner.DataLoopAsync();return owner;
         }
-        catch
+        catch(Exception error)
         {
-            control.Dispose();data.Dispose();job?.Dispose();if(process is not null){try{if(!process.HasExited){process.Kill();await process.WaitForExitAsync().ConfigureAwait(false);}}finally{process.Dispose();}}
+            int? exitCode=process is {HasExited:true}?process.ExitCode:null;
+            control.Dispose();data.Dispose();job?.Dispose();if(process is not null){try{if(!process.HasExited){process.Kill();await process.WaitForExitAsync().ConfigureAwait(false);}if(owner is not null)try{await owner._stderr.ConfigureAwait(false);}catch(IOException){/* 创建失败只观察本次stderr收尾，保留握手原因。 */}}finally{process.Dispose();}}
+            if(exitCode is {} code)throw HandshakeExited(code,error);
+            if(error is OperationCanceledException)throw new IOException("原生后台握手超时，请检查安装文件并重试。",error);
             throw;
         }
+    }
+    /// <summary>仅核验本次部署的原生映像存在；失败提供可操作提示，不启动替代程序。</summary>
+    internal static void VerifyExecutable(string path){if(!File.Exists(path))throw new IOException("未找到 HybridMount.Native.exe，请重新生成或安装");}
+    /// <summary>握手提前退出只报告数字退出码；保留安全的原始原因。</summary>
+    internal static IOException HandshakeExited(int code,Exception? inner=null)=>new($"原生后台在握手期间退出（退出码：0x{code:X8}）。请检查原生后台诊断记录。",inner);
+    /// <summary>等待双通道并核验本次子进程后交换版本；取消关闭本次握手，不启动事件消费者。</summary>
+    private static async Task HandshakeAsync(NamedPipeServerStream control,NamedPipeServerStream data,Process process,string nonce,CancellationToken token)
+    {
+        await Task.WhenAll(control.WaitForConnectionAsync(token),data.WaitForConnectionAsync(token)).ConfigureAwait(false);
+        VerifyPeer(control,process);VerifyPeer(data,process);
+        var hello=await IpcProtocol.ReadAsync<JsonElement>(control,token).ConfigureAwait(false);VerifyHello(hello,nonce,process.Id);
+        var build=typeof(NativeRuntimeClient).Assembly.GetName().Version!.ToString();
+        await IpcProtocol.WriteAsync(control,new{kind="helloAck",version=1,nonce,build},token).ConfigureAwait(false);
+    }
+    /// <summary>认证字段必须先一致，再报告经白名单处理的版本差异；不接受缺失版本。</summary>
+    internal static void VerifyHello(JsonElement hello,string nonce,int processId)
+    {
+        if(hello.GetProperty("kind").GetString()!="hello"||hello.GetProperty("version").GetInt32()!=1||hello.GetProperty("nonce").GetString()!=nonce||hello.GetProperty("scope").GetString()!=ApplicationPaths.ProductScope||hello.GetProperty("processId").GetInt32()!=processId)throw new IOException("原生运行时握手不匹配。");
+        var build=typeof(NativeRuntimeClient).Assembly.GetName().Version!.ToString();var actual=hello.TryGetProperty("build",out var value)&&value.ValueKind==JsonValueKind.String?value.GetString():null;
+        if(actual!=build){var safe=actual is {Length:>0 and <=64}&&actual.All(c=>c is >= '0' and <= '9' or '.')?actual:"未知";throw new IOException($"原生后台版本({safe})与主程序({build})不一致，请重新生成");}
     }
     private static void VerifyPeer(NamedPipeServerStream pipe,Process child)
     {
@@ -128,7 +159,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 if(kind=="response")
                 {
                     var id=message.GetProperty("requestId").GetString()!;if(!_pending.TryGetValue(id,out var request))continue;
-                    var code=message.GetProperty("hresult").GetInt32();var stage=message.GetProperty("data").TryGetProperty("failureStage",out var nativeStage)&&nativeStage.GetString() is "root-enumeration" or "root-native-query" or "root-register"?nativeStage.GetString():"operation";if(code<0)request.Completion.TrySetException(request.CheckpointFailure??new COMException($"原生操作未完成（HRESULT=0x{code:X8}；{stage}）。",code));else request.Completion.TrySetResult(message.GetProperty("data").Clone());
+                    var code=message.GetProperty("hresult").GetInt32();var stage=FailureStage(message.GetProperty("data"));if(code<0)request.Completion.TrySetException(request.CheckpointFailure??new COMException($"原生操作未完成（HRESULT=0x{code:X8}；{stage}）。",code));else request.Completion.TrySetResult(message.GetProperty("data").Clone());
                 }
                 else if(kind=="checkpoint")
                 {
@@ -143,6 +174,13 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         }
         catch(Exception error){if(!_stop.IsCancellationRequested)Fail(error);}
         finally{foreach(var item in _pending.Values)item.Completion.TrySetException(new IOException("原生运行时已断开；操作结果须核对。"));}
+    }
+    /// <summary>原生失败阶段只接受固定名称或有界JSON错误编号，忽略业务正文。</summary>
+    internal static string FailureStage(JsonElement data)
+    {
+        if(!data.TryGetProperty("failureStage",out var value)||value.ValueKind!=JsonValueKind.String)return "operation";
+        var stage=value.GetString();
+        return stage is "root-enumeration" or "root-native-query" or "root-register" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
     }
     private async Task EventLoopAsync()
     {

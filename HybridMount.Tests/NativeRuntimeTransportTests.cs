@@ -6,6 +6,16 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class NativeRuntimeTransportTests
 {
+    [Theory]
+    [InlineData("json:302","json:302")]
+    [InlineData("json:403","json:403")]
+    [InlineData("std-exception","std-exception")]
+    [InlineData("json:302:untrusted","operation")]
+    public void NativeFailureStageKeepsOnlySafeProtocolStages(string value,string expected)
+    {
+        var data=NativeRuntimeProtocol.Element(new{failureStage=value});Assert.Equal(expected,NativeRuntimeClient.FailureStage(data));
+        Assert.Equal("operation",NativeRuntimeClient.FailureStage(NativeRuntimeProtocol.Element(new{})));
+    }
     [Fact(Timeout=30000)]
     public async Task QueriesPreserveExactFileStampAndConcurrentResponsesStayCorrelated()
     {
@@ -49,5 +59,55 @@ public sealed class NativeRuntimeTransportTests
     {
         await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var process=System.Diagnostics.Process.GetProcessById(runtime.ProcessId);process.Kill();await process.WaitForExitAsync();
         await Assert.ThrowsAnyAsync<Exception>(()=>runtime.InvokeAsync("ping",new{}).WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+    [Fact]
+    public void MissingNativeExecutableHasAnActionableMessage()
+    {
+        NativeRuntimeClient.VerifyExecutable(typeof(NativeRuntimeClient).Assembly.Location);
+        var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyExecutable(Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString("N"),"HybridMount.Native.exe")));
+        Assert.Equal("未找到 HybridMount.Native.exe，请重新生成或安装",error.Message);
+    }
+    [Fact]
+    public void HelloBuildDiagnosticsDoNotBypassAuthentication()
+    {
+        var build=typeof(NativeRuntimeClient).Assembly.GetName().Version!.ToString();var nonce=Guid.NewGuid().ToString("N");var stale=build=="0.0.0.0"?"1.0.0.0":"0.0.0.0";
+        System.Text.Json.JsonElement Hello(string? version,string proof)=>NativeRuntimeProtocol.Element(new{kind="hello",version=1,nonce=proof,scope=ApplicationPaths.ProductScope,processId=42,build=version});
+        NativeRuntimeClient.VerifyHello(Hello(build,nonce),nonce,42);
+        var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(stale,nonce),nonce,42));
+        Assert.Equal($"原生后台版本({stale})与主程序({build})不一致，请重新生成",error.Message);
+        Assert.Contains("版本(未知)",Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(null,nonce),nonce,42)).Message);
+        Assert.Equal("原生运行时握手不匹配。",Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(build,"wrong"),nonce,42)).Message);
+        Assert.Contains("0x80070005",NativeRuntimeClient.HandshakeExited(unchecked((int)0x80070005)).Message);
+    }
+    /// <summary>八个长操作含队列等待；短操作和控制取消仍完成，使用真实后台和实际路由，不写挂载内容。</summary>
+    [Fact(Timeout=30000)]
+    public async Task OccupiedLongPoolLeavesShortCommandsAndCancellationAvailable()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();var started=0;var ready=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var jobs=Enumerable.Range(0,8).Select(i=>runtime.InvokeAsync((i%3) switch{0=>"hydrateFile",1=>"hydratePinned",_=>"applyRemoteSnapshot"},new{testHold=true},(stage,data)=>{if(Interlocked.Increment(ref started)>=4)ready.TrySetResult();return Task.FromResult<object?>(null);},cancel.Token)).ToArray();
+        try
+        {
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(8));
+            Assert.True((await runtime.InvokeAsync("ping",new{}).WaitAsync(TimeSpan.FromSeconds(3))).GetProperty("ready").GetBoolean());
+            Assert.Equal(LocalFileState.Read(typeof(NativeRuntimeClient).Assembly.Location),(await runtime.InspectAsync(typeof(NativeRuntimeClient).Assembly.Location).WaitAsync(TimeSpan.FromSeconds(3))).Stamp);
+        }
+        finally{await cancel.CancelAsync();foreach(var job in jobs)await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>job.WaitAsync(TimeSpan.FromSeconds(8)));}
+        Assert.True((await runtime.InvokeAsync("ping",new{})).GetProperty("ready").GetBoolean());
+    }
+    /// <summary>畸形领域参数返回有界安全阶段，不泄漏参数正文且不会破坏其他请求。</summary>
+    [Fact(Timeout=30000)]
+    public async Task MalformedCommandReportsSafeStageWithoutClosingTransport()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
+        var error=await Assert.ThrowsAsync<COMException>(()=>runtime.InvokeAsync("queryFile",new{path=new{secret="do-not-log"}}));
+        Assert.Contains("json:",error.Message);Assert.DoesNotContain("do-not-log",error.ToString());
+        Assert.True((await runtime.InvokeAsync("ping",new{})).GetProperty("ready").GetBoolean());
+    }
+    /// <summary>实际部署的原生映像因未知角色立即退出；握手不等待12秒到期，报告数字退出原因并归还子进程。</summary>
+    [Fact(Timeout=15000)]
+    public async Task EarlyExitDuringHandshakeIsReportedPromptly()
+    {
+        var watch=System.Diagnostics.Stopwatch.StartNew();var error=await Assert.ThrowsAsync<IOException>(()=>NativeRuntimeClient.StartOwnedForTestsAsync(true));
+        Assert.Contains("握手期间退出",error.Message);Assert.True(watch.Elapsed<TimeSpan.FromSeconds(5));
     }
 }

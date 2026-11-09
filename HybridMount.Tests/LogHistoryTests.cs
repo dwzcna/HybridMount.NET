@@ -110,6 +110,19 @@ public sealed class LogHistoryTests
         }
         await using var reopened=new LoggerService(area.Path);Assert.Empty(await reopened.ReadAsync());
     }
+    [Theory]
+    [InlineData("1.0.0.0","2.0.0.0",true)]
+    [InlineData("password","token",false)]
+    [InlineData(null,null,false)]
+    public async Task NativeBuildEvidencePreservesOnlySafeVersionsOnImport(string? expected,string? actual,bool retained)
+    {
+        await using var area=new Area();var directory=System.IO.Path.Combine(area.DirectoryPath,"HostDiagnostics");Directory.CreateDirectory(directory);var id=Guid.NewGuid();
+        var path=System.IO.Path.Combine(directory,id.ToString("N")+".json");
+        await File.WriteAllTextAsync(path,System.Text.Json.JsonSerializer.Serialize(new{Id=id,Utc=DateTimeOffset.UtcNow,Role="NativeRuntime",Type="BuildMismatch",HResult=unchecked((int)0x80070005),ExitCode=(int?)null,ExpectedBuild=expected,ActualBuild=actual}));
+        await using var logger=new LoggerService(area.Path);var row=Assert.Single(await logger.ReadAsync());Assert.Contains("BuildMismatch",row.Message);Assert.False(File.Exists(path));
+        if(retained){Assert.Contains("预期版本=1.0.0.0",row.Message);Assert.Contains("实际版本=2.0.0.0",row.Message);}
+        else{Assert.DoesNotContain("预期版本",row.Message);Assert.DoesNotContain("password",row.Message);Assert.DoesNotContain("token",row.Message);}
+    }
     [Fact(Timeout=60000)]
     public async Task ConflictReplacementFailureAndRecoveryRemainReviewableAfterRestart()
     {

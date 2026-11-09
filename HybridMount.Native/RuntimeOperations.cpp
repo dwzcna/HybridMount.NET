@@ -104,6 +104,8 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+    // 使用真实长任务路由，确定性占满执行位；生产不包含此入口，不触碰任何根。
+    if((operation=="hydrateFile"||operation=="hydratePinned"||operation=="applyRemoteSnapshot")&&data.value("testHold",false)){_impl->Host.Checkpoint(command,"testLongStarted",Json::object());WaitForSingleObject(command.Cancel.Value,15000);command.CheckCancel();return Json::object();}
     // 合成事件仅验证队列；不查询或修改任何根，认证仍由私有运行时握手完成。
     if(operation=="testStateEvents"){auto count=data.at("count").get<int>();Require(count>0&&count<=2048);for(int i=0;i<count;++i){command.CheckCancel();Require(_impl->Host.Send({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",GuidN(data.at("sessionId"))},{"event","testState"},{"data",{{"index",i}}}},true),HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE));}return Json::object();}
 #endif

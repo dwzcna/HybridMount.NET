@@ -7,7 +7,8 @@ namespace HybridMount.Services;
 /// <summary>早于WinUI的维护／Shell／解码宿主只写安全小记录；不创建Logger、托盘、挂载或公共管道。</summary>
 internal static class HostDiagnosticStore
 {
-    internal sealed record Entry(Guid Id,DateTimeOffset Utc,string Role,string Type,int HResult,int? ExitCode);
+    internal sealed record Entry(Guid Id,DateTimeOffset Utc,string Role,string Type,int HResult,int? ExitCode,string? ExpectedBuild=null,string? ActualBuild=null);
+    private static string? SafeBuild(string? build)=>build is {Length:>0 and <=64}&&build.All(c=>c is >= '0' and <= '9' or '.')?build:null;
     internal sealed record Captured(string Path,byte[] Bytes,Entry Value);
     /// <summary>按实际包身份定位同模式日志；仅用原生身份API，无WinRT应用初始化。</summary>
     private static string DirectoryPath()
@@ -59,7 +60,7 @@ internal static class HostDiagnosticStore
                 var bytes=new byte[checked((int)stream.Length)];stream.ReadExactly(bytes);
                 var row=JsonSerializer.Deserialize<Entry>(bytes)??throw new IOException("宿主证据为空。");
                 if(row.Id!=id||row.Role is not("ShellMaintenance" or "ShellServer" or "PreviewWorker" or "Startup" or "NativeRuntime"))throw new IOException("宿主证据身份无效。");
-                result.Add(new(path,bytes,row with{Type=SafeDiagnostic.Field(row.Type)}));
+                result.Add(new(path,bytes,row with{Type=SafeDiagnostic.Field(row.Type),ExpectedBuild=SafeBuild(row.ExpectedBuild),ActualBuild=SafeBuild(row.ActualBuild)}));
                 if(result.Count==256)break;
             }
             catch(Exception error)when(error is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
@@ -96,6 +97,7 @@ public sealed partial class LoggerService
                         if(await exists.ExecuteScalarAsync() is null)
                         {
                             var message=$"角色={row.Role}；发生UTC={row.Utc:O}；类型={row.Type}；HRESULT=0x{row.HResult:X8}；退出码={row.ExitCode?.ToString()??"无"}";
+                            if(row.ExpectedBuild is not null||row.ActualBuild is not null)message+=$"；预期版本={row.ExpectedBuild??"未知"}；实际版本={row.ActualBuild??"未知"}";
                             foreach(var entry in await AppendBatchAsync([new(source,"Error",message)]))PublishEntry(entry);
                         }
                         if(File.Exists(captured.Path))
