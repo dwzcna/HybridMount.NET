@@ -110,7 +110,14 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(cancelLength==-1)return true;
         var delta=offset-cancelOffset;return delta<=cancelLength&&length<=cancelLength-delta;
     }
-    private Task FinishFetchAsync(NativeFetch fetch,int status)=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status}));
+    private Task FinishFetchAsync(NativeFetch fetch,int status)=>FinishFetchWithRetryAsync(()=>Runtime.InvokeAsync("finishFetch",SessionArgs(new{fetchId=fetch.FetchId,status})),()=>Runtime.IsAvailable);
+    internal static async Task FinishFetchWithRetryAsync(Func<Task> complete,Func<bool> available)
+    {
+        for(var attempt=0;;attempt++)
+            try{await complete().ConfigureAwait(false);return;}
+            catch(Exception error)when(attempt<2&&available()&&error.HResult!=unchecked((int)0x80070490)&&!IsCanceledCompletion(error.HResult))
+            {await Task.Delay(attempt==0?100:500).ConfigureAwait(false);if(!available())throw;}
+    }
     internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3);
     private async Task FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {

@@ -116,6 +116,26 @@ public sealed class ReadOptimizationTests
         Assert.Contains(events,item=>item.Strategy=="whole_file"&&item.FallbackReason==reason&&item.DownloadedBytes==fixture.Bytes.Length&&item.Completed);
     }
     [Theory]
+    [InlineData(0)][InlineData(1)][InlineData(2)]
+    public async Task FetchCompletionRetriesTransientFailures(int failures)
+    {
+        var calls=0;await CloudMountSession.FinishFetchWithRetryAsync(()=>++calls<=failures?Task.FromException(new IOException("transient")):Task.CompletedTask,()=>true);
+        Assert.Equal(failures+1,calls);
+    }
+    [Theory]
+    [InlineData(true,unchecked((int)0x800700aa),3)]
+    [InlineData(false,unchecked((int)0x800700aa),1)]
+    [InlineData(true,unchecked((int)0x80070490),1)]
+    [InlineData(true,unchecked((int)0x8007017c),1)]
+    [InlineData(true,unchecked((int)0x80070189),1)]
+    [InlineData(true,unchecked((int)0x800703e3),1)]
+    public async Task FetchCompletionStopsAfterLimitOrTerminalFailure(bool available,int code,int expected)
+    {
+        var calls=0;var error=new System.Runtime.InteropServices.COMException("completion",code);
+        Assert.Same(error,await Assert.ThrowsAsync<System.Runtime.InteropServices.COMException>(()=>CloudMountSession.FinishFetchWithRetryAsync(()=>{calls++;return Task.FromException(error);},()=>available)));
+        Assert.Equal(expected,calls);
+    }
+    [Theory]
     [InlineData(0,4096,0,4096,true)][InlineData(4096,4096,0,4096,false)]
     [InlineData(0,8192,4096,4096,false)][InlineData(4096,4096,0,-1,true)]
     [InlineData(4096,4096,4096,long.MaxValue,true)][InlineData(0,4096,0,0,false)]

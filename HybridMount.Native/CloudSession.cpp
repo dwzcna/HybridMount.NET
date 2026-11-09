@@ -13,10 +13,17 @@ std::wstring CallbackPath(const Json& root,PCWSTR raw){Require(raw!=nullptr);std
 }
 struct CloudSession::Impl {
     RuntimeHost& Host;Json Root;std::string Mount,Session;CF_CONNECTION_KEY Connection{};mutable std::mutex Gate;bool Clearing{},Stopped{};
-    struct Fetch {CF_OPERATION_INFO Operation{};std::string Id,Entry;long long Offset{},Length{},Start{},End{},Next{};bool Canceled{},Done{};std::mutex Gate;};
+    struct Fetch {CF_OPERATION_INFO Operation{};std::string Id,Entry;long long Offset{},Length{},Start{},End{},Next{};ULONGLONG LastActivity=GetTickCount64();bool Canceled{},Done{};std::mutex Gate;};
     std::map<std::string,std::shared_ptr<Fetch>> Fetches;std::map<std::string,int> Opens;std::set<std::string> Blocked;std::map<std::string,ULONGLONG> LastReads;
     explicit Impl(RuntimeHost& host,const Json& root):Host(host),Root(root),Mount(GuidN(root.at("mountId"))),Session(GuidN(root.at("sessionId"))),Clearing(root.value("blockHydration",false)){}
     bool Event(const char* name,Json data){return Host.Send({{"kind","event"},{"mountId",Mount},{"sessionId",Session},{"event",name},{"data",std::move(data)}});}
+    void ReapStaleFetches(){
+        std::vector<std::shared_ptr<Fetch>> pending;{std::lock_guard lock(Gate);for(auto& [_,fetch]:Fetches)pending.push_back(fetch);}
+        for(auto& fetch:pending){
+            {std::lock_guard lock(fetch->Gate);if(fetch->Done||GetTickCount64()-fetch->LastActivity<=120000)continue;fetch->Canceled=true;fetch->Done=true;}
+            {std::lock_guard lock(Gate);Fetches.erase(fetch->Id);}Complete(fetch->Operation,fetch->Offset,fetch->Length,UnavailableStatus);Event("cancelFetch",{{"fetchId",fetch->Id}});
+        }
+    }
     std::string Entry(const CF_CALLBACK_INFO& info){Require(info.FileIdentity&&info.FileIdentityLength>0&&info.FileIdentityLength<=4096);auto marker=Parse(std::string(static_cast<const char*>(info.FileIdentity),info.FileIdentityLength),4096);Require(GuidN(marker.at("MountId"))==Mount,E_ACCESSDENIED);auto id=marker.at("EntryId").get<std::string>();Require(!id.empty()&&id.size()<=4096);return id;}
     template<CF_CALLBACK_TYPE Type> static void CALLBACK Callback(const CF_CALLBACK_INFO* info,const CF_CALLBACK_PARAMETERS* parameters)noexcept{
         if(!info||!parameters||!info->CallbackContext)return;auto self=static_cast<Impl*>(const_cast<void*>(info->CallbackContext));
@@ -25,6 +32,7 @@ struct CloudSession::Impl {
     void Dispatch(CF_CALLBACK_TYPE type,const CF_CALLBACK_INFO& info,const CF_CALLBACK_PARAMETERS& parameters){
         auto entry=Entry(info);
         if(type==CF_CALLBACK_TYPE_FETCH_DATA){
+            ReapStaleFetches();
             auto fetch=std::make_shared<Fetch>();fetch->Operation=Operation(info,CF_OPERATION_TYPE_TRANSFER_DATA);fetch->Id=NewId();fetch->Entry=entry;fetch->Offset=parameters.FetchData.RequiredFileOffset.QuadPart;fetch->Length=parameters.FetchData.RequiredLength.QuadPart;Require(fetch->Offset>=0&&fetch->Length>0&&info.FileSize.QuadPart>=fetch->Offset&&fetch->Length<=info.FileSize.QuadPart-fetch->Offset);
             fetch->Start=fetch->Offset/4096*4096;const auto end=fetch->Offset+fetch->Length;fetch->End=end>LLONG_MAX-4095?info.FileSize.QuadPart:std::min(info.FileSize.QuadPart,(end+4095)/4096*4096);fetch->Next=fetch->Start;
             {std::lock_guard lock(Gate);if(Clearing||Stopped||Blocked.contains(entry)){Complete(fetch->Operation,fetch->Offset,fetch->Length,CanceledStatus);return;}Fetches.emplace(fetch->Id,fetch);LastReads[entry]=GetTickCount64();}
@@ -57,14 +65,14 @@ void CloudSession::Connect(){auto& p=*_impl;CF_CALLBACK_REGISTRATION callbacks[]
     {CF_CALLBACK_TYPE_NOTIFY_RENAME,Impl::Callback<CF_CALLBACK_TYPE_NOTIFY_RENAME>},{CF_CALLBACK_TYPE_NOTIFY_RENAME_COMPLETION,Impl::Callback<CF_CALLBACK_TYPE_NOTIFY_RENAME_COMPLETION>},CF_CALLBACK_REGISTRATION_END};
     Check(CfConnectSyncRoot(Text(p.Root,"rootPath").c_str(),callbacks,&p,CF_CONNECT_FLAG_REQUIRE_PROCESS_INFO|CF_CONNECT_FLAG_REQUIRE_FULL_FILE_PATH,&p.Connection));
 }
-bool CloudSession::Active(const std::string& entry)const{auto& p=*_impl;std::lock_guard lock(p.Gate);if(p.Opens.contains(entry)&&p.Opens.at(entry)>0)return true;for(auto& [_,fetch]:p.Fetches)if(fetch->Entry==entry)return true;return false;}
+bool CloudSession::Active(const std::string& entry)const{auto& p=*_impl;p.ReapStaleFetches();std::lock_guard lock(p.Gate);if(p.Opens.contains(entry)&&p.Opens.at(entry)>0)return true;for(auto& [_,fetch]:p.Fetches)if(fetch->Entry==entry)return true;return false;}
 Json CloudSession::Activity(const std::string& entry)const{return {{"active",Active(entry)}};}
 void CloudSession::SetBlocked(const std::string& entry,bool blocked){auto& p=*_impl;std::lock_guard lock(p.Gate);if(blocked)p.Blocked.insert(entry);else p.Blocked.erase(entry);}
 bool CloudSession::OwnsFetch(const std::string& id)const{std::lock_guard lock(_impl->Gate);return _impl->Fetches.contains(id);}
 void CloudSession::Transfer(const RuntimeBlock& block){
     std::shared_ptr<Impl::Fetch> fetch;{std::lock_guard lock(_impl->Gate);auto found=_impl->Fetches.find(block.FetchId);Require(found!=_impl->Fetches.end(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));fetch=found->second;}
     std::lock_guard lock(fetch->Gate);Require(!fetch->Canceled&&!fetch->Done,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));Require(block.Offset==fetch->Next&&block.Offset>=fetch->Start&&block.Offset<=fetch->End&&static_cast<long long>(block.Bytes.size())<=fetch->End-block.Offset);
-    Check(Complete(fetch->Operation,block.Offset,static_cast<long long>(block.Bytes.size()),0,block.Bytes.data()));fetch->Next+=block.Bytes.size();
+    Check(Complete(fetch->Operation,block.Offset,static_cast<long long>(block.Bytes.size()),0,block.Bytes.data()));fetch->Next+=block.Bytes.size();fetch->LastActivity=GetTickCount64();
 }
 void CloudSession::Finish(const std::string& id,NTSTATUS status){
     std::shared_ptr<Impl::Fetch> fetch;{std::lock_guard lock(_impl->Gate);auto found=_impl->Fetches.find(id);if(found==_impl->Fetches.end())return;fetch=found->second;_impl->Fetches.erase(found);}

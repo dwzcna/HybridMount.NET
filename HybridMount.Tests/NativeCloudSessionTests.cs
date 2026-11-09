@@ -22,6 +22,7 @@ public sealed class NativeCloudSessionTests
                 Interlocked.Increment(ref fetchCount);var fetch=Guid.Parse(data.GetProperty("fetchId").GetString()!);var offset=NativeRuntimeProtocol.Read<long>(data.GetProperty("offset"));var length=NativeRuntimeProtocol.Read<long>(data.GetProperty("length"));var start=offset/4096*4096;var end=Math.Min(bytes.LongLength,(offset+length+4095)/4096*4096);
                 for(var position=start;position<end;){var count=(int)Math.Min(NativeRuntimeProtocol.BlockBytes,end-position);await runtime.TransferAsync(fetch,position,bytes.AsMemory((int)position,count),CancellationToken.None);position+=count;}
                 await runtime.InvokeAsync("finishFetch",NativeRuntimeArguments.Root(mount,new{sessionId,fetchId=fetch,status=0}));
+                await runtime.InvokeAsync("finishFetch",NativeRuntimeArguments.Root(mount,new{sessionId,fetchId=fetch,status=unchecked((int)0xc000cf00)}));
             }));
         };
         try
