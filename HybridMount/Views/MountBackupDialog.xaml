@@ -7,8 +7,9 @@
         <UserControl x:Name="Form"><Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
             <StackPanel Spacing="12" Margin="0,0,0,12" Visibility="{x:Bind PasswordField.Visibility,Mode=OneWay}">
-                <PasswordBox x:Name="PasswordField" Header="备份密码（至少 8 个字符）"/>
+                <PasswordBox x:Name="PasswordField" Header="备份密码（可留空，设置时至少 8 个字符）"/>
                 <PasswordBox x:Name="ConfirmPasswordField" Header="再次输入备份密码"/>
+                <TextBlock Text="留空时无密码保护，任何获得备份的人均可读取其中的凭据。" TextWrapping="Wrap" MaxWidth="480" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
             <ListView x:Name="RowsList" Grid.Row="1" SelectionMode="None" MaxHeight="440" HorizontalContentAlignment="Stretch" AutomationProperties.Name="备份挂载配置列表">
                 <ListView.ItemTemplate>

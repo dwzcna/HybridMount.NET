@@ -31,12 +31,13 @@ public sealed class ConfigurationBackupTests
         Assert.Equal("挂载配置备份条目", restored.Mounts[0].ToString());
         Assert.DoesNotContain(typeof(MountBackupItem).GetProperties(), property => property.Name is "Id" or "RootIdentity" or "RegistrationStage" or "RemovalPending");
     }
-    [Fact]
-    public void ContainerInteroperatesWithIndependentDotNetGcmAndAuthenticatesHeader()
+    [Theory]
+    [InlineData(Password)][InlineData("")]
+    public void ContainerInteroperatesWithIndependentDotNetGcmAndAuthenticatesHeader(string password)
     {
-        var bytes = MountBackupCodec.Encode(Document(Dav()), Password);
+        var bytes = MountBackupCodec.Encode(Document(Dav()), password);
         Assert.Equal("HMCONFIG", Encoding.ASCII.GetString(bytes, 0, 8)); Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8,4)));
-        var key = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(Password), bytes.AsSpan(12,16), 600000, HashAlgorithmName.SHA256, 32);
+        var key = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), bytes.AsSpan(12,16), 600000, HashAlgorithmName.SHA256, 32);
         var plain = new byte[bytes.Length-60];
         try
         {
@@ -46,6 +47,33 @@ public sealed class ConfigurationBackupTests
             Assert.False(item.TryGetProperty("id",out _)); Assert.False(item.TryGetProperty("rootIdentity",out _));
         }
         finally { CryptographicOperations.ZeroMemory(key); CryptographicOperations.ZeroMemory(plain); }
+    }
+    [Theory]
+    [InlineData(1)][InlineData(2)][InlineData(3)][InlineData(4)][InlineData(5)]
+    public async Task EmptyPasswordAndRenamedLegacyContainerUseUnchangedFormat(int version)
+    {
+        await using var test=new Area();var document=Document(Dav()) with{SchemaVersion=version};
+        var encoded=MountBackupCodec.Encode(document,"");
+        Assert.Equal(version,BinaryPrimitives.ReadInt32LittleEndian(encoded.AsSpan(8,4)));
+        Assert.DoesNotContain("password-secret",Encoding.UTF8.GetString(encoded));
+        var path=Path.Combine(test.Directory,"old.hmconfig");await File.WriteAllBytesAsync(path,encoded);
+        var renamed=Path.ChangeExtension(path,".hymcfg");File.Move(path,renamed);
+        var restored=await test.Manager.ReadConfigurationBackupAsync(renamed,"");
+        Assert.Equal(document.Mounts,restored.Mounts);Assert.Equal(0,test.Factory.Created);
+        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(encoded,Password));
+        encoded[^1]^=1;Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(encoded,""));
+    }
+    [Fact]
+    public async Task EmptyPasswordAtomicExportReplacesOnlyOnSuccessfulCommit()
+    {
+        await using var test=new Area();var path=Path.Combine(test.Directory,"backup.hymcfg");
+        await File.WriteAllTextAsync(path,"original");var bytes=MountBackupCodec.Encode(Document(Dav()),"");
+        using var cancel=new CancellationTokenSource();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>MountBackupCodec.WriteAtomicAsync(path,bytes,cancel.Token,(_,_)=>{cancel.Cancel();cancel.Token.ThrowIfCancellationRequested();}));
+        Assert.Equal("original",await File.ReadAllTextAsync(path));
+        await MountBackupCodec.WriteAtomicAsync(path,bytes,CancellationToken.None);
+        Assert.Equal(Dav(),(await MountBackupCodec.ReadAsync(path,"")).Mounts.Single());
+        Assert.Empty(System.IO.Directory.GetFiles(test.Directory,"*.tmp"));
     }
     [Fact]
     public void RepeatedExportsUseFreshSaltAndNonce()
@@ -85,6 +113,7 @@ public sealed class ConfigurationBackupTests
     public void ShortPasswordAndCanceledEncodingProduceNoBackup()
     {
         Assert.Throws<ArgumentException>(()=>MountBackupCodec.Encode(Document(Dav()),"1234567"));
+        Assert.Throws<ArgumentException>(()=>MountBackupCodec.Encode(Document(Dav()),null!));
         Assert.ThrowsAny<OperationCanceledException>(()=>MountBackupCodec.Encode(Document(Dav()),Password,new CancellationToken(true)));
     }
     [Fact]
@@ -176,13 +205,14 @@ public sealed class ConfigurationBackupTests
         var result=await test.Manager.ImportConfigurationsAsync([new(Dav(),Path.Combine(test.Directory,"missing")),new(Dav(),test.Repository.DataDirectory),new(Dav(),link)]);
         Assert.All(result.Results,item=>Assert.Equal("Failed",item.State));Assert.Equal("keep",await File.ReadAllTextAsync(Path.Combine(outside,"keep.txt")));Assert.Empty(test.Manager.Mounts);
     }
-    [Fact]
-    public async Task ExportAndReimportPreserveSettingsButResetRuntimeIdentityAndDefaultChainSecrets()
+    [Theory]
+    [InlineData(Password)][InlineData("")]
+    public async Task ExportAndReimportPreserveSettingsButResetRuntimeIdentityAndDefaultChainSecrets(string password)
     {
         await using var source=new Area();await using var target=new Area();
         var created=await source.Manager.ImportConfigurationsAsync([new(Dav(),source.Folder("a")),new(S3(defaults:true),source.Folder("b"))]);
-        var file=Path.Combine(source.Directory,"backup.hmconfig");await source.Manager.ExportConfigurationsAsync(created.Results.Select(item=>item.MountId!.Value).ToArray(),Password,file);
-        var document=await target.Manager.ReadConfigurationBackupAsync(file,Password);Assert.Equal(new SourceCredentials(),document.Mounts[1].Credentials);
+        var file=Path.Combine(source.Directory,"backup.hymcfg");await source.Manager.ExportConfigurationsAsync(created.Results.Select(item=>item.MountId!.Value).ToArray(),password,file);
+        var document=await target.Manager.ReadConfigurationBackupAsync(file,password);Assert.Equal(new SourceCredentials(),document.Mounts[1].Credentials);
         var result=await target.Manager.ImportConfigurationsAsync(document.Mounts.Select((item,index)=>new MountImportItem(item,target.Folder("target"+index))).ToArray());
         Assert.All(result.Results,item=>Assert.Equal("Saved",item.State));Assert.Empty(created.Results.Select(item=>item.MountId).Intersect(result.Results.Select(item=>item.MountId)));Assert.Equal(0,source.Factory.Created+target.Factory.Created);
     }

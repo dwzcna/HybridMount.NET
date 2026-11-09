@@ -134,6 +134,6 @@ public static class MountBackupCodec
     private sealed record VersionTwoBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<VersionTwoItem> Mounts);
     private sealed record LegacyBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<LegacyItem> Mounts);
     private static void ValidatePassword(string password)
-    { if (password is null || password.Length < 8) throw new ArgumentException("备份密码至少需要 8 个字符。"); }
+    { if (password is null || password.Length is > 0 and < 8) throw new ArgumentException("备份密码可留空；设置时至少需要 8 个字符。"); }
     private static void Clear(byte[]? bytes) { if (bytes is not null) CryptographicOperations.ZeroMemory(bytes); }
 }

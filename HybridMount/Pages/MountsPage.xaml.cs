@@ -103,7 +103,7 @@ public sealed partial class MountsPage : Page,IDisposable
     /// <summary>文件选择只接受加密配置；解密通过后先预览，保存不会自动连接。</summary>
     private async void ImportConfigurations(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {
-        var picker=new Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hmconfig");
+        var picker=new Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hymcfg");picker.FileTypeFilter.Add(".hmconfig");
         WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
         var file=await picker.PickSingleFileAsync();if(file is null||App.Current.IsExiting)return;
         try

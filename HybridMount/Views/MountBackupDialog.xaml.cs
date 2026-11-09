@@ -129,12 +129,12 @@ public sealed partial class MountBackupDialog : ContentDialog
         {
             if (!_importing)
             {
-                if (PasswordField.Password.Length < 8) throw new ArgumentException("备份密码至少需要 8 个字符。");
+                if (PasswordField.Password.Length is > 0 and < 8) throw new ArgumentException("备份密码可留空；设置时至少需要 8 个字符。");
                 if (!string.Equals(PasswordField.Password, ConfirmPasswordField.Password, StringComparison.Ordinal)) throw new ArgumentException("两次输入的备份密码不一致。");
                 var ids = _rows.Where(row => row.Selected && row.CanSelect).Select(row => row.ExistingId!.Value).ToArray();
                 if (ids.Length == 0) throw new ArgumentException("请选择要导出的挂载。");
                 var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-config-{DateTime.Now:yyyyMMdd-HHmmss}" };
-                picker.FileTypeChoices.Add("HybridMount 加密配置", new List<string> { ".hmconfig" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
+                picker.FileTypeChoices.Add("HybridMount 加密配置", new List<string> { ".hymcfg" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
                 var file = await picker.PickSaveFileAsync();
                 if (_closed || App.Current.IsExiting) return;
                 if (file is null) { ShowStatus("已取消文件选择。", InfoBarSeverity.Informational); return; }
