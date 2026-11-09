@@ -67,10 +67,11 @@ bool RuntimeHost::Send(Json value,bool waitForCapacity)noexcept{
 }
 Json RuntimeHost::Checkpoint(RuntimeCommand& command,const std::string& stage,const Json& data,bool beginIrreversible,bool safety){
     if(!safety)command.CheckCancel();GUID id{};Check(CoCreateGuid(&id));wchar_t raw[40]{};Require(StringFromGUID2(id,raw,40)>0);const auto key=GuidN(Utf8(raw));auto promise=std::make_shared<std::promise<Json>>();auto future=promise->get_future();
-    {std::lock_guard lock(_impl->ChecksGate);Require(!_impl->Closed);_impl->Checks.emplace(key,promise);}
+    {std::lock_guard lock(_impl->ChecksGate);Require(!_impl->Closed,HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE));_impl->Checks.emplace(key,promise);}
     try{
         Require(Send({{"kind","checkpoint"},{"requestId",command.Id},{"checkpointId",key},{"stage",stage},{"beginIrreversible",beginIrreversible},{"safety",safety},{"data",data}},true),HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE));
-        Require(future.wait_for(std::chrono::seconds(30))==std::future_status::ready,HRESULT_FROM_WIN32(ERROR_TIMEOUT));auto result=future.get();Check(result.value("hresult",E_FAIL));if(beginIrreversible)command.Irreversible=true;if(!safety)command.CheckCancel();return result.value("data",Json::object());
+        while(future.wait_for(std::chrono::milliseconds(100))!=std::future_status::ready){Require(!IsStopping(),HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE));Require(!command.Canceled(),HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));}
+        {std::lock_guard lock(_impl->ChecksGate);_impl->Checks.erase(key);}auto result=future.get();Check(result.value("hresult",E_FAIL));if(beginIrreversible)command.Irreversible=true;if(!safety)command.CheckCancel();return result.value("data",Json::object());
     }catch(...){std::lock_guard lock(_impl->ChecksGate);_impl->Checks.erase(key);throw;}
 }
 void RuntimeHost::SendBlock(const std::string& request,const std::string& lease,long long offset,const std::vector<BYTE>& bytes){

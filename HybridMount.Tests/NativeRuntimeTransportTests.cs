@@ -35,6 +35,28 @@ public sealed class NativeRuntimeTransportTests
         }
         finally{File.Delete(path);Directory.Delete(area);}
     }
+    [Fact(Timeout=60000)]
+    public async Task CheckpointCanWaitBeyondThirtySecondsForItsAcknowledgement()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
+        var result=await runtime.InvokeAsync("testCheckpoint",new{},async(stage,_)=>{Assert.Equal("test",stage);await Task.Delay(TimeSpan.FromSeconds(31));return new{acknowledged=true};});
+        Assert.True(result.GetProperty("acknowledged").GetBoolean());Assert.True(runtime.IsAvailable);
+    }
+    [Theory(Timeout=15000)]
+    [InlineData(false)][InlineData(true)]
+    public async Task BlockedCheckpointEndsOnCancellationOrRuntimeFailure(bool terminate)
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var request=runtime.InvokeAsync("testCheckpoint",new{},async(_,_)=>{entered.TrySetResult();await release.Task;return null;},cancel.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if(terminate){using var process=System.Diagnostics.Process.GetProcessById(runtime.ProcessId);process.Kill();await process.WaitForExitAsync();await Assert.ThrowsAnyAsync<IOException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));}
+            else{cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));}
+        }
+        finally{release.TrySetResult();}
+    }
     [Fact(Timeout=30000)]
     public async Task TerminatedOwnedProcessWakesPendingCallsAndDisposalDoesNotUnregisterAnything()
     {
