@@ -52,7 +52,16 @@ struct CloudSession::Impl {
         if(type==CF_CALLBACK_TYPE_NOTIFY_FILE_OPEN_COMPLETION||type==CF_CALLBACK_TYPE_NOTIFY_FILE_CLOSE_COMPLETION){if(self)return;{std::lock_guard lock(Gate);auto& count=Opens[entry];count=type==CF_CALLBACK_TYPE_NOTIFY_FILE_OPEN_COMPLETION?count+1:std::max(0,count-1);}Event(type==CF_CALLBACK_TYPE_NOTIFY_FILE_OPEN_COMPLETION?"open":"close",{{"entryId",entry}});return;}
         if(type==CF_CALLBACK_TYPE_NOTIFY_DELETE){Ack(info,type,0);return;}
         if(type==CF_CALLBACK_TYPE_NOTIFY_RENAME){
-            {std::lock_guard lock(Gate);Require(!Clearing&&!Stopped,E_ACCESSDENIED);}Require((parameters.Rename.Flags&CF_CALLBACK_RENAME_FLAG_TARGET_IN_SCOPE)!=0,E_ACCESSDENIED);auto target=CallbackPath(Root,parameters.Rename.TargetPath);auto root=FullPath(Text(Root,"rootPath"));Require(target.size()>root.size()&&target[root.size()]==L'\\'&&SamePath(target.substr(0,root.size()),root),E_ACCESSDENIED);NoLinks(target.substr(0,target.find_last_of(L'\\')),true);auto marker=RootMarker(target.substr(0,target.find_last_of(L'\\')));Require(GuidN(marker.at("MountId"))==Mount,E_ACCESSDENIED);Ack(info,type,0);return;
+            const char* reason="sessionStopping";
+            try{
+                {std::lock_guard lock(Gate);Require(!Clearing&&!Stopped,E_ACCESSDENIED);}
+                reason="outOfRoot";Require((parameters.Rename.Flags&CF_CALLBACK_RENAME_FLAG_TARGET_IN_SCOPE)!=0,E_ACCESSDENIED);
+                reason="invalidTarget";auto target=CallbackPath(Root,parameters.Rename.TargetPath);auto root=FullPath(Text(Root,"rootPath"));
+                reason="outOfRoot";Require(target.size()>root.size()&&target[root.size()]==L'\\'&&SamePath(target.substr(0,root.size()),root),E_ACCESSDENIED);
+                reason="unsafeTarget";NoLinks(target.substr(0,target.find_last_of(L'\\')),true);auto marker=RootMarker(target.substr(0,target.find_last_of(L'\\')));
+                reason="differentMount";Require(GuidN(marker.at("MountId"))==Mount,E_ACCESSDENIED);
+            }catch(...){try{Host.Send({{"kind","event"},{"mountId",Mount},{"sessionId",Session},{"event","renameRejected"},{"data",{{"entryId",entry},{"sourcePath",Utf8(info.NormalizedPath?info.NormalizedPath:L"")},{"targetPath",Utf8(parameters.Rename.TargetPath?parameters.Rename.TargetPath:L"")},{"reason",reason}}}},false);}catch(...){}throw;}
+            Ack(info,type,0);return;
         }
         if(type==CF_CALLBACK_TYPE_NOTIFY_DELETE_COMPLETION){Event("deleted",{{"entryId",entry}});return;}
         if(type==CF_CALLBACK_TYPE_NOTIFY_RENAME_COMPLETION){Event("renamed",{{"entryId",entry},{"path",Utf8(CallbackPath(Root,info.NormalizedPath))},{"oldPath",Utf8(CallbackPath(Root,parameters.RenameCompletion.SourcePath))}});}

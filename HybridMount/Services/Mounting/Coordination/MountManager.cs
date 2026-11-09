@@ -19,6 +19,8 @@ public sealed partial class MountManager : IAsyncDisposable
         public Task? Inspection;
         public int ConnectionStops;
         public string? ConnectionStopReason;
+        public bool RuntimeFailed;
+        public Task RuntimeFailureCleanup=Task.CompletedTask;
         public bool RemovalRequested;
         public int RemovalRequests;
         public CloudMountSession? Session;
@@ -276,17 +278,23 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         lock(root.ConnectionSync)
         {
-            if(removing){root.RemovalRequests++;root.RemovalRequested=true;}
+            if(removing){root.RemovalRequests++;root.RemovalRequested=true;root.RuntimeFailed=false;}
             if(root.Connecting is {IsCancellationRequested:false} connection){root.ConnectionStopReason=removing?"Removal":reason;root.ConnectionSignal=connection.CancelAsync();}
         }
     }
     private Runtime Root(Guid id)=>_roots.TryGetValue(id,out var root)?root:throw new IOException("挂载不存在。");
     /// <summary>连接任务登记到应用所有者；退出等待手动连接与启动恢复，不让迟到结果创建新会话。</summary>
-    public Task ConnectAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>ConnectOwnedAsync(id,cancel),token);
-    private async Task ConnectOwnedAsync(Guid id,CancellationToken token)
+    public Task ConnectAsync(Guid id,CancellationToken token=default)=>ConnectAsync(id,token,runtimeFailedOnly:false);
+    private Task ConnectAsync(Guid id,CancellationToken token,bool runtimeFailedOnly)=>OwnAsync(cancel=>ConnectOwnedAsync(id,cancel,runtimeFailedOnly),token);
+    private async Task ConnectOwnedAsync(Guid id,CancellationToken token,bool runtimeFailedOnly=false)
     {
         var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false); await root.Gate.WaitAsync(token).ConfigureAwait(false);
-        try { await ConnectCoreAsync(root,token).ConfigureAwait(false); }
+        try
+        {
+            if(runtimeFailedOnly)lock(root.ConnectionSync)
+                if(!root.RuntimeFailed||root.RemovalRequested||root.Definition.RemovalPending||root.Connecting is not null||root.ConnectionStops>0||root.Session is not null)return;
+            await ConnectCoreAsync(root,token).ConfigureAwait(false);
+        }
         finally { root.Gate.Release(); }
     }
     private async Task ConnectCoreAsync(Runtime root,CancellationToken token,int ownStops=0)
@@ -349,6 +357,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 {Status(root,"已连接",recovery.RecoveryWarning);_logger.QueueException(recovery.RecoveryLogArea,"Warning","操作未完成",recoveryError);}
             }
             Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartPinIntents(root);StartRemoteSync(root);
+            lock(root.ConnectionSync){token.ThrowIfCancellationRequested();root.RuntimeFailed=false;}Notify();
         }
         catch(Exception error)
         {
@@ -453,9 +462,9 @@ public sealed partial class MountManager : IAsyncDisposable
         foreach(var entry in entries.Where(entry=>entry.Materialized&&!entry.Deleted&&entry.RemotePresence!=RemotePresence.Deleted&&!seen.Contains(entry.Id))) _repository.SaveEntry(root.Definition.Id,entry with{Deleted=true,Protected=true});
     }
     public Task DisconnectAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>DisconnectOwnedAsync(id,cancel),token);
-    private async Task DisconnectOwnedAsync(Guid id,CancellationToken token)
+    private async Task DisconnectOwnedAsync(Guid id,CancellationToken token,bool runtimeFailure=false)
     {
-        var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync)root.ConnectionStops++;
+        var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync){root.ConnectionStops++;if(!runtimeFailure)root.RuntimeFailed=false;}Notify();
         try
         {
             CancelConnection(root);
@@ -472,15 +481,19 @@ public sealed partial class MountManager : IAsyncDisposable
     /// <summary>原生会话故障先封闭所有生产者，再由应用所有者等待收尾；保留同步根和恢复记录。</summary>
     private void ConnectSession(Runtime root)
     {
-        var session=root.Session??throw new IOException("缺少原生挂载会话。");session.RuntimeFailed+=error=>
+        var session=root.Session??throw new IOException("缺少原生挂载会话。");
+        session.RenameRejected+=message=>{if(!IsStopping&&ReferenceEquals(root.Session,session))NotifyRenameRejected(root.Definition.Id,message);};
+        session.RuntimeFailed+=error=>
         {
             lock(_lifetime)
             {
                 if(IsStopping||!ReferenceEquals(root.Session,session))return;
-                CancelConnection(root,reason:"NativeRuntimeFailure");RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
+                lock(root.ConnectionSync){root.RuntimeFailed=root.ConnectionStops==0&&!root.RemovalRequested&&!root.Definition.RemovalPending;CancelConnection(root,reason:"NativeRuntimeFailure");}
+                RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
                 try
                 {
-                    var cleanup=OwnAsync(async cancel=>{await DisconnectOwnedAsync(root.Definition.Id,cancel).ConfigureAwait(false);Status(root,"原生后台已断开","已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。");},CancellationToken.None);
+                    var cleanup=OwnAsync(async cancel=>{await DisconnectOwnedAsync(root.Definition.Id,cancel,runtimeFailure:true).ConfigureAwait(false);bool failed;lock(root.ConnectionSync)failed=root.RuntimeFailed;if(failed)Status(root,"原生后台已断开","已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。");},CancellationToken.None);
+                    lock(root.ConnectionSync)root.RuntimeFailureCleanup=cleanup;Notify();
                     _ = cleanup.ContinueWith(task=>{if(task.Exception is {} failure)_logger.QueueException("原生后台","Error","故障连接收尾未完成",failure,root.Definition.Id.ToString("N"));},CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted|TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
                 }
                 catch(OperationCanceledException)when(IsStopping){}

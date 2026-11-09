@@ -188,4 +188,13 @@ public sealed class NativeRuntimeTransportTests
         await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();runtime.CheckpointHandlerTimeout=TimeSpan.FromMilliseconds(30);var completed=false;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>runtime.InvokeAsync("testManagedCheckpoint",new{},async(_,_,token)=>{try{await Task.Delay(Timeout.Infinite,token);return null;}finally{completed=true;}}));Assert.True(completed);
     }
+    /// <summary>说明事件的慢消费者和突发提示只允许丢弃提示，不占关键回调队列或关闭共享连接。</summary>
+    [Fact(Timeout=30000)]
+    public async Task DiscardableHintsCannotBlockControlResponses()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var release=new ManualResetEventSlim();var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        runtime.EventReceived+=message=>{if(message.Event=="renameRejected"){entered.TrySetResult();release.Wait(TimeSpan.FromSeconds(10));}};
+        try{var hints=runtime.InvokeAsync("testDiscardableHints",new{mountId=Guid.NewGuid(),sessionId=Guid.NewGuid(),count=4096});await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));await hints.WaitAsync(TimeSpan.FromSeconds(5));Assert.True((await runtime.InvokeAsync("ping",new{}).WaitAsync(TimeSpan.FromSeconds(3))).GetProperty("ready").GetBoolean());Assert.True(runtime.IsAvailable);}
+        finally{release.Set();}
+    }
 }

@@ -61,6 +61,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     public CloudMountSession(MountDefinition mount,IFileSource? source,MountRepository repository,LoggerService logger,bool blockHydration=false,Action<MountEntry>? localContentReady=null,Action? localChanged=null)
     { _localChanged=localChanged;_localContentReady=localContentReady;_mount=mount; _source=source; _repository=repository; _logger=logger; _clearing=blockHydration;if(source is IReadDiagnosticsSource diagnostic)diagnostic.ReadDiagnostic+=OnReadDiagnostic; }
     internal event Action<LocalRenameNotice>? LocalRenameCompleted;
+    internal event Action<string>? RenameRejected;
     private Dictionary<string,object?> SessionArgs(object? extra=null)
     {var args=NativeRuntimeArguments.Root(_mount,extra);args["sessionId"]=_sessionId;return args;}
     internal Dictionary<string,object?> EntryArgs(MountEntry entry,object? extra=null)
@@ -93,6 +94,12 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             catch(Exception error){_logger.QueueException("缩略图","Warning","目录预览提示未处理",error,_mount.Id.ToString("N"));}
             return;
         }
+        if(message.Event=="renameRejected")
+        {
+            if(_clearing||_stop.IsCancellationRequested)return;
+            var warning=RenameRejectionMessage(data.GetProperty("sourcePath").GetString(),data.GetProperty("reason").GetString());
+            _logger.Queue("重命名","Warning",warning);RenameRejected?.Invoke(warning);return;
+        }
         if(message.Event=="fetch")
         {
             var fetch=NativeRuntimeProtocol.Read<NativeFetch>(data);
@@ -124,6 +131,19 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 if(!entry.IsDirectory)LocalRenameCompleted?.Invoke(new(old,relative,entry with{LocalPath=old}));
             }
         });
+    }
+    /// <summary>固定原因映射和有界文件名，不输出父路径或Native任意错误正文。</summary>
+    internal static string RenameRejectionMessage(string? source,string? reason)
+    {
+        var name=Path.GetFileName(source?.TrimEnd('\\','/'));if(string.IsNullOrEmpty(name))name="未知文件";else{name=name.Replace('\r',' ').Replace('\n',' ');if(name.Length>160)name=name[..157]+"…";}
+        return reason switch
+        {
+            "outOfRoot"=>$"不支持将文件移出同步根：{name}，请复制后再删除",
+            "sessionStopping"=>$"挂载正在停止，无法重命名：{name}，请稍后重试",
+            "differentMount"=>$"不支持跨挂载移动文件：{name}，请复制后再删除",
+            "unsafeTarget"=>$"重命名目标目录不可安全访问：{name}，请检查目标目录后重试",
+            _=>$"重命名未完成：{name}，请检查目标位置和挂载状态"
+        };
     }
     private void QueueNativeNotification(Action action)
     {

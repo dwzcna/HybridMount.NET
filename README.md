@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.51 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.52 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 本分支 `codex/native-backend` 基于 .42，未包含 .43；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
@@ -46,7 +46,7 @@ AWS S3 的“SQS 事件加速”使用同区域 Standard Queue。每台机器需
 
 WebDAV 与 S3 连接、远端检测和读取失败时显示安全的阶段、TLS／证书／超时／网络分类及错误码。普通只读请求对明确的瞬态故障最多尝试三次；证书验证失败不重试，需修正后断开再连接。保留的本地预览实现保持有界读取和隔离解码，写入失败仍可能需要核对结果。若调试器设置为“引发时中断”，继续运行后仍可能正常完成取消与退出，首次异常不等于程序崩溃。
 
-关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。真正退出先停止接纳和取消全部在途工作，等待启动恢复及手动连接完成，再断开 CFAPI；重复退出共用一次收尾。同步根注册保留，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
+关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。原生后台故障后，可在挂载页显式批量重新连接；用户已断开的根保持断开，单根失败保留提示供再次尝试。真正退出先停止接纳和取消全部在途工作，等待启动恢复及手动连接完成，再断开 CFAPI；重复退出共用一次收尾。同步根注册保留，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
 
 实验配置位于 `HKCU\Software\HybridMount.NET\NativePreview\<Packaged或Unpackaged>`，挂载定义在该模式子键下的 `Mounts\Packaged` 或 `Mounts\Unpackaged`。运行模式按实际进程包身份判断。索引、任务、日志及凭据使用当前实验数据目录：打包模式为实验包的 LocalState，非打包模式为 `%LOCALAPPDATA%\HybridMount.NET\NativePreview\Unpackaged`；不读取或接管正式安装及另一模式的挂载。
 

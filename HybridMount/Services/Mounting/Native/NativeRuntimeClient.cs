@@ -181,7 +181,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 }
                 else if(kind=="event")
                 {
-                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event=="previewDemand"){_previewEvents.Writer.TryWrite(value);continue;}if(!_events.Writer.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
+                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event is "previewDemand" or "renameRejected"){_previewEvents.Writer.TryWrite(value);continue;}if(!_events.Writer.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
                 }
                 else throw new IOException("原生消息类型无效。");
             }
@@ -201,7 +201,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         try{await foreach(var value in _events.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception error){Fail(error);}}
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
-    /// <summary>可丢弃预览提示独立消费；会话记录诊断，提示失败绝不停止挂载或关键事件。</summary>
+    /// <summary>可丢弃预览及Shell说明独立消费；会话记录诊断，提示失败绝不停止挂载或关键事件。</summary>
     private async Task PreviewLoopAsync()
     {
         try{await foreach(var value in _previewEvents.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception){/* 会话拥有预览业务诊断；其他根仍继续。 */}}

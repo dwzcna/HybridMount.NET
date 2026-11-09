@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using HybridMount.Services.Mounting;
 namespace HybridMount.ViewModels;
 
@@ -16,7 +17,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     private readonly Dictionary<Guid,bool> _thumbnailDrafts=[];
     private readonly Dictionary<Guid,CapacityDraft> _capacityDrafts=[];
     private int _pending;
-    private bool _disposed,_dialogBusy;
+    private bool _disposed,_dialogBusy,_runtimeReconnecting;
     private Guid? _selected;
     private string _status="";
     public sealed record CapacityDraft(bool Automatic,string Text,string Unit);
@@ -25,7 +26,10 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public Guid? SelectedMountId {get=>_selected;set{if(!_disposed&&SetProperty(ref _selected,value)){OnPropertyChanged(nameof(Selected));NotifyStateChanged();}}}
     public MountSnapshot? Selected=>Mounts.FirstOrDefault(x=>x.Definition.Id==_selected);
     public MountSnapshot RequireSelected()=>Selected??throw new InvalidOperationException("请先选择一个挂载。");
-    public bool DialogBusy=>_dialogBusy;
+    public bool DialogBusy=>_dialogBusy||_runtimeReconnecting;
+    public bool HasRuntimeFailedMounts=>_manager.HasRuntimeFailedMounts;
+    public bool CanReconnectRuntimeFailed=>!IsStopping&&!DialogBusy&&_busyMounts.Count==0&&_cancelingConnections.Count==0&&HasRuntimeFailedMounts;
+    public IAsyncRelayCommand ReconnectRuntimeFailedCommand {get;}
     public bool IsStopping=>_disposed||_manager.IsStopping;
     public bool IsBusy(Guid id)=>_busyMounts.Contains(id);
     public bool IsCanceling(Guid id)=>_cancelingConnections.Contains(id);
@@ -56,7 +60,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public ObservableCollection<MountSnapshot> Mounts {get;}=[];
     public ObservableCollection<MountListItem> Items {get;}=[];
     public MountsViewModel(MountManager manager,IUiDispatcher dispatcher,LoggerService? logger=null,ShellThumbnailCapability? thumbnailCapability=null)
-    {ThumbnailCapability=thumbnailCapability??CloudShellState.ThumbnailCapability();_manager=manager;_dispatcher=dispatcher;_logger=logger;_manager.Changed+=Changed;Refresh();}
+    {ThumbnailCapability=thumbnailCapability??CloudShellState.ThumbnailCapability();_manager=manager;_dispatcher=dispatcher;_logger=logger;ReconnectRuntimeFailedCommand=new AsyncRelayCommand(ReconnectRuntimeFailedAsync,()=>CanReconnectRuntimeFailed);_manager.Changed+=Changed;Refresh();}
     private void Changed()
     {
         if(_disposed||Interlocked.Exchange(ref _pending,1)!=0)return;
@@ -66,7 +70,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     private void Refresh()
     {
         if(_disposed)return;
-        try{var snapshots=_manager.Mounts;Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));Refreshed?.Invoke();}
+        try{var snapshots=_manager.Mounts;Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
         catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
@@ -77,8 +81,18 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     }
     private void NotifyStateChanged()
     {
+        if(!_disposed)NotifyReconnectState();
         foreach(var row in Items)row.Update(row.Snapshot,row.Id==_selected,IsBusy(row.Id),IsStopping,DialogBusy,IsCanceling(row.Id),CanConfigureThumbnails);
         if(!_disposed)StateChanged?.Invoke();
+    }
+    private void NotifyReconnectState(){OnPropertyChanged(nameof(CanReconnectRuntimeFailed));ReconnectRuntimeFailedCommand.NotifyCanExecuteChanged();}
+    public async Task ReconnectRuntimeFailedAsync()
+    {
+        if(!CanReconnectRuntimeFailed)return;_runtimeReconnecting=true;NotifyStateChanged();
+        try{await _manager.ReconnectRuntimeFailedAsync();}
+        catch(OperationCanceledException)when(_manager.IsStopping) { }
+        catch(Exception error){Report(error);}
+        finally{_runtimeReconnecting=false;if(!_disposed){Refresh();NotifyStateChanged();}}
     }
     public MountSnapshot? FindMount(Guid id)=>Mounts.FirstOrDefault(x=>x.Definition.Id==id);
     public Task RunForMountAsync(Guid id,Func<MountSnapshot,Task> work)=>FindMount(id) is {} mount?RunMountAsync(id,()=>work(mount)):Task.CompletedTask;
@@ -119,7 +133,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     /// <summary>只串行化本挂载；捕获的 ID 不随页面选择切换，迟到结果不能回写其他挂载。</summary>
     public async Task RunMountAsync(Guid id,Func<Task> work)
     {
-        if(IsStopping||!_busyMounts.Add(id))return;NotifyStateChanged();
+        if(IsStopping||_runtimeReconnecting||!_busyMounts.Add(id))return;NotifyStateChanged();
         try{await work();}
         catch(OperationCanceledException)when(_manager.IsStopping) { }
         catch(MountManager.ConnectionStoppedException){Status="连接已停止。";}
@@ -130,7 +144,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     /// <summary>所有对话框和选择器共享页面忙碌状态，实际控件由 Page 展示。</summary>
     public async Task RunDialogAsync(Func<Task> work)
     {
-        if(IsStopping||_dialogBusy)return;_dialogBusy=true;NotifyStateChanged();
+        if(IsStopping||DialogBusy)return;_dialogBusy=true;NotifyStateChanged();
         try{await work();}
         catch(OperationCanceledException)when(_manager.IsStopping) { }
         catch(MountManager.ConnectionStoppedException){Status="连接已停止。";}

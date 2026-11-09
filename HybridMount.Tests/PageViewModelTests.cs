@@ -31,11 +31,11 @@ public sealed class PageViewModelTests
         public Definitions Store {get;}=new();public MountRepository Repository {get;}
         public MountManager Manager {get;}public LoggerService Logger {get;}public Dispatcher Ui {get;}=new();
         public MountDefinition A=>Store.Items[0];public MountDefinition B=>Store.Items[1];
-        public Area()
+        public Area(IFileSourceFactory? factory=null)
         {
             Directory.CreateDirectory(_area);Repository=new(Path.Combine(_area,"data"),definitions:Store);Logger=new(Path.Combine(_area,"log.db"));
             foreach(var name in new[]{"A","B"}){var local=Path.Combine(_area,name);Directory.CreateDirectory(local);Store.Items.Add(new(Guid.NewGuid(),name,local,false,RootIdentity:MountPathGuard.FileIdentity(local),Source:new(FileSourceKind.WebDav,"https://example.test/dav/"),RegistrationStage:MountRegistrationStage.NotRegistered));}
-            Manager=new(Repository,Logger){LegacyPreviewsForTests=true};
+            Manager=new(Repository,Logger,factory){LegacyPreviewsForTests=true};
         }
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }
@@ -54,6 +54,59 @@ public sealed class PageViewModelTests
         await manager.StartAsync();area.Ui.Drain();
         foreach(var row in vm.Items){Assert.NotEqual("检查中",row.Snapshot.Status);Assert.False(row.Snapshot.IsConnected);if(failSave){Assert.Equal("需要恢复",row.Snapshot.Status);Assert.NotEmpty(row.Snapshot.Detail);}}
         if(count>0)Assert.Equal(0,area.Ui.Pending);
+    }
+    private static object Runtime(MountManager manager,Guid id)=>typeof(MountManager).GetMethod("Root",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(manager,[id])!;
+    private static void RuntimeField(MountManager manager,Guid id,string field,object value)
+    {var root=Runtime(manager,id);root.GetType().GetField(field)!.SetValue(root,value);}
+    private sealed class ReconnectFactory : IFileSourceFactory
+    {
+        public readonly ConcurrentQueue<Guid> Calls=new();
+        public readonly TaskCompletionSource Started=new(TaskCreationOptions.RunContinuationsAsynchronously),Release=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)
+        {Calls.Enqueue(mount.Id);if(Calls.Count==1){Started.TrySetResult();await Release.Task.WaitAsync(token);}throw new IOException("reconnect failed");}
+    }
+    [Fact]
+    public async Task Runtime_reconnect_is_empty_without_failures_and_user_disconnect_clears_the_banner()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);
+        Assert.False(vm.HasRuntimeFailedMounts);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));await area.Manager.ReconnectRuntimeFailedAsync();
+        RuntimeField(area.Manager,area.A.Id,"RuntimeFailed",true);await area.Manager.ClearCompletedOperationsAsync();area.Ui.Drain();
+        Assert.True(vm.HasRuntimeFailedMounts);Assert.True(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
+        await area.Manager.DisconnectAsync(area.A.Id);area.Ui.Drain();Assert.False(vm.HasRuntimeFailedMounts);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
+    }
+    [Fact(Timeout=30000)]
+    public async Task Runtime_reconnect_includes_manual_mounts_runs_sequentially_and_continues_after_failure()
+    {
+        var factory=new ReconnectFactory();await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.Ui);
+        foreach(var mount in new[]{area.A,area.B}){Assert.False(mount.AutoConnect);RuntimeField(area.Manager,mount.Id,"RuntimeFailed",true);}
+        var work=vm.ReconnectRuntimeFailedAsync();
+        try
+        {
+            await factory.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));Assert.Single(factory.Calls);Assert.True(vm.DialogBusy);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
+            await vm.ReconnectRuntimeFailedAsync();Assert.Single(factory.Calls);
+        }
+        finally{factory.Release.TrySetResult();await work;}
+        Assert.Equal(new[]{area.A.Id,area.B.Id}.Order(),factory.Calls.Order());Assert.All(area.Manager.Mounts,mount=>Assert.Equal("异常",mount.Status));Assert.True(vm.HasRuntimeFailedMounts);Assert.False(vm.DialogBusy);
+    }
+    [Theory]
+    [InlineData("RemovalRequested")][InlineData("RemovalPending")][InlineData("Connecting")]
+    public async Task Runtime_reconnect_skips_removing_and_connecting_roots(string state)
+    {
+        var factory=new ReconnectFactory();using var connecting=new CancellationTokenSource();await using var area=new Area(factory);
+        RuntimeField(area.Manager,area.A.Id,"RuntimeFailed",true);
+        if(state=="RemovalPending")RuntimeField(area.Manager,area.A.Id,"Definition",area.A with{RemovalPending=true});
+        else RuntimeField(area.Manager,area.A.Id,state,state=="Connecting"?(object)connecting:true);
+        await area.Manager.ReconnectRuntimeFailedAsync();Assert.Empty(factory.Calls);
+    }
+    [Fact]
+    public async Task User_disconnect_while_failure_cleanup_is_pending_prevents_batch_reconnection()
+    {
+        var factory=new ReconnectFactory();await using var area=new Area(factory);var cleanup=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        RuntimeField(area.Manager,area.A.Id,"RuntimeFailed",true);RuntimeField(area.Manager,area.A.Id,"RuntimeFailureCleanup",cleanup.Task);
+        var work=area.Manager.ReconnectRuntimeFailedAsync();Assert.False(work.IsCompleted);
+        try{await area.Manager.DisconnectAsync(area.A.Id);}
+        finally{cleanup.TrySetResult();await work;}
+        Assert.Empty(factory.Calls);Assert.False(area.Manager.HasRuntimeFailedMounts);
     }
     [Fact]
     public async Task ExclusionDraftsPreserveCustomRowsAcrossRefreshAndFailedSave()
