@@ -9,7 +9,7 @@ thread_local const char* ThumbnailReadStage="start";
 thread_local Json ThumbnailEvidence=Json::object();
 namespace {
 struct sqlite3;struct sqlite3_stmt;
-void SqliteCheck(int code){if(code!=0)throw Failure(HRESULT_FROM_WIN32(code==5||code==6?ERROR_BUSY:code==11||code==26?ERROR_FILE_CORRUPT:ERROR_INVALID_DATA));}
+void SqliteCheck(int code,ULONGLONG deadline=0){if(code==9&&deadline&&GetTickCount64()>=deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}if(code!=0)throw Failure(HRESULT_FROM_WIN32(code==5||code==6?ERROR_BUSY:code==11||code==26?ERROR_FILE_CORRUPT:ERROR_INVALID_DATA));}
 void ReportThumbnailFailure(HRESULT code)noexcept{if(code==HRESULT_FROM_WIN32(ERROR_NOT_FOUND)||code==HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)||code==E_NOTIMPL||code==E_ACCESSDENIED)return;static std::atomic<ULONGLONG> last{};auto now=GetTickCount64(),previous=last.load();if(now-previous<60000||!last.compare_exchange_strong(previous,now))return;std::string type="Thumbnail.";auto stage=std::string(ThumbnailReadStage);if(stage.size()>64||stage.find_first_not_of("abcdefghijklmnopqrstuvwxyz-")!=std::string::npos)stage="read";type+=stage;RecordNativeFailure("ShellServer",code,type.c_str());}
 /// <summary>只解析应用目录的现有SQLite C ABI；不搜索PATH，不创建第二写入者。</summary>
 struct Sqlite {
@@ -33,17 +33,17 @@ struct Database {
         NoLinks(path,false);auto encoded=Utf8(path);const auto result=Api.Open(encoded.c_str(),&Value,1|0x10000,nullptr);
         if(result!=0){if(Value)Api.Close(Value);Value=nullptr;SqliteCheck(result);}
         Api.Progress(Value,1000,[](void* state){return GetTickCount64()>=static_cast<Database*>(state)->Deadline?1:0;},this);
-        auto setup=Api.Exec(Value,"PRAGMA query_only=ON;PRAGMA trusted_schema=OFF;PRAGMA busy_timeout=0;BEGIN",nullptr,nullptr,nullptr);if(setup!=0){Api.Close(Value);Value=nullptr;SqliteCheck(setup);}
+        auto setup=Api.Exec(Value,"PRAGMA query_only=ON;PRAGMA trusted_schema=OFF;PRAGMA busy_timeout=0;BEGIN",nullptr,nullptr,nullptr);if(setup!=0){Api.Close(Value);Value=nullptr;SqliteCheck(setup,Deadline);}
     }
     ~Database(){if(Value){Api.Exec(Value,"ROLLBACK",nullptr,nullptr,nullptr);Api.Close(Value);}}
 };
 struct Statement {
-    Sqlite& Api;sqlite3_stmt* Value{};
-    Statement(Database& db,const char* sql):Api(db.Api){SqliteCheck(Api.Prepare(db.Value,sql,-1,&Value,nullptr));}
+    Sqlite& Api;sqlite3_stmt* Value{};ULONGLONG Deadline;
+    Statement(Database& db,const char* sql):Api(db.Api),Deadline(db.Deadline){SqliteCheck(Api.Prepare(db.Value,sql,-1,&Value,nullptr),Deadline);}
     ~Statement(){Api.Finalize(Value);}
     void Bind(int index,const std::string& text){Require(Api.BindText(Value,index,text.data(),static_cast<int>(text.size()),reinterpret_cast<void(__cdecl*)(void*)>(static_cast<intptr_t>(-1)))==0,E_FAIL);}
     void Bind(int index,int value){Require(Api.BindInt(Value,index,value)==0,E_FAIL);}
-    bool Row(){auto code=Api.Step(Value);if(code!=100&&code!=101)SqliteCheck(code);return code==100;}
+    bool Row(){auto code=Api.Step(Value);if(code!=100&&code!=101)SqliteCheck(code,Deadline);return code==100;}
     std::string Text(int column){auto count=Api.Bytes(Value,column);Require(count>=0&&count<=65536);auto bytes=Api.Text(Value,column);Require(bytes!=nullptr);return std::string(reinterpret_cast<const char*>(bytes),count);}
 };
 bool Valid(const Json& binding,const std::wstring& path){
@@ -73,7 +73,7 @@ std::vector<BYTE> ReadCachedThumbnail(const std::wstring& path,UINT size){
     ThumbnailReadStage="image";Statement image(db,"SELECT png FROM images WHERE content=?1 AND size IN (32,64,128,256) AND length(png) BETWEEN 33 AND 393216 ORDER BY (size<?2),CASE WHEN size>=?2 THEN size ELSE -size END LIMIT 1");image.Bind(1,key);image.Bind(2,static_cast<int>(size));if(!image.Row())return {};
     const auto count=image.Api.Bytes(image.Value,0);const auto bytes=static_cast<const BYTE*>(image.Api.Blob(image.Value,0));Require(bytes&&count>=33&&count<=393216);const BYTE signature[]{137,80,78,71,13,10,26,10};Require(memcmp(bytes,signature,8)==0&&memcmp(bytes+12,"IHDR",4)==0);
     auto dimension=[](const BYTE* value){return (DWORD(value[0])<<24)|(DWORD(value[1])<<16)|(DWORD(value[2])<<8)|value[3];};auto width=dimension(bytes+16),height=dimension(bytes+20);Require(width>0&&height>0&&width<=256&&height<=256);
-    ThumbnailReadStage="final-state";Require(GetTickCount64()<db.Deadline&&Valid(binding,canonical));return {bytes,bytes+count};
+    if(GetTickCount64()>=db.Deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}ThumbnailReadStage="final-state";Require(Valid(binding,canonical));return {bytes,bytes+count};
 }
 HRESULT WINAPI ReadThumbnail(void*,const wchar_t* path,UINT size,BYTE** png,DWORD* length)noexcept{
     if(!png||!length)return E_POINTER;*png=nullptr;*length=0;if(!path)return E_INVALIDARG;

@@ -93,4 +93,21 @@ public sealed class NativeBackendThumbnailTests
     {
         using var process=Process.Start(Start("--diagnose-thumbnail",path,"64"))!;var output=process.StandardOutput.ReadToEndAsync();var error=process.StandardError.ReadToEndAsync();await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));Assert.Equal(0,process.ExitCode);Assert.Empty(await error);using var result=JsonDocument.Parse(await output);return result.RootElement.Clone();
     }
+    /// <summary>隔离缓存中的昂贵只读查询触发真实SQLite进度期限，区分超时与损坏；不放宽100ms预算或读取源。</summary>
+    [Fact(Timeout=60000)]
+    public async Task SqliteProgressDeadlineReturnsTimeoutWithoutSourceRead()
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var path=Path.Combine(test.Local,"文件.bin");var store=new ThumbnailCacheStore(ThumbnailCachePaths.ForMount(test.Id));var root=store.Configure(ThumbnailCacheReader.RootFor(test.Manager.Mounts.Single().Definition with{ThumbnailsEnabled=true}),true);
+        string? schema=null;
+        try
+        {
+            using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=store.Database,Pooling=false}.ToString())){await db.OpenAsync();using var command=db.CreateCommand();command.CommandText="SELECT sql FROM sqlite_master WHERE type='table' AND name='roots'";schema=(string)command.ExecuteScalar()!;command.CommandText="PRAGMA foreign_keys=OFF;DROP TABLE roots;CREATE VIEW roots AS WITH RECURSIVE n(x) AS (VALUES(0) UNION ALL SELECT x+1 FROM n WHERE x<1000000000) SELECT 'none' AS mount,'{}' AS json FROM n";await command.ExecuteNonQueryAsync();}
+            var requests=test.Dav.Server.Requests.Count;var watch=Stopwatch.StartNew();var result=await Read(path);Assert.False(result.GetProperty("hit").GetBoolean());Assert.Equal(unchecked((int)0x800705b4),result.GetProperty("code").GetInt32());Assert.Equal("sqlite-timeout",result.GetProperty("stage").GetString());Assert.True(watch.Elapsed<TimeSpan.FromSeconds(3));Assert.Equal(requests,test.Dav.Server.Requests.Count);
+        }
+        finally
+        {
+            if(schema is not null)using(var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=store.Database,Pooling=false}.ToString())){await db.OpenAsync();using var command=db.CreateCommand();command.CommandText="DROP VIEW IF EXISTS roots;"+schema+";INSERT INTO roots(mount,json) VALUES($mount,$json)";command.Parameters.AddWithValue("$mount",test.Id.ToString("N"));command.Parameters.AddWithValue("$json",JsonSerializer.Serialize(root));await command.ExecuteNonQueryAsync();}
+            store.DeleteDatabase(root);
+        }
+    }
 }

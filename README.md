@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.49 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.50 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 本分支 `codex/native-backend` 基于 .42，未包含 .43；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 

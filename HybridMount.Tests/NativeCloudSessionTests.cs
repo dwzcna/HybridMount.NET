@@ -34,6 +34,7 @@ public sealed class NativeCloudSessionTests
             Assert.Equal(bytes,await File.ReadAllBytesAsync(path).WaitAsync(TimeSpan.FromSeconds(20)));await Task.WhenAll(jobs.ToArray());Assert.True(fetchCount>0);Assert.True(CloudFilesNative.HasFullContent(path,bytes.Length));Assert.Equal(before.Identity,LocalFileState.Read(path).Identity);
             var stale=NativeRuntimeArguments.Entry(mount,entry,new{sessionId=Guid.NewGuid().ToString("N"),propertyId=2,text="must-not-write",icon=""});await Assert.ThrowsAnyAsync<Exception>(()=>runtime.InvokeAsync("setProperty",stale));Assert.Empty(CloudCustomStateReader.Read(path).Ids);
             var lease=Guid.NewGuid();var stamp=LocalFileState.Read(path);await runtime.InvokeAsync("openLocalRead",NativeRuntimeArguments.Entry(mount,entry,new{leaseId=lease,expectedStamp=stamp.Key}));
+            await runtime.InvokeAsync("confirmLocalRead",new{mountId=id,leaseId=lease});
             var block=await runtime.ReadLocalRangeAsync(id,lease,17,NativeRuntimeProtocol.BlockBytes,CancellationToken.None);Assert.Equal(bytes.AsSpan(17,block.Length).ToArray(),block);Assert.Equal(stamp,LocalFileState.Read(path));
             var wrong=await Assert.ThrowsAnyAsync<Exception>(()=>runtime.ReadLocalRangeAsync(Guid.NewGuid(),lease,0,1,CancellationToken.None));Assert.NotNull(wrong);Assert.True(runtime.IsAvailable);
             await runtime.InvokeAsync("closeLocalRead",new{mountId=id,leaseId=lease});
