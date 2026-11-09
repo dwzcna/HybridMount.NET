@@ -64,8 +64,8 @@ public sealed class NativeRuntimeTransportTests
     public void MissingNativeExecutableHasAnActionableMessage()
     {
         NativeRuntimeClient.VerifyExecutable(typeof(NativeRuntimeClient).Assembly.Location);
-        var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyExecutable(Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString("N"),"HybridMount.Native.exe")));
-        Assert.Equal("未找到 HybridMount.Native.exe，请重新生成或安装",error.Message);
+        var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyExecutable(Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString("N"),"HybridMount.Stock.exe")));
+        Assert.Equal("未找到 HybridMount.Stock.exe，请重新生成或安装",error.Message);
     }
     [Fact]
     public void HelloBuildDiagnosticsDoNotBypassAuthentication()

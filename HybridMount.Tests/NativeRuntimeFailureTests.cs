@@ -34,7 +34,7 @@ public sealed class NativeRuntimeFailureTests
     private sealed class BatchFactory:IFileSourceFactory
     {
         internal Guid? Fail;
-        public Task<HybridMount.Common.IFileSource> CreateAsync(HybridMount.Models.Mounting.MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)=>mount.Id==Fail?Task.FromException<HybridMount.Common.IFileSource>(new IOException("isolated reconnect failure")):new FileSourceFactory().CreateAsync(mount,repository,recovery,token);
+        public Task<HybridMount.Commons.IFileSource> CreateAsync(HybridMount.Models.Mounting.MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)=>mount.Id==Fail?Task.FromException<HybridMount.Commons.IFileSource>(new IOException("isolated reconnect failure")):new FileSourceFactory().CreateAsync(mount,repository,recovery,token);
     }
     /// <summary>真实NTFS移出／跨根拒绝，说明与原权限结果同时存在，原路径和内容状态保持。</summary>
     [Theory(Timeout=90000)]

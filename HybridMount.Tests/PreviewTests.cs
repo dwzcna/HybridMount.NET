@@ -22,7 +22,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
         var directory=new DirectoryInfo(AppContext.BaseDirectory);
         while(directory is not null&&!File.Exists(Path.Combine(directory.FullName,"Directory.Build.props")))directory=directory.Parent;
         Assert.NotNull(directory);
-        var candidate=Path.Combine(directory.FullName,"HybridMount","bin","x64","Debug","Unpackaged","net10.0-windows10.0.26100.0","win-x64","HybridMount.NET.exe");
+        var candidate=Path.Combine(directory.FullName,"HybridMount.NET","bin","x64","Debug","Unpackaged","net10.0-windows10.0.26100.0","win-x64","HybridMount.NET.exe");
         if(!File.Exists(candidate))candidate=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe");
         var original=File.ReadAllBytes(candidate);var bytes=new byte[Math.Max(16*1024*1024,original.Length)];original.CopyTo(bytes,0);return bytes;
     }

@@ -126,7 +126,7 @@ public static partial class LiveWebDavRunner
         {
             var root=new DirectoryInfo(Path.GetDirectoryName(typeof(LiveWebDavRunner).Assembly.Location)!);
             while(root is not null&&!File.Exists(Path.Combine(root.FullName,"Directory.Build.props")))root=root.Parent;
-            var path=root is null?"":Path.Combine(root.FullName,"HybridMount","bin","x64","Debug","Unpackaged","net10.0-windows10.0.26100.0","win-x64","HybridMount.NET.exe");
+            var path=root is null?"":Path.Combine(root.FullName,"HybridMount.NET","bin","x64","Debug","Unpackaged","net10.0-windows10.0.26100.0","win-x64","HybridMount.NET.exe");
             if(!File.Exists(path))path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"cmd.exe");
             var original=File.ReadAllBytes(path);var result=new byte[Math.Max(16*1024*1024,original.Length)];original.CopyTo(result,0);return result;
         }

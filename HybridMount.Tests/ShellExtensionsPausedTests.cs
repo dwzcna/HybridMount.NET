@@ -1,6 +1,6 @@
 using HybridMount.Services.Mounting;
 using HybridMount.ViewModels;
-using Windows.Storage.Provider;
+using global::Windows.Storage.Provider;
 
 namespace HybridMount.Tests;
 

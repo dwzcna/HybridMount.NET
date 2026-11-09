@@ -36,7 +36,7 @@ public sealed class BrowseThumbnailTests
     [Fact(Timeout=20000)]
     public async Task ObserverIsIndependentNativeProcessAndProducesBoundedMetadataFrames()
     {
-        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};start.ArgumentList.Add("--preview-observer");using var process=Process.Start(start)!;
+        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};start.ArgumentList.Add("--preview-observer");using var process=Process.Start(start)!;
         try{var frame=await IpcProtocol.ReadAsync<System.Text.Json.JsonElement>(process.StandardOutput.BaseStream,default).WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("previewViews",frame.GetProperty("kind").GetString());Assert.InRange(frame.GetProperty("views").GetArrayLength(),0,16);process.Refresh();Assert.DoesNotContain(process.Modules.Cast<ProcessModule>(),x=>x.ModuleName.Equals("coreclr.dll",StringComparison.OrdinalIgnoreCase));}
         finally{if(!process.HasExited){process.Kill();await process.WaitForExitAsync();}}
     }

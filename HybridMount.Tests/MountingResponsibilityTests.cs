@@ -10,23 +10,22 @@ public sealed class MountingResponsibilityTests
     private static string RepositoryRoot()
     {
         for(var directory=new DirectoryInfo(AppContext.BaseDirectory);directory is not null;directory=directory.Parent)
-            if(File.Exists(Path.Combine(directory.FullName,"Directory.Build.props"))&&Directory.Exists(Path.Combine(directory.FullName,"HybridMount","Services","Mounting")))return directory.FullName;
+            if(File.Exists(Path.Combine(directory.FullName,"Directory.Build.props"))&&Directory.Exists(Path.Combine(directory.FullName,"HybridMount.NET","Services","Mounting")))return directory.FullName;
         throw new IOException("结构检查需要源码仓库。");
     }
     [Fact]
     public void Shared_models_have_no_service_or_native_dependency_and_service_roots_are_classified()
     {
-        var root=RepositoryRoot();var model=Path.Combine(root,"HybridMount","Models","Mounting");
+        var root=RepositoryRoot();var model=Path.Combine(root,"HybridMount.NET","Models","Mounting");
         foreach(var file in Directory.EnumerateFiles(model,"*.cs",SearchOption.TopDirectoryOnly))
         {
             var text=File.ReadAllText(file);Assert.DoesNotContain("HybridMount.Services.",text);Assert.DoesNotContain("DllImport(",text);Assert.DoesNotContain("LibraryImport(",text);
         }
-        var services=Path.Combine(root,"HybridMount","Services","Mounting");
+        var services=Path.Combine(root,"HybridMount.NET","Services","Mounting");
         foreach(var file in Directory.EnumerateFiles(services,"*.cs",SearchOption.TopDirectoryOnly))
         {
             var name=Path.GetFileName(file);
-            Assert.True(name.StartsWith("WebDav",StringComparison.Ordinal)||name.StartsWith("S3",StringComparison.Ordinal)||name.StartsWith("Sqs",StringComparison.Ordinal)||
-                name is "PreviewRangeReads.cs" or "MountManager.Sqs.cs" or "MountRepository.S3Events.cs" or "MountRepository.Temporary.cs",name+" 尚未归入实际职责。");
+            Assert.True(name.StartsWith("MountManager.",StringComparison.Ordinal),name+" 尚未归入实际职责。");
         }
     }
     [Theory]
@@ -60,8 +59,8 @@ public sealed class MountingResponsibilityTests
         public void SaveDefinition(MountDefinition definition){if(SaveFailure)throw new IOException("test save failure");_definition=definition;Writes++;}
         public void DeleteDefinition(Guid id){if(_definition?.Id==id)_definition=null;}
     }
-    private interface ILocalDefinitionTestStore : HybridMount.Common.IMountDefinitionStore { }
-    private sealed class RecordingCommitter : HybridMount.Common.ILocalUploadCommitter
+    private interface ILocalDefinitionTestStore : HybridMount.Commons.IMountDefinitionStore { }
+    private sealed class RecordingCommitter : HybridMount.Commons.ILocalUploadCommitter
     {
         public int Calls;
         public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)

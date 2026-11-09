@@ -7,16 +7,16 @@
   </Configurations>
   <Project Path="HybridMount.Ext/HybridMount.Ext.vcxproj" Type="bc8a1ffa-bee3-4634-8014-f334798102b3" Id="e353aae2-9ec4-45f5-bbd2-0e53be1ef224">
   </Project>
-  <Project Path="HybridMount.Native/HybridMount.Native.vcxproj" Type="bc8a1ffa-bee3-4634-8014-f334798102b3" Id="d8c39774-84cb-42da-b739-5c9ec8eab0ab" />
+  <Project Path="HybridMount.Stock/HybridMount.Stock.vcxproj" Type="bc8a1ffa-bee3-4634-8014-f334798102b3" Id="d8c39774-84cb-42da-b739-5c9ec8eab0ab" />
   <Project Path="HybridMount.Tests/HybridMount.Tests.csproj">
     <BuildDependency Project="HybridMount.Ext/HybridMount.Ext.vcxproj" />
-    <BuildDependency Project="HybridMount.Native/HybridMount.Native.vcxproj" />
+    <BuildDependency Project="HybridMount.Stock/HybridMount.Stock.vcxproj" />
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
   </Project>
-  <Project Path="HybridMount/HybridMount.csproj">
+  <Project Path="HybridMount.NET/HybridMount.NET.csproj">
     <BuildDependency Project="HybridMount.Ext/HybridMount.Ext.vcxproj" />
-    <BuildDependency Project="HybridMount.Native/HybridMount.Native.vcxproj" />
+    <BuildDependency Project="HybridMount.Stock/HybridMount.Stock.vcxproj" />
     <!-- 主工程的 Debug / Release 均参与打包生成和部署。 -->
     <Deploy Solution="Debug|*" Project="true" />
     <Deploy Solution="Release|*" Project="true" />

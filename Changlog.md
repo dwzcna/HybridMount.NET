@@ -1,5 +1,12 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.55 — 工程改名与职责目录整理（2026-11-10）
+
+- 主目录和项目为HybridMount.NET／HybridMount.NET.csproj，原生为HybridMount.Stock／HybridMount.Stock.vcxproj，输出HybridMount.Stock.exe；更新解决方案、构建／打包、进程路径和COM激活声明，保留四工程、Debug／Release、x64／ARM64及主输出HybridMount.NET.exe。
+- 业务按协议、持久化、会话及事务归入Models，应用服务保留Services，接口归入Commons；普通控件／对话框归入Controls，路径与流等工具归入Helpers，partial集中同目录。子命名空间与目录一致，C#根命名空间HybridMount不变。
+- 主窗口通过独立MainWindowViewModel管理导航与通知状态，备份行使用纯ViewModel，共享主题样式迁入Resources。配置、备份、SQLite、包身份、CLSID、同步根、管道和数据目录保持兼容，已有挂载不迁移。实际验证及人工未执行项单列记录。
+- 最终x64 Debug／Release广泛各1495/1495，改名与页面相关各70/70；双配置非打包、x64／ARM64 Release签名包、ARM64 Debug非打包及测试交叉编译通过，13项嵌入PRI资源和Compile260／Page12／App1登记正确。独立临时MSIX自动位图、原生菜单／状态列、实际AUMID、视口切换及包外卸载注销验证通过；清理764项精确测试注册、90个测试缓存库，非目标保持。原夹具失败和人工待测详见docs/Validation-0.0.9.55.md；本版独立本地提交，不推送，不改动master。
+
 ## 0.0.9.54 — 三线任务调度及任务页入口（2026-11-10）
 
 - 应用拥有统一任务服务，执行任务、用户冲突和观察器分线；TasksPage ↔ TasksViewModel ↔ TasksQueueService，不再由任务页直接调用挂载业务。

@@ -31,7 +31,7 @@ if($ShellProfile -ne 'Native'){
 if($ShellProfile -ne 'Native'){
     $serverExtension=Add-Element $extensions 'com' 'Extension' $com @{Category='windows.comServer'}
     $servers=Add-Element $serverExtension 'com' 'ComServer' $com
-    $server=Add-Element $servers 'com' 'ExeServer' $com @{Executable='HybridMount.Native.exe';Arguments='--shell-server';DisplayName='HybridMount Shell'}
+    $server=Add-Element $servers 'com' 'ExeServer' $com @{Executable='HybridMount.Stock.exe';Arguments='--shell-server';DisplayName='HybridMount Shell'}
     [void](Add-Element $server 'com' 'Class' $com @{Id=$menuId;DisplayName='HybridMount 动态菜单'})
     if($ShellProfile -eq 'MenusAndThumbnails'){[void](Add-Element $server 'com' 'Class' $com @{Id=$thumbId;DisplayName='HybridMount 数据库缩略图'})}
 }

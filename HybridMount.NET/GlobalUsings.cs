@@ -1,0 +1,32 @@
+global using HybridMount;
+global using HybridMount.Commons;
+global using HybridMount.Helpers.FileSystem;
+global using HybridMount.Helpers.IO;
+global using HybridMount.Helpers.Threading;
+global using HybridMount.Helpers.Windows;
+global using HybridMount.Models;
+global using HybridMount.Models.Diagnostics;
+global using HybridMount.Models.Mounting;
+global using HybridMount.Models.Mounting.Content;
+global using HybridMount.Models.Mounting.Recovery;
+global using HybridMount.Models.Mounting.S3;
+global using HybridMount.Models.Mounting.Sessions;
+global using HybridMount.Models.Mounting.Sources;
+global using HybridMount.Models.Mounting.Transactions;
+global using HybridMount.Models.Mounting.WebDAV;
+global using HybridMount.Models.Mounting.Windows;
+global using HybridMount.Models.Persistence;
+global using HybridMount.Models.Runtime;
+global using HybridMount.Models.Thumbnails;
+global using HybridMount.Services;
+global using HybridMount.Services.Mounting;
+global using HybridMount.Services.Notifications;
+global using HybridMount.Services.Observers;
+global using HybridMount.Services.Runtime;
+global using HybridMount.Services.Shell;
+global using HybridMount.Services.Thumbnails;
+global using HybridMount.ViewModels;
+#if !HYBRIDMOUNT_HEADLESS_TEST
+global using HybridMount.Helpers.UI;
+global using HybridMount.Controls;
+#endif

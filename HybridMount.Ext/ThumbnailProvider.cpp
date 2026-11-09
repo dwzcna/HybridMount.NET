@@ -1,7 +1,7 @@
 #include "Extension.h"
-#include "../HybridMount.Native/ThumbnailCache.h"
-#include "../HybridMount.Native/LocalThumbnail.h"
-#include "../HybridMount.Native/NativeCommon.h"
+#include "../HybridMount.Stock/ThumbnailCache.h"
+#include "../HybridMount.Stock/LocalThumbnail.h"
+#include "../HybridMount.Stock/NativeCommon.h"
 #include <thumbcache.h>
 #include <shellapi.h>
 #include <wincodec.h>

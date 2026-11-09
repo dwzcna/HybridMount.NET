@@ -1,9 +1,9 @@
 #include <windows.h>
 #include "Version.h"
-101 ICON "../HybridMount/Assets/HybridMount.ico"
+101 ICON "../HybridMount.NET/Assets/HybridMount.ico"
 // 状态图标仅作系统图标资源提取，不注册或激活自有Shell处理器。
-102 ICON "../HybridMount/Assets/SyncExcluded.ico"
-103 ICON "../HybridMount/Assets/SyncIssue.ico"
+102 ICON "../HybridMount.NET/Assets/SyncExcluded.ico"
+103 ICON "../HybridMount.NET/Assets/SyncIssue.ico"
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION HYBRIDMOUNT_VERSION
  PRODUCTVERSION HYBRIDMOUNT_VERSION

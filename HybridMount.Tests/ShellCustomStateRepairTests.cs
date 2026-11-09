@@ -1,6 +1,6 @@
 using HybridMount.Services.Mounting;
-using Windows.Storage;
-using Windows.Storage.Provider;
+using global::Windows.Storage;
+using global::Windows.Storage.Provider;
 namespace HybridMount.Tests;
 
 /// <summary>已捕获的空白状态向量回归；真实NTFS根验证无正文水合、无PUT、无身份或代次变化。</summary>

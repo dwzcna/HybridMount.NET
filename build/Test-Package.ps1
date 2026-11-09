@@ -7,7 +7,7 @@ $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
 try {
     $entries = @{}
     foreach ($entry in $archive.Entries) { $entries[$entry.FullName.Replace('\','/')] = $entry }
-    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Native.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
+    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
         if (-not $entries.ContainsKey($required)) { throw "包缺少 $required" }
     }
     function Read-Bytes([string]$entryName) {
@@ -20,6 +20,20 @@ try {
     $binaryVersion=if(([version]$version).Revision -lt 0) { "$version.0" } else { $version }
     if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NativePreview') { throw 'MSIX 产品身份或版本不一致。' }
     if ($manifest.Package.Identity.ProcessorArchitecture -ne $Platform.ToLowerInvariant()) { throw '包声明架构不正确。' }
+    # WinUI的编译XAML嵌入PRI；按真实资源URI验证迁移后的窗口、页面、控件和共享样式。
+    $resourceWork=Join-Path $PSScriptRoot ("..\artifacts\validation\package-resources-"+$Platform+"-"+$binaryVersion)
+    [IO.Directory]::CreateDirectory($resourceWork)|Out-Null
+    $priFile=Join-Path $resourceWork 'resources.pri';$resourceXml=Join-Path $resourceWork 'resources.xml'
+    [IO.File]::WriteAllBytes($priFile,(Read-Bytes 'resources.pri'))
+    $makepri=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\10.0.26100.0\x64\makepri.exe'
+    & $makepri dump /if $priFile /of $resourceXml /o *> (Join-Path $resourceWork 'dump.log')
+    if($LASTEXITCODE -ne 0){throw '无法核验包内XAML资源索引。'}
+    [xml]$resourceIndex=[IO.File]::ReadAllText($resourceXml)
+    $resourceRoot='ms-resource://'+$manifest.Package.Identity.Name+'/Files/'
+    foreach($name in @('App.xbf','Views/MainWindow.xbf','Pages/HomePage.xbf','Pages/MountsPage.xbf','Pages/TasksPage.xbf','Pages/LogsPage.xbf','Pages/SettingsPage.xbf','Controls/MountCard.xbf','Controls/MountBackupDialog.xbf','Controls/ConflictResolutionContentDialog.xbf','Controls/Mounting/WebDAVConfigurationContentDialog.xbf','Controls/Mounting/S3ConfigurationContentDialog.xbf','Resources/SharedStyles.xbf')){
+        $resource=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @uri='"+$resourceRoot+$name+"']/*[local-name()='Candidate' and @type='EmbeddedData']")
+        if($resource.Count -ne 1){throw "包内编译资源缺失或重复：$name"}
+    }
     # 主入口保持既有虚拟化；隐藏维护入口必须独立使用经隔离验证的win32App／mediumIL组合。
     $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")
     $main=@($apps|Where-Object {$_.Id -eq 'App'})
@@ -33,13 +47,13 @@ try {
         throw '隐藏维护入口运行行为不正确，不能据此进行真实Shell清理。'
     }
     $expectedMachine = if ($Platform -eq 'ARM64') { 0xaa64 } else { 0x8664 }
-    foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','HybridMount.Native.exe','e_sqlite3.dll','coreclr.dll')) {
+    foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','coreclr.dll')) {
         $bytes = Read-Bytes $entryName
         $pe = [BitConverter]::ToInt32($bytes,0x3c)
         if ([BitConverter]::ToUInt16($bytes,$pe+4) -ne $expectedMachine) { throw "$entryName 架构不正确。" }
     }
     # C++后台和扩展不得含CLR头，也不能意外携带隔离测试操作。
-    foreach($entryName in @('HybridMount.Native.exe','HybridMount.Ext.dll')){
+    foreach($entryName in @('HybridMount.Stock.exe','HybridMount.Ext.dll')){
         $bytes=Read-Bytes $entryName;$pe=[BitConverter]::ToInt32($bytes,0x3c);$optional=$pe+24
         if([BitConverter]::ToUInt16($bytes,$optional) -ne 0x20b -or [BitConverter]::ToUInt32($bytes,$optional+112+14*8) -ne 0){throw "原生宿主含CLR入口：$entryName"}
         if([Text.Encoding]::ASCII.GetString($bytes).Contains('testSetPin')){throw "发布包混入测试专用原生操作：$entryName"}
@@ -69,7 +83,7 @@ try {
     $classes=@($manifest.SelectNodes("//*[local-name()='ComServer']//*[local-name()='Class']"));$verbs=@($manifest.SelectNodes("//*[local-name()='Verb']"));$menu='59964FC1-D076-4DC1-9778-01F5833A5D4A';$thumb='A749B295-9CB5-4F08-98D4-00EB47345E09'
     $expected=if($ShellProfile -eq 'Native'){@()}elseif($ShellProfile -eq 'Menus'){@($menu)}else{@($menu,$thumb)}
     if($classes.Count -ne $expected.Count -or @($classes|Where-Object {$_.Id -notin $expected}).Count){throw 'COM类与所选配置不一致。'}
-    foreach($class in $classes){if($class.ParentNode.LocalName -ne 'ExeServer' -or $class.ParentNode.Executable -ne 'HybridMount.Native.exe' -or $class.ParentNode.Arguments -ne '--shell-server'){throw 'Shell类没有绑定独立早期宿主。'}}
+    foreach($class in $classes){if($class.ParentNode.LocalName -ne 'ExeServer' -or $class.ParentNode.Executable -ne 'HybridMount.Stock.exe' -or $class.ParentNode.Arguments -ne '--shell-server'){throw 'Shell类没有绑定独立早期宿主。'}}
     if($ShellProfile -eq 'Native'){if($cloud[0].ChildNodes.Count -or $verbs.Count){throw '原生配置意外含扩展。'}}
     elseif($ShellProfile -eq 'Menus'){if($cloud[0].ChildNodes.Count -or $verbs.Count -ne 3 -or @($verbs|Where-Object {$_.Clsid -ne $menu}).Count){throw '独立动态菜单注册不符。'}}
     else{

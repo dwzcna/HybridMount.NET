@@ -14,7 +14,7 @@ public static class ShellIntegrationProbe
         var proof=new Dictionary<string,object?>();var calls=new ConcurrentQueue<string>();UploadFlowTests.Fixture? test=null;var success=false;
         try
         {
-            var package=Windows.ApplicationModel.Package.Current;Assert.Equal(family,package.Id.FamilyName);Assert.StartsWith("HybridMount.ShellProbe.",package.Id.Name);
+            var package=global::Windows.ApplicationModel.Package.Current;Assert.Equal(family,package.Id.FamilyName);Assert.StartsWith("HybridMount.ShellProbe.",package.Id.Name);
             proof["Package"]=package.Id.FullName;proof["PFN"]=family;proof["Tag"]=tag;
             test=CreateProbe(output,"content");await ConnectProbeAsync(test);var mount=test.Manager.Mounts.Single().Definition;proof["Root"]=mount;proof["SyncRootId"]=CloudRootRegistration.Id(mount);
             using(var key=Registry.LocalMachine.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\SyncRootManager\"+CloudRootRegistration.Id(mount)))
@@ -56,7 +56,7 @@ public static class ShellIntegrationProbe
         var frames=await new PreviewWorkerClient().DecodeAsync(".bmp",bytes.Length,budget.ReadAsync);Assert.NotNull(frames);
         var count=0;await using var logger=new LoggerService(Path.Combine(basePath,"log.db"));
         await using var server=new IpcServerService(logger,IpcProtocol.PipeName+".shell-probe."+tag){Handler=request=>{Interlocked.Increment(ref count);return new(2,request.RequestId,"ok","",PreviewPng:frames[64],PreviewStatus:"ready");}};server.Start();
-        foreach(var policy in new[]{Windows.Storage.Provider.StorageProviderHydrationPolicy.Partial,Windows.Storage.Provider.StorageProviderHydrationPolicy.Progressive,Windows.Storage.Provider.StorageProviderHydrationPolicy.Full})
+        foreach(var policy in new[]{global::Windows.Storage.Provider.StorageProviderHydrationPolicy.Partial,global::Windows.Storage.Provider.StorageProviderHydrationPolicy.Progressive,global::Windows.Storage.Provider.StorageProviderHydrationPolicy.Full})
         {
             var mount=fixture.Manager.Mounts.Single().Definition;fixture.Dav.Put("policy.bmp",bytes);await WebDavTests.Finished(fixture.Manager,fixture.Manager.Queue(fixture.Id,"refresh"));
             await fixture.Manager.DisconnectAsync(fixture.Id);

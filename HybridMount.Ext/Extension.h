@@ -6,7 +6,7 @@
 #include <atomic>
 #include <string>
 #include <vector>
-#include "../HybridMount.Native/NativeIdentity.h"
+#include "../HybridMount.Stock/NativeIdentity.h"
 
 #ifdef HYBRIDMOUNT_SHELL_PROBE_ID
 inline constexpr CLSID HybridMountCommandId{HYBRIDMOUNT_SHELL_PROBE_ID^0x10000000,0x4055,0x4f23,{0x8c,0xc0,0x91,0xb7,0x36,0xb3,0xe4,0x91}};

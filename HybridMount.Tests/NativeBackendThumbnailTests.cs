@@ -45,9 +45,9 @@ public sealed class NativeBackendThumbnailTests
 #else
             const string configuration="Release";
 #endif
-            var isolated=Path.Combine(test.Dav.Area,"native-shell");Directory.CreateDirectory(isolated);foreach(var file in new[]{"HybridMount.Native.exe","e_sqlite3.dll"})File.Copy(Path.Combine(AppContext.BaseDirectory,file),Path.Combine(isolated,file));
+            var isolated=Path.Combine(test.Dav.Area,"native-shell");Directory.CreateDirectory(isolated);foreach(var file in new[]{"HybridMount.Stock.exe","e_sqlite3.dll"})File.Copy(Path.Combine(AppContext.BaseDirectory,file),Path.Combine(isolated,file));
             File.Copy(Path.Combine(rootDirectory.FullName,"artifacts","native-thumbnail-host",System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture==System.Runtime.InteropServices.Architecture.Arm64?"ARM64":"x64",configuration,"HybridMount.Ext.dll"),Path.Combine(isolated,"HybridMount.Ext.dll"));
-            var start=Start("--shell-server");start.FileName=Path.Combine(isolated,"HybridMount.Native.exe");using var process=Process.Start(start)!;
+            var start=Start("--shell-server");start.FileName=Path.Combine(isolated,"HybridMount.Stock.exe");using var process=Process.Start(start)!;
             try
             {
                 var until=DateTime.UtcNow.AddSeconds(10);NativePreviewInterop? provider=null;
@@ -87,7 +87,7 @@ public sealed class NativeBackendThumbnailTests
     }
     private static ProcessStartInfo Start(params string[] args)
     {
-        var info=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var arg in args)info.ArgumentList.Add(arg);return info;
+        var info=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var arg in args)info.ArgumentList.Add(arg);return info;
     }
     private static async Task<JsonElement> Read(string path)
     {

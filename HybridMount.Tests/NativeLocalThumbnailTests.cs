@@ -61,7 +61,7 @@ public sealed class NativeLocalThumbnailTests
     }
     internal static async Task<JsonElement> Read(string path)
     {
-        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var arg in new[]{"--diagnose-available-thumbnail",path,"64"})start.ArgumentList.Add(arg);
+        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var arg in new[]{"--diagnose-available-thumbnail",path,"64"})start.ArgumentList.Add(arg);
         using var process=Process.Start(start)!;var output=process.StandardOutput.ReadToEndAsync();var error=process.StandardError.ReadToEndAsync();await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal(0,process.ExitCode);Assert.Empty(await error);using var doc=JsonDocument.Parse(await output);return doc.RootElement.Clone();
     }
 }

@@ -15,7 +15,7 @@ public sealed class ProtocolModuleBoundaryTests
     [Fact]
     public void Protocol_implementations_and_wire_dependencies_stay_inside_modules()
     {
-        var root=Path.Combine(Root(),"HybridMount");
+        var root=Path.Combine(Root(),"HybridMount.NET");
         var dav=Path.Combine(root,"Models","Mounting","WebDAV")+Path.DirectorySeparatorChar;
         var s3=Path.Combine(root,"Models","Mounting","S3")+Path.DirectorySeparatorChar;
         foreach(var file in Directory.EnumerateFiles(root,"*.cs",SearchOption.AllDirectories).Where(x=>!x.Contains(Path.DirectorySeparatorChar+"obj"+Path.DirectorySeparatorChar)&&!x.Contains(Path.DirectorySeparatorChar+"bin"+Path.DirectorySeparatorChar)))
@@ -25,10 +25,9 @@ public sealed class ProtocolModuleBoundaryTests
             foreach(var token in new[]{"using Amazon.","AmazonS3Client","AmazonSQSClient","using WebDAVClient","WebDAVClient.DavClient","HttpRequestMessage","IfMatch.ParseAdd","<d:sync-collection"})
                 Assert.False(text.Contains(token,StringComparison.Ordinal),Path.GetRelativePath(root,file)+" 残留协议实现："+token);
         }
-        foreach(var name in new[]{"Files","Transport","Uploads","Sync","Preview","Capacity","Persistence","Models"})Assert.NotEmpty(Directory.GetFiles(Path.Combine(dav,name),"*.cs"));
-        foreach(var name in new[]{"Files","Transport","Uploads","Sync","Preview","Events","Persistence","Models"})Assert.NotEmpty(Directory.GetFiles(Path.Combine(s3,name),"*.cs"));
-        Assert.Empty(Directory.GetFiles(Path.Combine(root,"Services","Mounting"),"*.cs"));
-        Assert.True(File.Exists(Path.Combine(root,"Common","SourcePartialMoveException.cs")));
+        Assert.True(File.Exists(Path.Combine(dav,"WebDavFileSource.cs")));Assert.True(File.Exists(Path.Combine(s3,"S3FileSource.cs")));
+        Assert.NotEmpty(Directory.GetFiles(Path.Combine(root,"Services","Mounting"),"MountManager*.cs"));
+        Assert.True(File.Exists(Path.Combine(root,"Commons","SourcePartialMoveException.cs")));
     }
     [Theory]
     [InlineData(true)][InlineData(false)]
@@ -53,8 +52,8 @@ public sealed class ProtocolModuleBoundaryTests
         await using var dav=new DavFixture();await using var web=dav.Source();await using var s3=new S3Fixture();await using var source=s3.Source();
         Assert.Equal(web.RemoteScope(4),((IMountSourceRuntime)web).RemoteScope(4));Assert.NotEqual(web.RemoteScope(4),web.RemoteScope(5));
         Assert.Equal(source.RemoteScope(4),((IMountSourceRuntime)source).RemoteScope(4));Assert.NotEqual(source.RemoteScope(4),source.RemoteScope(5));
-        Assert.Equal("HybridMount.Services.Mounting.SourcePartialMoveException",typeof(SourcePartialMoveException).FullName);
-        Assert.Equal("HybridMount.Common.IFileSource",typeof(IFileSource).FullName);
+        Assert.Equal("HybridMount.Commons.SourcePartialMoveException",typeof(SourcePartialMoveException).FullName);
+        Assert.Equal("HybridMount.Commons.IFileSource",typeof(IFileSource).FullName);
     }
     private sealed class ControlledSource : IFileSource,IMountSourceRuntime
     {

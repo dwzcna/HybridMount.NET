@@ -1,6 +1,6 @@
 using HybridMount.Services.Mounting;
-using Windows.Storage;
-using Windows.Storage.Provider;
+using global::Windows.Storage;
+using global::Windows.Storage.Provider;
 namespace HybridMount.Tests;
 
 /// <summary>在隔离真实NTFS／CFAPI根核验生产属性链，无正文水合、额外网络、代次变化或同步身份改变。</summary>

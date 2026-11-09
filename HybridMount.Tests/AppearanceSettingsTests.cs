@@ -67,7 +67,7 @@ public sealed class AppearanceSettingsTests
     public void Production_entry_is_unified_and_default_store_is_internal_in_same_file()
     {
         var root=new DirectoryInfo(AppContext.BaseDirectory);while(root is not null&&!File.Exists(Path.Combine(root.FullName,"Directory.Build.props")))root=root.Parent;Assert.NotNull(root);
-        var source=Path.Combine(root.FullName,"HybridMount");Assert.False(File.Exists(Path.Combine(source,"Services","AppearancePreferenceStoreService.cs")));
+        var source=Path.Combine(root.FullName,"HybridMount.NET");Assert.False(File.Exists(Path.Combine(source,"Services","AppearancePreferenceStoreService.cs")));
         var merged=File.ReadAllText(Path.Combine(source,"Services","AppearanceSettingsService.cs"));Assert.Contains("internal sealed class RegistryAppearancePreferenceStore",merged);
         Assert.Contains("Appearance=new AppearanceSettingsService();",File.ReadAllText(Path.Combine(source,"App.xaml.cs")));Assert.NotNull(typeof(AppearanceSettingsService).GetConstructor(Type.EmptyTypes));
         Assert.True(typeof(AppearanceSettingsService).Assembly.GetType("HybridMount.Services.RegistryAppearancePreferenceStore")!.IsNotPublic);Assert.Null(typeof(AppearanceSettingsService).Assembly.GetType("HybridMount.Services.AppearancePreferenceStoreService"));

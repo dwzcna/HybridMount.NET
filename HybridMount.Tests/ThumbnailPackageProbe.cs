@@ -12,7 +12,7 @@ public static class ThumbnailPackageProbe
     {
         if(ThumbnailServer.IsEntry(args))
         {
-            var started=new{Package=Windows.ApplicationModel.Package.Current.Id.FullName,Directory=ThumbnailCachePaths.DirectoryPath,Pid=Environment.ProcessId};
+            var started=new{Package=global::Windows.ApplicationModel.Package.Current.Id.FullName,Directory=ThumbnailCachePaths.DirectoryPath,Pid=Environment.ProcessId};
             File.WriteAllText(Path.Combine(area,"thumbnail-host-"+Environment.ProcessId+".json"),JsonSerializer.Serialize(started));
             return Task.FromResult(ThumbnailServer.Run(args));
         }
@@ -34,7 +34,7 @@ public static class ThumbnailPackageProbe
         var report=new Dictionary<string,object?>();UploadFlowTests.Fixture? test=null;ThumbnailCacheRoot? cacheRoot=null;ThumbnailCacheStore? store=null;var success=false;
         try
         {
-            var empty=File.Exists(Path.Combine(area,"empty-profile"));report["EmptyCloudFiles"]=empty;var package=Windows.ApplicationModel.Package.Current;Assert.StartsWith("HybridMount.ThumbnailProbe.",package.Id.Name);report["Package"]=package.Id.FullName;
+            var empty=File.Exists(Path.Combine(area,"empty-profile"));report["EmptyCloudFiles"]=empty;var package=global::Windows.ApplicationModel.Package.Current;Assert.StartsWith("HybridMount.ThumbnailProbe.",package.Id.Name);report["Package"]=package.Id.FullName;
             test=new();test.Local=Path.Combine(area,"root-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(test.Local);test.Registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
             test.Repository=new(Path.Combine(area,"data"),test.Registry);test.Logger=new(Path.Combine(area,"log.db"));test.Manager=new(test.Repository,test.Logger){RemovalShellForTests=new MaintenanceShellRegistration()};
             var names=new[]{"cloud.bmp","cached.bmp","pinned.bmp","released.bmp"};var actual=PreviewPipelineTests.Bmp();for(var offset=54;offset<actual.Length;offset+=3)actual[offset+2]=30;

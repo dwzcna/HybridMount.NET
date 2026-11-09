@@ -171,7 +171,7 @@ public sealed class NavigationTests
     public void Production_adapter_uses_frame_animation_history_and_required_page_cache()
     {
         var root=new DirectoryInfo(AppContext.BaseDirectory);while(root is not null&&!File.Exists(Path.Combine(root.FullName,"Directory.Build.props")))root=root.Parent;Assert.NotNull(root);
-        var folder=Path.Combine(root.FullName,"HybridMount");var window=File.ReadAllText(Path.Combine(folder,"Views","MainWindow.xaml.cs"));Assert.DoesNotContain("_pages",window);Assert.DoesNotContain("ContentFrame.Content",window);
+        var folder=Path.Combine(root.FullName,"HybridMount.NET");var window=File.ReadAllText(Path.Combine(folder,"Views","MainWindow.xaml.cs"));Assert.DoesNotContain("_pages",window);Assert.DoesNotContain("ContentFrame.Content",window);
         foreach(var name in new[]{"Home","Mounts","Tasks","Logs","Settings"})
         {
             Assert.DoesNotContain("new "+name+"Page(",window);var page=File.ReadAllText(Path.Combine(folder,"Pages",name+"Page.xaml.cs"));Assert.Contains("NavigationCacheMode.Required",page);Assert.DoesNotContain("MainWindow?.Navigate",page);

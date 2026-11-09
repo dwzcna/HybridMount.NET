@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using HybridMount.Services.Mounting;
 using Microsoft.Win32;
-using Windows.Storage.Provider;
+using global::Windows.Storage.Provider;
 
 namespace HybridMount.Tests;
 
@@ -40,7 +40,7 @@ public static class NativeShellStateProbe
         var success=false;var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var packaged=WinRegisterService.IsPackaged();report["Profile"]=profile;report["Packaged"]=packaged;report["Package"]=packaged?Windows.ApplicationModel.Package.Current.Id.FullName:null;
+            var packaged=WinRegisterService.IsPackaged();report["Profile"]=profile;report["Packaged"]=packaged;report["Package"]=packaged?global::Windows.ApplicationModel.Package.Current.Id.FullName:null;
             if((profile!="Unpackaged")!=packaged)throw new IOException("实际包身份与测试模式不符。");
             test=new UploadFlowTests.Fixture();test.Local=Path.Combine(area,"root-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(test.Local);test.Registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
             test.Repository=new(Path.Combine(area,"data"),test.Registry);test.Logger=new(Path.Combine(area,"log.db"));test.Manager=new(test.Repository,test.Logger){RemovalShellForTests=new MaintenanceShellRegistration()};

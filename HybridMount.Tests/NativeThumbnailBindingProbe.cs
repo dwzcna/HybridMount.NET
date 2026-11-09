@@ -14,7 +14,7 @@ public static class NativeThumbnailBindingProbe
         Directory.CreateDirectory(area);var report=new Dictionary<string,object?>();UploadFlowTests.Fixture? test=null;ThumbnailCacheStore? store=null;ThumbnailCacheRoot? cache=null;var success=false;
         try
         {
-            var generation=File.Exists(Path.Combine(area,"generation-profile"));var observe=File.Exists(Path.Combine(area,"observe-explorer"));var package=Windows.ApplicationModel.Package.Current;Assert.StartsWith("dwzcn.HybridMount.NativePreview.Probe",package.Id.Name);report["Package"]=package.Id.FullName;
+            var generation=File.Exists(Path.Combine(area,"generation-profile"));var observe=File.Exists(Path.Combine(area,"observe-explorer"));var package=global::Windows.ApplicationModel.Package.Current;Assert.StartsWith("dwzcn.HybridMount.NativePreview.Probe",package.Id.Name);report["Package"]=package.Id.FullName;
             test=new();test.Local=Path.Combine(area,"root-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(test.Local);test.Registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
             test.Repository=new(Path.Combine(area,"data"),test.Registry);test.Logger=new(Path.Combine(area,"log.db"));test.Manager=new(test.Repository,test.Logger){LocalPreviewsForTests=generation,RemoteThumbnailsForTests=generation,BrowsePreviewsForTests=generation,ObserveExplorerForTests=observe};
             var names=new[]{"cold-"+Guid.NewGuid().ToString("N")+".bmp","local-"+Guid.NewGuid().ToString("N")+".bmp"};
@@ -54,7 +54,7 @@ public static class NativeThumbnailBindingProbe
         {
             try{if(cache is not null)store!.DeleteDatabase(cache);if(test is not null){if(test.Id==Guid.Empty&&test.Manager.Mounts.Count==1)test.Id=test.Manager.Mounts.Single().Definition.Id;await test.DisposeAsync();}report["Cleanup"]=true;}
             catch(Exception error){report["Cleanup"]=false;report["CleanupError"]=error.ToString();success=false;}
-            try{var tag=Windows.ApplicationModel.Package.Current.Id.Name[^8..];using var trace=Registry.CurrentUser.OpenSubKey(@"Software\HybridMount.NET.Tests\ShellProbe\"+tag);report["NativeTrace"]=trace?.GetValueNames().ToDictionary(x=>x,x=>trace.GetValue(x));Registry.CurrentUser.DeleteSubKeyTree(@"Software\HybridMount.NET.Tests\ShellProbe\"+tag,false);}catch(Exception error){report["TraceError"]=error.GetType().Name;}
+            try{var tag=global::Windows.ApplicationModel.Package.Current.Id.Name[^8..];using var trace=Registry.CurrentUser.OpenSubKey(@"Software\HybridMount.NET.Tests\ShellProbe\"+tag);report["NativeTrace"]=trace?.GetValueNames().ToDictionary(x=>x,x=>trace.GetValue(x));Registry.CurrentUser.DeleteSubKeyTree(@"Software\HybridMount.NET.Tests\ShellProbe\"+tag,false);}catch(Exception error){report["TraceError"]=error.GetType().Name;}
             report["Passed"]=success;Save(area,"result.json",report);
         }
         return success?0:1;

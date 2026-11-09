@@ -1,0 +1,79 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:media="using:Microsoft.UI.Xaml.Media">
+            <!-- <summary>页头使用应用内磨玻璃；Grid背景画刷不透明度为原有的80%，Border保持原值，高对比度均保持不透明系统色。</summary> -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <AcrylicBrush x:Key="PageHeaderBackgroundBrush" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}"/>
+                    <AcrylicBrush x:Key="PageHeaderGridBackgroundBrush" Opacity="0.8" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}"/>
+                    <media:AcrylicBrush x:Key="PageHeaderAcrylicBrush"  Opacity="0.75" TintOpacity="0.5" TintLuminosityOpacity="0.8" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <AcrylicBrush x:Key="PageHeaderBackgroundBrush" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}"/>
+                    <AcrylicBrush x:Key="PageHeaderGridBackgroundBrush" Opacity="0.8" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}"/>
+                    <media:AcrylicBrush x:Key="PageHeaderAcrylicBrush"  Opacity="0.75" TintOpacity="0.5" TintLuminosityOpacity="0.8" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="PageHeaderBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="PageHeaderGridBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="PageHeaderAcrylicBrush"  Color="{ThemeResource SystemColorWindowColor}"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <!-- <summary>共享页头只设置Background，不改变布局、边框、字体、命令或其他卡片。</summary> -->
+            <Style x:Key="PageHeaderBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource PageHeaderBackgroundBrush}"/>
+            </Style>
+            <Style x:Key="PageHeaderGridStyle" TargetType="Grid">
+                <Setter Property="Background" Value="{ThemeResource PageHeaderGridBackgroundBrush}"/>
+            </Style>
+            <!-- <summary>共享纯图标按钮尺寸、内边距和内容居中，分别沿用标准、轻量和强调按钮模板。</summary> <remarks>布局基样式不设置字体大小，设备页按钮保留 SDK 默认字体；其他页面继续使用原有 16 字号。</remarks> -->
+            <Style x:Key="PageIconButtonLayoutStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Width" Value="40"/>
+                <Setter Property="Height" Value="40"/>
+                <Setter Property="Padding" Value="8"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="PageSubtleIconButtonLayoutStyle" TargetType="Button" BasedOn="{StaticResource SubtleButtonStyle}">
+                <Setter Property="Width" Value="40"/>
+                <Setter Property="Height" Value="40"/>
+                <Setter Property="Padding" Value="8"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="PageAccentIconButtonLayoutStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="Width" Value="40"/>
+                <Setter Property="Height" Value="40"/>
+                <Setter Property="Padding" Value="8"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="PageIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PageIconButtonLayoutStyle}">
+                <Setter Property="FontSize" Value="16"/>
+            </Style>
+            <Style x:Key="PageSubtleIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PageSubtleIconButtonLayoutStyle}">
+                <Setter Property="FontSize" Value="16"/>
+            </Style>
+            <Style x:Key="PageAccentIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PageAccentIconButtonLayoutStyle}">
+                <Setter Property="FontSize" Value="16"/>
+            </Style>
+            <!-- <summary>页头与卡片主操作使用图标加文字；自动宽度允许窄窗容器换行，行内纯图标仍用原样式。</summary> -->
+            <Style x:Key="PageActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="MinHeight" Value="36"/>
+                <Setter Property="Padding" Value="12,8"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="PageAccentActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="MinHeight" Value="36"/>
+                <Setter Property="Padding" Value="12,8"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+            <Style x:Key="RoundedPageHeaderBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource PageHeaderAcrylicBrush}" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+</ResourceDictionary>

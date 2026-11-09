@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Pipes;
 using HybridMount.ViewModels;
-using HybridMount.Services.Mounting.Persistence;
+using HybridMount.Models.Persistence;
 using Microsoft.Win32;
 
 namespace HybridMount.Tests;

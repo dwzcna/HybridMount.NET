@@ -106,7 +106,7 @@ public sealed class PreviewPipelineTests
     public async Task FailedThumbnailSaveDoesNotChangeRuntimeSetting()
     {
         FailingDefinitionStore? store=null;
-        await using var test=await UploadFlowTests.Fixture.Create(definitionStore:registry=>store=new FailingDefinitionStore(new HybridMount.Services.Mounting.Persistence.RegistryMountDefinitionStore(registry)));
+        await using var test=await UploadFlowTests.Fixture.Create(definitionStore:registry=>store=new FailingDefinitionStore(new HybridMount.Models.Persistence.RegistryMountDefinitionStore(registry)));
         try
         {
             store!.FailSave=true;

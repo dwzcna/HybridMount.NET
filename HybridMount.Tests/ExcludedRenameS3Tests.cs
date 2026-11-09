@@ -46,7 +46,7 @@ public sealed class ExcludedRenameS3Tests(Xunit.Abstractions.ITestOutputHelper o
     }
     private sealed class Factory(Area test):IFileSourceFactory
     {
-        public async Task<HybridMount.Common.IFileSource> CreateAsync(MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)
+        public async Task<HybridMount.Commons.IFileSource> CreateAsync(MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)
         {
             var source=new S3FileSource(mount.Source!,S3Fixture.Credentials,Path.Combine(repository.DataDirectory,"s3-work")){HttpAttemptForTests=value=>test.Wire.Enqueue(value)};
             ((IMountSourceRuntime)source).AttachRuntime(mount,repository);await source.ProbeAsync(token);return source;

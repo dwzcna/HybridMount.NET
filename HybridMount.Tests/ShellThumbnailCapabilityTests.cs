@@ -6,7 +6,7 @@ namespace HybridMount.Tests;
 public sealed class ShellThumbnailCapabilityTests
 {
     private const string Id="A749B295-9CB5-4F08-98D4-00EB47345E09";
-    private static XDocument Manifest(string path="HybridMount.Native.exe",bool bound=true)=>XDocument.Parse($"""
+    private static XDocument Manifest(string path="HybridMount.Stock.exe",bool bound=true)=>XDocument.Parse($"""
         <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:d="http://schemas.microsoft.com/appx/manifest/desktop/windows10/3" xmlns:c="http://schemas.microsoft.com/appx/manifest/com/windows10">
         <Applications><Application Id="App" Executable="HybridMount.NET.exe"><Extensions>
         <d:Extension Category="windows.cloudFiles"><d:CloudFiles><d:ThumbnailProviderHandler {(bound?$"Clsid='{Id}'":"")}/></d:CloudFiles></d:Extension>
@@ -26,7 +26,7 @@ public sealed class ShellThumbnailCapabilityTests
     [Fact]
     public void Binding_requires_cloud_entry_same_application_class_and_existing_payload()
     {
-        var document=Manifest();Assert.True(CloudShellState.HasThumbnailBinding(document,path=>path is "HybridMount.Ext.dll" or "HybridMount.Native.exe"));
+        var document=Manifest();Assert.True(CloudShellState.HasThumbnailBinding(document,path=>path is "HybridMount.Ext.dll" or "HybridMount.Stock.exe"));
         Assert.False(CloudShellState.HasThumbnailBinding(document,_=>false));Assert.False(CloudShellState.HasThumbnailBinding(Manifest(bound:false),_=>true));
         XNamespace f=document.Root!.Name.Namespace,c="http://schemas.microsoft.com/appx/manifest/com/windows10";
         var server=document.Descendants(c+"Extension").Single();server.Remove();document.Root.Element(f+"Applications")!.Add(new XElement(f+"Application",new XAttribute("Id","Other"),new XElement(f+"Extensions",server)));
