@@ -289,7 +289,7 @@ public sealed partial class MountManager : IAsyncDisposable
             token.ThrowIfCancellationRequested();
             registered=InspectRegistration(root);
             if(!registered)SetRegistration(root,MountRegistrationStage.Registering);
-            await CloudRootRegistration.EnsureAsync(root.Definition,token).ConfigureAwait(false);
+            await CloudRootRegistration.EnsureAsync(root.Definition,token,error=>_logger.Queue("同步根图标","Warning","刷新失败，挂载继续："+error.Message)).ConfigureAwait(false);
             SetRegistration(root,MountRegistrationStage.Registered);
             token.ThrowIfCancellationRequested();
             lock(_lifetime)

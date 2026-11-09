@@ -30,13 +30,28 @@ public static class CloudRootRegistration
         if (listed && native is null) throw new IOException("系统注册记录不一致，保留配置待恢复。");
         return native is not null;
     }
-    public static async Task EnsureAsync(MountDefinition mount, CancellationToken token)
+    public static async Task EnsureAsync(MountDefinition mount, CancellationToken token,Action<Exception>? iconRefreshFailed=null)
     {
         token.ThrowIfCancellationRequested();
         if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("注册前根身份发生变化，保留配置。");
         var current = MountPathGuard.ReadRoot(mount.LocalPath);
         if (current is not null)
-        { if (current.MountId != mount.Id) throw new IOException("同步根属于其他挂载。"); return; }
+        {
+            RefreshExistingIcon(mount.Id,current.MountId,()=>
+            {
+                if(!IsOwnedRoot(mount))throw new IOException("同步根归属无法确认，保留图标注册。");
+                var info=StorageProviderSyncRootManager.GetCurrentSyncRoots().FirstOrDefault(x=>x.Id==Id(mount));
+                if(info is null)throw new IOException("当前身份无法读取同步根描述符，保留图标注册。");
+                if(info.Path is null||!Path.TrimEndingDirectorySeparator(info.Path.Path).Equals(mount.LocalPath,StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("同步根描述符路径不匹配，保留图标注册。");
+                return info;
+            },info=>
+            {
+                MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+                StorageProviderSyncRootManager.Register(info);
+            },iconRefreshFailed??(error=>System.Diagnostics.Trace.TraceWarning("同步根图标刷新失败："+error.Message)));
+            return;
+        }
         foreach (var registered in StorageProviderSyncRootManager.GetCurrentSyncRoots())
         {
             var other = registered.Path?.Path;
@@ -49,6 +64,36 @@ public static class CloudRootRegistration
         if(mount.RootIdentity!=MountPathGuard.FileIdentity(mount.LocalPath))throw new IOException("注册前根身份发生变化，保留配置。");
         StorageProviderSyncRootManager.Register(info);
         MountPathGuard.ValidateOperation(mount,mount.LocalPath);
+    }
+    internal static string ExpectedIconResource=>Path.Combine(AppContext.BaseDirectory,"HybridMount.NET.exe")+",0";
+    internal static void RefreshExistingIcon(Guid mountId,Guid registeredMountId,Func<StorageProviderSyncRootInfo> read,
+        Action<StorageProviderSyncRootInfo> register,Action<Exception> failed)
+    {
+        if(registeredMountId!=mountId)throw new IOException("同步根属于其他挂载。");
+        try
+        {
+            var existing=read();
+            if(string.Equals(existing.IconResource,ExpectedIconResource,StringComparison.OrdinalIgnoreCase))return;
+            register(CloneWithCurrentIcon(existing));
+        }
+        catch(Exception error){try{failed(error);}catch{}}
+    }
+    internal static StorageProviderSyncRootInfo CloneWithCurrentIcon(StorageProviderSyncRootInfo source)
+    {
+        var copy=new StorageProviderSyncRootInfo
+        {
+            Id=source.Id,DisplayNameResource=source.DisplayNameResource,IconResource=ExpectedIconResource,
+            Context=source.Context,Version=source.Version,AllowPinning=source.AllowPinning,
+            HydrationPolicy=source.HydrationPolicy,HydrationPolicyModifier=source.HydrationPolicyModifier,
+            PopulationPolicy=source.PopulationPolicy,InSyncPolicy=source.InSyncPolicy,HardlinkPolicy=source.HardlinkPolicy,
+            ProtectionMode=source.ProtectionMode,ProviderId=source.ProviderId,RecycleBinUri=source.RecycleBinUri,
+            ShowSiblingsAsGroup=source.ShowSiblingsAsGroup
+        };
+        if(source.Path is {} path)copy.Path=path;
+        foreach(var definition in source.StorageProviderItemPropertyDefinitions)copy.StorageProviderItemPropertyDefinitions.Add(definition);
+        if(Windows.Foundation.Metadata.ApiInformation.IsPropertyPresent("Windows.Storage.Provider.StorageProviderSyncRootInfo","FallbackFileTypeInfo"))
+            foreach(var fileType in source.FallbackFileTypeInfo)copy.FallbackFileTypeInfo.Add(fileType);
+        return copy;
     }
     /// <summary>在已有根上更新同一注册描述符；不注销、不转换文件或改变根身份。旧WinRT查询不可见时用本程序的原策略重建描述符。</summary>
     internal static Task EnsureIssueDefinitionAsync(MountDefinition mount,CancellationToken token)=>EnsureDefinitionAsync(mount,CloudUploadIssueProperty.PropertyId,"同步问题",token);
@@ -71,7 +116,7 @@ public static class CloudRootRegistration
         return new StorageProviderSyncRootInfo
         {
             Id = Id(mount), Path = await StorageFolder.GetFolderFromPathAsync(mount.LocalPath),
-            DisplayNameResource = mount.Name, IconResource = Path.Combine(AppContext.BaseDirectory,"HybridMount.NET.exe")+",0",
+            DisplayNameResource = mount.Name, IconResource = ExpectedIconResource,
             HydrationPolicy = StorageProviderHydrationPolicy.Partial, PopulationPolicy = StorageProviderPopulationPolicy.AlwaysFull,
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.None,
             InSyncPolicy = StorageProviderInSyncPolicy.FileLastWriteTime | StorageProviderInSyncPolicy.DirectoryLastWriteTime |
