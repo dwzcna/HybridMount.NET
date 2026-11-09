@@ -18,7 +18,7 @@
 		<HasPackageAndPublishMenu Condition="'$(HybridMountDeployment)' == 'Packaged'">true</HasPackageAndPublishMenu>
 	</PropertyGroup>
 	<PropertyGroup>
-		<HybridMountShellProfile Condition="'$(HybridMountShellProfile)'==''">Menus</HybridMountShellProfile>
+		<HybridMountShellProfile Condition="'$(HybridMountShellProfile)'==''">MenusAndThumbnails</HybridMountShellProfile>
 		<PackageCertificateThumbprint>3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0</PackageCertificateThumbprint>
 		<AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
 		<GenerateTestArtifacts>False</GenerateTestArtifacts>
@@ -31,8 +31,7 @@
 
 	<!-- 源清单供 VS 包向导读取，必须与集中版本一致；仅修改构建副本的Shell配置。 -->
 	<Target Name="PrepareProductManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountDeployment)'=='Packaged'">
-		<Error Condition="'$(HybridMountShellProfile)'=='MenusAndThumbnails'" Text="云缩略图候选会使原生状态显示退化，尚未通过真实MSIX验收；正式构建请使用Menus或Native。" />
-		<Error Condition="'$(HybridMountEnableCloudThumbnails)'!=''" Text="请使用HybridMountShellProfile选择Menus或Native。" />
+		<Error Condition="'$(HybridMountEnableCloudThumbnails)'!=''" Text="请使用HybridMountShellProfile选择MenusAndThumbnails、Menus或Native。" />
 		<Error Condition="'$(HybridMountShellProfile)'!='Native' and '$(HybridMountShellProfile)'!='Menus' and '$(HybridMountShellProfile)'!='MenusAndThumbnails'" Text="Shell配置无效。" />
 		<XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version">
 			<Output TaskParameter="Result" PropertyName="_SourceManifestVersion" />

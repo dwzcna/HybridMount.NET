@@ -19,9 +19,9 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private readonly object _configurationGate=new();
     private readonly Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? _enter;
     private readonly Action<string>? _diagnostic;
-    private sealed class Work(MountDefinition mount,MountEntry entry,bool remote,CancellationToken stopping)
+    private sealed class Work(MountDefinition mount,MountEntry entry,bool remote,CancellationToken stopping,bool browse=false)
     {
-        public readonly MountDefinition Mount=mount;public readonly MountEntry Entry=entry;public readonly bool Remote=remote;
+        public readonly MountDefinition Mount=mount;public readonly MountEntry Entry=entry;public readonly bool Remote=remote,Browse=browse;
         public readonly CancellationTokenSource Cancel=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         public readonly TaskCompletionSource Completion=new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly object Sync=new();public bool Disposed;
@@ -31,9 +31,18 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private readonly ConcurrentDictionary<string,Work> _pending=new();
     private readonly ConcurrentDictionary<Guid,SemaphoreSlim> _mounts=new();
     private readonly ConcurrentDictionary<Guid,byte> _blocked=new();
+    private sealed record Outcome(string Stage,DateTimeOffset Utc,int? HResult);
+    private readonly ConcurrentDictionary<Guid,Outcome> _lastOutcome=new(),_lastFailure=new();
+    /// <summary>只保留固定阶段和数值代码；完整诊断读此内存快照，不启动工作或查询源。</summary>
+    internal void RecordOutcome(Guid mount,string stage,int? code=null,bool failure=false)
+    {var value=new Outcome(stage,DateTimeOffset.UtcNow,code);_lastOutcome[mount]=value;if(failure)_lastFailure[mount]=value;}
+    private void ReportFailure(Guid mount,string stage,Exception error)
+    {RecordOutcome(mount,stage,error.HResult,true);_diagnostic?.Invoke($"阶段={stage}；类型={error.GetType().Name}；HRESULT=0x{error.HResult:X8}");}
+    private static string DescribeOutcome(Outcome value)=>$"{value.Stage}；UTC={value.Utc:O}"+(value.HResult is {} code?$"；HRESULT=0x{code:X8}":"");
     private readonly ConcurrentDictionary<string,(Guid Mount,DateTime Until)> _failed=new();
     private readonly SemaphoreSlim _slots=new(2,2);
     private readonly object _schedule=new();
+    private readonly Dictionary<Guid,(MountDefinition Mount,Dictionary<string,MountEntry> Entries,bool Remote)> _browseDemand=new();
     private readonly Channel<Work> _queue=Channel.CreateBounded<Work>(new BoundedChannelOptions(128){SingleReader=true,FullMode=BoundedChannelFullMode.Wait});
     private readonly CancellationTokenSource _stop=new();
     private readonly Task _worker;
@@ -70,10 +79,10 @@ public sealed class ExePreviewCache : IAsyncDisposable
                 var root=_store.Configure(requested);_configured[mount.Id]=(requested,root);return root;
             }
         }
-        catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException or System.ComponentModel.Win32Exception){_diagnostic?.Invoke("缩略图库配置失败："+error.GetType().Name);return null;}
+        catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException or System.ComponentModel.Win32Exception){ReportFailure(mount.Id,"缓存配置",error);return null;}
     }
     internal void Invalidate(MountDefinition mount,string entry)
-    {try{if(_store.UsageBytes!=0)_store.Invalidate(mount.Id,entry);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){_diagnostic?.Invoke("缩略图失效记录未完成："+error.GetType().Name);}}
+    {try{if(_store.UsageBytes!=0)_store.Invalidate(mount.Id,entry);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){ReportFailure(mount.Id,"缓存失效",error);}}
     /// <summary>原生固定／脱水已完成后更新精确戳，当前索引版本和文件身份都必须仍匹配图片。</summary>
     internal void RebindMetadata(MountDefinition mount,MountEntry entry)
     {
@@ -85,11 +94,11 @@ public sealed class ExePreviewCache : IAsyncDisposable
             if(root is null)return;var current=ThumbnailCacheReader.Capture(root,entry);if(current is null||!current.Clean)return;
             var previous=_store.Binding(current.Path);if(previous is not null)_store.Rebind(previous,current);
         }
-        catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){_diagnostic?.Invoke("缩略图元数据重绑未完成："+error.GetType().Name);}
+        catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){ReportFailure(mount.Id,"元数据重绑",error);}
     }
 
     /// <summary>普通完成通知只处理完整本地文件；仅显式预览请求可读取远端，队列与挂载设置均有界。</summary>
-    public void Queue(MountDefinition mount,MountEntry entry,bool allowRemote=false)
+    public void Queue(MountDefinition mount,MountEntry entry,bool allowRemote=false,bool fromBrowse=false)
     {
         if(!_available()||_stop.IsCancellationRequested||!mount.ThumbnailsEnabled||mount.RemovalPending||entry.Deleted||entry.RemotePresence==RemotePresence.Deleted||entry.IsDirectory||!entry.Materialized||!PreviewWorker.Supports(entry.LocalPath)||_blocked.ContainsKey(mount.Id))return;
         if(!allowRemote)
@@ -103,13 +112,20 @@ public sealed class ExePreviewCache : IAsyncDisposable
         {
             if(_stop.IsCancellationRequested||_pending.Count>=128||_pending.ContainsKey(key)||Sizes.All(size=>Get(mount,entry,size) is not null))return;
             if(_blocked.ContainsKey(mount.Id)||_removed.ContainsKey(mount.Id))return;
-            var work=new Work(mount,entry,allowRemote,_stop.Token);if(!_pending.TryAdd(key,work)||!_queue.Writer.TryWrite(work)){_pending.TryRemove(key,out _);work.Dispose();}
+            var work=new Work(mount,entry,allowRemote,_stop.Token,fromBrowse);if(!_pending.TryAdd(key,work)||!_queue.Writer.TryWrite(work)){_pending.TryRemove(key,out _);work.Dispose();}
         }
+    }
+    /// <summary>只取消离开当前视图的浏览任务；显式请求及已接受的本地内容通知保持各自所有权。</summary>
+    internal void SetBrowseDemand(MountDefinition mount,IReadOnlyList<MountEntry> entries,bool remote)
+    {
+        Work[] canceled;lock(_schedule){var current=entries.ToDictionary(x=>x.Id,StringComparer.Ordinal);_browseDemand[mount.Id]=(mount,current,remote);canceled=_pending.Values.Where(x=>x.Mount.Id==mount.Id&&x.Browse&&(!current.TryGetValue(x.Entry.Id,out var latest)||latest.LocalPath!=x.Entry.LocalPath||latest.Version!=x.Entry.Version)).ToArray();}
+        foreach(var work in canceled)_=work.RequestCancel();
+        foreach(var entry in entries)Queue(mount,entry,remote,true);
     }
     /// <summary>关闭／断开先阻止新任务，再取消并等待此挂载所有工作；不持有根锁等待其他挂载。</summary>
     public async Task CancelMountAsync(Guid mount)
     {
-        Work[] pending;lock(_schedule){_blocked[mount]=0;pending=_pending.Values.Where(work=>work.Mount.Id==mount).ToArray();}
+        Work[] pending;lock(_schedule){_blocked[mount]=0;_browseDemand.Remove(mount);pending=_pending.Values.Where(work=>work.Mount.Id==mount).ToArray();}
         await Task.WhenAll(pending.Select(work=>work.RequestCancel())).ConfigureAwait(false);
         await Task.WhenAll(pending.Select(work=>work.Completion.Task)).ConfigureAwait(false);
     }
@@ -122,7 +138,9 @@ public sealed class ExePreviewCache : IAsyncDisposable
     public void ResumeMount(Guid mount){_blocked.TryRemove(mount,out _);foreach(var row in _failed.Where(row=>row.Value.Mount==mount))_failed.TryRemove(row.Key,out _);}
     public string State(MountDefinition mount,MountEntry entry)=>!_available()||!mount.ThumbnailsEnabled?"disabled":_pending.ContainsKey(CacheKey(mount,entry,256))?"queued":_failed.TryGetValue(CacheKey(mount,entry,256),out var failed)&&failed.Until>DateTime.UtcNow?"unsupported":"notFound";
     /// <summary>只读队列和负缓存状态，诊断不排队、不读取远端。</summary>
-    internal string Describe(Guid mount)=>$"待处理={_pending.Values.Count(x=>x.Mount.Id==mount)}；暂缓={_failed.Values.Count(x=>x.Mount==mount&&x.Until>DateTime.UtcNow)}；停止接收={_blocked.ContainsKey(mount)}";
+    internal string Describe(Guid mount)=>$"待处理={_pending.Values.Count(x=>x.Mount.Id==mount)}；暂缓={_failed.Values.Count(x=>x.Mount==mount&&x.Until>DateTime.UtcNow)}；停止接收={_blocked.ContainsKey(mount)}"
+        +(_lastOutcome.TryGetValue(mount,out var latest)?"\n最近生成／缓存结果："+DescribeOutcome(latest):"")
+        +(_lastFailure.TryGetValue(mount,out var failure)?"\n最近失败："+DescribeOutcome(failure):"");
     /// <summary>有界本机查询；缓存不存在、失效或被回收均返回空值，不启动提取。</summary>
     public byte[]? Get(MountDefinition mount,MountEntry entry,int size)
     {
@@ -147,25 +165,39 @@ public sealed class ExePreviewCache : IAsyncDisposable
         {
             if(!_available())return;
             await gate.WaitAsync(token).ConfigureAwait(false);entered=true;await _slots.WaitAsync(token).ConfigureAwait(false);slot=true;token.ThrowIfCancellationRequested();
-            var root=ConfigureMount(mount);var before=root is null?null:ThumbnailCacheReader.Capture(root,entry);if(before is null)return;
+            RecordOutcome(mount.Id,"准备生成");var root=ConfigureMount(mount);var before=root is null?null:ThumbnailCacheReader.Capture(root,entry);if(before is null)return;
             if(_render is not null)
             {
                 var frames=await _render(mount,entry,work.Remote,token).ConfigureAwait(false);token.ThrowIfCancellationRequested();
-                if(frames is null){_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));return;}
+                if(frames is null){_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));RecordOutcome(mount.Id,"未生成；格式、编解码器或读取条件不支持");return;}
                 var after=ThumbnailCacheReader.Capture(root!,entry);
                 if(after is null||before.ContentKey!=after.ContentKey||before.Length!=after.Length||before.LastWriteTime!=after.LastWriteTime||!before.Clean&&before.Stamp!=after.Stamp)return;
-                if(!_store.Publish(after,frames))return;
-                CloudFilesNative.NotifyItemUpdated(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath));
+                if(!PublishCurrent(work,after,frames)){RecordOutcome(mount.Id,"发布前身份或设置已变化");return;}
+                RecordOutcome(mount.Id,"缓存已发布");CloudFilesNative.NotifyItemUpdated(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath));
             }
             else
             {
                 using var lease=_enter is null?null:await _enter(mount,entry,token).ConfigureAwait(false);if(_enter is null||lease is not null)await ExtractAsync(mount,entry,token).ConfigureAwait(false);
             }
         }
-        catch(OperationCanceledException){if(!token.IsCancellationRequested)_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));}
-        catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException or System.Text.Json.JsonException)
-        {_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));_diagnostic?.Invoke("预览回退："+error.GetType().Name);}
-        finally{if(slot)_slots.Release();if(entered)gate.Release();_pending.TryRemove(key,out _);work.Completion.TrySetResult();work.Dispose();}
+        catch(OperationCanceledException error){if(!token.IsCancellationRequested){_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));ReportFailure(mount.Id,"解码期限已到",error);}else RecordOutcome(mount.Id,"浏览或挂载工作已取消");}
+        catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException or System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException)
+        {_failed[key]=(mount.Id,DateTime.UtcNow.AddMinutes(5));ReportFailure(mount.Id,error.HResult==unchecked((int)0x80070718)?"读取预算耗尽":error.HResult==unchecked((int)0x80004001)?"严格范围读取不支持":"生成或缓存发布",error);}
+        finally
+        {
+            if(slot)_slots.Release();if(entered)gate.Release();_pending.TryRemove(key,out _);
+            (MountDefinition Mount,MountEntry Entry,bool Remote)? restart=null;
+            lock(_schedule){if(work.Browse&&token.IsCancellationRequested&&_browseDemand.TryGetValue(mount.Id,out var current)&&current.Entries.TryGetValue(entry.Id,out var latest))restart=(current.Mount,latest,current.Remote);}
+            work.Completion.TrySetResult();work.Dispose();
+            if(restart is {} next)Queue(next.Mount,next.Entry,next.Remote,true);
+        }
+    }
+    /// <summary>浏览需求取消与发布共用短临界区；离开视图或设置关闭后不提交已取消任务的位图。</summary>
+    private bool PublishCurrent(Work work,ThumbnailCacheBinding binding,IReadOnlyDictionary<int,byte[]> frames)
+    {
+        lock(_schedule){if(work.Cancel.IsCancellationRequested||_blocked.ContainsKey(work.Mount.Id)||_removed.ContainsKey(work.Mount.Id))return false;
+            if(work.Browse&&(!_browseDemand.TryGetValue(work.Mount.Id,out var current)||!current.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.LocalPath!=work.Entry.LocalPath||latest.Version!=work.Entry.Version))return false;
+            return _store.Publish(binding,frames);}
     }
     /// <summary>兼容独立缓存调用；解码由原生隔离进程执行，正文只通过原生保护租约读取。</summary>
     private async Task ExtractAsync(MountDefinition mount,MountEntry entry,CancellationToken token)
@@ -173,11 +205,11 @@ public sealed class ExePreviewCache : IAsyncDisposable
         var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(mount,path);var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
         if(marker?.MountId!=mount.Id||marker.EntryId!=entry.Id||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1||!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))return;
         Dictionary<int,byte[]>? frames;LocalFileStamp before;
-        await using(var lease=await NativeLocalReadLease.OpenAsync(mount,entry,token).ConfigureAwait(false))
+        var lease=await NativeLocalReadLease.OpenAsync(mount,entry,token).ConfigureAwait(false);await using(lease)
         {
-            before=lease.Stamp;var budget=new PreviewRangeBudget(before.Length,lease.ReadAsync);frames=await new PreviewWorkerClient().DecodeAsync(Path.GetExtension(entry.LocalPath),before.Length,budget.ReadAsync,token).ConfigureAwait(false);
+            before=lease.Stamp;var budget=PreviewRangeBudget.ForLocal(before.Length,lease.ReadAsync);frames=await new PreviewWorkerClient().DecodeAsync(Path.GetExtension(entry.LocalPath),before.Length,budget.ReadAsync,token).ConfigureAwait(false);
         }
-        if(frames is not null&&LocalFileState.Read(path).Key==before.Key&&ConfigureMount(mount) is {} root&&ThumbnailCacheReader.Capture(root,entry) is {} binding&&_store.Publish(binding,frames))CloudFilesNative.NotifyItemUpdated(path);
+        before=lease.Stamp;token.ThrowIfCancellationRequested();if(frames is not null&&LocalFileState.Read(path).Key==before.Key&&ConfigureMount(mount) is {} root&&ThumbnailCacheReader.Capture(root,entry) is {} binding&&_store.Publish(binding,frames))CloudFilesNative.NotifyItemUpdated(path);
     }
     public long UsageBytes=>_store.UsageBytes;
     /// <summary>后台统一回收数据库BLOB，不散落图片文件或手工删除WAL。</summary>

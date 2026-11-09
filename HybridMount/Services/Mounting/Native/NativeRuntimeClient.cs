@@ -34,7 +34,8 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     private Task _reader=Task.CompletedTask,_stderr=Task.CompletedTask;private Task? _dispose;
     private int _failed;
     private readonly Channel<NativeRuntimeEvent> _events=Channel.CreateBounded<NativeRuntimeEvent>(512);
-    private Task _eventWorker=Task.CompletedTask;
+    private Task _eventWorker=Task.CompletedTask,_previewWorker=Task.CompletedTask;
+    private readonly Channel<NativeRuntimeEvent> _previewEvents=Channel.CreateBounded<NativeRuntimeEvent>(new BoundedChannelOptions(16){FullMode=BoundedChannelFullMode.DropOldest,SingleReader=true,SingleWriter=true});
     internal event Action<NativeRuntimeEvent>? EventReceived;
     internal event Action<Exception>? Failed;
     internal int ProcessId=>_process.Id;
@@ -87,7 +88,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 try{await handshake.ConfigureAwait(false);}catch(Exception) { }
                 try{await exited.ConfigureAwait(false);}catch(Exception) { }
             }
-            owner._eventWorker=owner.EventLoopAsync();owner._reader=owner.ReadLoopAsync();owner._dataReader=owner.DataLoopAsync();return owner;
+            owner._eventWorker=owner.EventLoopAsync();owner._previewWorker=owner.PreviewLoopAsync();owner._reader=owner.ReadLoopAsync();owner._dataReader=owner.DataLoopAsync();return owner;
         }
         catch(Exception error)
         {
@@ -162,7 +163,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 }
                 else if(kind=="event")
                 {
-                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(!_events.Writer.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
+                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event=="previewDemand"){_previewEvents.Writer.TryWrite(value);continue;}if(!_events.Writer.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
                 }
                 else throw new IOException("原生消息类型无效。");
             }
@@ -173,6 +174,12 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     private async Task EventLoopAsync()
     {
         try{await foreach(var value in _events.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception error){Fail(error);}}
+        catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
+    }
+    /// <summary>可丢弃预览提示独立消费；会话记录诊断，提示失败绝不停止挂载或关键事件。</summary>
+    private async Task PreviewLoopAsync()
+    {
+        try{await foreach(var value in _previewEvents.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception){/* 会话拥有预览业务诊断；其他根仍继续。 */}}
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
     private async Task HandleCheckpointAsync(JsonElement message)
@@ -186,6 +193,8 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         catch(Exception error){if(owner is not null)Interlocked.CompareExchange(ref owner.CheckpointFailure,error,null);code=error is OperationCanceledException?unchecked((int)0x800703e3):error.HResult;}
         try{await WriteAsync(new{kind="checkpointAck",checkpointId=message.GetProperty("checkpointId").GetString(),hresult=code,data=NativeRuntimeProtocol.Element(result)}).ConfigureAwait(false);}catch(Exception error){if(!_stop.IsCancellationRequested)Fail(error);}
     }
+    /// <summary>关键原生状态无法确认时封闭此通道，保留挂载注册与恢复数据，禁止伪造成功。</summary>
+    internal void AbortForSafety(Exception error)=>Fail(error);
     private void Fail(Exception error)
     {
         if(Interlocked.Exchange(ref _failed,1)!=0)return;_ = _stop.CancelAsync();_control.Dispose();_data.Dispose();foreach(var request in _pending.Values)request.Completion.TrySetException(new IOException("原生运行时连接中断；已发送操作的结果须核对。",error));
@@ -231,7 +240,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     public ValueTask DisposeAsync(){lock(_pending)return new(_dispose??=StopAsync());}
     private async Task StopAsync()
     {
-        await _stop.CancelAsync().ConfigureAwait(false);_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();await _eventWorker.ConfigureAwait(false);await Task.WhenAll(_checkpoints.Values).ConfigureAwait(false);
+        await _stop.CancelAsync().ConfigureAwait(false);_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();_previewEvents.Writer.TryComplete();await Task.WhenAll(_eventWorker,_previewWorker).ConfigureAwait(false);await Task.WhenAll(_checkpoints.Values).ConfigureAwait(false);
         try{await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);}catch(TimeoutException){_job.Dispose();await _process.WaitForExitAsync().ConfigureAwait(false);}
         await _stderr.ConfigureAwait(false);_job.Dispose();_process.Dispose();
     }

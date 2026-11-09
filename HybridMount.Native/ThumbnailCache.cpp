@@ -1,10 +1,16 @@
 #include "ThumbnailCache.h"
 #include "NativeFile.h"
+#include "LocalThumbnail.h"
+#include "NativeDiagnostics.h"
+#include <atomic>
 
 namespace hm {
 thread_local const char* ThumbnailReadStage="start";
+thread_local Json ThumbnailEvidence=Json::object();
 namespace {
 struct sqlite3;struct sqlite3_stmt;
+void SqliteCheck(int code){if(code!=0)throw Failure(HRESULT_FROM_WIN32(code==5||code==6?ERROR_BUSY:code==11||code==26?ERROR_FILE_CORRUPT:ERROR_INVALID_DATA));}
+void ReportThumbnailFailure(HRESULT code)noexcept{if(code==HRESULT_FROM_WIN32(ERROR_NOT_FOUND)||code==HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)||code==E_NOTIMPL||code==E_ACCESSDENIED)return;static std::atomic<ULONGLONG> last{};auto now=GetTickCount64(),previous=last.load();if(now-previous<60000||!last.compare_exchange_strong(previous,now))return;std::string type="Thumbnail.";auto stage=std::string(ThumbnailReadStage);if(stage.size()>64||stage.find_first_not_of("abcdefghijklmnopqrstuvwxyz-")!=std::string::npos)stage="read";type+=stage;RecordNativeFailure("ShellServer",code,type.c_str());}
 /// <summary>只解析应用目录的现有SQLite C ABI；不搜索PATH，不创建第二写入者。</summary>
 struct Sqlite {
     HMODULE Module{};
@@ -25,19 +31,19 @@ struct Database {
     Sqlite& Api;sqlite3* Value{};ULONGLONG Deadline=GetTickCount64()+100;
     explicit Database(const std::wstring& path):Api(Library()){
         NoLinks(path,false);auto encoded=Utf8(path);const auto result=Api.Open(encoded.c_str(),&Value,1|0x10000,nullptr);
-        if(result!=0){if(Value)Api.Close(Value);Value=nullptr;throw Failure(E_FAIL);}
+        if(result!=0){if(Value)Api.Close(Value);Value=nullptr;SqliteCheck(result);}
         Api.Progress(Value,1000,[](void* state){return GetTickCount64()>=static_cast<Database*>(state)->Deadline?1:0;},this);
-        if(Api.Exec(Value,"PRAGMA query_only=ON;PRAGMA trusted_schema=OFF;PRAGMA busy_timeout=0;BEGIN",nullptr,nullptr,nullptr)!=0){Api.Close(Value);Value=nullptr;throw Failure(E_FAIL);}
+        auto setup=Api.Exec(Value,"PRAGMA query_only=ON;PRAGMA trusted_schema=OFF;PRAGMA busy_timeout=0;BEGIN",nullptr,nullptr,nullptr);if(setup!=0){Api.Close(Value);Value=nullptr;SqliteCheck(setup);}
     }
     ~Database(){if(Value){Api.Exec(Value,"ROLLBACK",nullptr,nullptr,nullptr);Api.Close(Value);}}
 };
 struct Statement {
     Sqlite& Api;sqlite3_stmt* Value{};
-    Statement(Database& db,const char* sql):Api(db.Api){Require(Api.Prepare(db.Value,sql,-1,&Value,nullptr)==0,E_FAIL);}
+    Statement(Database& db,const char* sql):Api(db.Api){SqliteCheck(Api.Prepare(db.Value,sql,-1,&Value,nullptr));}
     ~Statement(){Api.Finalize(Value);}
     void Bind(int index,const std::string& text){Require(Api.BindText(Value,index,text.data(),static_cast<int>(text.size()),reinterpret_cast<void(__cdecl*)(void*)>(static_cast<intptr_t>(-1)))==0,E_FAIL);}
     void Bind(int index,int value){Require(Api.BindInt(Value,index,value)==0,E_FAIL);}
-    bool Row(){auto code=Api.Step(Value);Require(code==100||code==101,E_FAIL);return code==100;}
+    bool Row(){auto code=Api.Step(Value);if(code!=100&&code!=101)SqliteCheck(code);return code==100;}
     std::string Text(int column){auto count=Api.Bytes(Value,column);Require(count>=0&&count<=65536);auto bytes=Api.Text(Value,column);Require(bytes!=nullptr);return std::string(reinterpret_cast<const char*>(bytes),count);}
 };
 bool Valid(const Json& binding,const std::wstring& path){
@@ -49,6 +55,11 @@ bool Valid(const Json& binding,const std::wstring& path){
     Require(stamp.Key()==binding.at("Stamp").get<std::string>()||(clean&&usn>0&&stamp.Usn==usn));
     return clean?placeholder.InSync==CF_IN_SYNC_STATE_IN_SYNC&&placeholder.Modified==0:HasFullContent(file.Value,stamp.Length);
 }
+}
+Json ReadThumbnailGrant(const std::wstring& path) {
+    auto canonical=FullPath(path);auto marker=RootMarker(canonical);auto mount=GuidN(marker.at("MountId"));Database db(PhysicalDataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db");
+    {Statement schema(db,"PRAGMA user_version");Require(schema.Row()&&schema.Api.Int(schema.Value,0)==1);}
+    Statement row(db,"SELECT json FROM roots WHERE mount=?1 AND length(json)<=65536 LIMIT 2");row.Bind(1,mount);Require(row.Row(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));auto root=Parse(row.Text(0));Require(!row.Row()&&root.at("Enabled").get<bool>()&&GuidN(root.at("MountId"))==mount&&Text(root,"Owner")==CurrentSid(),E_ACCESSDENIED);ValidatePath(root,canonical);return root;
 }
 std::vector<BYTE> ReadCachedThumbnail(const std::wstring& path,UINT size){
     ThumbnailReadStage="root";Require(size>0&&size<=256);auto canonical=FullPath(path);auto marker=RootMarker(canonical);const auto mount=GuidN(marker.at("MountId"));
@@ -66,7 +77,7 @@ std::vector<BYTE> ReadCachedThumbnail(const std::wstring& path,UINT size){
 }
 HRESULT WINAPI ReadThumbnail(void*,const wchar_t* path,UINT size,BYTE** png,DWORD* length)noexcept{
     if(!png||!length)return E_POINTER;*png=nullptr;*length=0;if(!path)return E_INVALIDARG;
-    try{auto bytes=ReadCachedThumbnail(path,size);if(bytes.empty())return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);auto memory=static_cast<BYTE*>(CoTaskMemAlloc(bytes.size()));if(!memory)return E_OUTOFMEMORY;memcpy(memory,bytes.data(),bytes.size());*png=memory;*length=static_cast<DWORD>(bytes.size());return S_OK;}
-    catch(...){return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);}
+    try{auto bytes=ReadAvailableThumbnail(path,size);if(bytes.empty())return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);auto memory=static_cast<BYTE*>(CoTaskMemAlloc(bytes.size()));if(!memory)return E_OUTOFMEMORY;memcpy(memory,bytes.data(),bytes.size());*png=memory;*length=static_cast<DWORD>(bytes.size());return S_OK;}
+    catch(const Failure& error){ReportThumbnailFailure(error.Code);return error.Code;}catch(const Json::exception&){ReportThumbnailFailure(HRESULT_FROM_WIN32(ERROR_INVALID_DATA));return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);}catch(...){ReportThumbnailFailure(E_FAIL);return E_FAIL;}
 }
 }

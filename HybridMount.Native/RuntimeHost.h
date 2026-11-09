@@ -29,7 +29,11 @@ public:
     std::function<void(const RuntimeBlock&)> Content;
     std::function<void()> Stopping;
     bool Send(Json value,bool waitForCapacity=false)noexcept;
+    /// <summary>预览提示独立合并且允许丢弃，绝不占用关键回调的512条队列。</summary>
+    void SendPreview(Json value)noexcept;
     bool IsStopping()const noexcept;
+    /// <summary>关键事件无法交付时显式封闭运行时并唤醒所有等待者；不注销同步根。</summary>
+    void Close(const char* stage,HRESULT code);
     DWORD ParentProcessId()const noexcept;
     Json Checkpoint(RuntimeCommand& command,const std::string& stage,const Json& data,bool beginIrreversible=false,bool safety=false);
     /// <summary>反向有界正文帧，只用于已授权本地读租约，控制回复不携带正文。</summary>

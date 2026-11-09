@@ -100,7 +100,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var definitions=repository.LoadDefinitions();
         repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
-        _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>{if(HydrationDiagnostics.Enabled)logger.Queue("预览诊断","Information",value);},RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
+        _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
         {
             var root=new Runtime(definition);_roots[definition.Id]=root;
@@ -302,7 +302,7 @@ public sealed partial class MountManager : IAsyncDisposable
             lock(_lifetime)
             {
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
-                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=()=>PinResourcesReleasingForTests?.Invoke()??Task.CompletedTask}; ConnectSession(root);
+                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>QueueLocalPreview(root,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=()=>PinResourcesReleasingForTests?.Invoke()??Task.CompletedTask}; ConnectSession(root);
             }
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
@@ -319,7 +319,7 @@ public sealed partial class MountManager : IAsyncDisposable
             else refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();Status(root,"已连接",RefreshSummary(refreshed));
             if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
-            _previews.ResumeMount(root.Definition.Id);foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);
+            _previews.ResumeMount(root.Definition.Id);if(!BrowseDrivenPreviews)foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);SetPreviewObservation(root,root.Definition.ThumbnailsEnabled);
             if(root.Source is IMountSourceRuntime recovery)
             {
                 try{await recovery.AfterRegistrationAsync(token).ConfigureAwait(false);}
@@ -463,7 +463,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 }
                 catch(OperationCanceledException)when(IsStopping){}
             }
-        };session.Connect();
+        };session.PreviewDemandReceived+=paths=>ApplyPreviewDemand(root,session,paths);session.Connect();
     }
     private async Task DisconnectCoreAsync(Runtime root)
     {
@@ -573,7 +573,7 @@ public sealed partial class MountManager : IAsyncDisposable
                         changedPaths.Add(path);
                         // 原生句柄已归还，先完成缓存元数据收尾再发布任务完成；Shell通知仍在根锁外发送。
                         _previews.RebindMetadata(root.Definition,entry);
-                        if(operation=="keepOnDevice")_previews.Queue(root.Definition,entry);
+                        if(operation=="keepOnDevice")QueueLocalPreview(root,entry);
                         Result(job,path,"Completed","操作已完成。");
                     }
                     catch(OperationCanceledException){throw;}
@@ -664,7 +664,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(root.Session is null)
         {
             root.Source=await _factory.CreateAsync(mount,_repository,true,job.Cancel.Token).ConfigureAwait(false);
-            root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>_previews.Queue(root.Definition,entry));ConnectSession(root);
+            root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>QueueLocalPreview(root,entry));ConnectSession(root);
         }
         Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
         var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted&&!(entry.RemotePresence==RemotePresence.Deleted&&LocalMissing(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath)))).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
