@@ -42,7 +42,7 @@ struct RuntimeHost::Impl {
     DWORD ParentId{};Handle Parent,Stop{CreateEventW(nullptr,TRUE,FALSE,nullptr)};std::unique_ptr<Pipe> Control,Data;std::atomic<bool> Closed{};
     std::mutex OutGate,CallsGate,ChecksGate,DataWriteGate;std::condition_variable OutWake;std::deque<std::pair<Json,size_t>> Out;size_t OutBytes{};
     std::map<std::string,std::shared_ptr<RuntimeCommand>> Calls;std::map<std::string,std::shared_ptr<std::promise<Json>>> Checks;
-    Pool Workers,Fast{4};
+    Pool Workers,Fast{4},Long{4};
     void Close(const char* stage=nullptr,HRESULT code=S_OK){if(Closed.exchange(true))return;if(stage&&code!=HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)&&code!=HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED))RecordNativeFailure("NativeRuntime",code,stage);SetEvent(Stop.Value);OutWake.notify_all();{std::lock_guard lock(CallsGate);for(auto& [_,call]:Calls)SetEvent(call->Cancel.Value);}std::lock_guard lock(ChecksGate);for(auto& [_,promise]:Checks)try{promise->set_exception(std::make_exception_ptr(Failure(HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE))));}catch(...){}Checks.clear();}
 };
 RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make_unique<Impl>()){
@@ -56,7 +56,7 @@ RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make
     p.Control->Write({{"kind","hello"},{"version",1},{"nonce",Utf8(nonce)},{"scope",Utf8(ProductScope())},{"processId",GetCurrentProcessId()},{"build",HYBRIDMOUNT_VERSION_TEXT}});
     auto response=p.Control->Read();Require(response.at("kind")=="helloAck"&&response.at("version")==1&&response.at("nonce")==Utf8(nonce)&&response.at("build")==HYBRIDMOUNT_VERSION_TEXT,E_ACCESSDENIED);
 }
-RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();}
+RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();_impl->Long.Stop();}
 DWORD RuntimeHost::ParentProcessId()const noexcept{return _impl->ParentId;}
 bool RuntimeHost::IsStopping()const noexcept{return _impl->Closed.load();}
 bool RuntimeHost::Send(Json value,bool waitForCapacity)noexcept{
@@ -87,10 +87,11 @@ void RuntimeHost::Run(){
         Require(kind=="command");auto command=std::make_shared<RuntimeCommand>();command->Id=GuidN(frame.at("requestId"));command->Operation=frame.at("operation").get<std::string>();command->Data=frame.at("data");Require(command->Operation.size()<=64&&command->Data.is_object());
         {std::lock_guard lock(p.CallsGate);Require(p.Calls.emplace(command->Id,command).second);}
         const auto& op=command->Operation;const auto fast=op=="readShellState"||op=="readCustomState"||op=="queryFile"||op=="queryRoot"||op=="tagState"||op=="activity"||op=="blockEntry"||op=="finishFetch"||op=="clearRoot";
-        const auto accepted=(fast?p.Fast:p.Workers).Add([&,command]{Json result=Json::object();HRESULT code=S_OK;try{command->CheckCancel();Require(Execute!=nullptr);result=Execute(*command);}catch(const Failure& error){code=error.Code;result["failureStage"]=error.Stage;}catch(const winrt::hresult_error& error){code=error.code();}catch(...){code=E_FAIL;}Send({{"kind","response"},{"requestId",command->Id},{"hresult",code},{"data",result}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);});
+        const auto longRunning=op=="hydrateFile"||op=="hydratePinned"||op=="applyRemoteSnapshot";
+        const auto accepted=(fast?p.Fast:longRunning?p.Long:p.Workers).Add([&,command]{Json result=Json::object();HRESULT code=S_OK;try{command->CheckCancel();Require(Execute!=nullptr);result=Execute(*command);}catch(const Failure& error){code=error.Code;result["failureStage"]=error.Stage;}catch(const winrt::hresult_error& error){code=error.code();}catch(...){code=E_FAIL;}Send({{"kind","response"},{"requestId",command->Id},{"hresult",code},{"data",result}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);});
         if(!accepted){Send({{"kind","response"},{"requestId",command->Id},{"hresult",HRESULT_FROM_WIN32(ERROR_BUSY)},{"data",Json::object()}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);}
     }}catch(const Failure& error){p.Close("NativeControlReader",error.Code);}catch(...){p.Close("NativeControlReader",E_FAIL);}
-    p.Close();if(Stopping)Stopping();p.Workers.Stop();p.Fast.Stop();writer.join();data.join();
+    p.Close();if(Stopping)Stopping();p.Workers.Stop();p.Fast.Stop();p.Long.Stop();writer.join();data.join();
 }
 int RunRuntime(DWORD parent,const std::wstring& nonce)noexcept{
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Code;~Scope(){if(SUCCEEDED(Code))CoUninitialize();}} scope{apartment};
