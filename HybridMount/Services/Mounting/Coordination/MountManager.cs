@@ -177,6 +177,7 @@ public sealed partial class MountManager : IAsyncDisposable
         =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults())),token);
     private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload,IReadOnlyList<FileExclusionRule> exclusions)
     {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         MountDefinition definition;
         await _configurationGate.WaitAsync(token).ConfigureAwait(false);
         try { definition = SaveNewMountCore(name, directory, autoConnect, source, credentials, false, token,exclusions:exclusions); }
@@ -189,6 +190,7 @@ public sealed partial class MountManager : IAsyncDisposable
         =>OwnAsync(cancel=>UpdateCredentialsCoreAsync(id,credentials,cancel,settings),token);
     private async Task UpdateCredentialsCoreAsync(Guid id,SourceCredentials credentials,CancellationToken token,FileSourceConfiguration? settings)
     {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         var root=Root(id);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
@@ -223,6 +225,8 @@ public sealed partial class MountManager : IAsyncDisposable
         }
     }
     /// <summary>只有实际无注册、无云占位、无物化索引的从未注册条目可改变远端根。</summary>
+    public Task<bool> CanEditRemoteRootAsync(Guid id,CancellationToken token=default)
+        =>OwnAsync(async cancel=>{await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);cancel.ThrowIfCancellationRequested();return CanEditRemoteRoot(id);},token);
     public bool CanEditRemoteRoot(Guid id)
     {
         var root=Root(id);
