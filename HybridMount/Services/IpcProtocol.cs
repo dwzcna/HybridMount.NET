@@ -31,31 +31,31 @@ public static class IpcProtocol
         if (request.Operation is not ("freeSpace" or "keepOnDevice" or "showSyncIssues") || request.Paths.Length is < 1 or > MaximumPaths) return false;
         return request.Paths.All(path => !string.IsNullOrWhiteSpace(path) && path.Length <= 32767 && !path.Contains('\0') && Path.IsPathFullyQualified(path));
     }
-    /// <summary>读取一条完整帧；截断、零长度、过长或非法 JSON 均失败。</summary>
+    /// <summary>读取完整帧且不捕获调用线程；同步原生查询不能依赖UI消息泵。截断、过长或非法JSON均失败。</summary>
     public static async Task<T> ReadAsync<T>(Stream stream, CancellationToken token = default)
     {
         var header = new byte[4];
-        await stream.ReadExactlyAsync(header, token);
+        await stream.ReadExactlyAsync(header, token).ConfigureAwait(false);
         var length = BinaryPrimitives.ReadUInt32LittleEndian(header);
         if (length is 0 or > MaximumFrameBytes) throw new InvalidDataException("IPC 帧长度无效。");
         var buffer = ArrayPool<byte>.Shared.Rent((int)length);
         try
         {
-            await stream.ReadExactlyAsync(buffer.AsMemory(0, (int)length), token);
+            await stream.ReadExactlyAsync(buffer.AsMemory(0, (int)length), token).ConfigureAwait(false);
             return JsonSerializer.Deserialize<T>(buffer.AsSpan(0, (int)length), JsonOptions)
                 ?? throw new InvalidDataException("IPC 消息为空。");
         }
         finally { ArrayPool<byte>.Shared.Return(buffer, clearArray: true); }
     }
-    /// <summary>写出长度和完整响应，校验序列化后的实际帧大小。</summary>
+    /// <summary>脱离调用方上下文写出完整帧；保持帧顺序与取消边界，校验序列化后的实际大小。</summary>
     public static async Task WriteAsync<T>(Stream stream, T value, CancellationToken token = default)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions);
         if (bytes.Length is 0 or > MaximumFrameBytes) throw new InvalidDataException("IPC 消息过长。");
         var header = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(header, (uint)bytes.Length);
-        await stream.WriteAsync(header, token);
-        await stream.WriteAsync(bytes, token);
-        await stream.FlushAsync(token);
+        await stream.WriteAsync(header, token).ConfigureAwait(false);
+        await stream.WriteAsync(bytes, token).ConfigureAwait(false);
+        await stream.FlushAsync(token).ConfigureAwait(false);
     }
 }

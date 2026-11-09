@@ -9,6 +9,29 @@
 - 菜单CLSID为59964FC1-D076-4DC1-9778-01F5833A5D4A，缩略图CLSID为A749B295-9CB5-4F08-98D4-00EB47345E09。自动缩略图绑定保持门控，交付包采用Menus和空CloudFiles声明。
 - 仅使用独立随机NTFS测试根、回环协议服务和临时测试包；未操作正式挂载、真实远端或已取消NAS，未重启Explorer。按用户要求不补跑.33停止的移除专项。
 
+## 同版本维护：开始同步窗口死锁
+
+首次交付91402f2后，用户反馈新增挂载点击“开始同步”卡住。只读采集当前VS打包Debug进程的两次线程栈，都停在窗口线程ConnectCoreAsync→InspectRegistration→IsOwnedRoot→NativeRuntimeClient.Invoke的Task同步等待；进程没有退出。证据：00944-connect-live-managed-stacks.log、00944-connect-live-managed-stacks-repeat.log。
+
+原生运行时外层等待虽然使用ConfigureAwait(false)，公共IpcProtocol内部帧头／正文读写和Flush仍捕获调用方SynchronizationContext；同步Invoke占住窗口线程后，帧I/O续体无法被调度回来，形成互等。新建不泵消息的窗口上下文，延迟分片读、分片写和真实私有管道查询在旧代码0/3，形成与现场调用边界一致的独立复现。回归只操作内存帧、独立原生进程及随机测试路径，不连接用户挂载。
+
+修复将帧全部I/O续体脱离调用方上下文；连接先登记所有者、取消和连接中状态，再通过ForceYielding离开窗口线程。该切换覆盖手动连接、新建连接及凭据更新后的内部连接；后台已预热也不在窗口线程执行同步本机查询。保持帧完整性、写入结果核对与现有取消／退出所有权。
+
+| 维护验证 | 实际结果 | artifacts/validation证据 |
+| --- | --- | --- |
+| 修复前分片读、分片写、真实原生查询 | 0/3，全部依赖窗口消息泵 | 00944-connect-ui-before.log／.trx |
+| x64 Debug最小非打包编译 | 通过 | 00944-connect-fix-debug-build.log |
+| 第一轮相关回归 | 49/50；新增连接测试的断言框架自身捕获上下文，修正测试辅助器 | 00944-connect-fix-debug-targeted.log／.trx |
+| 最后Debug相关回归 | 50/50，0跳过 | 00944-connect-fix-debug-final.log／.trx |
+| 最后Release相关回归 | 50/50，0跳过 | 00944-connect-fix-release-final.log／.trx |
+| x64／ARM64签名包、实际包内容检查 | 通过；未部署 | 00944-connect-fix-x64-msix.log；00944-connect-fix-arm64-msix.log |
+| ARM64测试交叉编译 | 0警告／0错误，未实机运行 | 00944-connect-fix-arm64-test-compile.log |
+| 双架构托管／原生二进制边界 | 无CldApi导入／无CLR头 | 00944-connect-fix-binary-audit.log |
+
+相关回归覆盖上述四项新增案例、公共IPC、连接探测、断开／退出／取消、原生供数和后台失败。没有重新运行首次交付的1336项广泛集合，也没有补跑.33停止专项。30个新增32位测试CLSID先按旧基线、测试目标、所有者及引用捕获精确快照，删除前再次比较；测试根、缓存及注册目标最终无残留。证据：00944-connect-registry-backup.json、00944-connect-registry-cleanup.json、00944-connect-cleanup-audit.json。
+
+保留现场主程序和原生后台，没有强制结束、删除挂载或操作远端。当前VS进程仍加载修复前DLL，停止调试、重新生成并启动后的原始按钮场景列待测。下文1336/1336等广泛记录属于首次交付91402f2，不能当作本维护补丁的新测试结果。
+
 ## 代码完成
 
 C++拥有CFAPI结构、回调参数副本、缓冲区、保护句柄、操作完成和同步根连接，负责注册、占位、水合／脱水、固定／排除、冲突替换、本地收尾及状态属性；C#保留WinUI、ViewModel、托盘、WebDAV／S3、凭据、同步事务、索引和数据库唯一写入。生产托管程序集不导入CldApi.dll；旧ABI仅在测试条件下保留。
@@ -21,7 +44,7 @@ WinRT根查询先完整物化快照，仅对只读NO_MORE_ITEMS有界重取。�
 
 CFAPI后台、COM宿主和媒体解码使用独立原生进程角色。缩略图直接只读已有SQLite BLOB库，不创建／升级数据库或写访问时间；校验schema、账户、根／文件身份及内容代次，忙、损坏、失效或缺失及时返回。GetThumbnail全部路径不发管道、不联网、不水合、不启动主程序。动态菜单仅根据本地元数据筛选，执行前再次核验：完整文件显示释放空间，未完整文件显示始终保留，排除文件隐藏两项。
 
-## 实际自动验证
+## 首次交付91402f2的自动验证
 
 日志和TRX保存在artifacts/validation，以下文件名均相对此目录。最终测试过滤条件为：
 
@@ -72,17 +95,17 @@ FullyQualifiedName!~FailedMountTests&FullyQualifiedName!~OrphanedMountRecoveryTe
 
 ## 交付产物
 
-产物均为0.0.9.44、自包含、Menus配置及NativePreview身份。签名使用已有当前用户证书3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0；未导出私钥。
+以下产物已重新生成，包含开始同步修复；仍为0.0.9.44、自包含、Menus配置及NativePreview身份。首次交付原哈希见91402f2中的本文件，本表为维护修复后的当前哈希。签名使用已有当前用户证书3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0；未导出私钥。
 
 | 架构 | 相对仓库路径 | SHA256 |
 | --- | --- | --- |
-| x64 | artifacts/packages/x64/HybridMount_0.0.9.44_x64_Test/HybridMount_0.0.9.44_x64.msix | A17DF656949F91EDA2452707A1403120CB51BF34E413972A24F347826ED63109 |
-| ARM64 | artifacts/packages/ARM64/HybridMount_0.0.9.44_arm64_Test/HybridMount_0.0.9.44_arm64.msix | EC16CDBB0996684DAE335BFCCB4579DE095318435279713269E82274555A1F6E |
+| x64 | artifacts/packages/x64/HybridMount_0.0.9.44_x64_Test/HybridMount_0.0.9.44_x64.msix | 7F2F497B27E172586E281EAE3038CDE5A5CCCA314687FCC044DAECEF00A478E0 |
+| ARM64 | artifacts/packages/ARM64/HybridMount_0.0.9.44_arm64_Test/HybridMount_0.0.9.44_arm64.msix | CF6FCFE84C316E7AF1620745C997813FB4476781873209E3DBB4982F4B4B6AC0 |
 
 nlohmann/json 3.12.0保持完整MIT许可随源码和包交付；原生头文件SHA256为5F09D1EEBE9B3557F21DF155869AF13BCDE79B74A0748F82CA946E8CC088AAA0。
 
 ## 未完成与待测
 
 - **未完成／门控**：Explorer自动选择云缩略图处理器，同时保留正常文件图标、原生状态列和系统菜单；显式COM返回位图不能代替此项。验证前不启用自动注册或用户开关。
-- **待测**：真实WinUI操作、托盘与退出，侧栏及磁盘路径的Explorer列／图标和动态菜单目视，正式实验包安装／卸载／升级，主程序退出后Explorer自动缩略图选择，ARM64实机运行。
+- **待测**：当前VS旧进程停止调试并重新生成后的“开始同步”原场景，真实WinUI操作、托盘与退出，侧栏及磁盘路径的Explorer列／图标和动态菜单目视，正式实验包安装／卸载／升级，主程序退出后Explorer自动缩略图选择，ARM64实机运行。
 - 不接管现有正式挂载，不合并master、不推送；只在codex/native-backend完成独立本地提交。GUI和实机待测不记为测试通过。

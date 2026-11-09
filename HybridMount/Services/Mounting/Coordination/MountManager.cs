@@ -286,6 +286,8 @@ public sealed partial class MountManager : IAsyncDisposable
         Status(root,"连接中");
         try
         {
+            // 连接所有权和取消状态已经登记；即使后台已预热，也先离开UI线程再做同步本机查询。
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             await NativeRuntimeClient.PrepareConnectionAsync().ConfigureAwait(false);token.ThrowIfCancellationRequested();
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.Entries(root.Definition.Id).Any(entry=>entry.Materialized))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
