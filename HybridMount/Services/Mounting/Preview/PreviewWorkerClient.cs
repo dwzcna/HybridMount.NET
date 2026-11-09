@@ -7,7 +7,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>只启动本产品的独立工作模式；匿名管道传输有界字节，512MiB Job 与十秒期限限制系统解码器。</summary>
-public sealed class PreviewWorkerClient(string? executable=null)
+public sealed class PreviewWorkerClient(string? executable=null,Action<int>? diagnostic=null)
 {
     private static string DefaultExecutable()
     {
@@ -32,7 +32,7 @@ public sealed class PreviewWorkerClient(string? executable=null)
             while(true)
             {
                 var message=await IpcProtocol.ReadAsync<PreviewWorkerPacket>(process.StandardOutput.BaseStream,stopping).ConfigureAwait(false);
-                if(message.Kind=="unsupported")return null;
+                if(message.Kind=="unsupported"){if(message.HResult is {} code)diagnostic?.Invoke(code);return null;}
                 if(message.Kind=="result")
                 {
                     var frames=message.Frames;if(frames is null||frames.Count!=4)return null;

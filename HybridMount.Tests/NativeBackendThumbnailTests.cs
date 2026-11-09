@@ -39,11 +39,19 @@ public sealed class NativeBackendThumbnailTests
         try
         {
             var png=File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png"));Assert.True(store.Publish(ThumbnailCacheReader.Capture(root,entry)!,new Dictionary<int,byte[]>{{64,png}}));await test.Manager.DisconnectAsync(test.Id);var requests=test.Dav.Server.Requests.Count;
-            using var process=Process.Start(Start("--shell-server"))!;
+            var rootDirectory=new DirectoryInfo(AppContext.BaseDirectory);while(rootDirectory is not null&&!File.Exists(Path.Combine(rootDirectory.FullName,"Directory.Build.props")))rootDirectory=rootDirectory.Parent;Assert.NotNull(rootDirectory);
+#if DEBUG
+            const string configuration="Debug";
+#else
+            const string configuration="Release";
+#endif
+            var isolated=Path.Combine(test.Dav.Area,"native-shell");Directory.CreateDirectory(isolated);foreach(var file in new[]{"HybridMount.Native.exe","e_sqlite3.dll"})File.Copy(Path.Combine(AppContext.BaseDirectory,file),Path.Combine(isolated,file));
+            File.Copy(Path.Combine(rootDirectory.FullName,"artifacts","native-thumbnail-host",System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture==System.Runtime.InteropServices.Architecture.Arm64?"ARM64":"x64",configuration,"HybridMount.Ext.dll"),Path.Combine(isolated,"HybridMount.Ext.dll"));
+            var start=Start("--shell-server");start.FileName=Path.Combine(isolated,"HybridMount.Native.exe");using var process=Process.Start(start)!;
             try
             {
                 var until=DateTime.UtcNow.AddSeconds(10);NativePreviewInterop? provider=null;
-                while(provider is null)try{provider=new NativePreviewInterop(path,true,null,true);}catch(System.Runtime.InteropServices.COMException error)when(error.HResult==unchecked((int)0x80040154)&&DateTime.UtcNow<until){await Task.Delay(50);}
+                while(provider is null)try{provider=new NativePreviewInterop(path,true,null,true,new Guid("d0037037-4d1c-4c7e-a519-34c76b9bb281"));}catch(System.Runtime.InteropServices.COMException error)when(error.HResult==unchecked((int)0x80040154)&&DateTime.UtcNow<until){await Task.Delay(50);}
                 using(provider){Assert.Equal(0,provider.Thumbnail(64,out var alpha,out var bitmap));try{Assert.Equal(2u,alpha);Assert.InRange(NativePreviewInterop.BitmapWidth(bitmap),1,64);}finally{NativePreviewInterop.DeleteObject(bitmap);}}
                 process.Refresh();Assert.DoesNotContain(process.Modules.Cast<ProcessModule>(),module=>module.ModuleName.Equals("coreclr.dll",StringComparison.OrdinalIgnoreCase));Assert.Equal(requests,test.Dav.Server.Requests.Count);Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
             }

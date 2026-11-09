@@ -40,10 +40,10 @@ std::string GuidBytes(const BYTE* bytes){GUID id{};memcpy(&id,bytes,sizeof(id));
 }
 struct RuntimeHost::Impl {
     DWORD ParentId{};Handle Parent,Stop{CreateEventW(nullptr,TRUE,FALSE,nullptr)};std::unique_ptr<Pipe> Control,Data;std::atomic<bool> Closed{};
-    std::mutex OutGate,CallsGate,ChecksGate,DataWriteGate;std::condition_variable OutWake;std::deque<std::pair<Json,size_t>> Out;size_t OutBytes{};
+    std::mutex OutGate,CallsGate,ChecksGate,DataWriteGate;std::condition_variable OutWake;std::deque<std::pair<Json,size_t>> Out;size_t OutBytes{};std::map<std::string,Json> PreviewOut;
     std::map<std::string,std::shared_ptr<RuntimeCommand>> Calls;std::map<std::string,std::shared_ptr<std::promise<Json>>> Checks;
     Pool Workers,Fast{4};
-    void Close(const char* stage=nullptr,HRESULT code=S_OK){if(Closed.exchange(true))return;if(stage&&code!=HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)&&code!=HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED))RecordNativeFailure("NativeRuntime",code,stage);SetEvent(Stop.Value);OutWake.notify_all();{std::lock_guard lock(CallsGate);for(auto& [_,call]:Calls)SetEvent(call->Cancel.Value);}std::lock_guard lock(ChecksGate);for(auto& [_,promise]:Checks)try{promise->set_exception(std::make_exception_ptr(Failure(HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE))));}catch(...){}Checks.clear();}
+    void Close(const char* stage=nullptr,HRESULT code=S_OK){{std::lock_guard lock(OutGate);if(Closed.exchange(true))return;}if(stage&&code!=HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)&&code!=HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED))RecordNativeFailure("NativeRuntime",code,stage);SetEvent(Stop.Value);OutWake.notify_all();{std::lock_guard lock(CallsGate);for(auto& [_,call]:Calls)SetEvent(call->Cancel.Value);}std::lock_guard lock(ChecksGate);for(auto& [_,promise]:Checks)try{promise->set_exception(std::make_exception_ptr(Failure(HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE))));}catch(...){}Checks.clear();}
 };
 RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make_unique<Impl>()){
     Require(parent>0&&nonce.size()==32);GuidN(Utf8(nonce));auto& p=*_impl;p.ParentId=parent;p.Parent.Value=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE,FALSE,parent);WinCheck(p.Parent.Value!=nullptr);
@@ -59,11 +59,15 @@ RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make
 RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();}
 DWORD RuntimeHost::ParentProcessId()const noexcept{return _impl->ParentId;}
 bool RuntimeHost::IsStopping()const noexcept{return _impl->Closed.load();}
+void RuntimeHost::Close(const char* stage,HRESULT code){_impl->Close(stage,code);}
 bool RuntimeHost::Send(Json value,bool waitForCapacity)noexcept{
     try{auto size=value.dump().size();auto& p=*_impl;std::unique_lock lock(p.OutGate);if(size>1024*1024)return false;
         if(waitForCapacity)p.OutWake.wait(lock,[&]{return p.Closed||(p.Out.size()<512&&p.OutBytes+size<=4*1024*1024);});
         if(p.Closed||p.Out.size()>=512||p.OutBytes+size>4*1024*1024)return false;p.OutBytes+=size;p.Out.emplace_back(std::move(value),size);p.OutWake.notify_all();return true;
     }catch(...){return false;}
+}
+void RuntimeHost::SendPreview(Json value)noexcept {
+    try{if(value.dump().size()>768*1024)return;auto key=value.at("mountId").get<std::string>();auto& p=*_impl;std::lock_guard lock(p.OutGate);if(p.Closed||p.PreviewOut.size()>=32&&!p.PreviewOut.contains(key))return;p.PreviewOut[key]=std::move(value);p.OutWake.notify_all();}catch(...){}
 }
 Json RuntimeHost::Checkpoint(RuntimeCommand& command,const std::string& stage,const Json& data,bool beginIrreversible,bool safety){
     if(!safety)command.CheckCancel();GUID id{};Check(CoCreateGuid(&id));wchar_t raw[40]{};Require(StringFromGUID2(id,raw,40)>0);const auto key=GuidN(Utf8(raw));auto promise=std::make_shared<std::promise<Json>>();auto future=promise->get_future();
@@ -80,7 +84,7 @@ void RuntimeHost::SendBlock(const std::string& request,const std::string& lease,
 }
 void RuntimeHost::Run(){
     auto& p=*_impl;
-    std::thread writer([&]{try{while(true){Json value;{std::unique_lock lock(p.OutGate);p.OutWake.wait(lock,[&]{return p.Closed||!p.Out.empty();});if(p.Closed)return;auto item=std::move(p.Out.front());p.Out.pop_front();p.OutBytes-=item.second;p.OutWake.notify_all();value=std::move(item.first);}p.Control->Write(value);}}catch(const Failure& error){p.Close("NativeControlWriter",error.Code);}catch(...){p.Close("NativeControlWriter",E_FAIL);}});
+    std::thread writer([&]{try{while(true){Json value;{std::unique_lock lock(p.OutGate);p.OutWake.wait(lock,[&]{return p.Closed||!p.Out.empty()||!p.PreviewOut.empty();});if(p.Closed)return;if(!p.Out.empty()){auto item=std::move(p.Out.front());p.Out.pop_front();p.OutBytes-=item.second;p.OutWake.notify_all();value=std::move(item.first);}else{auto item=p.PreviewOut.begin();value=std::move(item->second);p.PreviewOut.erase(item);}}p.Control->Write(value);}}catch(const Failure& error){p.Close("NativeControlWriter",error.Code);}catch(...){p.Close("NativeControlWriter",E_FAIL);}});
     std::thread data([&]{try{while(!p.Closed){DWORD length{};p.Data->Transfer(&length,4,false);Require(length>40&&length<=40+256*1024);std::vector<BYTE> bytes(length);p.Data->Transfer(bytes.data(),length,false);RuntimeBlock block{GuidBytes(bytes.data()),GuidBytes(bytes.data()+16)};memcpy(&block.Offset,bytes.data()+32,8);block.Bytes.assign(bytes.begin()+40,bytes.end());HRESULT code=S_OK;try{Require(Content!=nullptr);Content(block);}catch(const Failure& error){code=error.Code;}catch(...){code=E_FAIL;}Require(Send({{"kind","response"},{"requestId",block.Id},{"hresult",code},{"data",Json::object()}},true),E_FAIL);}}catch(const Failure& error){p.Close("NativeDataReader",error.Code);}catch(...){p.Close("NativeDataReader",E_FAIL);}});
     try{while(!p.Closed){auto frame=p.Control->Read();const auto kind=frame.at("kind").get<std::string>();
         if(kind=="checkpointAck"){auto id=GuidN(frame.at("checkpointId"));std::shared_ptr<std::promise<Json>> promise;{std::lock_guard lock(p.ChecksGate);auto found=p.Checks.find(id);if(found!=p.Checks.end()){promise=found->second;p.Checks.erase(found);}}if(promise)promise->set_value(std::move(frame));continue;}
