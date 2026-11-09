@@ -11,18 +11,26 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBlock Text="挂载" Style="{ThemeResource TitleTextBlockStyle}"/>
-        <StackPanel Grid.Row="1" Margin="0,16,0,0" Orientation="Horizontal" Spacing="8">
-            <Button x:Name="AddButton" Content="新增挂载">
-                <Button.Flyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
-                        <MenuFlyoutItem Text="S3 对象存储" Click="CreateS3Mount"/>
-                    </MenuFlyout>
-                </Button.Flyout>
-            </Button>
-            <Button x:Name="ExportButton" Content="导出配置" Click="ExportConfigurations"/>
-            <Button x:Name="ImportButton" Content="导入配置" Click="ImportConfigurations"/>
-            <Button x:Name="RecoveryButton" Content="遗留挂载" Click="RecoverOrphanedMounts"/>
+        <StackPanel Grid.Row="1" Margin="0,16,0,0" Spacing="12">
+            <InfoBar IsOpen="{x:Bind ViewModel.HasRuntimeFailedMounts,Mode=OneWay}" IsClosable="False" Severity="Warning"
+                     Title="原生后台已断开" Message="已保留恢复记录。请先核对未确认结果，再重新连接受影响的挂载。">
+                <InfoBar.ActionButton>
+                    <Button Content="重新连接全部" Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}"/>
+                </InfoBar.ActionButton>
+            </InfoBar>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="AddButton" Content="新增挂载">
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
+                            <MenuFlyoutItem Text="S3 对象存储" Click="CreateS3Mount"/>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+                <Button x:Name="ExportButton" Content="导出配置" Click="ExportConfigurations"/>
+                <Button x:Name="ImportButton" Content="导入配置" Click="ImportConfigurations"/>
+                <Button x:Name="RecoveryButton" Content="遗留挂载" Click="RecoverOrphanedMounts"/>
+            </StackPanel>
         </StackPanel>
         <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
                   SelectionMode="Single" AutomationProperties.Name="挂载列表"
