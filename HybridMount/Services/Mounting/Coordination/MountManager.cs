@@ -450,7 +450,9 @@ public sealed partial class MountManager : IAsyncDisposable
     /// <summary>原生会话故障先封闭所有生产者，再由应用所有者等待收尾；保留同步根和恢复记录。</summary>
     private void ConnectSession(Runtime root)
     {
-        var session=root.Session??throw new IOException("缺少原生挂载会话。");session.RuntimeFailed+=error=>
+        var session=root.Session??throw new IOException("缺少原生挂载会话。");
+        session.RenameRejected+=message=>{if(!IsStopping&&ReferenceEquals(root.Session,session))NotifyRenameRejected(root.Definition.Id,message);};
+        session.RuntimeFailed+=error=>
         {
             lock(_lifetime)
             {

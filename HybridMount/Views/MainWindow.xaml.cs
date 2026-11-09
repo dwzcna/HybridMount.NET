@@ -105,7 +105,9 @@ public sealed partial class MainWindow : Window
         foreach(var notice in App.Current.IssueNotifications.Pending)
         {
             var button=new Button{Content="查看同步问题"};button.Click+=(_,_)=>App.Current.TaskFocus.ShowIssues(notice.MountId);
-            var bar=new InfoBar{Title=notice.MountName,Message=$"{notice.Count} 个上传问题需要处理",Severity=InfoBarSeverity.Warning,IsOpen=true,IsClosable=true,ActionButton=button};
+            var summary=notice.Count>0?$"{notice.Count} 个上传问题需要处理":"";
+            var message=notice.Message is {} warning?(summary.Length>0?summary+"\n":"")+warning:summary;
+            var bar=new InfoBar{Title=notice.MountName,Message=message,Severity=InfoBarSeverity.Warning,IsOpen=true,IsClosable=true,ActionButton=notice.Count>0?button:null};
             bar.Closed+=(_,_)=>App.Current.IssueNotifications.Dismiss(notice.MountId);IssueNotifications.Children.Add(bar);
         }
     }

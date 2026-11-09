@@ -11,6 +11,12 @@ public sealed partial class MountManager
     private bool _legacyIssueClearsQueued;
     /// <summary>问题变化使用独立只读快照；清除任务历史不影响此事件和持久状态。</summary>
     public event Action? UploadIssuesChanged;
+    public event Action<Guid,string>? RenameRejected;
+    private void NotifyRenameRejected(Guid mount,string message)
+    {
+        if(RenameRejected is not {} handlers)return;
+        foreach(Action<Guid,string> action in handlers.GetInvocationList())try{action(mount,message);}catch(Exception error){_logger.Queue("同步问题","Warning",error.GetType().Name);}
+    }
     private void NotifyIssues()
     {
         if(UploadIssuesChanged is not {} handlers)return;

@@ -62,6 +62,38 @@ public sealed class UploadIssueIntegrationTests
         foreach(var row in area.Manager.UploadIssues)area.Repository.UpdateUpload(row.Id,x=>x with{State="Completed"});await area.Notify();Assert.Empty(notices.Pending);Assert.Empty(area.Manager.UploadIssues);
         await notices.DisposeAsync();var calls=0;notices.Changed+=()=>calls++;area.Put("late");await area.Notify();Assert.Equal(0,calls);
     }
+    [Theory]
+    [InlineData("outOfRoot","不支持将文件移出同步根")]
+    [InlineData("sessionStopping","挂载正在停止")]
+    [InlineData("differentMount","不支持跨挂载移动文件")]
+    [InlineData("unsafeTarget","重命名目标目录不可安全访问")]
+    [InlineData("invalidTarget","重命名未完成")]
+    public void RejectedRenameMessagesExplainTheReasonWithoutExposingParentPaths(string reason,string expected)
+    {
+        var message=CloudMountSession.RenameRejectionMessage(@"C:\private\文件.txt",reason);
+        Assert.Contains(expected,message);Assert.Contains("文件.txt",message);Assert.DoesNotContain("private",message);
+        Assert.Contains("未知文件",CloudMountSession.RenameRejectionMessage(null,reason));
+    }
+    [Fact(Timeout=15000)]
+    public async Task RejectedRenameEventsAreGenerationScopedLoggedAndMergedIntoDismissibleNotices()
+    {
+        await using var area=new Area();await using var notices=new UploadIssueNotificationService(area.Manager);
+        var mount=area.Manager.Mounts.Single().Definition;await using var session=new CloudMountSession(mount,null,area.Repository,area.Logger);
+        const System.Reflection.BindingFlags flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+        var generation=(string)typeof(CloudMountSession).GetField("_sessionId",flags)!.GetValue(session)!;
+        var receive=typeof(CloudMountSession).GetMethod("OnNativeEvent",flags)!;var relay=typeof(MountManager).GetMethod("NotifyRenameRejected",flags)!;
+        session.RenameRejected+=message=>relay.Invoke(area.Manager,[area.Id,message]);
+        var data=NativeRuntimeProtocol.Element(new{entryId="entry",sourcePath=@"C:\root\文件.txt",targetPath=@"C:\outside\文件.txt",reason="outOfRoot"});
+        void Emit(string id,string sessionId)=>receive.Invoke(session,[new NativeRuntimeEvent(id,sessionId,"renameRejected",data)]);
+        Emit(Guid.NewGuid().ToString("N"),generation);Emit(area.Id.ToString("N"),"old generation");Assert.Empty(notices.Pending);
+        var changed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var calls=0;notices.Changed+=()=>{Interlocked.Increment(ref calls);changed.TrySetResult();};
+        Emit(area.Id.ToString("N"),generation);Emit(area.Id.ToString("N"),generation);await changed.Task.WaitAsync(TimeSpan.FromSeconds(4));
+        var notice=Assert.Single(notices.Pending);Assert.Equal(0,notice.Count);Assert.Equal("不支持将文件移出同步根：文件.txt，请复制后再删除",notice.Message);Assert.Equal(1,calls);
+        Assert.Contains(await area.Logger.ReadAsync(),row=>row.Message==notice.Message);Assert.Empty(area.Manager.UploadIssues);
+        area.Put("upload");await area.Notify();notice=Assert.Single(notices.Pending);Assert.Equal(1,notice.Count);Assert.NotNull(notice.Message);
+        notices.Dismiss(area.Id);Assert.Empty(notices.Pending);Assert.Single(area.Manager.UploadIssues);
+        await notices.DisposeAsync();Emit(area.Id.ToString("N"),generation);Assert.Empty(notices.Pending);
+    }
     [Fact]
     public async Task CanceledUnknownResultRetainsEvidenceWithoutNewWarningAndCompletedHistoryIsQuiet()
     {
