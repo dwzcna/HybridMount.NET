@@ -14,5 +14,5 @@ internal sealed class NativeLocalReadLease:IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _closed)!=0,this);var bytes=await _runtime.ReadLocalRangeAsync(_mount,_id,offset,buffer.Length,token).ConfigureAwait(false);bytes.CopyTo(buffer);return new(true,bytes.Length);
     }
-    public async ValueTask DisposeAsync(){if(Interlocked.Exchange(ref _closed,1)!=0||!_runtime.IsAvailable)return;await _runtime.InvokeAsync("closeLocalRead",new{mountId=_mount,leaseId=_id}).ConfigureAwait(false);}
+    public async ValueTask DisposeAsync(){if(Interlocked.Exchange(ref _closed,1)!=0||!_runtime.IsAvailable)return;try{await _runtime.InvokeAsync("closeLocalRead",new{mountId=_mount,leaseId=_id}).ConfigureAwait(false);}catch(Exception){/* 未确认释放的租约由原生超时回收，不覆盖预览结果。 */}}
 }

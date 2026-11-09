@@ -36,6 +36,11 @@ public sealed class NativeCloudSessionTests
             var block=await runtime.ReadLocalRangeAsync(id,lease,17,NativeRuntimeProtocol.BlockBytes,CancellationToken.None);Assert.Equal(bytes.AsSpan(17,block.Length).ToArray(),block);Assert.Equal(stamp,LocalFileState.Read(path));
             var wrong=await Assert.ThrowsAnyAsync<Exception>(()=>runtime.ReadLocalRangeAsync(Guid.NewGuid(),lease,0,1,CancellationToken.None));Assert.NotNull(wrong);Assert.True(runtime.IsAvailable);
             await runtime.InvokeAsync("closeLocalRead",new{mountId=id,leaseId=lease});
+            await runtime.InvokeAsync("openLocalRead",NativeRuntimeArguments.Entry(mount,entry,new{leaseId=lease,expectedStamp=stamp.Key}));
+            await Task.Delay(TimeSpan.FromSeconds(31));
+            var expired=await Assert.ThrowsAnyAsync<Exception>(()=>runtime.ReadLocalRangeAsync(id,lease,0,1,CancellationToken.None));Assert.Equal(unchecked((int)0x80070490),expired.HResult);
+            await runtime.InvokeAsync("openLocalRead",NativeRuntimeArguments.Entry(mount,entry,new{leaseId=lease,expectedStamp=stamp.Key}));
+            await runtime.InvokeAsync("closeLocalRead",new{mountId=id,leaseId=lease});
             var released=await runtime.InvokeAsync("releaseFile",NativeRuntimeArguments.Entry(mount,entry,new{sessionId}));Assert.True(released.GetProperty("changed").GetBoolean());Assert.False(CloudFilesNative.HasFullContent(path,bytes.Length));Assert.Equal(before.Identity,LocalFileState.Read(path).Identity);
             await runtime.InvokeAsync("disconnectRoot",NativeRuntimeArguments.Root(mount,new{sessionId}));connected=false;
         }
