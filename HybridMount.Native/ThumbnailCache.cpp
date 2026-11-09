@@ -1,9 +1,13 @@
 #include "ThumbnailCache.h"
 #include "NativeFile.h"
+#include "NativeDiagnostics.h"
 
 namespace hm {
 thread_local const char* ThumbnailReadStage="start";
+thread_local ULONGLONG ThumbnailDeadline=0;
 namespace {
+constexpr ULONGLONG ThumbnailDeadlineMs=500;
+void RecordThumbnailFailure(HRESULT code)noexcept{static volatile LONG64 last{};const auto now=static_cast<LONG64>(GetTickCount64());for(;;){const auto previous=InterlockedCompareExchange64(&last,0,0);if(previous!=0&&now-previous<1000)return;if(InterlockedCompareExchange64(&last,now,previous)==previous)break;}RecordNativeFailure("NativeRuntime",code,ThumbnailReadStage);}
 struct sqlite3;struct sqlite3_stmt;
 /// <summary>只解析应用目录的现有SQLite C ABI；不搜索PATH，不创建第二写入者。</summary>
 struct Sqlite {
@@ -22,11 +26,11 @@ struct Sqlite {
 };
 Sqlite& Library(){static Sqlite api;return api;}
 struct Database {
-    Sqlite& Api;sqlite3* Value{};ULONGLONG Deadline=GetTickCount64()+100;
+    Sqlite& Api;sqlite3* Value{};ULONGLONG Deadline{};
     explicit Database(const std::wstring& path):Api(Library()){
         NoLinks(path,false);auto encoded=Utf8(path);const auto result=Api.Open(encoded.c_str(),&Value,1|0x10000,nullptr);
-        if(result!=0){if(Value)Api.Close(Value);Value=nullptr;throw Failure(E_FAIL);}
-        Api.Progress(Value,1000,[](void* state){return GetTickCount64()>=static_cast<Database*>(state)->Deadline?1:0;},this);
+        if(result!=0){if(Value)Api.Close(Value);Value=nullptr;throw Failure(E_FAIL);}Deadline=GetTickCount64()+ThumbnailDeadlineMs;
+        ThumbnailDeadline=Deadline;Api.Progress(Value,1000,[](void* state){return GetTickCount64()>=static_cast<Database*>(state)->Deadline?1:0;},this);
         if(Api.Exec(Value,"PRAGMA query_only=ON;PRAGMA trusted_schema=OFF;PRAGMA busy_timeout=0;BEGIN",nullptr,nullptr,nullptr)!=0){Api.Close(Value);Value=nullptr;throw Failure(E_FAIL);}
     }
     ~Database(){if(Value){Api.Exec(Value,"ROLLBACK",nullptr,nullptr,nullptr);Api.Close(Value);}}
@@ -37,7 +41,7 @@ struct Statement {
     ~Statement(){Api.Finalize(Value);}
     void Bind(int index,const std::string& text){Require(Api.BindText(Value,index,text.data(),static_cast<int>(text.size()),reinterpret_cast<void(__cdecl*)(void*)>(static_cast<intptr_t>(-1)))==0,E_FAIL);}
     void Bind(int index,int value){Require(Api.BindInt(Value,index,value)==0,E_FAIL);}
-    bool Row(){auto code=Api.Step(Value);Require(code==100||code==101,E_FAIL);return code==100;}
+    bool Row(){auto code=Api.Step(Value);if(code!=100&&code!=101){if(ThumbnailDeadline&&GetTickCount64()>=ThumbnailDeadline){ThumbnailReadStage="timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}throw Failure(E_FAIL);}return code==100;}
     std::string Text(int column){auto count=Api.Bytes(Value,column);Require(count>=0&&count<=65536);auto bytes=Api.Text(Value,column);Require(bytes!=nullptr);return std::string(reinterpret_cast<const char*>(bytes),count);}
 };
 bool Valid(const Json& binding,const std::wstring& path){
@@ -52,21 +56,22 @@ bool Valid(const Json& binding,const std::wstring& path){
 }
 std::vector<BYTE> ReadCachedThumbnail(const std::wstring& path,UINT size){
     ThumbnailReadStage="root";Require(size>0&&size<=256);auto canonical=FullPath(path);auto marker=RootMarker(canonical);const auto mount=GuidN(marker.at("MountId"));
-    ThumbnailReadStage="database";Database db(PhysicalDataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db");
-    {Statement schema(db,"PRAGMA user_version");Require(schema.Row()&&schema.Api.Int(schema.Value,0)==1);}
-    {Statement count(db,"SELECT count(*) FROM roots");Require(count.Row()&&count.Api.Int(count.Value,0)==1);}
+    ThumbnailReadStage="database";auto database=PhysicalDataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db";if(GetFileAttributesW(database.c_str())==INVALID_FILE_ATTRIBUTES){const auto error=GetLastError();if(error==ERROR_FILE_NOT_FOUND||error==ERROR_PATH_NOT_FOUND){ThumbnailReadStage="db-missing";return {};}}
+    std::unique_ptr<Database> db;try{db=std::make_unique<Database>(database);}catch(...){ThumbnailReadStage="sqlite-load-failure";throw;}
+    {ThumbnailReadStage="schema";Statement schema(*db,"PRAGMA user_version");Require(schema.Row()&&schema.Api.Int(schema.Value,0)==1);}
+    {Statement count(*db,"SELECT count(*) FROM roots");Require(count.Row()&&count.Api.Int(count.Value,0)==1);}
     ThumbnailReadStage="binding";Json binding,root;std::string key;
-    {Statement row(db,"SELECT b.json,b.content,r.json FROM bindings b JOIN roots r ON r.mount=b.mount WHERE b.path=?1 AND b.mount=?2 AND length(b.json)<=65536 AND length(r.json)<=65536 LIMIT 2");row.Bind(1,Utf8(canonical));row.Bind(2,mount);if(!row.Row())return {};binding=Parse(row.Text(0));key=row.Text(1);root=Parse(row.Text(2));Require(!row.Row());}
-    ThumbnailReadStage="identity";Require(binding.at("Root")==root&&GuidN(root.at("MountId"))==mount&&Valid(binding,canonical));
+    {Statement row(*db,"SELECT b.json,b.content,r.json FROM bindings b JOIN roots r ON r.mount=b.mount WHERE b.path=?1 AND b.mount=?2 AND length(b.json)<=65536 AND length(r.json)<=65536 LIMIT 2");row.Bind(1,Utf8(canonical));row.Bind(2,mount);if(!row.Row())return {};binding=Parse(row.Text(0));key=row.Text(1);root=Parse(row.Text(2));Require(!row.Row());}
+    ThumbnailReadStage="identity-mismatch";Require(binding.at("Root")==root&&GuidN(root.at("MountId"))==mount&&Valid(binding,canonical));
     ThumbnailReadStage="content-key";const auto expected=Sha256(mount+"|"+root.at("Scope").get<std::string>()+"|"+std::to_string(Integer(root,"Epoch"))+"|"+binding.at("EntryId").get<std::string>()+"|"+binding.at("FileId").get<std::string>()+"|"+binding.at("Revision").get<std::string>()+"|v1");Require(expected==key);
-    ThumbnailReadStage="image";Statement image(db,"SELECT png FROM images WHERE content=?1 AND size IN (32,64,128,256) AND length(png) BETWEEN 33 AND 393216 ORDER BY (size<?2),CASE WHEN size>=?2 THEN size ELSE -size END LIMIT 1");image.Bind(1,key);image.Bind(2,static_cast<int>(size));if(!image.Row())return {};
-    const auto count=image.Api.Bytes(image.Value,0);const auto bytes=static_cast<const BYTE*>(image.Api.Blob(image.Value,0));Require(bytes&&count>=33&&count<=393216);const BYTE signature[]{137,80,78,71,13,10,26,10};Require(memcmp(bytes,signature,8)==0&&memcmp(bytes+12,"IHDR",4)==0);
+    ThumbnailReadStage="image";Statement image(*db,"SELECT png FROM images WHERE content=?1 AND size IN (32,64,128,256) AND length(png) BETWEEN 33 AND 393216 ORDER BY (size<?2),CASE WHEN size>=?2 THEN size ELSE -size END LIMIT 1");image.Bind(1,key);image.Bind(2,static_cast<int>(size));if(!image.Row())return {};
+    ThumbnailReadStage="bad-png";const auto count=image.Api.Bytes(image.Value,0);const auto bytes=static_cast<const BYTE*>(image.Api.Blob(image.Value,0));Require(bytes&&count>=33&&count<=393216);const BYTE signature[]{137,80,78,71,13,10,26,10};Require(memcmp(bytes,signature,8)==0&&memcmp(bytes+12,"IHDR",4)==0);
     auto dimension=[](const BYTE* value){return (DWORD(value[0])<<24)|(DWORD(value[1])<<16)|(DWORD(value[2])<<8)|value[3];};auto width=dimension(bytes+16),height=dimension(bytes+20);Require(width>0&&height>0&&width<=256&&height<=256);
-    ThumbnailReadStage="final-state";Require(GetTickCount64()<db.Deadline&&Valid(binding,canonical));return {bytes,bytes+count};
+    if(GetTickCount64()>=db->Deadline){ThumbnailReadStage="timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}ThumbnailReadStage="stale-stamp";Require(Valid(binding,canonical));return {bytes,bytes+count};
 }
 HRESULT WINAPI ReadThumbnail(void*,const wchar_t* path,UINT size,BYTE** png,DWORD* length)noexcept{
     if(!png||!length)return E_POINTER;*png=nullptr;*length=0;if(!path)return E_INVALIDARG;
     try{auto bytes=ReadCachedThumbnail(path,size);if(bytes.empty())return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);auto memory=static_cast<BYTE*>(CoTaskMemAlloc(bytes.size()));if(!memory)return E_OUTOFMEMORY;memcpy(memory,bytes.data(),bytes.size());*png=memory;*length=static_cast<DWORD>(bytes.size());return S_OK;}
-    catch(...){return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);}
+    catch(const Failure& error){RecordThumbnailFailure(error.Code);return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);}catch(...){RecordThumbnailFailure(E_FAIL);return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);}
 }
 }
