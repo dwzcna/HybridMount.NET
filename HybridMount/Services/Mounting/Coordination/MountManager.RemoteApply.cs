@@ -31,7 +31,10 @@ public sealed partial class MountManager
             }
             catch(OperationCanceledException)when(request.IsCancellationRequested)
             {
-                if(!token.IsCancellationRequested)SaveRemote(current with{State="Canceled",Error="已取消此远端版本，请显式重试。"});
+                var latest=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==prior.Id);
+                // 以最新落盘阶段为准；取消不撤销已经开始的元数据／正文切换，也不丢弃已准备的快照。
+                if(latest.State is "Committing" or "Hydrating")SaveRemote(latest with{Error="操作已请求停止；保留当前阶段和快照，实际结果待核对。"});
+                else if(!token.IsCancellationRequested&&latest.State is not("Completed" or "Superseded"))SaveRemote(latest with{State="Canceled",Error="已取消此远端版本，请显式重试。"});
                 if(token.IsCancellationRequested)throw;
             }
             catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException)
@@ -142,15 +145,17 @@ public sealed partial class MountManager
             if(generation!=pending.UploadGeneration||_repository.Uploads(root.Definition.Id).Any(x=>x.LocalPath==entry.LocalPath&&UploadRules.Unfinished(x)))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
             ValidateRemoteSnapshot(pending);
             _previews.Invalidate(root.Definition,entry.Id);
-            await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated)=>
+            await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated,checkpointToken)=>
             {
                 lock(_remoteJournalLock)
                 {
+                    checkpointToken.ThrowIfCancellationRequested();
                     var active=_repository.RemotePending(change.MountId,change.Scope).First(x=>x.Id==change.Id);
                     if(active.State=="Canceled"&&change.State=="Committing")throw new OperationCanceledException(token);
+                    checkpointToken.ThrowIfCancellationRequested();
                     _repository.CommitRemotePlaceholder(change,updated);_repository.SaveOperation(RemoteTask(change,change.State=="Completed"?change.Entry!.Size:0));Notify();
                 }
-            }).ConfigureAwait(false);
+            },token).ConfigureAwait(false);
             _previews.Queue(root.Definition,_repository.Entries(root.Definition.Id).Single(x=>x.Id==entry.Id));
             return _repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).First(x=>x.Id==pending.Id);
         }

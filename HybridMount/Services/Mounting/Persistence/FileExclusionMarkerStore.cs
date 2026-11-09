@@ -104,8 +104,9 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
             var path=RelativePaths.ToLocal(definition.LocalPath,relative);Mark? record=null,prior=null;LocalFileStamp? before=null,after=null;var changed=false;var completed=false;
             try
             {
-                NativeRuntimeClient.Get().InvokeAsync("applyExclusion",NativeRuntimeArguments.Root(definition,new{path,excluded,text=excluded?CloudItemStateProperty.ExclusionText:"",icon=excluded?CloudItemStateProperty.ExclusionIcon:""}),(stage,data)=>
+                NativeRuntimeClient.Get().InvokeAsync("applyExclusion",NativeRuntimeArguments.Root(definition,new{path,excluded,text=excluded?CloudItemStateProperty.ExclusionText:"",icon=excluded?CloudItemStateProperty.ExclusionIcon:""}),(stage,data,cancel)=>
                 {
+                    cancel.ThrowIfCancellationRequested();
                     if(stage is "exclusionProbe" or "exclusionGuarded")
                     {
                         before=NativeRuntimeArguments.Stamp(data);marks.TryGetValue(before.Identity,out prior);var pin=data.GetProperty("pinState").GetUInt32();var deferred=data.GetProperty("deferred").GetBoolean();
@@ -115,7 +116,7 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
                         record=new(relative,before.Identity,prior?.PreviousPin??pin,excluded?"ApplyPending":"RestorePending",before,DateTimeOffset.UtcNow,OwnedPin:excluded?desired:prior?.OwnedPin??(prior?.Phase=="NativeDeferred"?DeferredPin(prior.PreviousPin):CloudFilesNative.PinStateExcluded));
                         if(excluded&&pin==desired&&prior is {Error:null}&&prior.Phase==(deferred?"NativeDeferred":"Applied")&&prior.Path==relative&&!CloudItemStateProperty.Plan(definition,path,2,CloudItemStateProperty.ExclusionText,CloudItemStateProperty.ExclusionIcon).Changed){record=null;return Task.FromResult<object?>(new{proceed=false});}
                         if(stage=="exclusionProbe"){record=null;return Task.FromResult<object?>(new{proceed=true});}
-                        marks[before.Identity]=record;Save();var changePin=excluded?pin!=desired:pin==record.OwnedPin&&record.PreviousPin!=pin;
+                        cancel.ThrowIfCancellationRequested();marks[before.Identity]=record;Save();var changePin=excluded?pin!=desired:pin==record.OwnedPin&&record.PreviousPin!=pin;
 #if HYBRIDMOUNT_HEADLESS_TEST
                         if(changePin&&SetPinForTests is not null){using var invalid=new SafeFileHandle(-1,false);CloudFilesNative.Check(SetPinForTests(invalid,desired));}
 #endif
@@ -127,6 +128,7 @@ internal sealed class FileExclusionMarkerStore(string directory, Guid mountId)
                         after=NativeRuntimeArguments.Stamp(data);changed=data.GetProperty("changed").GetBoolean();if(stage=="exclusionCommit")
                         {
                             if(record is null)throw new IOException("排除标记缺少恢复记录。");
+                            cancel.ThrowIfCancellationRequested();
                             if(excluded)marks[record.Identity]=record with{Phase=record.OwnedPin==CloudFilesNative.PinStateExcluded?"Applied":"NativeDeferred"};else marks.Remove(record.Identity);Save();completed=true;
                         }
                         return Task.FromResult<object?>(null);

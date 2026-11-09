@@ -80,6 +80,7 @@ public sealed partial class MountManager
         await Step("SqsReceivers",()=>_remoteEvents.DisposeAsync().AsTask()).ConfigureAwait(false);
         await Step("Uploads",()=>Task.WhenAll(_roots.Values.Select(StopUploadsAsync))).ConfigureAwait(false);
         await Step("Previews",()=>_previews.DisposeAsync().AsTask()).ConfigureAwait(false);
+        await Step("NativeCheckpoints",()=>NativeRuntimeClient.DrainSharedCheckpointsAsync(_roots.Keys.ToArray())).ConfigureAwait(false);
         foreach(var root in _roots.Values)
         {
             await Step("Disconnect",async()=>

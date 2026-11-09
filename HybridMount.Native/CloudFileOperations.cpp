@@ -24,10 +24,10 @@ void UpdateMetadata(ProtectedFile& file,const Json& data){
 }
 void Hydrate(RuntimeHost& host,RuntimeCommand& command,ProtectedFile& file){
     Handle event(CreateEventW(nullptr,TRUE,FALSE,nullptr));WinCheck(event.Value!=nullptr);OVERLAPPED overlap{};overlap.hEvent=event.Value;LARGE_INTEGER length{};length.QuadPart=-1;
-    Require(!command.Canceled(),HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));auto code=CfHydratePlaceholder(file.Value,LARGE_INTEGER{},length,CF_HYDRATE_FLAG_NONE,&overlap);
+    command.CheckCancel();auto code=CfHydratePlaceholder(file.Value,LARGE_INTEGER{},length,CF_HYDRATE_FLAG_NONE,&overlap);
     if(code!=HRESULT_FROM_WIN32(ERROR_IO_PENDING)){Check(code);return;}
     const auto deadline=command.Operation=="applyRemoteSnapshot"?GetTickCount64()+120000:ULLONG_MAX;
-    while(WaitForSingleObject(event.Value,100)==WAIT_TIMEOUT){const auto timedOut=GetTickCount64()>=deadline;if(command.Canceled()||host.IsStopping()||timedOut){CancelIoEx(file.Raw,&overlap);DWORD count{};GetOverlappedResult(file.Raw,&overlap,&count,TRUE);throw Failure(HRESULT_FROM_WIN32(timedOut?ERROR_TIMEOUT:ERROR_OPERATION_ABORTED));}}
+    while(WaitForSingleObject(event.Value,100)==WAIT_TIMEOUT){const auto timedOut=GetTickCount64()>=deadline;if((command.Canceled()&&!command.Irreversible)||host.IsStopping()||timedOut){CancelIoEx(file.Raw,&overlap);DWORD count{};GetOverlappedResult(file.Raw,&overlap,&count,TRUE);throw Failure(HRESULT_FROM_WIN32(timedOut?ERROR_TIMEOUT:ERROR_OPERATION_ABORTED));}}
     DWORD count{};if(!GetOverlappedResult(file.Raw,&overlap,&count,FALSE)){command.CheckCancel();throw Failure(HRESULT_FROM_WIN32(GetLastError()));}command.CheckCancel();
 }
 /// <summary>保护句柄的随机I/O使用低位事件，避免把完成包交给CFAPI所属完成端口。</summary>
@@ -72,7 +72,7 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
             host.Checkpoint(command,"exclusionBegin",Json::object(),true);
             if(permission.at("changePin").get<bool>()){Check(CfSetPinState(raw,desired,CF_SET_PIN_FLAG_NONE,nullptr));written=true;}
             if(excluded){auto current=Maybe(raw);FILE_ATTRIBUTE_TAG_INFO actual{};WinCheck(GetFileInformationByHandleEx(raw,FileAttributeTagInfo,&actual,sizeof(actual)));auto result=current?current->Pin:static_cast<CF_PIN_STATE>(((actual.FileAttributes&FILE_ATTRIBUTE_PINNED)?1:0)|((actual.FileAttributes&FILE_ATTRIBUTE_UNPINNED)?2:0));Require(result==desired&& (info.has_value()||ProviderState(path)==9));}
-            written|=SetCustomProperty(data,path,false,2,Text(data,"text"),Text(data,"icon"),command.Cancel.Value);if(written){DWORD count{};USN usn{};WinCheck(DeviceIoControl(raw,FSCTL_WRITE_USN_CLOSE_RECORD,nullptr,0,&usn,sizeof(usn),&count,nullptr));}
+            written|=SetCustomProperty(data,path,false,2,Text(data,"text"),Text(data,"icon"),command.Irreversible?host.StopHandle():command.Cancel.Value);if(written){DWORD count{};USN usn{};WinCheck(DeviceIoControl(raw,FSCTL_WRITE_USN_CLOSE_RECORD,nullptr,0,&usn,sizeof(usn),&count,nullptr));}
             auto after=InspectFile(raw);auto current=Maybe(raw);SameContent(before,after);Require(info.has_value()==current.has_value());if(info)Require(info->Identity==current->Identity&&info->InSync==current->InSync&&info->OnDisk==current->OnDisk);
             host.Checkpoint(command,"exclusionCommit",{{"stamp",FileJson(after)},{"changed",written}},false,true);return {{"changed",written},{"stamp",FileJson(after)}};
         }catch(...){auto error=std::current_exception();try{auto after=InspectFile(raw);SameContent(before,after);auto current=Maybe(raw);Require(info.has_value()==current.has_value());if(info)Require(info->Identity==current->Identity&&info->InSync==current->InSync&&info->OnDisk==current->OnDisk);host.Checkpoint(command,"exclusionProof",{{"stamp",FileJson(after)},{"changed",written||before.Key()!=after.Key()}},false,true);}catch(...){}std::rethrow_exception(error);}
@@ -84,7 +84,7 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
             Require(before.Identity==data.at("expectedIdentity").get<std::string>(),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));auto proceed=host.Checkpoint(command,"propertyGuarded",{{"stamp",FileJson(before)}});if(!proceed.value("proceed",false))return {{"changed",false},{"applied",false}};
         }
         if(operation=="publishIssue")host.Checkpoint(command,"propertyBegin",Json::object(),true);
-        bool changed=false;try{command.CheckCancel();changed=SetCustomProperty(data,path,before.Directory,data.at("propertyId").get<int>(),Text(data,"text"),Text(data,"icon"),command.Cancel.Value);if(changed){DWORD count{};USN usn{};WinCheck(DeviceIoControl(raw,FSCTL_WRITE_USN_CLOSE_RECORD,nullptr,0,&usn,sizeof(usn),&count,nullptr));}
+        bool changed=false;try{command.CheckCancel();changed=SetCustomProperty(data,path,before.Directory,data.at("propertyId").get<int>(),Text(data,"text"),Text(data,"icon"),command.Irreversible?host.StopHandle():command.Cancel.Value);if(changed){DWORD count{};USN usn{};WinCheck(DeviceIoControl(raw,FSCTL_WRITE_USN_CLOSE_RECORD,nullptr,0,&usn,sizeof(usn),&count,nullptr));}
         auto after=InspectFile(raw);auto final=Maybe(raw);SameContent(before,after);Require(info.has_value()==final.has_value());if(info)Require(info->Identity==final->Identity&&info->InSync==final->InSync&&info->Pin==final->Pin&&info->OnDisk==final->OnDisk);
         if(operation=="publishIssue"){host.Checkpoint(command,"propertyWritten",{{"before",FileJson(before)},{"after",FileJson(after)}},false,true);host.Checkpoint(command,"propertyCommit",{{"before",FileJson(before)},{"after",FileJson(after)}},false,true);}
         return {{"changed",changed},{"applied",true},{"before",FileJson(before)},{"after",FileJson(after)}};
@@ -104,6 +104,7 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
         host.Checkpoint(command,"installRemote",Json::object());bool restore=false;
         try{
             if(!recovery){host.Checkpoint(command,"remoteCommitting",{{"pinState",info.Pin}},true);restore=info.Pin==CF_PIN_STATE_PINNED;if(restore)Check(CfSetPinState(file.Value,CF_PIN_STATE_UNPINNED,CF_SET_PIN_FLAG_NONE,nullptr));UpdateMetadata(file,data);host.Checkpoint(command,"remoteHydrating",{{"stamp",FileJson(InspectFile(file.Raw))},{"pinState",info.Pin}},false,true);if(restore){Check(CfSetPinState(file.Value,CF_PIN_STATE_PINNED,CF_SET_PIN_FLAG_NONE,nullptr));restore=false;}}
+            if(recovery)host.Checkpoint(command,"remoteHydrating",{{"stamp",FileJson(InspectFile(file.Raw))},{"pinState",info.Pin}},true,true);
             if(size!=0)Hydrate(host,command,file);Require(HashFile(file.Raw,size)==data.at("sha256").get<std::string>());auto final=InspectPlaceholder(file.Raw);Require(final.Modified==0&&final.Pin==(recovery?data.at("pinState").get<CF_PIN_STATE>():info.Pin));USN usn{};Check(CfSetInSyncState(file.Value,CF_IN_SYNC_STATE_IN_SYNC,CF_SET_IN_SYNC_FLAG_NONE,&usn));auto stamp=InspectFile(file.Raw);host.Checkpoint(command,"remoteCompleted",{{"stamp",FileJson(stamp)}},false,true);return {{"stamp",FileJson(stamp)}};
         }catch(...){if(restore)CfSetPinState(file.Value,CF_PIN_STATE_PINNED,CF_SET_PIN_FLAG_NONE,nullptr);throw;}
     }

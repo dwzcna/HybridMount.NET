@@ -8,7 +8,7 @@ public sealed partial class CloudMountSession
     private readonly SharedAsyncWork<string,bool> _pinnedHydration=new();
     /// <summary>资源真正归还后仅唤醒固定维护，不进入上传扫描；停止时由消费者解除订阅。</summary>
     internal event Action<string>? PinWorkCompleted;
-    internal Func<Task>? PinResourcesReleasingForTests {get;set;}
+    internal Func<CancellationToken,Task>? PinResourcesReleasingForTests {get;set;}
     private void NotifyPinWorkCompleted(string entryId)
     {if(_stop.IsCancellationRequested)return;var entry=_repository.Entries(_mount.Id).FirstOrDefault(x=>x.Id==entryId);if(entry is null)return;if(PinWorkCompleted is {} handlers)foreach(Action<string> handler in handlers.GetInvocationList())try{handler(entry.LocalPath);}catch(Exception error){_logger.Queue("固定意图","Warning",error.GetType().Name);}}
     private readonly ConcurrentDictionary<string,SemaphoreSlim> _pinGates=new();
@@ -30,14 +30,15 @@ public sealed partial class CloudMountSession
         try
         {
             cancel.ThrowIfCancellationRequested();using var priority=PrioritizeDownload(entry.Id);
-            var result=await Runtime.InvokeAsync("hydratePinned",EntryArgs(entry),async(stage,_)=>
+            var result=await Runtime.InvokeAsync("hydratePinned",EntryArgs(entry),async(stage,_,checkpointToken)=>
             {
+                checkpointToken.ThrowIfCancellationRequested();
                 if(stage=="pinnedGuarded")
                 {
                     var current=_repository.Entries(_mount.Id).FirstOrDefault(x=>x.Id==entry.Id);
                     if(_clearing||current is null||current.Deleted||current.Protected||current.Version!=entry.Version||current.LocalPath!=entry.LocalPath||current.RemotePresence==RemotePresence.Deleted||_repository.HasPendingRemote(_mount.Id,entry.SourcePath)||_repository.Uploads(_mount.Id).Any(x=>x.LocalPath==entry.LocalPath&&x.State!="Completed"))throw new IOException("固定下载遇到本地修改、未决工作或身份变化，已保留内容。");
                 }
-                else if(stage=="pinReleasing"&&PinResourcesReleasingForTests is {} checkpoint)await checkpoint().ConfigureAwait(false);
+                else if(stage=="pinReleasing"&&PinResourcesReleasingForTests is {} checkpoint)await checkpoint(checkpointToken).ConfigureAwait(false);
                 return null;
             },cancel).ConfigureAwait(false);
             var stamp=NativeRuntimeArguments.Stamp(result);if(stamp.Usn!=0)RecordLocalWrite(entry,stamp);_localContentReady?.Invoke(entry);return true;

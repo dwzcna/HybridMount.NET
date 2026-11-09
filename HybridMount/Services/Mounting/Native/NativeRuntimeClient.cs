@@ -13,11 +13,24 @@ namespace HybridMount.Services.Mounting;
 /// <summary>当前进程拥有的原生运行时客户端；私有双管道认证，控制读循环从不等待UI或正文。</summary>
 internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
 {
-    private sealed class Pending(Func<string,JsonElement,Task<object?>>? checkpoint)
+    /// <summary>合作处理期限；生产默认两分钟，内部验证可缩短，不是提前ACK或终止处理器的期限。</summary>
+    internal TimeSpan CheckpointHandlerTimeout {get;set;}=TimeSpan.FromMinutes(2);
+    /// <summary>停止诊断期限；超时记录结果待核对并保留处理器拥有的资源。</summary>
+    internal TimeSpan CheckpointStopTimeout {get;set;}=TimeSpan.FromSeconds(10);
+    private int _checkpointStopReported;
+#if HYBRIDMOUNT_HEADLESS_TEST
+    internal Action? CheckpointStopTimeoutForTests {get;set;}
+    /// <summary>测试在真实阶段前后注入取消，按挂载过滤；生产不包含此观察入口。</summary>
+    internal Func<Guid?,string,bool,bool,CancellationToken,Task>? CheckpointForTests {get;set;}
+#endif
+    private sealed class Pending(Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint,CancellationToken token=default,Guid? mount=null)
     {
         internal readonly TaskCompletionSource<JsonElement> Completion=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal readonly Func<string,JsonElement,Task<object?>>? Checkpoint=checkpoint;
+        internal readonly Func<string,JsonElement,CancellationToken,Task<object?>>? Checkpoint=checkpoint;
+        internal readonly CancellationToken Token=token;
+        internal readonly Guid? Mount=mount;
         internal int Canceled;
+        internal int Retiring;
         internal int Irreversible;
         internal Exception? CheckpointFailure;
     }
@@ -29,6 +42,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     private sealed record ReadBlock(Guid Lease,long Offset,int Count,TaskCompletionSource<byte[]> Completion);
     private readonly ConcurrentDictionary<Guid,ReadBlock> _blocks=new();
     private Task _dataReader=Task.CompletedTask;
+    private readonly object _checkpointGate=new();private readonly ConcurrentDictionary<long,Guid?> _checkpointMounts=new();
     private readonly ConcurrentDictionary<long,Task> _checkpoints=new();private long _nextCheckpoint;
     private readonly CancellationTokenSource _stop=new();private readonly Process _process;private readonly SafeFileHandle _job;
     private Task _reader=Task.CompletedTask,_stderr=Task.CompletedTask;private Task? _dispose;
@@ -125,13 +139,13 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         if(!string.Equals(child.MainModule?.FileName,Path.Combine(AppContext.BaseDirectory,"HybridMount.Native.exe"),StringComparison.OrdinalIgnoreCase))throw new IOException("原生对端部署路径不匹配。");
     }
     /// <summary>调用者取消时通知原生端并等实际终态；已经开始的写入仍由其安全收尾。</summary>
-    public async Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,Task<object?>>? checkpoint=null,CancellationToken token=default)
+    public async Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default)
     {
         token.ThrowIfCancellationRequested();ObjectDisposedException.ThrowIf(_stop.IsCancellationRequested,this);var payload=NativeRuntimeProtocol.Element(data);
         Guid? mount=payload.TryGetProperty("mountId",out var mountValue)&&Guid.TryParse(mountValue.GetString(),out var parsedMount)?parsedMount:null;
         if(operation!="connectRoot"&&mount is {} known&&!payload.TryGetProperty("sessionId",out _)&&_generations.TryGetValue(known,out var generation))
         {var fields=payload.EnumerateObject().ToDictionary(item=>item.Name,item=>(object?)item.Value.Clone());fields["sessionId"]=generation;payload=NativeRuntimeProtocol.Element(fields);}
-        var id=Guid.NewGuid().ToString("N");var pending=new Pending(checkpoint);if(!_pending.TryAdd(id,pending))throw new IOException("原生请求ID重复。");
+        var id=Guid.NewGuid().ToString("N");var pending=new Pending(checkpoint,token,mount);if(!_pending.TryAdd(id,pending))throw new IOException("原生请求ID重复。");
         try
         {
             await WriteAsync(new{kind="command",requestId=id,operation,data=payload}).ConfigureAwait(false);
@@ -139,7 +153,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
             JsonElement result;
             try{result=await pending.Completion.Task.ConfigureAwait(false);}
             catch(COMException error)when(token.IsCancellationRequested&&error.HResult==unchecked((int)0x800703e3)){throw new OperationCanceledException(token);}
-            if(mount is {} mounted){if(operation=="connectRoot")_generations[mounted]=payload.GetProperty("sessionId").GetString()!;else if(operation=="disconnectRoot")_generations.TryRemove(mounted,out _);}
+            if(mount is {} mounted){if(operation=="connectRoot"){_generations[mounted]=payload.GetProperty("sessionId").GetString()!;}else if(operation=="disconnectRoot")_generations.TryRemove(mounted,out _);}
             if(pending.Irreversible==0)token.ThrowIfCancellationRequested();return result;
         }
         finally{_pending.TryRemove(id,out _);}
@@ -163,7 +177,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 }
                 else if(kind=="checkpoint")
                 {
-                    var key=Interlocked.Increment(ref _nextCheckpoint);var captured=message.Clone();var work=Task.Run(()=>HandleCheckpointAsync(captured));_checkpoints[key]=work;_ = work.ContinueWith(completed=>_checkpoints.TryRemove(key,out _),CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
+                    lock(_checkpointGate){var key=Interlocked.Increment(ref _nextCheckpoint);var captured=message.Clone();_checkpointMounts[key]=_pending.TryGetValue(message.GetProperty("requestId").GetString()!,out var owner)?owner.Mount:null;var work=Task.Run(()=>HandleCheckpointAsync(captured));_checkpoints[key]=work;_ = work.ContinueWith(completed=>{_checkpoints.TryRemove(key,out _);_checkpointMounts.TryRemove(key,out _);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);}
                 }
                 else if(kind=="event")
                 {
@@ -198,8 +212,23 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         var code=0;object result=new{};Pending? owner=null;
         try
         {
-            if(!_pending.TryGetValue(message.GetProperty("requestId").GetString()!,out var request)||(request.Canceled!=0&&!((request.Irreversible!=0||message.GetProperty("stage").GetString()=="pinReleasing")&&message.TryGetProperty("safety",out var safety)&&safety.GetBoolean()))||request.Checkpoint is null)throw new OperationCanceledException();
-            owner=request;result=await request.Checkpoint(message.GetProperty("stage").GetString()!,message.GetProperty("data").Clone()).ConfigureAwait(false)??new{};if(message.TryGetProperty("beginIrreversible",out var irreversible)&&irreversible.GetBoolean())Interlocked.Exchange(ref request.Irreversible,1);
+            Pending request;var stage=message.GetProperty("stage").GetString()!;var safety=message.TryGetProperty("safety",out var safetyValue)&&safetyValue.GetBoolean();
+            lock(_checkpointGate)
+            {
+                if(!_pending.TryGetValue(message.GetProperty("requestId").GetString()!,out request!)||request.Checkpoint is null||request.Canceled!=0&&!safety||request.Retiring!=0)throw new OperationCanceledException();
+                owner=request;
+            }
+            using var deadline=new CancellationTokenSource(CheckpointHandlerTimeout);
+            using var warning=deadline.Token.Register(()=>Trace.TraceWarning("原生检查点处理超过期限，已请求合作取消；实际处理器结束后才回复。"));
+            using var cancel=safety?CancellationTokenSource.CreateLinkedTokenSource(deadline.Token,CancellationToken.None):CancellationTokenSource.CreateLinkedTokenSource(request.Token,_stop.Token,deadline.Token);
+#if HYBRIDMOUNT_HEADLESS_TEST
+            if(CheckpointForTests is {} before)await before(request.Mount,stage,safety,false,cancel.Token).ConfigureAwait(false);
+#endif
+            result=await request.Checkpoint!(stage,message.GetProperty("data").Clone(),cancel.Token).ConfigureAwait(false)??new{};
+#if HYBRIDMOUNT_HEADLESS_TEST
+            if(CheckpointForTests is {} after)await after(request.Mount,stage,safety,true,cancel.Token).ConfigureAwait(false);
+#endif
+            if(message.TryGetProperty("beginIrreversible",out var irreversible)&&irreversible.GetBoolean())Interlocked.Exchange(ref request.Irreversible,1);
         }
         catch(Exception error){if(owner is not null)Interlocked.CompareExchange(ref owner.CheckpointFailure,error,null);code=error is OperationCanceledException?unchecked((int)0x800703e3):error.HResult;}
         try{await WriteAsync(new{kind="checkpointAck",checkpointId=message.GetProperty("checkpointId").GetString(),hresult=code,data=NativeRuntimeProtocol.Element(result)}).ConfigureAwait(false);}catch(Exception error){if(!_stop.IsCancellationRequested)Fail(error);}
@@ -247,11 +276,38 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     }
     public async Task<NativeFileSnapshot> InspectAsync(string path,bool persisted=false,bool ranges=false,string? expectedIdentity=null,CancellationToken token=default)=>NativeRuntimeProtocol.Read<NativeFileSnapshot>(await InvokeAsync("queryFile",new{path,persisted,ranges,expectedIdentity},token:token).ConfigureAwait(false));
     public Task<JsonElement> RootInfoAsync(string path,CancellationToken token=default)=>InvokeAsync("queryRoot",new{path},token:token);
-    internal JsonElement Invoke(string operation,object data,Func<string,JsonElement,Task<object?>>? checkpoint=null)=>InvokeAsync(operation,data,checkpoint).GetAwaiter().GetResult();
+    internal JsonElement Invoke(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default)=>InvokeAsync(operation,data,checkpoint,token).GetAwaiter().GetResult();
     public ValueTask DisposeAsync(){lock(_pending)return new(_dispose??=StopAsync());}
+    /// <summary>停止达到诊断期限后继续持有处理器所有权，直到实际结束；不能把超时当成功或让业务回调越过拥有者释放。</summary>
+    private async Task AwaitCheckpointOwnersAsync(Task work)
+    {
+        try{await work.WaitAsync(CheckpointStopTimeout).ConfigureAwait(false);}
+        catch(TimeoutException)
+        {
+            if(Interlocked.Exchange(ref _checkpointStopReported,1)==0)
+            {
+#if HYBRIDMOUNT_HEADLESS_TEST
+                if(CheckpointStopTimeoutForTests is {} report)report();else
+#endif
+                HostDiagnosticStore.Record("NativeRuntime",new NativeCheckpointDrainTimeoutException());
+                Trace.TraceWarning("原生检查点停止超过诊断期限，结果待核对；保留所有者并等待处理器结束。");
+            }
+            await work.ConfigureAwait(false);
+        }
+    }
+    private sealed class NativeCheckpointDrainTimeoutException:TimeoutException { }
+    /// <summary>挂载协调器释放业务服务前封闭本组新检查点并排空已有处理器；不等待其他挂载的有效任务。</summary>
+    internal static async Task DrainSharedCheckpointsAsync(IReadOnlyCollection<Guid> mounts)
+    {
+        Task<NativeRuntimeClient>? shared;lock(SharedGate)shared=_shared;if(shared is null)return;NativeRuntimeClient runtime;
+        try{runtime=await shared.ConfigureAwait(false);}catch(Exception){return;}
+        var ids=mounts.ToHashSet();Task[] work;lock(runtime._checkpointGate){foreach(var pending in runtime._pending.Values)if(pending.Mount is {} id&&ids.Contains(id))pending.Retiring=1;work=runtime._checkpoints.Where(x=>runtime._checkpointMounts.TryGetValue(x.Key,out var mount)&&mount is {} id&&ids.Contains(id)).Select(x=>x.Value).ToArray();}
+        await runtime.AwaitCheckpointOwnersAsync(Task.WhenAll(work)).ConfigureAwait(false);
+    }
     private async Task StopAsync()
     {
-        await _stop.CancelAsync().ConfigureAwait(false);_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();_previewEvents.Writer.TryComplete();await Task.WhenAll(_eventWorker,_previewWorker).ConfigureAwait(false);await Task.WhenAll(_checkpoints.Values).ConfigureAwait(false);
+        var cancellation=_stop.CancelAsync();_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();_previewEvents.Writer.TryComplete();
+        await AwaitCheckpointOwnersAsync(Task.WhenAll(_checkpoints.Values.Concat(new[]{_eventWorker,_previewWorker,cancellation}))).ConfigureAwait(false);
         try{await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);}catch(TimeoutException){_job.Dispose();await _process.WaitForExitAsync().ConfigureAwait(false);}
         await _stderr.ConfigureAwait(false);_job.Dispose();_process.Dispose();
     }

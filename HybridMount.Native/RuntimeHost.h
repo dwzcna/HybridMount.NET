@@ -32,6 +32,8 @@ public:
     /// <summary>预览提示独立合并且允许丢弃，绝不占用关键回调的512条队列。</summary>
     void SendPreview(Json value)noexcept;
     bool IsStopping()const noexcept;
+    /// <summary>仅原生内部等待宿主停止；不可逆属性收尾不再使用已经取消的用户事件，不通过管道传出句柄。</summary>
+    HANDLE StopHandle()const noexcept;
     /// <summary>关键事件无法交付时显式封闭运行时并唤醒所有等待者；不注销同步根。</summary>
     void Close(const char* stage,HRESULT code);
     DWORD ParentProcessId()const noexcept;

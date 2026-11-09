@@ -25,7 +25,7 @@ internal sealed record NativeRuntimeEvent(string MountId,string SessionId,string
 internal interface ICloudFilesRuntime
 {
     /// <summary>只执行原生端固定允许的完整领域操作；检查点保存意图，失败返回原代码，不携带裸句柄。</summary>
-    Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,Task<object?>>? checkpoint=null,CancellationToken token=default);
+    Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default);
     Task<NativeFileSnapshot> InspectAsync(string path,bool persisted=false,bool ranges=false,string? expectedIdentity=null,CancellationToken token=default);
     Task<JsonElement> RootInfoAsync(string path,CancellationToken token=default);
 }

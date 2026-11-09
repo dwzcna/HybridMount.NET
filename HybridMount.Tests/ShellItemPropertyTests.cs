@@ -53,7 +53,7 @@ public sealed class ShellItemPropertyTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"interrupted.txt");await File.WriteAllTextAsync(path,"A");await test.Manager.ScanUploadChangesAsync(test.Id);
         var row=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="interrupted.txt");test.Repository.UpdateUpload(row.Id,x=>x with{State="Failed",Error="original"});
-        test.Manager.IssuePropertyWrittenForTests=_=>throw new IOException("simulated interruption after metadata write");await test.Manager.PublishUploadIssuesAsync();
+        test.Manager.IssuePropertyWrittenForTests=(_,_)=>throw new IOException("simulated interruption after metadata write");await test.Manager.PublishUploadIssuesAsync();
         Assert.Equal("Publishing",test.Repository.Upload(row.Id)!.Attention!.ShellState);Assert.NotNull(test.Repository.Upload(row.Id)!.Attention!.ShellOriginalStamp);
         await test.Manager.DisposeAsync();if(edited)await File.WriteAllTextAsync(path,"B");
         test.Manager=new(test.Repository,test.Logger);await test.Manager.SetSchedulingForTestsAsync(test.Id,false);await test.Manager.ConnectAsync(test.Id);

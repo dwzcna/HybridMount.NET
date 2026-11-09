@@ -84,7 +84,7 @@ public sealed class NativeRuntimeTransportTests
     public async Task OccupiedLongPoolLeavesShortCommandsAndCancellationAvailable()
     {
         await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();var started=0;var ready=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var jobs=Enumerable.Range(0,8).Select(i=>runtime.InvokeAsync((i%3) switch{0=>"hydrateFile",1=>"hydratePinned",_=>"applyRemoteSnapshot"},new{testHold=true},(stage,data)=>{if(Interlocked.Increment(ref started)>=4)ready.TrySetResult();return Task.FromResult<object?>(null);},cancel.Token)).ToArray();
+        var jobs=Enumerable.Range(0,8).Select(i=>runtime.InvokeAsync((i%3) switch{0=>"hydrateFile",1=>"hydratePinned",_=>"applyRemoteSnapshot"},new{testHold=true},(stage,data,token)=>{if(Interlocked.Increment(ref started)>=4)ready.TrySetResult();return Task.FromResult<object?>(null);},cancel.Token)).ToArray();
         try
         {
             await ready.Task.WaitAsync(TimeSpan.FromSeconds(8));
@@ -109,5 +109,83 @@ public sealed class NativeRuntimeTransportTests
     {
         var watch=System.Diagnostics.Stopwatch.StartNew();var error=await Assert.ThrowsAsync<IOException>(()=>NativeRuntimeClient.StartOwnedForTestsAsync(true));
         Assert.Contains("握手期间退出",error.Message);Assert.True(watch.Elapsed<TimeSpan.FromSeconds(5));
+    }
+    [Fact(Timeout=60000)]
+    public async Task CheckpointCanWaitBeyondThirtySecondsForItsAcknowledgement()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
+        var result=await runtime.InvokeAsync("testCheckpoint",new{},async(stage,_,token)=>{Assert.Equal("test",stage);await Task.Delay(TimeSpan.FromSeconds(31));return new{acknowledged=true};});
+        Assert.True(result.GetProperty("acknowledged").GetBoolean());Assert.True(runtime.IsAvailable);
+    }
+    [Theory(Timeout=15000)]
+    [InlineData(false)][InlineData(true)]
+    public async Task BlockedCheckpointEndsOnCancellationOrRuntimeFailure(bool terminate)
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var request=runtime.InvokeAsync("testCheckpoint",new{},async(_,_,token)=>{entered.TrySetResult();await release.Task.WaitAsync(token);return null;},cancel.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if(terminate){using var process=System.Diagnostics.Process.GetProcessById(runtime.ProcessId);process.Kill();await process.WaitForExitAsync();await Assert.ThrowsAnyAsync<IOException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));}
+            else{cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));}
+        }
+        finally{release.TrySetResult();}
+    }
+    [Fact(Timeout=15000)]
+    public async Task ManagedCheckpointAcknowledgesOnlyAfterTheHandlerReturns()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var returned=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);CancellationToken handlerToken=default;
+        var request=runtime.InvokeAsync("testManagedCheckpoint",new{},async(stage,_,token)=>{Assert.Equal("test",stage);handlerToken=token;entered.TrySetResult();await release.Task;returned.TrySetResult();return new{acknowledged=true};},cancel.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));cancel.Cancel();Assert.True(handlerToken.IsCancellationRequested);
+            Assert.False(request.IsCompleted);release.TrySetResult();await returned.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True((await runtime.InvokeAsync("ping",new{})).GetProperty("ready").GetBoolean());
+        }
+        finally{release.TrySetResult();}
+    }
+    [Theory(Timeout=25000)]
+    [InlineData(false)][InlineData(true)]
+    public async Task ManagedCheckpointCancellationAndShutdownKeepOwnersUntilHandlerEnds(bool stop)
+    {
+        var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken handlerToken=default;var persisted=false;
+        var request=runtime.InvokeAsync("testManagedCheckpoint",new{},async(_,_,token)=>{handlerToken=token;entered.TrySetResult();if(stop)await release.Task;else await Task.Delay(Timeout.Infinite,token);token.ThrowIfCancellationRequested();persisted=true;return null;},cancel.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if(stop){runtime.CheckpointStopTimeout=TimeSpan.FromMilliseconds(20);var diagnosed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);runtime.CheckpointStopTimeoutForTests=()=>diagnosed.TrySetResult();var stopping=runtime.DisposeAsync().AsTask();await diagnosed.Task.WaitAsync(TimeSpan.FromSeconds(5));Assert.False(stopping.IsCompleted);release.TrySetResult();await stopping.WaitAsync(TimeSpan.FromSeconds(5));await Assert.ThrowsAnyAsync<IOException>(()=>request);}
+            else{cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>request.WaitAsync(TimeSpan.FromSeconds(5)));}
+            Assert.True(handlerToken.IsCancellationRequested);Assert.False(persisted);
+        }
+        finally{release.TrySetResult();await runtime.DisposeAsync();}
+    }
+    [Fact(Timeout=15000)]
+    public async Task ManagedCheckpointWithoutCancellationReturnsItsResultAndMissingHandlerAborts()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
+        var result=await runtime.InvokeAsync("testManagedCheckpoint",new{},(_,_,token)=>{token.ThrowIfCancellationRequested();return Task.FromResult<object?>(new{acknowledged=true});});
+        Assert.True(result.GetProperty("acknowledged").GetBoolean());
+        var error=await Assert.ThrowsAsync<COMException>(()=>runtime.InvokeAsync("testManagedCheckpoint",new{}));Assert.Equal(unchecked((int)0x800703e3),error.HResult);
+    }
+    /// <summary>用户取消发生在不可逆许可之后，安全落库收到独立令牌，提交终态必须完成。</summary>
+    [Fact(Timeout=15000)]
+    public async Task IrreversibleSafetyCheckpointDoesNotInheritCallerCancellation()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();var committed=false;
+        var result=await runtime.InvokeAsync("testManagedCheckpoint",new{irreversible=true},(stage,_,token)=>{token.ThrowIfCancellationRequested();if(stage=="beginWrite")cancel.Cancel();else{Assert.Equal("commit",stage);Assert.False(token.IsCancellationRequested);committed=true;}return Task.FromResult<object?>(new{acknowledged=true});},cancel.Token);
+        Assert.True(committed);Assert.True(result.GetProperty("acknowledged").GetBoolean());
+    }
+    /// <summary>期限请求合作取消，ACK必须晚于处理器finally；不以计时器替代实际处理完成。</summary>
+    [Fact(Timeout=15000)]
+    public async Task CooperativeHandlerDeadlineWaitsForActualHandlerCompletion()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();runtime.CheckpointHandlerTimeout=TimeSpan.FromMilliseconds(30);var completed=false;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>runtime.InvokeAsync("testManagedCheckpoint",new{},async(_,_,token)=>{try{await Task.Delay(Timeout.Infinite,token);return null;}finally{completed=true;}}));Assert.True(completed);
     }
 }

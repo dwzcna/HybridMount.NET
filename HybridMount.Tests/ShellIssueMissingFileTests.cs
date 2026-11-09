@@ -48,11 +48,11 @@ public sealed class ShellIssueMissingFileTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"backoff.txt");await File.WriteAllTextAsync(path,"bytes");
         var row=Failed(test,"backoff.txt",LocalFileState.Read(path));if(resolved)test.Repository.UpdateUpload(row.Id,x=>x with{State="Canceled",CancelRequested=true});
-        var calls=0;test.Manager.IssuePropertyWrittenForTests=_=>{calls++;throw new IOException("injected property failure");};
+        var calls=0;test.Manager.IssuePropertyWrittenForTests=(_,_)=>{calls++;throw new IOException("injected property failure");};
         await test.Manager.PublishUploadIssuesAsync();var failed=test.Repository.Upload(row.Id)!;await test.Manager.PublishUploadIssuesAsync();
         Assert.Equal(1,calls);Assert.Equal(failed,test.Repository.Upload(row.Id));Assert.Contains("injected property failure",failed.Attention!.ShellError);
         test.Repository.UpdateUpload(row.Id,x=>resolved?x with{Generation=x.Generation+1,State="Failed",CancelRequested=false,Error="new failure"}:x with{State="Canceled",CancelRequested=true});
-        test.Manager.IssuePropertyWrittenForTests=_=>{calls++;return Task.CompletedTask;};await test.Manager.PublishUploadIssuesAsync();
+        test.Manager.IssuePropertyWrittenForTests=(_,_)=>{calls++;return Task.CompletedTask;};await test.Manager.PublishUploadIssuesAsync();
         var saved=test.Repository.Upload(row.Id)!;Assert.Equal(2,calls);Assert.Equal(resolved?"Published":"Cleared",saved.Attention!.ShellState);Assert.Null(saved.Attention.ShellError);
     }
 
@@ -62,7 +62,7 @@ public sealed class ShellIssueMissingFileTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"late.txt");await File.WriteAllTextAsync(path,"bytes");
         var row=Failed(test,"late.txt",LocalFileState.Read(path));
-        test.Manager.IssuePropertyWrittenForTests=_=>
+        test.Manager.IssuePropertyWrittenForTests=(_,_)=>
         {
             test.Repository.UpdateUpload(row.Id,x=>x with{Generation=x.Generation+(newGeneration?1:0),Error="new reason"});throw new IOException("late old error");
         };

@@ -104,6 +104,8 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+    if(operation=="testCheckpoint")return _impl->Host.Checkpoint(command,"test",Json::object());
+    if(operation=="testManagedCheckpoint"){if(data.value("irreversible",false))_impl->Host.Checkpoint(command,"beginWrite",Json::object(),true);return _impl->Host.Checkpoint(command,data.value("irreversible",false)?"commit":"test",Json::object(),false,data.value("irreversible",false));}
     if(operation=="testLocalReadStats")return _impl->Reads.Execute(command);
     // 使用真实长任务路由，确定性占满执行位；生产不包含此入口，不触碰任何根。
     if((operation=="hydrateFile"||operation=="hydratePinned"||operation=="applyRemoteSnapshot")&&data.value("testHold",false)){_impl->Host.Checkpoint(command,"testLongStarted",Json::object());WaitForSingleObject(command.Cancel.Value,15000);command.CheckCancel();return Json::object();}
