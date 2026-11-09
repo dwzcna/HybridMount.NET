@@ -43,7 +43,7 @@ struct RuntimeHost::Impl {
     std::mutex OutGate,CallsGate,ChecksGate,DataWriteGate;std::condition_variable OutWake;std::deque<std::pair<Json,size_t>> Out;size_t OutBytes{};
     std::map<std::string,std::shared_ptr<RuntimeCommand>> Calls;std::map<std::string,std::shared_ptr<std::promise<Json>>> Checks;
     Pool Workers,Fast{4};
-    void Close(const char* stage=nullptr,HRESULT code=S_OK){if(Closed.exchange(true))return;if(stage&&code!=HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)&&code!=HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED))RecordNativeFailure("NativeRuntime",code,stage);SetEvent(Stop.Value);OutWake.notify_all();{std::lock_guard lock(CallsGate);for(auto& [_,call]:Calls)SetEvent(call->Cancel.Value);}std::lock_guard lock(ChecksGate);for(auto& [_,promise]:Checks)try{promise->set_exception(std::make_exception_ptr(Failure(HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE))));}catch(...){}Checks.clear();}
+    void Close(const char* stage=nullptr,HRESULT code=S_OK){{std::lock_guard lock(OutGate);if(Closed.exchange(true))return;}if(stage&&code!=HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)&&code!=HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED))RecordNativeFailure("NativeRuntime",code,stage);SetEvent(Stop.Value);OutWake.notify_all();{std::lock_guard lock(CallsGate);for(auto& [_,call]:Calls)SetEvent(call->Cancel.Value);}std::lock_guard lock(ChecksGate);for(auto& [_,promise]:Checks)try{promise->set_exception(std::make_exception_ptr(Failure(HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE))));}catch(...){}Checks.clear();}
 };
 RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make_unique<Impl>()){
     Require(parent>0&&nonce.size()==32);GuidN(Utf8(nonce));auto& p=*_impl;p.ParentId=parent;p.Parent.Value=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE,FALSE,parent);WinCheck(p.Parent.Value!=nullptr);
@@ -59,6 +59,7 @@ RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make
 RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();}
 DWORD RuntimeHost::ParentProcessId()const noexcept{return _impl->ParentId;}
 bool RuntimeHost::IsStopping()const noexcept{return _impl->Closed.load();}
+void RuntimeHost::Close(const char* stage,HRESULT code){_impl->Close(stage,code);}
 bool RuntimeHost::Send(Json value,bool waitForCapacity)noexcept{
     try{auto size=value.dump().size();auto& p=*_impl;std::unique_lock lock(p.OutGate);if(size>1024*1024)return false;
         if(waitForCapacity)p.OutWake.wait(lock,[&]{return p.Closed||(p.Out.size()<512&&p.OutBytes+size<=4*1024*1024);});

@@ -30,6 +30,7 @@ public:
     std::function<void()> Stopping;
     bool Send(Json value,bool waitForCapacity=false)noexcept;
     bool IsStopping()const noexcept;
+    void Close(const char* stage,HRESULT code);
     DWORD ParentProcessId()const noexcept;
     Json Checkpoint(RuntimeCommand& command,const std::string& stage,const Json& data,bool beginIrreversible=false,bool safety=false);
     /// <summary>反向有界正文帧，只用于已授权本地读租约，控制回复不携带正文。</summary>

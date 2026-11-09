@@ -16,11 +16,11 @@ struct CloudSession::Impl {
     struct Fetch {CF_OPERATION_INFO Operation{};std::string Id,Entry;long long Offset{},Length{},Start{},End{},Next{};bool Canceled{},Done{};std::mutex Gate;};
     std::map<std::string,std::shared_ptr<Fetch>> Fetches;std::map<std::string,int> Opens;std::set<std::string> Blocked;std::map<std::string,ULONGLONG> LastReads;
     explicit Impl(RuntimeHost& host,const Json& root):Host(host),Root(root),Mount(GuidN(root.at("mountId"))),Session(GuidN(root.at("sessionId"))),Clearing(root.value("blockHydration",false)){}
-    bool Event(const char* name,Json data){return Host.Send({{"kind","event"},{"mountId",Mount},{"sessionId",Session},{"event",name},{"data",std::move(data)}});}
+    bool Event(const char* name,Json data,bool waitForCapacity=true){auto sent=Host.Send({{"kind","event"},{"mountId",Mount},{"sessionId",Session},{"event",name},{"data",std::move(data)}},waitForCapacity);if(!sent&&waitForCapacity&&!Host.IsStopping())Host.Close("NativeStateEvent",E_FAIL);return sent;}
     std::string Entry(const CF_CALLBACK_INFO& info){Require(info.FileIdentity&&info.FileIdentityLength>0&&info.FileIdentityLength<=4096);auto marker=Parse(std::string(static_cast<const char*>(info.FileIdentity),info.FileIdentityLength),4096);Require(GuidN(marker.at("MountId"))==Mount,E_ACCESSDENIED);auto id=marker.at("EntryId").get<std::string>();Require(!id.empty()&&id.size()<=4096);return id;}
     template<CF_CALLBACK_TYPE Type> static void CALLBACK Callback(const CF_CALLBACK_INFO* info,const CF_CALLBACK_PARAMETERS* parameters)noexcept{
         if(!info||!parameters||!info->CallbackContext)return;auto self=static_cast<Impl*>(const_cast<void*>(info->CallbackContext));
-        try{self->Dispatch(Type,*info,*parameters);}catch(...){try{if constexpr(Type==CF_CALLBACK_TYPE_FETCH_DATA)Complete(Operation(*info,CF_OPERATION_TYPE_TRANSFER_DATA),parameters->FetchData.RequiredFileOffset.QuadPart,parameters->FetchData.RequiredLength.QuadPart,UnavailableStatus);if constexpr(Type==CF_CALLBACK_TYPE_NOTIFY_DELETE||Type==CF_CALLBACK_TYPE_NOTIFY_RENAME)Ack(*info,Type,static_cast<NTSTATUS>(0xc0000022));self->Event("callbackFailure",{{"type",Type},{"hresult",E_FAIL}});}catch(...){}}
+        try{self->Dispatch(Type,*info,*parameters);}catch(...){try{if constexpr(Type==CF_CALLBACK_TYPE_FETCH_DATA)Complete(Operation(*info,CF_OPERATION_TYPE_TRANSFER_DATA),parameters->FetchData.RequiredFileOffset.QuadPart,parameters->FetchData.RequiredLength.QuadPart,UnavailableStatus);if constexpr(Type==CF_CALLBACK_TYPE_NOTIFY_DELETE||Type==CF_CALLBACK_TYPE_NOTIFY_RENAME)Ack(*info,Type,static_cast<NTSTATUS>(0xc0000022));self->Event("callbackFailure",{{"type",Type},{"hresult",E_FAIL}});}catch(...){self->Host.Close("NativeCallbackFailure",E_FAIL);}}
     }
     void Dispatch(CF_CALLBACK_TYPE type,const CF_CALLBACK_INFO& info,const CF_CALLBACK_PARAMETERS& parameters){
         auto entry=Entry(info);
@@ -29,7 +29,7 @@ struct CloudSession::Impl {
             fetch->Start=fetch->Offset/4096*4096;const auto end=fetch->Offset+fetch->Length;fetch->End=end>LLONG_MAX-4095?info.FileSize.QuadPart:std::min(info.FileSize.QuadPart,(end+4095)/4096*4096);fetch->Next=fetch->Start;
             {std::lock_guard lock(Gate);if(Clearing||Stopped||Blocked.contains(entry)){Complete(fetch->Operation,fetch->Offset,fetch->Length,CanceledStatus);return;}Fetches.emplace(fetch->Id,fetch);LastReads[entry]=GetTickCount64();}
             const auto pid=info.ProcessInfo?info.ProcessInfo->ProcessId:0;std::wstring image=info.ProcessInfo&&info.ProcessInfo->ImagePath?PathFindFileNameW(info.ProcessInfo->ImagePath):L"unknown";if(image.size()>260)image=L"unknown";
-            if(!Event("fetch",{{"fetchId",fetch->Id},{"entryId",entry},{"offset",std::to_string(fetch->Offset)},{"length",std::to_string(fetch->Length)},{"priority",info.PriorityHint},{"explicit",(parameters.FetchData.Flags&CF_CALLBACK_FETCH_DATA_FLAG_EXPLICIT_HYDRATION)!=0},{"processId",pid},{"image",Utf8(image)}})){
+            if(!Event("fetch",{{"fetchId",fetch->Id},{"entryId",entry},{"offset",std::to_string(fetch->Offset)},{"length",std::to_string(fetch->Length)},{"priority",info.PriorityHint},{"explicit",(parameters.FetchData.Flags&CF_CALLBACK_FETCH_DATA_FLAG_EXPLICIT_HYDRATION)!=0},{"processId",pid},{"image",Utf8(image)}},false)){
                 {std::lock_guard lock(Gate);Fetches.erase(fetch->Id);}Complete(fetch->Operation,fetch->Offset,fetch->Length,UnavailableStatus);
             }return;
         }
