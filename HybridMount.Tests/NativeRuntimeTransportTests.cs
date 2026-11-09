@@ -41,4 +41,23 @@ public sealed class NativeRuntimeTransportTests
         await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var process=System.Diagnostics.Process.GetProcessById(runtime.ProcessId);process.Kill();await process.WaitForExitAsync();
         await Assert.ThrowsAnyAsync<Exception>(()=>runtime.InvokeAsync("ping",new{}).WaitAsync(TimeSpan.FromSeconds(5)));
     }
+    [Fact]
+    public void MissingNativeExecutableHasAnActionableMessage()
+    {
+        NativeRuntimeClient.VerifyExecutable(typeof(NativeRuntimeClient).Assembly.Location);
+        var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyExecutable(Path.Combine(Path.GetTempPath(),Guid.NewGuid().ToString("N"),"HybridMount.Native.exe")));
+        Assert.Equal("未找到 HybridMount.Native.exe，请重新生成或安装",error.Message);
+    }
+    [Fact]
+    public void HelloBuildDiagnosticsDoNotBypassAuthentication()
+    {
+        var build=typeof(NativeRuntimeClient).Assembly.GetName().Version!.ToString();var nonce=Guid.NewGuid().ToString("N");var stale=build=="0.0.0.0"?"1.0.0.0":"0.0.0.0";
+        System.Text.Json.JsonElement Hello(string? version,string proof)=>NativeRuntimeProtocol.Element(new{kind="hello",version=1,nonce=proof,scope=ApplicationPaths.ProductScope,processId=42,build=version});
+        NativeRuntimeClient.VerifyHello(Hello(build,nonce),nonce,42);
+        var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(stale,nonce),nonce,42));
+        Assert.Equal($"原生后台版本({stale})与主程序({build})不一致，请重新生成",error.Message);
+        Assert.Contains("版本(未知)",Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(null,nonce),nonce,42)).Message);
+        Assert.Equal("原生运行时握手不匹配。",Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(build,"wrong"),nonce,42)).Message);
+        Assert.Contains("0x80070005",NativeRuntimeClient.HandshakeExited(unchecked((int)0x80070005)).Message);
+    }
 }

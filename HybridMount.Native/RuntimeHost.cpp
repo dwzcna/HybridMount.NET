@@ -47,14 +47,16 @@ struct RuntimeHost::Impl {
 };
 RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make_unique<Impl>()){
     Require(parent>0&&nonce.size()==32);GuidN(Utf8(nonce));auto& p=*_impl;p.ParentId=parent;p.Parent.Value=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE,FALSE,parent);WinCheck(p.Parent.Value!=nullptr);
-    DWORD selfSession{},peerSession{};WinCheck(ProcessIdToSessionId(GetCurrentProcessId(),&selfSession));WinCheck(ProcessIdToSessionId(parent,&peerSession));Require(peerSession==selfSession&&User(p.Parent.Value)==CurrentSid()&&Family(p.Parent.Value)==Family(GetCurrentProcess()),E_ACCESSDENIED);
+    auto authenticate=[](bool valid,const char* stage){if(!valid){RecordNativeFailure("NativeRuntime",E_ACCESSDENIED,stage);Require(false,E_ACCESSDENIED);}};
+    DWORD selfSession{},peerSession{};WinCheck(ProcessIdToSessionId(GetCurrentProcessId(),&selfSession));WinCheck(ProcessIdToSessionId(parent,&peerSession));authenticate(peerSession==selfSession,"ParentSessionMismatch");authenticate(User(p.Parent.Value)==CurrentSid(),"ParentUserMismatch");authenticate(Family(p.Parent.Value)==Family(GetCurrentProcess()),"ParentPackageMismatch");
 #ifndef HYBRIDMOUNT_NATIVE_TESTS
-    Require(SamePath(ProcessPath(p.Parent.Value),ModuleDirectory()+L"\\HybridMount.NET.exe"),E_ACCESSDENIED);
+    authenticate(SamePath(ProcessPath(p.Parent.Value),ModuleDirectory()+L"\\HybridMount.NET.exe"),"ParentImageMismatch");
 #endif
     auto prefix=L"\\\\.\\pipe\\"+ProductScope()+L".runtime.v1."+CurrentSid()+L"."+std::to_wstring(selfSession)+L"."+nonce;
     p.Control=std::make_unique<Pipe>(prefix+L".control",parent,p.Parent.Value,p.Stop.Value);p.Data=std::make_unique<Pipe>(prefix+L".data",parent,p.Parent.Value,p.Stop.Value);
     p.Control->Write({{"kind","hello"},{"version",1},{"nonce",Utf8(nonce)},{"scope",Utf8(ProductScope())},{"processId",GetCurrentProcessId()},{"build",HYBRIDMOUNT_VERSION_TEXT}});
-    auto response=p.Control->Read();Require(response.at("kind")=="helloAck"&&response.at("version")==1&&response.at("nonce")==Utf8(nonce)&&response.at("build")==HYBRIDMOUNT_VERSION_TEXT,E_ACCESSDENIED);
+    auto response=p.Control->Read();authenticate(response.contains("kind")&&response.at("kind")=="helloAck"&&response.contains("version")&&response.at("version")==1&&response.contains("nonce")&&response.at("nonce")==Utf8(nonce),"HandshakeMismatch");
+    if(!response.contains("build")||response.at("build")!=HYBRIDMOUNT_VERSION_TEXT){auto actual=response.contains("build")&&response.at("build").is_string()?response.at("build").get<std::string>():std::string();RecordNativeFailure("NativeRuntime",E_ACCESSDENIED,"BuildMismatch",HYBRIDMOUNT_VERSION_TEXT,actual);Require(false,E_ACCESSDENIED);}
 }
 RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();}
 DWORD RuntimeHost::ParentProcessId()const noexcept{return _impl->ParentId;}
