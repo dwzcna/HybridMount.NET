@@ -4,6 +4,7 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private readonly object _lifetime=new();
+    private readonly List<Models.Mounting.Synology.SynologySessionTicket> _synologySessions=[];
     private readonly HashSet<Task> _foreground=[];
     private int _stopping;
     private Task _cancellation=Task.CompletedTask;
@@ -36,6 +37,21 @@ public sealed partial class MountManager
         },token);
     private Task OwnAsync(Func<CancellationToken,Task> action,CancellationToken token)
         =>OwnAsync(async cancel=>{await action(cancel).ConfigureAwait(false);return true;},token);
+    /// <summary>表单探测会话由应用生命周期拥有；退出与迟到结果均释放尚未交接的认证。</summary>
+    internal Task<Models.Mounting.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,CancellationToken token,
+        Models.Mounting.Synology.SynologySessionTicket? previous=null)
+        =>OwnAsync(async cancel=>
+        {
+            var result=await (_factory as FileSourceFactory??new FileSourceFactory()).TestSynologyConnectionAsync(settings,credentials,oneTimePassword,cancel,previous).ConfigureAwait(false);
+            bool stopping;
+            lock(_lifetime)
+            {
+                stopping=IsStopping;_synologySessions.RemoveAll(x=>x.IsReleased);
+                if(!stopping&&result.Session is {} session)_synologySessions.Add(session);
+            }
+            if(stopping){await result.DisposeAsync().ConfigureAwait(false);throw new OperationCanceledException("应用已停止，群晖会话已归还。",cancel);}
+            return result;
+        },token);
     /// <summary>先向所有生产者发停止信号，不持根锁等待；重复请求不重复取消已释放的资源。</summary>
     public void RequestStop()
     {
@@ -49,6 +65,7 @@ public sealed partial class MountManager
                 lock(root.ConnectionSync){signals.Add(root.ConnectionSignal);if(root.Uploads is {} uploads)signals.Add(uploads.Cancellation);}
                 if(root.Session is {} session)signals.Add(session.RequestStop());
             }
+            signals.AddRange(_synologySessions.Select(session=>session.DisposeAsync().AsTask()));
             _cancellation=Task.WhenAll(signals);ObserveStop("StopSignaled",null);
         }
     }

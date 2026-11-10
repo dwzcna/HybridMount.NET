@@ -31,13 +31,13 @@ public sealed record MountEntry(string Id, string SourcePath, string LocalPath, 
 public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail, RemoteDetectionStatus? Detection=null, bool IsConnected=false, bool IsConnecting=false, bool IsDisconnecting=false, string? ActiveOperation=null, RemoteCapacitySnapshot? Capacity=null,int UploadIssueCount=0)
 {
     public string CapacityDisplay=>Capacity?.Display??(!CapacityRules.Enabled(Definition)?"远端容量：未设置容量限制。":Definition.CapacityAutoDetectEnabled?"远端容量：自动识别，尚未查询。":$"远端容量：手动配置上限 {TaskByteFormat.Format(Definition.MaximumCapacityBytes!.Value)}；已用及可用尚未核实。");
-    public string RemoteDetectionDisplay=>Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)?"":!Definition.RemoteAutoDetectEnabled?"远端自动检测：关闭":
-         $"远端自动检测：{Detection?.Mode??"尚未检测"}；{(Definition.Source?.Kind==FileSourceKind.S3?"":$"增量 {Definition.RemoteIncrementalSeconds} 秒，")}完整 {Definition.RemoteFullSeconds} 秒；最近成功：{Detection?.LastSuccessUtc?.ToLocalTime().ToString("g")??"尚无"}"+(Detection?.Error is {} error?"；"+error:"");
+    public string RemoteDetectionDisplay=>Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology)?"":!Definition.RemoteAutoDetectEnabled?"远端自动检测：关闭":
+         $"远端自动检测：{Detection?.Mode??"尚未检测"}；{(Definition.Source?.Kind is FileSourceKind.S3 or FileSourceKind.Synology?"":$"增量 {Definition.RemoteIncrementalSeconds} 秒，")}完整 {Definition.RemoteFullSeconds} 秒；最近成功：{Detection?.LastSuccessUtc?.ToLocalTime().ToString("g")??"尚无"}"+(Detection?.Error is {} error?"；"+error:"");
     public string SqsDisplay=>Definition.Source?.Kind!=FileSourceKind.S3?"":Definition.Sqs?.Enabled!=true?"SQS 事件加速：关闭，定时完整对账仍保留":!Definition.RemoteAutoDetectEnabled?"SQS 事件加速：已暂停（远端自动检测关闭）":
         $"SQS：{Detection?.QueueMode??"尚未启动"}；最近事件：{Detection?.LastEventUtc?.ToLocalTime().ToString("g")??"尚无"}；待核对提示 {Detection?.PendingHints??0}"+(Detection?.QueueError is {} error?"；"+error:"");
     public string AutoUploadDisplay=>Definition.Source is null?"旧版源仅支持迁出":"本地新增和修改持续自动上传";
     public string ThumbnailDisplay=>Definition.ThumbnailsEnabled?"缩略图：开启（实验性）；依文件与服务读取能力生成，可能显示普通图标。":"缩略图：关闭";
-    public string SourceDisplay => Definition.Source?.Kind switch { FileSourceKind.WebDav=>"WebDAV",FileSourceKind.S3=>"S3 对象存储",FileSourceKind.Smb=>"SMB（预留）",FileSourceKind.Nfs=>"NFS（预留）",_=>"旧版模拟源（仅迁出）" };
+    public string SourceDisplay => Definition.Source?.Kind switch { FileSourceKind.WebDav=>"WebDAV",FileSourceKind.S3=>"S3 对象存储",FileSourceKind.Synology=>"群晖 NAS（Synology）",FileSourceKind.Smb=>"SMB（预留）",FileSourceKind.Nfs=>"NFS（预留）",_=>"旧版模拟源（仅迁出）" };
 }
 public sealed record MountItemResult(string Path, string Status, string Message);
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,

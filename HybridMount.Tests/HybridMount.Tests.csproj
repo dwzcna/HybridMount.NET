@@ -255,6 +255,12 @@
     <Compile Include="..\HybridMount\ViewModels\MountsViewModel.cs" Link="Production\ViewModels\MountsViewModel.cs"/>
     <Compile Include="..\HybridMount\ViewModels\SettingsViewModel.cs" Link="Production\ViewModels\SettingsViewModel.cs"/>
     <Compile Include="..\HybridMount\ViewModels\TasksViewModel.cs" Link="Production\ViewModels\TasksViewModel.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\SynologyFileSource.cs" Link="Production\Models\Mounting\Synology\SynologyFileSource.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\SynologyTransport.cs" Link="Production\Models\Mounting\Synology\SynologyTransport.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\SynologyReads.cs" Link="Production\Models\Mounting\Synology\SynologyReads.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\SynologyWrites.cs" Link="Production\Models\Mounting\Synology\SynologyWrites.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\SynologySourceProtocol.cs" Link="Production\Models\Mounting\Synology\SynologySourceProtocol.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\SynologySessionTicket.cs" Link="Production\Models\Mounting\Synology\SynologySessionTicket.cs"/>
     <Using Include="Xunit"/>
   </ItemGroup>
   <!-- 测试输出保留NuGet的runtimes布局；原生宿主仅允许加载应用目录SQLite，因此精确复制当前架构依赖。 -->

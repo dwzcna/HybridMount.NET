@@ -82,7 +82,13 @@ public sealed partial class MountsPage : Page,IDisposable
     {
         try
         {
-            ContentDialog dialog=kind==FileSourceKind.WebDav?new WebDAVConfigurationContentDialog(ViewModel,existing):new S3ConfigurationContentDialog(ViewModel,existing);
+            ContentDialog dialog=kind switch
+            {
+                FileSourceKind.WebDav=>new WebDAVConfigurationContentDialog(ViewModel,existing),
+                FileSourceKind.S3=>new S3ConfigurationContentDialog(ViewModel,existing),
+                FileSourceKind.Synology=>new SynologyConfigurationContentDialog(ViewModel,existing),
+                _=>throw new NotSupportedException("此协议尚未提供配置窗口。")
+            };
             _configurationDialog=(IMountConfigurationDialog)dialog;dialog.XamlRoot=XamlRoot;await dialog.ShowAsync();
             if(!ViewModel.IsStopping)
             {
@@ -94,6 +100,7 @@ public sealed partial class MountsPage : Page,IDisposable
     });
     private async void CreateWebDavMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav);
     private async void CreateS3Mount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.S3);
+    private async void CreateSynologyMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.Synology);
     /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与密文写入由应用服务执行。</summary>
     private async void ExportConfigurations(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {

@@ -116,6 +116,7 @@ public sealed partial class MountManager
             {
                 budget=PreviewRangeBudget.ForLocal(length,local.ReadAsync);
             }
+            else if(source!.Capabilities.RangeRead==CapabilitySupport.Unsupported){_previews.RecordOutcome(mount.Id,"远端严格预览不支持");return null;}
             else budget=new PreviewRangeBudget(source!,new SourceEntry(entry.Id,entry.SourcePath,false,length,DateTimeOffset.MinValue,entry.Version));
             var frames=await new PreviewWorkerClient(diagnostic:code=>{_previews.RecordOutcome(mount.Id,"媒体解码",code,true);_logger.Queue("缩略图","Warning",$"媒体解码失败；HRESULT=0x{code:X8}");}).DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget,token).ConfigureAwait(false);
             if(frames is null&&budget.UnavailableReason is {} reason)_previews.RecordOutcome(mount.Id,"预览不可用："+reason);

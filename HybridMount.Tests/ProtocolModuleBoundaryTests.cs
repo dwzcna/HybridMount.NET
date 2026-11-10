@@ -18,9 +18,10 @@ public sealed class ProtocolModuleBoundaryTests
         var root=Path.Combine(Root(),"HybridMount");
         var dav=Path.Combine(root,"Models","Mounting","WebDAV")+Path.DirectorySeparatorChar;
         var s3=Path.Combine(root,"Models","Mounting","S3")+Path.DirectorySeparatorChar;
+        var synology=Path.Combine(root,"Models","Mounting","Synology")+Path.DirectorySeparatorChar;
         foreach(var file in Directory.EnumerateFiles(root,"*.cs",SearchOption.AllDirectories).Where(x=>!x.Contains(Path.DirectorySeparatorChar+"obj"+Path.DirectorySeparatorChar)&&!x.Contains(Path.DirectorySeparatorChar+"bin"+Path.DirectorySeparatorChar)))
         {
-            if(file.StartsWith(dav,StringComparison.OrdinalIgnoreCase)||file.StartsWith(s3,StringComparison.OrdinalIgnoreCase))continue;
+            if(file.StartsWith(dav,StringComparison.OrdinalIgnoreCase)||file.StartsWith(s3,StringComparison.OrdinalIgnoreCase)||file.StartsWith(synology,StringComparison.OrdinalIgnoreCase))continue;
             var text=File.ReadAllText(file);
             foreach(var token in new[]{"using Amazon.","AmazonS3Client","AmazonSQSClient","using WebDAVClient","WebDAVClient.DavClient","HttpRequestMessage","IfMatch.ParseAdd","<d:sync-collection"})
                 Assert.False(text.Contains(token,StringComparison.Ordinal),Path.GetRelativePath(root,file)+" 残留协议实现："+token);

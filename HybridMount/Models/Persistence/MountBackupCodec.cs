@@ -7,7 +7,7 @@ using HybridMount.Models.Mounting;
 
 namespace HybridMount.Models.Persistence;
 
-/// <summary>便携加密备份 v5（兼容读取 v1/v2/v3/v4）；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
+/// <summary>便携加密备份 v6（兼容读取 v1–v5）；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
 /// <remarks>文件为 44 字节认证头、16 字节 GCM 标签及密文。头依次为 HMCONFIG、LE 版本、盐、nonce、LE 密文长度。</remarks>
 public static class MountBackupCodec
 {
@@ -57,7 +57,7 @@ public static class MountBackupCodec
         if (file.Length < PayloadOffset || file.Length > MaximumFileBytes || !file.AsSpan(0, 8).SequenceEqual("HMCONFIG"u8))
             throw new InvalidDataException("不是有效的 HybridMount 配置备份，或文件大小超限。");
         var format=BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(8,4));
-        if (format is not(1 or 2 or 3 or 4 or 5)) throw new InvalidDataException("不支持此配置备份版本。");
+        if (format is not(1 or 2 or 3 or 4 or 5 or 6)) throw new InvalidDataException("不支持此配置备份版本。");
         if (BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(40, 4)) != file.Length - PayloadOffset)
             throw new InvalidDataException("配置备份长度无效。");
         byte[]? plain = null, passwordBytes = null, key = null;
@@ -108,7 +108,7 @@ public static class MountBackupCodec
     /// <summary>验证安全的结构边界；路径和已实现协议的校验留给逐项导入预览。</summary>
     private static void ValidateDocument(MountConfigurationBackup backup)
     {
-        if (backup.SchemaVersion is not(1 or 2 or 3 or 4 or 5) || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
+        if (backup.SchemaVersion is not(1 or 2 or 3 or 4 or 5 or 6) || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
             throw new InvalidDataException("配置备份载荷版本或条目数量无效。");
         foreach (var item in backup.Mounts)
         {
@@ -121,6 +121,7 @@ public static class MountBackupCodec
             catch(ArgumentException){throw new InvalidDataException("配置备份包含无效容量设置。");}
             if(backup.SchemaVersion<4&&(item.CapacityAutoDetectEnabled||item.MaximumCapacityBytes is not null))throw new InvalidDataException("旧版备份不能包含容量设置。");
             if(backup.SchemaVersion<5&&item.ExclusionRules is {Count:>0})throw new InvalidDataException("旧版备份不能包含排除规则。");
+            if(backup.SchemaVersion<6&&(source.Kind==FileSourceKind.Synology||source.PinnedCertificateSha256 is not null))throw new InvalidDataException("群晖及固定证书指纹需要 v6 配置备份。");
             FileSourceFactory.ValidateBackupFields(item);
         }
     }
