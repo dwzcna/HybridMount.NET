@@ -194,7 +194,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     {
         if(!data.TryGetProperty("failureStage",out var value)||value.ValueKind!=JsonValueKind.String)return "operation";
         var stage=value.GetString();
-        return stage is "root-enumeration" or "root-native-query" or "root-register" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
+        return stage is "root-enumeration" or "root-native-query" or "root-register" or "orphan-inspect" or "orphan-register" or "orphan-connect" or "orphan-clear" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
     }
     private async Task EventLoopAsync()
     {

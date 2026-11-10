@@ -14,10 +14,13 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
     private long? _next;
     private Task _readWork=Task.CompletedTask;
     private CancellationTokenSource? _readCancel;
-    private string _query="",_severity="All",_status="";
+    private string _query="",_severity="All";
+    /// <summary>统计静默更新，显式刷新或操作错误重新打开消息。</summary>
+    public PageStatusMessage StatusMessage {get;}=new();
     private DateTimeOffset? _fromDate,_toDate;
     public ObservableCollection<DiagnosticEntry> Entries {get;}=[];
-    public string Status {get=>_status;private set{if(!_disposed)SetProperty(ref _status,value);}}
+    public string Status=>StatusMessage.Text;
+    private void PublishStatus(string text,bool reopen){if(!_disposed&&(reopen?StatusMessage.Show(text):StatusMessage.Update(text)))OnPropertyChanged(nameof(Status));}
     public string Query {get=>_query;set{if(!_disposed&&SetProperty(ref _query,value??""))_=RefreshAsync();}}
     public string Severity {get=>_severity;set{if(!_disposed&&(value is "All" or "Information" or "Warning" or "Error")&&SetProperty(ref _severity,value))_=RefreshAsync();}}
     /// <summary>本地日历的开始日，转换为UTC下界；空表示不限。</summary>
@@ -32,17 +35,17 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
     public DiagnosticQuery CaptureExportQuery()=>new(_severity,_query,Day(_fromDate,false),Day(_toDate,true),ThroughId:_through==0?null:_through);
     public Task<DiagnosticExport> ExportAsync(DiagnosticQuery query,CancellationToken token=default)=>_logger.ExportAsync(query,token);
     /// <summary>重新捕获数据库快照并返回首屏；正在完成的旧查询只丢弃展示结果。</summary>
-    public Task RefreshAsync()=>StartRead(false);
+    public Task RefreshAsync(bool reopenStatus=true)=>StartRead(false,reopenStatus);
     /// <summary>按当前固定快照读取下一页，重复点击在读取期间无效。</summary>
-    public Task LoadOlderAsync()=>CanLoadMore?StartRead(true):Task.CompletedTask;
-    private Task StartRead(bool older)
+    public Task LoadOlderAsync()=>CanLoadMore?StartRead(true,true):Task.CompletedTask;
+    private Task StartRead(bool older,bool reopenStatus)
     {
         if(_disposed||_clearing)return Task.CompletedTask;
         _readCancel?.Cancel();var owner=new CancellationTokenSource();_readCancel=owner;var generation=++_generation;
         _reading=true;NotifyActions();
-        return _readWork=ReadCoreAsync(CaptureExportQuery() with{ThroughId=older?_through:null,BeforeId=older?_next:null},older,generation,owner);
+        return _readWork=ReadCoreAsync(CaptureExportQuery() with{ThroughId=older?_through:null,BeforeId=older?_next:null},older,generation,owner,reopenStatus);
     }
-    private async Task ReadCoreAsync(DiagnosticQuery query,bool older,long generation,CancellationTokenSource owner)
+    private async Task ReadCoreAsync(DiagnosticQuery query,bool older,long generation,CancellationTokenSource owner,bool reopenStatus)
     {
         try
         {
@@ -51,10 +54,10 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
             if(!older){_all.Clear();_olderLoaded=false;}else _olderLoaded=true;
             foreach(var item in page.Entries)if(!_all.Any(x=>x.Id==item.Id))_all.Add(item);
             _through=page.ThroughId;_next=page.NextBeforeId;_hasMore=page.HasMore;_hasNew=_latestSeen>_through;
-            Apply();SetStatus();
+            Apply();SetStatus(reopenStatus);
         }
         catch(OperationCanceledException)when(owner.IsCancellationRequested){}
-        catch(Exception error){if(generation==_generation)ReportError(error);}
+        catch(Exception error){if(generation==_generation)ReportError(error,reopenStatus);}
         finally{owner.Dispose();if(_readCancel==owner)_readCancel=null;if(generation==_generation){_reading=false;NotifyActions();}}
     }
     private void NotifyActions(){if(_disposed)return;OnPropertyChanged(nameof(CanInteract));OnPropertyChanged(nameof(CanLoadMore));}
@@ -69,11 +72,11 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
         finally{_clearing=false;NotifyActions();}
         if(!_disposed)await RefreshAsync();
     }
-    public void ReportError(Exception error){if(_disposed)return;Status="日志操作失败："+SafeDiagnostic.ExceptionSummary(error);_logger.QueueException("日志","Error","日志页面操作未完成",error);}
+    public void ReportError(Exception error,bool reopenStatus=true){if(_disposed)return;PublishStatus("日志操作失败："+SafeDiagnostic.ExceptionSummary(error),reopenStatus);_logger.QueueException("日志","Error","日志页面操作未完成",error);}
     /// <summary>兼容复制当前显示行；导出调用异步完整筛选接口。</summary>
     public string ExportText()=>string.Join(Environment.NewLine,Entries.Select(x=>x.DisplayText));
-    private void SetStatus()=>Status=(_logger.LastError is {} error?"日志存储异常："+error+"；":"")+$"已显示 {_all.Count} 条；保留最近30天／最多10000条。"+
-        (_hasMore?" 可加载更早记录。":"")+(_hasNew?" 有新日志，请刷新。":"")+(_logger.DroppedCount>0?$" 本会话未保存 {_logger.DroppedCount} 条。":"");
+    private void SetStatus(bool reopen=false)=>PublishStatus((_logger.LastError is {} error?"日志存储异常："+error+"；":"")+$"已显示 {_all.Count} 条；保留最近30天／最多10000条。"+
+        (_hasMore?" 可加载更早记录。":"")+(_hasNew?" 有新日志，请刷新。":"")+(_logger.DroppedCount>0?$" 本会话未保存 {_logger.DroppedCount} 条。":""),reopen);
     private void Apply(){if(!_disposed)SnapshotCollections.Reconcile(Entries,_all.OrderByDescending(x=>x.Id).ToArray(),x=>x.Id);}
     private void OnEntry(object? sender,DiagnosticEntry entry)
     {
@@ -89,5 +92,5 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
             _through=Math.Max(_through,entry.Id);_next=_hasMore?_all[^1].Id:null;Apply();SetStatus();NotifyActions();
         });
     }
-    public void Dispose(){if(_disposed)return;_disposed=true;++_generation;++_eventEpoch;_readCancel?.Cancel();_logger.EntryWritten-=OnEntry;}
+    public void Dispose(){if(_disposed)return;_disposed=true;StatusMessage.Dispose();++_generation;++_eventEpoch;_readCancel?.Cancel();_logger.EntryWritten-=OnEntry;}
 }

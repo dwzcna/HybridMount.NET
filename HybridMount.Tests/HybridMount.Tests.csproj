@@ -19,6 +19,7 @@
   </ItemGroup>
   <ItemGroup><Content Include="..\HybridMount\Assets\SyncExcluded.png" Link="Assets\SyncExcluded.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="..\HybridMount\Assets\SyncIssue.png" Link="Assets\SyncIssue.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
   <ItemGroup>
+    <Compile Include="..\HybridMount\ViewModels\PageStatusMessage.cs" Link="Production\ViewModels\PageStatusMessage.cs"/>
     <Compile Include="..\HybridMount\Commons\IAppearancePreferenceStore.cs" Link="Production\Commons\IAppearancePreferenceStore.cs"/>
     <Compile Include="..\HybridMount\Commons\IExcludedRenameSource.cs" Link="Production\Commons\IExcludedRenameSource.cs"/>
     <Compile Include="..\HybridMount\Commons\IFileSource.cs" Link="Production\Commons\IFileSource.cs"/>
@@ -65,11 +66,13 @@
     <Compile Include="..\HybridMount\Models\Mounting\Content\RemoteStaging.cs" Link="Production\Models\Mounting\Content\RemoteStaging.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Content\StagingDiskSpace.cs" Link="Production\Models\Mounting\Content\StagingDiskSpace.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Content\WholeFileCache.cs" Link="Production\Models\Mounting\Content\WholeFileCache.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\FileExclusionRuleListConverter.cs" Link="Production\Models\Mounting\FileExclusionRuleListConverter.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\FileExclusionRuleList.cs" Link="Production\Models\Mounting\FileExclusionRuleList.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\FileExclusionRules.cs" Link="Production\Models\Mounting\FileExclusionRules.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\FileSourceConfiguration.cs" Link="Production\Models\Mounting\FileSourceConfiguration.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountConfigurationBackup.cs" Link="Production\Models\Mounting\MountConfigurationBackup.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountDefinitionRules.cs" Link="Production\Models\Mounting\MountDefinitionRules.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\TaskTransferRate.cs" Link="Production\Models\Mounting\TaskTransferRate.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountModels.cs" Link="Production\Models\Mounting\MountModels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountPresentation.cs" Link="Production\Models\Mounting\MountPresentation.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountingTask.cs" Link="Production\Models\Mounting\MountingTask.cs"/>
@@ -79,6 +82,8 @@
     <Compile Include="..\HybridMount\Models\Mounting\PreviewModels.cs" Link="Production\Models\Mounting\PreviewModels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\ReadDiagnostics.cs" Link="Production\Models\Mounting\ReadDiagnostics.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Recovery\MountRemovalCompletion.cs" Link="Production\Models\Mounting\Recovery\MountRemovalCompletion.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Recovery\OrphanedDirectoryRecovery.cs" Link="Production\Models\Mounting\Recovery\OrphanedDirectoryRecovery.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Recovery\OrphanedMountBatch.cs" Link="Production\Models\Mounting\Recovery\OrphanedMountBatch.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Recovery\OrphanedMountRecovery.cs" Link="Production\Models\Mounting\Recovery\OrphanedMountRecovery.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Recovery\RecoveryShellRegistration.cs" Link="Production\Models\Mounting\Recovery\RecoveryShellRegistration.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\RelativePathRules.cs" Link="Production\Models\Mounting\RelativePathRules.cs"/>
@@ -243,6 +248,7 @@
     <Compile Include="..\HybridMount\Services\ShutdownSequence.cs" Link="Production\Services\ShutdownSequence.cs"/>
     <Compile Include="..\HybridMount\Services\SingleInstanceService.cs" Link="Production\Services\SingleInstanceService.cs"/>
     <Compile Include="..\HybridMount\Services\TaskFocusService.cs" Link="Production\Services\TaskFocusService.cs"/>
+    <Compile Include="..\HybridMount\Services\TasksQueueService.Transfers.cs" Link="Production\Services\TasksQueueService.Transfers.cs"/>
     <Compile Include="..\HybridMount\Services\TasksQueueService.Presentation.cs" Link="Production\Services\TasksQueueService.Presentation.cs"/>
     <Compile Include="..\HybridMount\Services\TasksQueueService.cs" Link="Production\Services\TasksQueueService.cs"/>
     <Compile Include="..\HybridMount\Services\Thumbnails\ExePreviewCache.cs" Link="Production\Services\Thumbnails\ExePreviewCache.cs"/>

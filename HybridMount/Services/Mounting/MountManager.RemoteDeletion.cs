@@ -132,7 +132,7 @@ public sealed partial class MountManager
                 var path=RelativePaths.ToLocal(root.Definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
                 UploadRules.ValidateTypes(current,LocalFileState.Read(path));
             }
-            return ChangeUpload(current.Id,item=>item with{State="Sending",Error=null,Bytes=0,LastCheckedUtc=null});
+            return ChangeUpload(current.Id,item=>item with{State="Sending",Error=null,Bytes=0,TransferDurationSeconds=0,LastCheckedUtc=null});
         }
         finally{root.Gate.Release();}
     }

@@ -7,6 +7,7 @@ public sealed record MountBackupItem(string Name, string LocalPath, FileSourceCo
 {
     private readonly FileExclusionRuleList? _exclusionRules=ExclusionRules is null?null:new(ExclusionRules);
     /// <summary>缺失为旧行为；设置时复制规则，列表值相同的配置仍按记录值相等。</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(FileExclusionRuleListConverter))]
     public IReadOnlyList<FileExclusionRule>? ExclusionRules{get=>_exclusionRules;init=>_exclusionRules=value is null?null:new(value);}
     /// <summary>避免调试或日志展开记录中的凭据。</summary>
     public override string ToString() => "挂载配置备份条目";

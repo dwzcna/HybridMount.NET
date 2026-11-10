@@ -15,17 +15,29 @@ public sealed class FileExclusionRulesTests
     {Assert.Equal(expected,FileExclusionRules.Matches(FileExclusionRules.Defaults(),path));Assert.False(FileExclusionRules.Matches(FileExclusionRules.Defaults(),path,true));}
 
     [Fact]
-    public void EmptyDisabledAndLiteralRulesKeepTheirMeaning()
+    public void EmptyAndLiteralRulesKeepTheirMeaning()
     {
         Assert.False(FileExclusionRules.Matches(null,"~a"));
-        Assert.False(FileExclusionRules.Matches([new(FileExclusionMatchKind.Contains,"~",false)],"~a"));
         Assert.False(FileExclusionRules.Matches([new(FileExclusionMatchKind.Contains,"*.bak")],"a.bak"));
         Assert.Equal(4,FileExclusionRules.Validate(FileExclusionRules.Defaults()).Length);
     }
     [Theory] [InlineData("")] [InlineData(" ")] [InlineData("a/b")] [InlineData("a\\b")]
     public void InvalidTextIsRejected(string text)=>Assert.Throws<ArgumentException>(()=>FileExclusionRules.Validate([new(FileExclusionMatchKind.Contains,text)]));
+    [Theory]
+    [InlineData(false)][InlineData(true)]
+    public void LegacyDisabledRulesAreFilteredAtConfigurationAndBackupBoundaries(bool backup)
+    {
+        var jsonRules="""[{"Match":2,"Text":".bak","Enabled":false},{"Match":0,"Text":"~","Enabled":true}]""";
+        var definition=new MountDefinition(Guid.NewGuid(),"test","D:/test");
+        var item=new MountBackupItem("test","D:/test",new(FileSourceKind.WebDav,"https://example.test/dav/"),new("u","p"));
+        var node=System.Text.Json.Nodes.JsonNode.Parse(backup?JsonSerializer.Serialize(item):JsonSerializer.Serialize(definition))!;
+        node["ExclusionRules"]=System.Text.Json.Nodes.JsonNode.Parse(jsonRules);
+        IReadOnlyList<FileExclusionRule>? rules=backup?JsonSerializer.Deserialize<MountBackupItem>(node.ToJsonString())!.ExclusionRules:JsonSerializer.Deserialize<MountDefinition>(node.ToJsonString())!.ExclusionRules;
+        Assert.Single(rules!);Assert.False(FileExclusionRules.Matches(rules,"file.bak"));Assert.True(FileExclusionRules.Matches(rules,"~file"));
+        Assert.DoesNotContain("\"Enabled\"",JsonSerializer.Serialize(rules));
+    }
     [Fact]
-    public void DuplicateRulesAreCaseInsensitiveAndIgnoreEnabledFlag()=>Assert.Throws<ArgumentException>(()=>FileExclusionRules.Validate([new(FileExclusionMatchKind.Suffix,".bak"),new(FileExclusionMatchKind.Suffix,".BAK",false)]));
+    public void DuplicateRulesAreCaseInsensitive()=>Assert.Throws<ArgumentException>(()=>FileExclusionRules.Validate([new(FileExclusionMatchKind.Suffix,".bak"),new(FileExclusionMatchKind.Suffix,".BAK")]));
     [Theory]
     [InlineData("Queued",true)] [InlineData("Prepared",true)] [InlineData("WaitingCapacity",true)]
     [InlineData("Sending",false)] [InlineData("RemoteCommitted",false)] [InlineData("OutcomeUnknown",false)]

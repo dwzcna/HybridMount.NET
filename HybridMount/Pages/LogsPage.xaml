@@ -21,7 +21,7 @@
     </ListView>
     <Grid Grid.Row="4" Margin="0,16,0,0" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Button Content="加载更早" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" VerticalAlignment="Top"/>
-    <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Status, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.Status),Mode=OneWay}"/>
+    <InfoBar Grid.Column="1" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="Informational" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
     </Grid>
   </Grid>
 </Page>

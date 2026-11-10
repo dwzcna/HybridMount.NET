@@ -87,7 +87,7 @@ internal sealed class OrphanedMountRecovery
             return journal.Root with{Registered=false,Error=null};
         }
         var hints=_shell.List().Where(x=>x.ShellOnly&&x.Path.Equals(full,StringComparison.OrdinalIgnoreCase)).ToArray();
-        if(hints.Length==0)throw new IOException("目录没有可核验的原生根身份或每根Shell入口，拒绝清理。");
+        if(hints.Length==0)throw new MissingOrphanedMountEvidenceException();
         var hint=hints[0];if(hints.Select(x=>x.Id).Distinct().Count()!=1||!TryParseId(hint.Id,_sid,out var id))throw new IOException("Shell入口身份不唯一。");
         var exists=LocalFileMetadata.TryRead(full) is not null;
         if(exists&&CloudFilesNative.RootIdentity(full,true) is not null)throw new IOException("路径仍有原生根，不能只清理入口。");
@@ -124,7 +124,7 @@ internal sealed class OrphanedMountRecovery
                 journal=completion.Stage(journal,"Clearing");
                 var failures=MountContentCleaner.Clear(mount,current.Registered,token,_=>{},(path,status,message)=>
                 {if(status=="Completed")journal=journal with{Deleted=journal.Deleted+1};else errors.Add(path+"："+message);progress?.Invoke(path+"："+message);Validate();});
-                completion.Save(journal);if(failures>0){completion.Failure(journal,new IOException(string.Join("；",errors)));return new(false,journal.Deleted,journal.Stage,errors);}
+                completion.Save(journal);if(failures>0){var failure=new IOException(string.Join("；",errors));completion.Failure(journal,failure);return new(false,journal.Deleted,journal.Stage,errors){HResult=failure.HResult};}
                 journal=completion.ContentComplete(journal);
             }
             else if(current.ShellOnly&&!journal.ContentCompleted)journal=completion.ContentComplete(journal);
@@ -133,7 +133,7 @@ internal sealed class OrphanedMountRecovery
         }
         catch(OperationCanceledException){throw;}
         catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or COMException)
-        {errors.Add(error.Message);completion.Failure(journal,error);var latest=completion.Read(current.MountId)??journal;return new(false,latest.Deleted,latest.Stage,errors);}
+        {errors.Add(error.Message);completion.Failure(journal,error);var latest=completion.Read(current.MountId)??journal;return new(false,latest.Deleted,latest.Stage,errors){HResult=OrphanedMountBatch.Code(error)};}
         finally{if(offline is not null)await offline.DisposeAsync().ConfigureAwait(false);}
     }
     private sealed class EmptyDefinitionStore:IMountDefinitionStore

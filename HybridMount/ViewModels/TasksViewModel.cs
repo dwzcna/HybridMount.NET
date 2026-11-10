@@ -11,6 +11,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private readonly TasksQueueService _queue;
     private readonly IUiDispatcher _dispatcher;
     private int _pending;
+    private readonly TaskTransferRate _rates=new();
     private readonly TaskFocusService? _focus;
     private long _focusRevision;
     private bool _issuesOnly,_conflictsOnly;
@@ -23,7 +24,8 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private bool _disposed,_clearingHistory,_dialogBusy;
     private string? _selectedJob,_dialogJob;
     private string _copyPath="";
-    private string _status="";
+    /// <summary>本页可关闭提示；后台刷新不重新打开已关闭消息。</summary>
+    public PageStatusMessage StatusMessage {get;}=new();
     /// <summary>执行中、排队／等待和历史分组展示，同组使用稳定提交顺序。</summary>
     public ObservableCollection<MountOperationSnapshot> Operations { get; }=[];
     /// <summary>刷新后由页面按任务 ID 恢复选择。</summary>
@@ -53,7 +55,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         finally{_clearingHistory=false;if(!_disposed){Refresh();NotifyClearState();}}
     }
     /// <summary>当前操作提示。</summary>
-    public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
+    public string Status {get=>StatusMessage.Text;set{if(!_disposed&&StatusMessage.Show(value))OnPropertyChanged();}}
     public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value)){if(value){_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));}Refresh();}}}
     public bool ConflictsOnly{get=>_conflictsOnly;set{if(!_disposed&&SetProperty(ref _conflictsOnly,value)){if(value){_issuesOnly=false;OnPropertyChanged(nameof(IssuesOnly));}Refresh();}}}
     public string IssueViewTitle=>_filterMount is {} id?"同步问题 · "+(_queue.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??"挂载"):"同步问题";
@@ -172,9 +174,9 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_disposed)return;
         try { var source=_issuesOnly||_conflictsOnly?(_conflictsOnly?_queue.Conflicts:_queue.SyncIssues).Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_queue.Operations;
-            var snapshots=OperationDisplayOrder.Sort(source);OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
-        catch(Exception error) { Status=error.Message;_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
+            var now=System.Diagnostics.Stopwatch.GetTimestamp();var snapshots=OperationDisplayOrder.Sort(source.Select(value=>_rates.Apply(value,now))).ToArray();_rates.Retain(snapshots.Select(value=>value.Id).ToHashSet(StringComparer.Ordinal));OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
+        catch(Exception error) { if(StatusMessage.Update(error.Message))OnPropertyChanged(nameof(Status));_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>
-    public void Dispose() { EndDialog();_disposed=true;_queue.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
+    public void Dispose() { EndDialog();_disposed=true;StatusMessage.Dispose();_queue.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }
 }

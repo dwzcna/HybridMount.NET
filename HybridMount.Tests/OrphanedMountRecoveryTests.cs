@@ -14,7 +14,7 @@ public sealed class OrphanedMountRecoveryTests
     [InlineData("HybridMount.NET!S-1-5-21-2!00000000000000000000000000000001",false)]
     [InlineData("HybridMount.NET!S-1-5-21-1!00000000-0000-0000-0000-000000000001",false)]
     [InlineData("HybridMount.NET!S-1-5-21-1!00000000000000000000000000000000",false)]
-    public void ExactProductOwnerAndNonEmptyGuidRequired(string value,bool valid)=>Assert.Equal(valid,OrphanedMountRecovery.TryParseId(value,"S-1-5-21-1",out _));
+    public void ExactProductOwnerAndNonEmptyGuidRequired(string value,bool valid)=>Assert.Equal(valid,OrphanedMountRecovery.TryParseId(value.Replace("HybridMount.NET!",ApplicationPaths.ProductScope+"!",StringComparison.Ordinal),"S-1-5-21-1",out _));
 
     [Fact(Timeout=60000)]
     public async Task DiscoversNativeRootButRejectsItsChildAndRegularDirectory()
@@ -22,7 +22,7 @@ public sealed class OrphanedMountRecoveryTests
         await using var test=await Fixture.Create();var child=Path.Combine(test.Local,"child");Directory.CreateDirectory(child);
         test.Shell.Hints.Add(new(test.Candidate.SyncRootId,child));
         var discovered=test.Service().Discover(default);Assert.Equal(2,discovered.Count);Assert.Single(discovered,x=>x.CanRemove);
-        Assert.Throws<IOException>(()=>test.Service().Inspect(child));Assert.Throws<IOException>(()=>test.Service().Inspect(test.Area));
+        Assert.Throws<IOException>(()=>test.Service().Inspect(child));Assert.Throws<HybridMount.Models.Mounting.Recovery.MissingOrphanedMountEvidenceException>(()=>test.Service().Inspect(test.Area));
         Assert.Throws<IOException>(()=>test.Service().Inspect(Path.GetPathRoot(test.Area)!));
     }
     [Fact(Timeout=60000)]
@@ -122,7 +122,7 @@ public sealed class OrphanedMountRecoveryTests
     {
         await using var test=await Fixture.Create();var factory=new NoSourceFactory();var repository=new MountRepository(Path.Combine(test.Area,"application"),definitions:new MemoryMountStore());
         await using var manager=new MountManager(repository,test.Logger,factory);var first=manager.ClearOrphanedMountAsync(test.Candidate);var second=manager.ClearOrphanedMountAsync(test.Candidate);
-        Assert.True((await first).Completed);await Assert.ThrowsAsync<IOException>(()=>second);Assert.Empty(Directory.EnumerateFileSystemEntries(test.Local));Assert.Equal(0,factory.Calls);
+        Assert.True((await first).Completed);await Assert.ThrowsAsync<HybridMount.Models.Mounting.Recovery.MissingOrphanedMountEvidenceException>(()=>second);Assert.Empty(Directory.EnumerateFileSystemEntries(test.Local));Assert.Equal(0,factory.Calls);
     }
     private sealed class NoSourceFactory:IFileSourceFactory
     {internal int Calls;public Task<IFileSource> CreateAsync(MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token){Calls++;throw new InvalidOperationException("Recovery must never create a remote source.");}}

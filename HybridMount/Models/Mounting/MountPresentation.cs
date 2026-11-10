@@ -5,6 +5,13 @@ namespace HybridMount.Models.Mounting;
 /// <summary>仅格式化任务显示，使用十进制单位且最多两位小数；计算与持久化仍使用原始字节。</summary>
 public static class TaskByteFormat
 {
+    /// <summary>实际传输速率使用十进制单位和一位小数；非有限或负样本不显示。</summary>
+    public static string Speed(double bytesPerSecond)
+    {
+        if(!double.IsFinite(bytesPerSecond)||bytesPerSecond<0)return "";
+        var unit=0;while(bytesPerSecond>=1000&&unit<Units.Length-1){bytesPerSecond/=1000;unit++;}
+        return bytesPerSecond.ToString("0.0",CultureInfo.CurrentCulture)+Units[unit]+"/s";
+    }
     private static readonly string[] Units=["字节","kB","MB","GB","TB","PB","EB"];
     /// <summary>非负 Int64 字节使用当前区域数字格式；负进度按零显示，不转换输入数据。</summary>
     public static string Format(long bytes)

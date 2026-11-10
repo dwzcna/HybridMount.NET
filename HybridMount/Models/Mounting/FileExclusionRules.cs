@@ -4,7 +4,7 @@ namespace HybridMount.Models.Mounting;
 public enum FileExclusionMatchKind { Contains, Prefix, Suffix }
 
 /// <summary>每挂载的可选上传排除规则；文本保留原样，匹配忽略大小写。</summary>
-public sealed record FileExclusionRule(FileExclusionMatchKind Match, string Text, bool Enabled = true);
+public sealed record FileExclusionRule(FileExclusionMatchKind Match, string Text);
 
 /// <summary>上传排除的纯规则；不访问文件、配置或网络，也不把目录命中传播给后代。</summary>
 public static class FileExclusionRules
@@ -30,12 +30,12 @@ public static class FileExclusionRules
         return result;
     }
 
-    /// <summary>任一启用项命中文件名即排除；目录及空名称永不命中。</summary>
+    /// <summary>任一已保存规则命中文件名即排除；目录及空名称永不命中。</summary>
     public static bool Matches(IReadOnlyList<FileExclusionRule>? rules, string path, bool isDirectory = false)
     {
         if (isDirectory || rules is null || rules.Count == 0) return false;
         var name = path[(Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\')) + 1)..];
-        return name.Length != 0 && rules.Any(rule => rule.Enabled && rule.Match switch
+        return name.Length != 0 && rules.Any(rule => rule.Match switch
         {
             FileExclusionMatchKind.Contains => name.Contains(rule.Text, StringComparison.OrdinalIgnoreCase),
             FileExclusionMatchKind.Prefix => name.StartsWith(rule.Text, StringComparison.OrdinalIgnoreCase),

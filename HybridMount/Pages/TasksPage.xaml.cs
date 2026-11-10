@@ -93,7 +93,10 @@ public sealed partial class TasksPage : Page, IDisposable
         try
         {
             var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,MinWidth=400,SelectionMode=ListViewSelectionMode.None};
-            await new ContentDialog{XamlRoot=XamlRoot,Title=job.DisplayOperation+"："+job.DisplayState,Content=ViewModel.IssuesOnly?new ScrollViewer{MaxHeight=460,Content=new TextBlock{Text=job.IssueDetails,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MinWidth=360,MaxWidth=580}}:list,CloseButtonText="关闭"}.ShowAsync();
+            var details=new StackPanel{Spacing=12,MinWidth=360,MaxWidth=580};
+            details.Children.Add(new TextBlock{Text=job.IssueDetails,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true});
+            if(!ViewModel.IssuesOnly&&!ViewModel.ConflictsOnly)details.Children.Add(list);
+            await new ContentDialog{XamlRoot=XamlRoot,Title=job.DisplayOperation+"："+job.DisplayState,Content=new ScrollViewer{MaxHeight=460,Content=details},CloseButtonText="关闭"}.ShowAsync();
         }
         catch(Exception error) { ViewModel.Status=error.Message; }
         finally { ViewModel.EndDialog(); }

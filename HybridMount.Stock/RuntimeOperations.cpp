@@ -1,4 +1,5 @@
 #include "RuntimeOperations.h"
+#include "OrphanedDirectoryRecovery.h"
 #include "CloudSession.h"
 #include "CloudFileOperations.h"
 #include "CloudProperties.h"
@@ -163,6 +164,7 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
         else{HANDLE handle{};Check(CfOpenFileWithOplock(path.c_str(),CF_OPEN_FILE_FLAG_EXCLUSIVE|CF_OPEN_FILE_FLAG_WRITE_ACCESS,&handle));struct Close{HANDLE Value;~Close(){CfCloseHandle(Value);}} close{handle};LARGE_INTEGER offset{},length{};offset.QuadPart=Number(data,"offset");length.QuadPart=Number(data,"length");Check(CfDehydratePlaceholder(handle,offset,length,CF_DEHYDRATE_FLAG_NONE,nullptr));}return Json::object();
     }
 #endif
+    if(operation=="inspectOrphanedDirectory"||operation=="clearOrphanedDirectory")return ExecuteOrphanedDirectory(_impl->Host,command);
     if(operation=="queryFile")return Query(data);
     if(operation=="readShellState")return ReadShellProperties(FullPath(Text(data,"path")));
     if(operation=="readCustomState")return ReadCustomProperties(FullPath(Text(data,"path")));

@@ -23,6 +23,7 @@ public sealed record MountDefinition(Guid Id, string Name, string LocalPath, boo
 {
     private readonly FileExclusionRuleList? _exclusionRules=ExclusionRules is null?null:new(ExclusionRules);
     /// <summary>缺失为旧行为；设置时复制规则，列表值相同的配置仍按记录值相等。</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(FileExclusionRuleListConverter))]
     public IReadOnlyList<FileExclusionRule>? ExclusionRules{get=>_exclusionRules;init=>_exclusionRules=value is null?null:new(value);}
 }
 
@@ -43,7 +44,27 @@ public sealed record MountItemResult(string Path, string Status, string Message)
 public sealed record MountOperationSnapshot(string Id, string Operation, string State, int Completed, int Total,
     IReadOnlyList<MountItemResult> Results, string? Error, Guid? MountId = null, string? ItemPath = null, long BytesTransferred = 0, long TotalBytes = 0, bool? IsDirectory = null, string? RemotePath = null,UploadAttention? Attention=null,string? RecoveryPath=null)
 {
+    /// <summary>仅供界面使用的内存快照；不改变配置、IPC或任务历史格式。</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string MountName {get;init;}="挂载";
+    [System.Text.Json.Serialization.JsonIgnore] public string? RelativeItemPath {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public double BytesPerSecond {get;init;}
+    /// <summary>本次处理的单调计时秒数；旧历史默认为0，附加JSON字段不改变表或IPC格式。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] public double DurationSeconds {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore] public bool HasAverageSpeed=>State=="Completed"&&IsDirectory is false&&Operation is "upload" or "download" or "keepOnDevice"&&double.IsFinite(DurationSeconds)&&DurationSeconds>0;
+    [System.Text.Json.Serialization.JsonIgnore] public bool ConflictPending {get;init;}
     [System.Text.Json.Serialization.JsonIgnore] public MountingPriority? Priority {get;init;}
+    /// <summary>冲突优先于其他错误；依据结构化事务状态，不解析中文提示。</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public TaskIssueKind IssueKind=>ConflictPending||State is "Conflict" or "ResolutionPending"||Attention is {ResolvedUtc:null,Stage:"Conflict"}?TaskIssueKind.Conflict:
+        Attention is {ResolvedUtc:null}||State is "Failed" or "PartialFailure" or "Interrupted" or "OutcomeUnknown"||Error is not null&&State is not("Completed" or "Canceled" or "Superseded")?TaskIssueKind.Error:TaskIssueKind.Normal;
+    [System.Text.Json.Serialization.JsonIgnore] public string CardOperation=>Operation switch{"upload"=>"上传","download" or "keepOnDevice"=>"下载",_=>DisplayOperation};
+    [System.Text.Json.Serialization.JsonIgnore] public string CardPath
+    {
+        get{var path=(RelativeItemPath??ItemPath??Results.LastOrDefault()?.Path??"\\").Replace('/','\\');return IsDirectory is true&&path.Length>0?path.TrimEnd('\\')+"\\":path;}
+    }
+    /// <summary>目录与应用远端更改不展示文件字节；精确进度仍保留在详情中。</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string CardSchedule=>(Priority is {} value?$"P{(600-(int)value)/100}":"")+
+        (IsDirectory is false&&Operation is "upload" or "download" or "keepOnDevice"?" · "+TaskByteFormat.Format(BytesTransferred)+" / "+TaskByteFormat.Format(TotalBytes):"");
+    [System.Text.Json.Serialization.JsonIgnore] public string CardState=>(HasAverageSpeed?"平均 "+TaskByteFormat.Speed(Math.Max(0,TotalBytes)/DurationSeconds)+" · ":BytesPerSecond>0&&State is "Sending" or "Downloading" or "Running"&&Operation is "upload" or "download" or "keepOnDevice"?TaskByteFormat.Speed(BytesPerSecond)+" · ":"")+DisplayState;
     [System.Text.Json.Serialization.JsonIgnore] public DateTimeOffset? SubmittedUtc {get;init;}
     [System.Text.Json.Serialization.JsonIgnore] public DateTimeOffset? NextRetryUtc {get;init;}
     [System.Text.Json.Serialization.JsonIgnore] public string? QueuePhase {get;init;}
@@ -64,8 +85,8 @@ public sealed record MountOperationSnapshot(string Id, string Operation, string 
     /// <summary>悬停保留精确字节；目录任务按条目计数，不把目录显示为零字节文件。</summary>
     public string ProgressDetail=>Operation is "upload" or "remoteUpdate"&&IsDirectory is not true
         ?$"{BytesTransferred:N0} / {TotalBytes:N0} 字节":$"{Completed:N0} / {Total:N0} 项";
-    public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","remoteUpdate"=>"应用远端更改","excludedRename"=>"改名排除收尾","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
-    public string IssueDetails=>$"{DisplayTarget}\n{DisplayState}\n{IssueStage}\n{IssueTimeText}\n{DisplayWaitDetails}\n{DisplayIssueReason}\n"+(Attention is {} a?$"Explorer提示：{a.ShellState}\n{a.ShellError}":Error)+(RecoveryPath is {Length:>0}?"\n恢复备份："+RecoveryPath:"");
+    public string DisplayOperation=>Operation switch{"upload"=>"上传本地更改","remoteUpdate"=>"应用远端更改","excludedRename"=>"改名排除收尾","download"=>"下载","keepOnDevice"=>"始终保留","freeSpace"=>"释放空间","refresh"=>"刷新","remove"=>"下载并移除","clearAndRemove"=>"清空并移除",_=>Operation};
+    public string IssueDetails=>$"任务 ID：{Id}\n挂载：{MountName}\n{SchedulingText}\n{DisplayTarget}\n{DisplayState}\n{IssueStage}\n{IssueTimeText}\n{DisplayWaitDetails}\n{DisplayIssueReason}\n"+(Attention is {} a?$"Explorer提示：{a.ShellState}\n{a.ShellError}":Error)+(RecoveryPath is {Length:>0}?"\n恢复备份："+RecoveryPath:"");
     public string DisplayIssueReason=>Attention is {ResolvedUtc:null} issue?issue.Reason:Error??"";
     /// <summary>当前调度等待及只读核对反馈独立于原始失败原因；查询不清除持久证据。</summary>
     public string DisplayWaitDetails=>string.Join("\n",new[]{WaitingReason,InspectionMessage}.Where(x=>!string.IsNullOrEmpty(x)));

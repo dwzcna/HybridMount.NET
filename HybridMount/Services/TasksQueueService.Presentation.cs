@@ -21,27 +21,32 @@ public sealed partial class TasksQueueService
     {
         get
         {
-            var steps=QueueSnapshots;var schedule=Backend.TaskSchedules();
-            var persistent=Backend.Operations.Select(x=>Enrich(x,steps,schedule)).ToDictionary(x=>x.Id);
+            var steps=QueueSnapshots;var schedule=Backend.TaskSchedules();var definitions=Backend.TaskDefinitions;
+            var persistent=Backend.Operations.Select(x=>Enrich(x,steps,schedule,definitions)).ToDictionary(x=>x.Id);
             foreach(var group in steps.GroupBy(x=>x.Task.Id))
             {
                 if(persistent.ContainsKey(group.Key))continue;
                 var current=group.OrderBy(x=>x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).First();var task=current.Task;
-                persistent[task.Id]=Enrich(new(task.Id,task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,task.MountId,task.Path){SubmissionOrder=task.SubmitTime.UtcTicks},steps,schedule);
+                persistent[task.Id]=Enrich(new(task.Id,task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,task.MountId,task.Path){SubmissionOrder=task.SubmitTime.UtcTicks},steps,schedule,definitions);
             }
             return persistent.Values.ToArray();
         }
     }
     /// <summary>一次页面快照只批量读取一次业务调度信息，避免每行／每个范围块重新查询SQLite。</summary>
     private IReadOnlyList<MountOperationSnapshot> EnrichAll(IEnumerable<MountOperationSnapshot> snapshots)
-    {var steps=QueueSnapshots;var schedule=Backend.TaskSchedules();return snapshots.Select(x=>Enrich(x,steps,schedule)).ToArray();}
-    private static MountOperationSnapshot Enrich(MountOperationSnapshot snapshot,IReadOnlyList<MountingQueueSnapshot> queue,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> schedule)
+    {var steps=QueueSnapshots;var schedule=Backend.TaskSchedules();var definitions=Backend.TaskDefinitions;return snapshots.Select(x=>Enrich(x,steps,schedule,definitions)).ToArray();}
+    private MountOperationSnapshot Enrich(MountOperationSnapshot snapshot,IReadOnlyList<MountingQueueSnapshot> queue,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> schedule,IReadOnlyDictionary<Guid,MountDefinition> definitions)
     {
         var steps=queue.Where(x=>x.Task.Id==snapshot.Id).ToArray();
         var current=steps.OrderBy(x=>x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).FirstOrDefault();
         schedule.TryGetValue(snapshot.Id,out var taskSchedule);
         var priority=current?.EffectivePriority??(schedule.ContainsKey(snapshot.Id)?taskSchedule.Priority:snapshot.Operation is "upload" or "remoteUpdate" or "excludedRename"?MountingPriority.Transaction:MountingPriority.User);
-        return snapshot with{Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
+        definitions.TryGetValue(snapshot.MountId??Guid.Empty,out var definition);
+        var path=snapshot.ItemPath??snapshot.Results.LastOrDefault()?.Path;
+        if(path is not null&&definition is not null&&Path.IsPathRooted(path)&&MountPathGuard.IsUnder(definition.LocalPath,path))path=Path.GetRelativePath(definition.LocalPath,path);
+        if(path==".")path="\\";
+        snapshot=WithDownloadProgress(snapshot);
+        return snapshot with{MountName=definition?.Name??(snapshot.MountId is null?"挂载":"已移除挂载"),RelativeItemPath=snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
     }
     public MountOperationSnapshot? GetOperation(string id)=>Operations.FirstOrDefault(x=>x.Id==id)??Backend.GetOperation(id);
     public bool Cancel(string id)

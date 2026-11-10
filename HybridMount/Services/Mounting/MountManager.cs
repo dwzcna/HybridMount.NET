@@ -52,7 +52,7 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         public readonly Guid Root=root;
         public readonly CancellationTokenSource Cancel=CancellationTokenSource.CreateLinkedTokenSource(token);
-        public MountOperationSnapshot Snapshot=new(id,operation,"Queued",0,0,[],null);
+        public MountOperationSnapshot Snapshot=new(id,operation,"Queued",0,0,[],null,root);
         public Task Work=Task.CompletedTask;
     }
     private readonly ExePreviewCache _previews;
@@ -130,6 +130,8 @@ public sealed partial class MountManager : IAsyncDisposable
         {root.Gate.Release();return null;}
         return new PreviewLease(root.Gate);
     }
+    /// <summary>任务名称及相对路径只用内存定义；不为每行重新查询SQLite。</summary>
+    internal IReadOnlyDictionary<Guid,MountDefinition> TaskDefinitions=>_roots.ToDictionary(pair=>pair.Key,pair=>pair.Value.Definition);
     public IReadOnlyList<MountSnapshot> Mounts => _roots.Values.Select(Snapshot).OrderBy(item=>item.Definition.Name).ThenBy(item=>item.Definition.Id).ToArray();
     /// <summary>实际连接状态供页面启用操作；不把后台上传视为全页忙碌。</summary>
     private MountSnapshot Snapshot(Runtime root)
@@ -552,6 +554,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(removing){CancelConnection(root,removing:true);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);previewStop=_previews.CancelMountAsync(id);}
         if(removing)foreach(var current in _jobs.Values.Where(job=>job.Root==id && job.Snapshot.State is "Queued" or "Running"))current.Cancel.Cancel();
         var job=new Job(Guid.NewGuid().ToString("N"),id,operation,_stop.Token);
+        job.Snapshot=job.Snapshot with{ItemPath=paths is {Length:1}?Path.GetRelativePath(root.Definition.LocalPath,paths[0]):"\\"};
         _jobs[job.Snapshot.Id]=job;Save(job);
         job.Work=Task.Run(async()=>
         {
@@ -607,6 +610,8 @@ public sealed partial class MountManager : IAsyncDisposable
                         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
                         if(info is null || _repository.HasPendingRemote(id,entry.SourcePath) || entry.RemotePresence==RemotePresence.Deleted || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
+                        job.Snapshot=job.Snapshot with{ItemPath=entry.LocalPath,IsDirectory=entry.IsDirectory,BytesTransferred=0,TotalBytes=entry.IsDirectory?0:new FileInfo(path).Length,DurationSeconds=0};Notify();
+                        var itemStarted=System.Diagnostics.Stopwatch.GetTimestamp();
                         var session=root.Session;
                         if(operation=="keepOnDevice")session.RequestPin(entry);
                         else session.Runtime.Invoke("releaseFile",session.EntryArgs(entry));
@@ -622,6 +627,7 @@ public sealed partial class MountManager : IAsyncDisposable
                         // 原生句柄已归还，先完成缓存元数据收尾再发布任务完成；Shell通知仍在根锁外发送。
                         _previews.RebindMetadata(root.Definition,entry);
                         if(operation=="keepOnDevice")QueueLocalPreview(root,entry);
+                        if(operation=="keepOnDevice"&&!entry.IsDirectory)job.Snapshot=job.Snapshot with{DurationSeconds=System.Diagnostics.Stopwatch.GetElapsedTime(itemStarted).TotalSeconds};
                         Result(job,path,"Completed","操作已完成。");
                     }
                     catch(OperationCanceledException){throw;}
@@ -748,7 +754,7 @@ public sealed partial class MountManager : IAsyncDisposable
         await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);
     }
     private void Result(Job job,string path,string status,string message)
-    {job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,Results=job.Snapshot.Results.Append(new(path,status,message)).ToArray()};Save(job);}
+    {job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,Results=job.Snapshot.Results.Append(new(path,status,message)).ToArray(),BytesTransferred=job.Snapshot.Operation=="keepOnDevice"&&job.Snapshot.IsDirectory is false&&status=="Completed"?job.Snapshot.TotalBytes:job.Snapshot.BytesTransferred};Save(job);}
     /// <summary>实例级持久化屏障；仅隔离回归使用，不通过界面或IPC配置。</summary>
     internal Action<MountOperationSnapshot>? OperationSavingForTests {get;set;}
     /// <summary>终态先落库再发布，防止观察到完成后清理历史与迟到落库竞争而重新出现。</summary>

@@ -13,22 +13,27 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     private readonly LoggerService? _logger;
     private bool _busy,_saving,_disposed,_notifyingSelections,_trimming,_cacheLoaded,_savingCache,_savingClose,_notifyingStartup;
     private StartupState _startupState=new(false,true,"登录启动默认关闭。");
-    private string _status="",_appearanceStatus="",_cacheStatus="";
+    /// <summary>三个卡片各自保留关闭状态，不互相覆盖消息。</summary>
+    public PageStatusMessage StatusMessage {get;}=new();
+    public PageStatusMessage AppearanceMessage {get;}=new();
+    public PageStatusMessage CacheMessage {get;}=new();
+    private void Publish(PageStatusMessage message,string text,string property,bool reopen=true)
+    {if(!_disposed&&(reopen?message.Show(text):message.Update(text)))OnPropertyChanged(property);}
     private double _cacheLimitGiB,_savedCacheLimitGiB;
     private Task _startupWork=Task.CompletedTask,_cacheWork=Task.CompletedTask;
     /// <summary>生产页面注入应用服务；仅传外观服务时可隔离验证外观，不接触系统启动或注册表。</summary>
     public SettingsViewModel(AppearanceSettingsService appearance,IStartupService? startup=null,ApplicationPreferencesService? preferences=null,MountManager? mounts=null,LoggerService? logger=null)
     {
         _settings=appearance;_startup=startup;_preferences=preferences;_mounts=mounts;_logger=logger;
-        _appearanceStatus=appearance.ErrorStatus??"";_status=preferences?.ErrorStatus??"";
+        AppearanceMessage.Update(appearance.ErrorStatus??"");StatusMessage.Update(preferences?.ErrorStatus??"");
         try{if(mounts is not null){_savedCacheLimitGiB=_cacheLimitGiB=mounts.CacheLimitBytes/(double)(1024L*1024*1024);_cacheLoaded=true;}}
-        catch(Exception error){_cacheStatus="缓存设置读取失败，已停止保存。";_logger?.Queue("缓存","Warning",error.GetType().Name);}
+        catch(Exception error){CacheMessage.Update("缓存设置读取失败，已停止保存。");_logger?.Queue("缓存","Warning",error.GetType().Name);}
         appearance.Changed+=SettingsChanged;
     }
     public string VersionText=>"HybridMount.NET "+typeof(SettingsViewModel).Assembly.GetName().Version;
     public bool CanEditStartup=>!_disposed&&!_busy&&_startup is not null&&_startupState.CanToggle;
     public string StartupDetail=>_startupState.Detail;
-    public string Status {get=>_status;private set{if(!_disposed)SetProperty(ref _status,value);}}
+    public string Status {get=>StatusMessage.Text;private set=>Publish(StatusMessage,value,nameof(Status));}
     public bool CloseToTraySelection
     {
         get=>_preferences?.CloseToTray??true;
@@ -59,7 +64,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         catch(Exception error)
         {
             if(_disposed)return;
-            Status=enabled is null?"读取登录启动状态失败。":"修改登录启动失败，正在核对系统实际状态。";_logger?.Queue("启动","Error",error.GetType().Name);
+            Publish(StatusMessage,enabled is null?"读取登录启动状态失败。":"修改登录启动失败，正在核对系统实际状态。",nameof(Status),enabled is not null);_logger?.Queue("启动","Error",error.GetType().Name);
             if(enabled is not null)try{var actual=await _startup!.GetAsync();if(!_disposed)_startupState=actual;}catch(Exception query){if(!_disposed)_logger?.Queue("启动","Warning",query.GetType().Name);}
         }
         finally{_busy=false;if(!_disposed)NotifyStartup();}
@@ -72,7 +77,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
     /// <summary>缓存输入属于页面草稿，切换页面不重读覆盖；成功保存后才推进服务中的限制。</summary>
     public double CacheLimitGiB {get=>_cacheLimitGiB;set{if(!_disposed)SetProperty(ref _cacheLimitGiB,value);}}
-    public string CacheStatus {get=>_cacheStatus;private set{if(!_disposed)SetProperty(ref _cacheStatus,value);}}
+    public string CacheStatus {get=>CacheMessage.Text;private set=>Publish(CacheMessage,value,nameof(CacheStatus));}
     public bool CanEditCache=>!_disposed&&_cacheLoaded&&!_trimming&&_mounts is not null&&!_mounts.IsStopping;
     public void SaveCacheLimit()
     {
@@ -97,7 +102,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         finally{_trimming=false;if(!_disposed)OnPropertyChanged(nameof(CanEditCache));}
     }
     public bool CanEditAppearance => !_disposed && _settings.IsLoaded && !_saving;
-    public string AppearanceStatus {get=>_appearanceStatus;private set{if(!_disposed)SetProperty(ref _appearanceStatus,value);}}
+    public string AppearanceStatus {get=>AppearanceMessage.Text;private set=>Publish(AppearanceMessage,value,nameof(AppearanceStatus));}
     /// <summary>ComboBox稳定Tag；未知值和加载期间的空选择不回写默认。</summary>
     public string BackdropSelection
     {
@@ -137,7 +142,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     {
         if (_disposed || _saving || _notifyingSelections) return;
         _saving = true;
-        try { if (!_settings.Reload()) AppearanceStatus = _settings.ErrorStatus ?? "外观设置读取失败。"; }
+        try { if (!_settings.Reload()) Publish(AppearanceMessage,_settings.ErrorStatus ?? "外观设置读取失败。",nameof(AppearanceStatus),false); }
         finally { _saving = false; NotifySelections(); }
     }
     private void SettingsChanged(object? sender, EventArgs args)
@@ -158,6 +163,6 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
 
     /// <summary>真正退出先停止页面通知；系统已发出的操作安全完成后再释放日志等服务。</summary>
-    public void Dispose(){if(_disposed)return;_disposed=true;_settings.Changed-=SettingsChanged;}
+    public void Dispose(){if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();_settings.Changed-=SettingsChanged;}
     public async ValueTask DisposeAsync(){Dispose();await Task.WhenAll(_startupWork,_cacheWork);}
 }

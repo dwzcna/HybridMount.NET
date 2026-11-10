@@ -19,10 +19,11 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     private int _pending;
     private bool _disposed,_dialogBusy,_runtimeReconnecting;
     private Guid? _selected;
-    private string _status="";
+    /// <summary>本页可关闭提示；后台刷新不重新打开已关闭消息。</summary>
+    public PageStatusMessage StatusMessage {get;}=new();
     public sealed record CapacityDraft(bool Automatic,string Text,string Unit);
     public sealed record DetectionDraft(bool Enabled,double Incremental,double Full);
-    public string Status {get=>_status;set{if(!_disposed)SetProperty(ref _status,value);}}
+    public string Status {get=>StatusMessage.Text;set{if(!_disposed&&StatusMessage.Show(value))OnPropertyChanged();}}
     public Guid? SelectedMountId {get=>_selected;set{if(!_disposed&&SetProperty(ref _selected,value)){OnPropertyChanged(nameof(Selected));NotifyStateChanged();}}}
     public MountSnapshot? Selected=>Mounts.FirstOrDefault(x=>x.Definition.Id==_selected);
     public MountSnapshot RequireSelected()=>Selected??throw new InvalidOperationException("请先选择一个挂载。");
@@ -48,7 +49,10 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public async Task AddRecoveryRootAsync(string path,CancellationToken token)
     {
         var root=await _manager.InspectOrphanedMountAsync(path,token);if(IsStopping)return;
-        var previous=RecoveryRoots.FirstOrDefault(x=>x.LocalPath.Equals(root.LocalPath,StringComparison.OrdinalIgnoreCase));if(previous is not null)RecoveryRoots.Remove(previous);
+        var previous=RecoveryRoots.FirstOrDefault(x=>x.LocalPath.Equals(root.LocalPath,StringComparison.OrdinalIgnoreCase));
+        if(previous is {CanRemove:true}&&previous.RootIdentity==root.RootIdentity&&previous.SyncRootId==root.SyncRootId&&previous.OrphanedDirectory==root.OrphanedDirectory&&previous.ShellOnly==root.ShellOnly)
+        {SelectedRecoveryRoot=previous;return;}
+        if(previous is not null)RecoveryRoots.Remove(previous);
         RecoveryRoots.Add(root);SelectedRecoveryRoot=root;
     }
     public async Task<OrphanedMountResult> ClearRecoveryRootAsync(OrphanedMountCandidate root,CancellationToken token,Action<string>? progress=null)
@@ -56,6 +60,15 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         var result=await _manager.ClearOrphanedMountAsync(root,token,progress);if(IsStopping)return result;
         Status=result.Completed?(root.ShellOnly?"遗留入口已移除：":"遗留挂载已清空并注销：")+root.LocalPath:"遗留挂载尚未移除："+string.Join("；",result.Errors);
         if(result.Completed){RecoveryRoots.Remove(root);SelectedRecoveryRoot=null;}return result;
+    }
+    /// <summary>固定多选交给应用；页面释放后不再更新消息或候选，成功项才从列表移除。</summary>
+    public async Task<OrphanedMountBatchResult> ClearRecoveryRootsAsync(IReadOnlyList<OrphanedMountCandidate> roots,CancellationToken token,Action<OrphanedMountBatchProgress>? progress=null)
+    {
+        var result=await _manager.ClearOrphanedMountsAsync(roots,token,progress);
+        if(IsStopping)return result;
+        foreach(var item in result.Items.Where(x=>x.State==OrphanedMountItemState.Completed))
+            if(RecoveryRoots.FirstOrDefault(x=>x.LocalPath.Equals(item.Root.LocalPath,StringComparison.OrdinalIgnoreCase)&&x.RootIdentity==item.Root.RootIdentity) is {} existing)RecoveryRoots.Remove(existing);
+        Status=result.Summary;return result;
     }
     public ObservableCollection<MountSnapshot> Mounts {get;}=[];
     public ObservableCollection<MountListItem> Items {get;}=[];
@@ -71,7 +84,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     {
         if(_disposed)return;
         try{var snapshots=_manager.Mounts;Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
-        catch(Exception error){Status=error.Message;_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
+        catch(Exception error){if(StatusMessage.Update(error.Message))OnPropertyChanged(nameof(Status));_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
     {
@@ -261,7 +274,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         try{_manager.Queue(id,clear?"clearAndRemove":"remove");Status="移除任务已提交，可在任务页查看进度和逐项结果。";}
         catch(Exception error){Report(error);}
     }
-    public void Dispose(){if(_disposed)return;_disposed=true;_manager.Changed-=Changed;_exclusionDrafts.Clear();}
+    public void Dispose(){if(_disposed)return;_disposed=true;StatusMessage.Dispose();_manager.Changed-=Changed;_exclusionDrafts.Clear();}
 }
 
 /// <summary>配置保存的实际结果；连接失败不冒充未保存，也不自动重试写入。</summary>

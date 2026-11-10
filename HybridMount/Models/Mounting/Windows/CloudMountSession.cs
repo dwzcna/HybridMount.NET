@@ -195,8 +195,9 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             if(!source.IsSameVersion(metadata.Version,entry.Version))throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0||length<=0||offset>metadata.Size||length>metadata.Size-offset)throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096;var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));var localStamp=HydrationStamp(entry,metadata);var fetchId=Guid.Parse(info.FetchId);
+            using var taskProgress=_queueBinding?.Queue.BeginDownloadProgress(parent?.Id??"read:"+info.FetchId,entry.LocalPath,metadata.Size);
             async ValueTask Transfer(ReadOnlyMemory<byte> block,CancellationToken cancel)
-            {cancel.ThrowIfCancellationRequested();await Runtime.TransferAsync(fetchId,start,block,cancel).ConfigureAwait(false);start+=block.Length;bytesTransferred+=block.Length;if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;}
+            {cancel.ThrowIfCancellationRequested();await Runtime.TransferAsync(fetchId,start,block,cancel).ConfigureAwait(false);start+=block.Length;bytesTransferred+=block.Length;taskProgress?.Advance(block.Length);if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;}
             if(snapshot is null)
             {
                 if(_queueBinding is null)await source.ReadRangeSequentialAsync(metadata,start,end-start,Transfer,NativeRuntimeProtocol.BlockBytes,token).ConfigureAwait(false);

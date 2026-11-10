@@ -7,12 +7,11 @@ namespace HybridMount.ViewModels;
 /// <summary>规则编辑行；只保存页面草稿，控件变化不直接写配置或触发扫描。</summary>
 public sealed class FileExclusionRuleDraft : ObservableObject
 {
-    private bool _enabled;private int _matchIndex;private string _text;
-    public FileExclusionRuleDraft(FileExclusionRule rule){_enabled=rule.Enabled;_matchIndex=(int)rule.Match;_text=rule.Text;}
-    public bool Enabled{get=>_enabled;set=>SetProperty(ref _enabled,value);}
+    private int _matchIndex;private string _text;
+    public FileExclusionRuleDraft(FileExclusionRule rule){_matchIndex=(int)rule.Match;_text=rule.Text;}
     public int MatchIndex{get=>_matchIndex;set{if(value is >=0 and <=2)SetProperty(ref _matchIndex,value);}}
     public string Text{get=>_text;set=>SetProperty(ref _text,value);}
-    public FileExclusionRule ToRule()=>new((FileExclusionMatchKind)_matchIndex,_text,_enabled);
+    public FileExclusionRule ToRule()=>new((FileExclusionMatchKind)_matchIndex,_text);
 }
 
 public sealed partial class MountsViewModel
@@ -30,7 +29,7 @@ public sealed partial class MountsViewModel
     public IReadOnlyList<FileExclusionRule> ReadExclusionRules(Guid? id,FileSourceKind kind)=>FileExclusionRules.Validate(ExclusionDraft(id,kind).Select(x=>x.ToRule()));
     public void AddExclusionRule(Guid? id,FileSourceKind kind){if(!IsStopping)ExclusionDraft(id,kind).Add(new(new(FileExclusionMatchKind.Contains,"")));}
     public void RemoveExclusionRule(Guid? id,FileSourceKind kind,FileExclusionRuleDraft row){if(!IsStopping)ExclusionDraft(id,kind).Remove(row);}
-    /// <summary>只补缺失的默认项；自定义规则和现有禁用状态不被覆盖。</summary>
+    /// <summary>只补缺失的默认项；自定义规则不被覆盖。</summary>
     public void AddDefaultExclusionRules(Guid? id,FileSourceKind kind)
     {
         if(IsStopping)return;var draft=ExclusionDraft(id,kind);

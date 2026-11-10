@@ -113,7 +113,7 @@ public sealed class PageViewModelTests
     {
         await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
         Assert.Empty(vm.ExclusionDraft(a.Id,FileSourceKind.WebDav));Assert.Equal(4,vm.ExclusionDraft(null,FileSourceKind.WebDav).Count);
-        vm.AddExclusionRule(a.Id,FileSourceKind.WebDav);var row=vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Single();row.Text="custom";row.MatchIndex=1;row.Enabled=false;
+        vm.AddExclusionRule(a.Id,FileSourceKind.WebDav);var row=vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Single();row.Text="custom";row.MatchIndex=1;
         vm.AddDefaultExclusionRules(a.Id,FileSourceKind.WebDav);vm.AddDefaultExclusionRules(a.Id,FileSourceKind.WebDav);Assert.Equal(5,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Count);
         vm.SelectedMountId=b.Id;vm.RefreshNow();vm.SelectedMountId=a.Id;Assert.Same(row,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav)[0]);
         area.Store.FailSave=true;await vm.SaveExclusionsAsync(a.Id);Assert.Null(area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.ExclusionRules);Assert.Same(row,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav)[0]);

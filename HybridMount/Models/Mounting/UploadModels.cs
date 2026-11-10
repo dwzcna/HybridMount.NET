@@ -34,7 +34,9 @@ public sealed record LocalUpload(string Id,Guid MountId,string LocalPath,string 
     DateTimeOffset? LastCheckedUtc=null,UploadAttention? Attention=null,int AutoRetryCount=0,
     DateTimeOffset? NextAttemptUtc=null,int TransientFailureCount=0,string? SnapshotAttemptId=null,string? ExclusionResumeState=null,ConflictResolution? Resolution=null,string? ConflictRecoveryPath=null)
 {
+    /// <summary>本次上传从开始处理至服务器确认的总秒数；旧记录缺失时不推测平均速度。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] public double TransferDurationSeconds {get;init;}
     /// <summary>同一上传的界面和持久历史使用相同描述；副本明确显示远端新路径。</summary>
     public MountOperationSnapshot ToSnapshot()=>new(Id,"upload",State,State=="Completed"?1:0,1,
-        [new(LocalPath,State,(Error??(IsCopy?$"另存到 {SourcePath}":IsDirectory?"本地目录上传":"本地文件上传"))+((ConflictRecoveryPath??Resolution?.BackupPath) is {} backup?"\n恢复备份："+backup:""))],Error,MountId,LocalPath,Bytes,Total,IsDirectory,SourcePath,Attention,ConflictRecoveryPath??Resolution?.BackupPath);
+        [new(LocalPath,State,(Error??(IsCopy?$"另存到 {SourcePath}":IsDirectory?"本地目录上传":"本地文件上传"))+((ConflictRecoveryPath??Resolution?.BackupPath) is {} backup?"\n恢复备份："+backup:""))],Error,MountId,LocalPath,Bytes,Total,IsDirectory,SourcePath,Attention,ConflictRecoveryPath??Resolution?.BackupPath){ConflictPending=Resolution is not null,DurationSeconds=TransferDurationSeconds};
 }

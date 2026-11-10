@@ -33,11 +33,10 @@
                     <ListView x:Name="ExclusionList" SelectionMode="None" MaxHeight="220" HorizontalContentAlignment="Stretch">
                         <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/></Style></ListView.ItemContainerStyle>
                         <ListView.ItemTemplate><DataTemplate x:DataType="vm:FileExclusionRuleDraft">
-                            <Grid ColumnSpacing="8" Padding="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="32"/><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
-                                <CheckBox IsChecked="{x:Bind Enabled,Mode=TwoWay}" ToolTipService.ToolTip="启用规则" AutomationProperties.Name="启用规则"/>
-                                <ComboBox Grid.Column="1" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.Name="匹配方式"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
-                                <TextBox Grid.Column="2" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" PlaceholderText="文件名文本" AutomationProperties.Name="匹配文本"/>
-                                <Button Grid.Column="3" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" ToolTipService.ToolTip="删除规则" AutomationProperties.Name="删除规则"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
+                            <Grid ColumnSpacing="8" Padding="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.Name="匹配方式"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
+                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" PlaceholderText="文件名文本" AutomationProperties.Name="匹配文本"/>
+                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" ToolTipService.ToolTip="删除规则" AutomationProperties.Name="删除规则"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
                             </Grid>
                         </DataTemplate></ListView.ItemTemplate>
                     </ListView>

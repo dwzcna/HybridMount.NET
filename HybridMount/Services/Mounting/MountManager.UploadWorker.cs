@@ -51,6 +51,7 @@ public sealed partial class MountManager
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,selected.Id,selected.ExplicitRequest?MountingPriority.User:MountingPriority.Transaction,"upload",selected.SourcePath,selected.EntryId,selected.ExpectedVersion,selected.ChangedUtc);
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         lock(runtime.Sync){if(runtime.PropertyPath is not null||runtime.ConflictWaiters>0)return;runtime.CurrentId=selected.Id;runtime.Request=request;runtime.RequestCancellation=Task.CompletedTask;}
+        var attemptStarted=System.Diagnostics.Stopwatch.GetTimestamp();
         Exception? failure=null;var token=request.Token;LocalUpload? prepared=selected;var preparing=true;UploadCapacityPermit? capacity=null;var receiptSaved=false;var sendingStarted=false;
         LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current),failure);
         try
@@ -89,7 +90,7 @@ public sealed partial class MountManager
                 var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token,capacity.Definition).ConfigureAwait(false);if(sending is null)return;prepared=sending;sendingStarted=true;
                 receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,token).ConfigureAwait(false);
             }
-            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total})!;
+            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total,TransferDurationSeconds=System.Diagnostics.Stopwatch.GetElapsedTime(attemptStarted).TotalSeconds})!;
             capacity.Committed(receipt);receiptSaved=true;PublishCapacity(root,capacity.Definition,capacity.Snapshot);
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);
             await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);

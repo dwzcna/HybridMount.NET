@@ -122,48 +122,95 @@ public sealed partial class MountsPage : Page,IDisposable
         }
         finally { _backupDialog=null; }
     });
-    /// <summary>页面只适配列表、目录选择和两次确认；清理及取消由应用拥有，关闭页面不会丢失已完成阶段。</summary>
+    /// <summary>多选只捕获快照；确认后应用串行处理，取消时对话框等待当前项及临时连接收尾。</summary>
     private async void RecoverOrphanedMounts(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {
         using var cancel=new CancellationTokenSource();_recoveryCancel=cancel;
+        var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,DisplayMemberPath="Display",SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MinWidth=360,MaxWidth=620,MaxHeight=320};
+        var feedback=new InfoBar{IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
+        var count=new TextBlock();var choose=new Button{Content="选择旧挂载目录"};
+        var selectAll=new Button{Content="全选可处理项"};var clearAll=new Button{Content="取消全选"};
+        var choosing=false;var changing=false;var selecting=true;
+        void UpdateSelection()
+        {
+            if(_disposed||ViewModel.IsStopping||!selecting)return;
+            if(!changing)
+            {
+                changing=true;try{foreach(var invalid in list.SelectedItems.OfType<OrphanedMountCandidate>().Where(x=>!x.CanRemove).ToArray())list.SelectedItems.Remove(invalid);}finally{changing=false;}
+            }
+            count.Text=$"已选择 {list.SelectedItems.Count} 项";
+            if(_recoveryDialog is {} dialog){dialog.IsPrimaryButtonEnabled=!choosing&&list.SelectedItems.Count>0;dialog.PrimaryButtonText=$"处理所选（{list.SelectedItems.Count}）";}
+        }
+        void SelectionChanged(object _,SelectionChangedEventArgs __)=>UpdateSelection();
+        void PrepareRow(ListViewBase _,ContainerContentChangingEventArgs change)
+        {change.ItemContainer.IsEnabled=change.InRecycleQueue||change.Item is OrphanedMountCandidate{CanRemove:true};}
+        void SelectAll(object _,RoutedEventArgs __){foreach(var item in ViewModel.RecoveryRoots.Where(x=>x.CanRemove))if(!list.SelectedItems.Contains(item))list.SelectedItems.Add(item);}
+        void ClearAll(object _,RoutedEventArgs __)=>list.SelectedItems.Clear();
+        async void Choose(object _,RoutedEventArgs __)
+        {
+            choosing=true;choose.IsEnabled=selectAll.IsEnabled=clearAll.IsEnabled=false;UpdateSelection();
+            try
+            {
+                var picker=new global::Windows.Storage.Pickers.FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+                var folder=await picker.PickSingleFolderAsync();if(folder is null||cancel.IsCancellationRequested||ViewModel.IsStopping)return;
+                await ViewModel.AddRecoveryRootAsync(folder.Path,cancel.Token);
+                if(!ViewModel.IsStopping&&ViewModel.SelectedRecoveryRoot is {} added)
+                {
+                    if(!list.SelectedItems.Contains(added))list.SelectedItems.Add(added);list.ScrollIntoView(added);feedback.IsOpen=false;
+                }
+            }
+            catch(OperationCanceledException)when(cancel.IsCancellationRequested){}
+            catch(Exception error){if(!ViewModel.IsStopping){feedback.Message=error.Message;feedback.IsOpen=true;}}
+            finally{choosing=false;if(!ViewModel.IsStopping){choose.IsEnabled=selectAll.IsEnabled=clearAll.IsEnabled=true;UpdateSelection();}}
+        }
+        list.SelectionChanged+=SelectionChanged;list.ContainerContentChanging+=PrepareRow;choose.Click+=Choose;selectAll.Click+=SelectAll;clearAll.Click+=ClearAll;
         try
         {
             await ViewModel.DiscoverRecoveryRootsAsync(cancel.Token);if(ViewModel.IsStopping)return;
-            var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,DisplayMemberPath="Display",SelectionMode=ListViewSelectionMode.Single,MinWidth=360,MaxWidth=620,MaxHeight=360};
-            var feedback=new TextBlock{Text=ViewModel.RecoveryRoots.Count==0?"未发现可核对的遗留挂载。":"",TextWrapping=TextWrapping.Wrap};
-            var choose=new Button{Content="选择旧挂载目录"};
-            var panel=new StackPanel{Spacing=12};panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(feedback);
-            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="遗留挂载",Content=panel,PrimaryButtonText="清空并注销",CloseButtonText="关闭",DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};
-            list.SelectionChanged+=(_,_)=>{ViewModel.SelectedRecoveryRoot=list.SelectedItem as OrphanedMountCandidate;if(_recoveryDialog is {} dialog){dialog.IsPrimaryButtonEnabled=ViewModel.SelectedRecoveryRoot?.CanRemove==true;dialog.PrimaryButtonText=ViewModel.SelectedRecoveryRoot?.ActionText??"清空并注销";}};
-            choose.Click+=async(_,_)=>
-            {
-                choose.IsEnabled=false;
-                try
-                {
-                    var picker=new global::Windows.Storage.Pickers.FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
-                    var folder=await picker.PickSingleFolderAsync();if(folder is null||cancel.IsCancellationRequested||ViewModel.IsStopping)return;
-                    await ViewModel.AddRecoveryRootAsync(folder.Path,cancel.Token);if(!ViewModel.IsStopping){list.SelectedItem=ViewModel.SelectedRecoveryRoot;feedback.Text="";}
-                }
-                catch(Exception error){if(!ViewModel.IsStopping)feedback.Text=error.Message;}
-                finally{if(!ViewModel.IsStopping)choose.IsEnabled=true;}
-            };
-            var selected=await _recoveryDialog.ShowAsync();if(selected!=ContentDialogResult.Primary||ViewModel.SelectedRecoveryRoot is not {} root||ViewModel.IsStopping)return;
-            _recoveryDialog=new(){XamlRoot=XamlRoot,Title=root.ShellOnly?"确认移除遗留入口":"确认清空遗留挂载",Content=root.ShellOnly?root.LocalPath+"\n\n仅移除当前用户的 Explorer 遗留入口，保留目录和全部文件。":root.LocalPath+"\n\n全部本地内容（包括本地修改和新建文件）将永久删除，已删内容不会回滚。离线注销同步根，保留空目录及远端内容。无法从旧根恢复服务器配置或凭据。",PrimaryButtonText=root.ActionText,CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            var buttons=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};buttons.Children.Add(selectAll);buttons.Children.Add(clearAll);
+            var panel=new StackPanel{Spacing=12};panel.Children.Add(buttons);panel.Children.Add(count);panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(feedback);
+            if(ViewModel.RecoveryRoots.Count==0){feedback.Message="未发现可核对的遗留挂载，可选择旧挂载目录进行核验。";feedback.IsOpen=true;}
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="遗留挂载",Content=panel,PrimaryButtonText="处理所选",CloseButtonText="关闭",DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};
+            UpdateSelection();
+            var selected=await _recoveryDialog.ShowAsync();selecting=false;
+            if(selected!=ContentDialogResult.Primary||ViewModel.IsStopping)return;
+            var captured=HybridMount.Models.Mounting.Recovery.OrphanedMountBatch.Capture(list.SelectedItems.OfType<OrphanedMountCandidate>());
+            var details=string.Join("\n\n",captured.Select(root=>root.LocalPath+"\n"+RecoveryActionDescription(root)));
+            if(captured.Any(x=>!x.ShellOnly))details+="\n\n所列清空项目的全部本地内容（包括本地修改和新建文件）将永久删除，已删除内容不会回滚。保留空根目录及远端内容。";
+            var confirmation=new TextBlock{Text=details,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MaxWidth=620};
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title=$"确认处理 {captured.Length} 个遗留项目",Content=new ScrollViewer{Content=confirmation,MaxHeight=420},PrimaryButtonText="确认处理",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
             if(await _recoveryDialog.ShowAsync()!=ContentDialogResult.Primary||ViewModel.IsStopping)return;
-            var progress=new TextBlock{Text="正在重新核对根身份…",TextWrapping=TextWrapping.Wrap,MaxWidth=620};
-            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="处理遗留挂载",Content=progress,CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
-            _recoveryDialog.CloseButtonClick+=(_,_)=>cancel.Cancel();var shown=_recoveryDialog.ShowAsync().AsTask();
+            var progress=new TextBlock{Text="正在重新核对目录身份…",TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MaxWidth=620};
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title="处理遗留挂载",Content=new ScrollViewer{Content=progress,MaxHeight=420},CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
+            var working=true;long lastProgress=0;
+            void CancelClicked(ContentDialog _,ContentDialogButtonClickEventArgs click)
+            {if(working){click.Cancel=true;cancel.Cancel();if(_recoveryDialog is {} dialog)dialog.CloseButtonText="正在取消…";}}
+            void ProgressClosing(ContentDialog _,ContentDialogClosingEventArgs closing)
+            {if(working&&!_disposed&&!ViewModel.IsStopping){closing.Cancel=true;cancel.Cancel();if(_recoveryDialog is {} dialog)dialog.CloseButtonText="正在取消…";}}
+            _recoveryDialog.Closing+=ProgressClosing;_recoveryDialog.CloseButtonClick+=CancelClicked;var shown=_recoveryDialog.ShowAsync().AsTask();
             try
             {
-                var result=await ViewModel.ClearRecoveryRootAsync(root,cancel.Token,line=>App.Current.UiDispatcher.TryEnqueue(()=>{if(!_disposed&&!ViewModel.IsStopping)progress.Text=line;}));
-                if(!ViewModel.IsStopping){progress.Text=result.Completed?(root.ShellOnly?"遗留入口已移除，目录和文件已保留。":"已清空并注销，空目录已保留。"):result.Stage+"\n"+string.Join("\n",result.Errors);_recoveryDialog.CloseButtonText="关闭";}
+                var result=await ViewModel.ClearRecoveryRootsAsync(captured,cancel.Token,line=>
+                {
+                    var now=System.Diagnostics.Stopwatch.GetTimestamp();if(now-Interlocked.Read(ref lastProgress)<System.Diagnostics.Stopwatch.Frequency/10&&line.Stage!="正在重新核对目录身份…")return;
+                    Interlocked.Exchange(ref lastProgress,now);
+                    App.Current.UiDispatcher.TryEnqueue(()=>{if(!_disposed&&!ViewModel.IsStopping&&working)progress.Text=$"{line.Index}/{line.Total}\n{line.LocalPath}\n{line.Stage}";});
+                });
+                if(!ViewModel.IsStopping)progress.Text=result.Detail;
             }
-            catch(OperationCanceledException){if(!ViewModel.IsStopping)ViewModel.Status="遗留挂载处理已取消，已完成的删除不回滚，可再次显式核对并继续。";}
-            catch(Exception error){if(!ViewModel.IsStopping){ViewModel.Status=error.Message;progress.Text=error.Message;_recoveryDialog.CloseButtonText="关闭";}}
-            await shown;
+            catch(OperationCanceledException){if(!ViewModel.IsStopping){progress.Text="已取消，已完成的删除不回滚。";ViewModel.Status=progress.Text;}}
+            catch(Exception error){if(!ViewModel.IsStopping){progress.Text=error.Message;ViewModel.Status=error.Message;}}
+            finally{working=false;if(!ViewModel.IsStopping&&_recoveryDialog is {} dialog)dialog.CloseButtonText="关闭";}
+            await shown;_recoveryDialog.CloseButtonClick-=CancelClicked;_recoveryDialog.Closing-=ProgressClosing;
         }
-        finally{_recoveryDialog=null;_recoveryCancel=null;}
+        finally
+        {
+            selecting=false;list.SelectionChanged-=SelectionChanged;list.ContainerContentChanging-=PrepareRow;choose.Click-=Choose;selectAll.Click-=SelectAll;clearAll.Click-=ClearAll;
+            cancel.Cancel();_recoveryCancel=null;_recoveryDialog=null;
+        }
     });
+    /// <summary>确认逐项标明内容影响，不把入口清理与清空根目录混为同一操作。</summary>
+    private static string RecoveryActionDescription(OrphanedMountCandidate root)=>root.OrphanedDirectory?"原提供程序归属无法核验。临时本地接管并永久删除全部本地内容，随后注销临时根，保留空根目录。":root.ShellOnly?"仅移除当前用户的 Explorer 遗留入口，保留目录和全部文件。":"清空全部本地内容后离线注销，保留空根目录及远端内容。";
     private Task RemoveAsync(Guid id)=>ViewModel.RunForMountAsync(id,async selected=>await ViewModel.RunDialogAsync(async()=>
     {
         var mount=selected.Definition;

@@ -21,7 +21,7 @@
                   <ComboBoxItem Content="无材质" Tag="None"/><ComboBoxItem Content="Mica" Tag="MicaBase"/><ComboBoxItem Content="Mica Alt" Tag="MicaAltBaseAlt"/><ComboBoxItem Content="Acrylic" Tag="AcrylicBase"/><ComboBoxItem Content="Thin Acrylic" Tag="AcrylicThin"/>
                 </ComboBox>
               </Grid>
-              <TextBlock Text="{x:Bind ViewModel.AppearanceStatus, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.AppearanceStatus),Mode=OneWay}"/>
+              <InfoBar Message="{x:Bind ViewModel.AppearanceStatus,Mode=OneWay}" IsOpen="{x:Bind ViewModel.AppearanceMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="Informational" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.AppearanceMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24">
@@ -31,7 +31,7 @@
               <ToggleSwitch Header="登录 Windows 后启动" AutomationProperties.Name="登录 Windows 后启动" IsOn="{x:Bind ViewModel.StartupSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditStartup, Mode=OneWay}"/>
               <TextBlock Text="{x:Bind ViewModel.StartupDetail, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.StartupDetail),Mode=OneWay}"/>
               <Button Content="打开 Windows 启动设置" Click="OpenStartupSettings" Style="{StaticResource PageActionButtonStyle}"/>
-              <TextBlock Text="{x:Bind ViewModel.Status, Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.Status),Mode=OneWay}"/>
+              <InfoBar Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="Informational" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24">
@@ -42,7 +42,7 @@
                 <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" Header="缓存软上限（GiB，0 关闭自动回收）" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch"/>
               </Grid>
               <StackPanel Orientation="Horizontal" Spacing="8"><Button IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Content="保存上限" Click="SaveCache"/><Button IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Content="立即检查回收" Click="TrimCache"/></StackPanel>
-              <TextBlock Text="{x:Bind ViewModel.CacheStatus, Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.CacheStatus),Mode=OneWay}"/>
+              <InfoBar Message="{x:Bind ViewModel.CacheStatus,Mode=OneWay}" IsOpen="{x:Bind ViewModel.CacheMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="Informational" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.CacheMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
           </Border>
           <TextBlock Text="{x:Bind ViewModel.VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
