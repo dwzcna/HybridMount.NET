@@ -38,7 +38,7 @@ public sealed partial class MountManager
                 if(startLoop)StartRemoteEvents(root,existing);
                 return;
             }
-            if(root.Source is not IRemoteChangeSource changes||root.Session is null||root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)||root.RemovalRequested||IsStopping)return;
+            if(root.Source is not IRemoteChangeSource changes||root.Session is null||root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology)||root.RemovalRequested||IsStopping)return;
             var identity=root.Definition.Source.Endpoint;
             var scope=root.Source is IMountSourceRuntime scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
             _repository.ActivateRemoteScope(root.Definition.Id,scope);
@@ -182,7 +182,7 @@ public sealed partial class MountManager
             var root=Root(id);var reopened=false;await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
-                if(root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3)||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前挂载不能更改远端检测设置。");
+                if(root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology)||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前挂载不能更改远端检测设置。");
                 reopened=enabled&&!root.Definition.RemoteAutoDetectEnabled;
                 var definition=root.Definition with{RemoteAutoDetectEnabled=enabled,RemoteIncrementalSeconds=incrementalSeconds,RemoteFullSeconds=fullSeconds};_repository.SaveDefinition(definition);root.Definition=definition;
             }

@@ -1,0 +1,53 @@
+<ContentDialog x:Class="HybridMount.Controls.Mounting.SynologyConfigurationContentDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid MinWidth="360" MaxWidth="520" MaxHeight="640">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+            <StackPanel Spacing="12">
+                <StackPanel x:Name="ConnectionFields" Spacing="12">
+                    <TextBox x:Name="NameField" Header="名称"/>
+                    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="PathField" Header="本地 NTFS 空目录" IsReadOnly="True"/>
+                        <Button x:Name="ChooseButton" Grid.Column="1" Content="选择目录" VerticalAlignment="Bottom" Click="ChooseFolder"/>
+                    </Grid>
+                    <TextBox x:Name="EndpointField" Header="DSM 服务器地址" PlaceholderText="https://nas.example.com:5001" TextChanged="EndpointChanged"/>
+                    <CheckBox x:Name="HttpField" Content="允许明文 HTTP（5000 端口）" Checked="ConnectionChanged" Unchecked="ConnectionChanged"/>
+                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="False" Severity="Warning" Title="明文连接不安全" Message="HTTP 会以明文传输账号、密码和文件内容。仅在可信网络中明确允许后使用；建议使用 HTTPS（5001）。"/>
+                    <TextBox x:Name="UserField" Header="账号" TextChanged="CredentialsChanged"/>
+                    <PasswordBox x:Name="PasswordField" Header="密码" PasswordChanged="PasswordChanged"/>
+                    <PasswordBox x:Name="OtpField" Header="二步验证码（仅本次登录，不保存）" Visibility="Collapsed"/>
+                    <TextBlock Text="先测试连接以加载共享文件夹；电脑无需安装 File Station，NAS 需启用 File Station 服务。" TextWrapping="Wrap"/>
+                    <ComboBox x:Name="ShareField" Header="共享文件夹" DisplayMemberPath="Name" HorizontalAlignment="Stretch" SelectionChanged="ShareChanged"/>
+                    <TextBox x:Name="SubfolderField" Header="子文件夹（可选，相对共享文件夹）" PlaceholderText="例如：文档/项目" TextChanged="SubfolderChanged"/>
+                    <TextBlock x:Name="PinText" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                    <Button x:Name="ClearPinButton" Content="清除本挂载固定指纹" Click="ClearPin" Visibility="Collapsed"/>
+                    <InfoBar x:Name="CertificateBar" IsOpen="False" IsClosable="False" Severity="Warning" Title="请核对服务器证书">
+                        <InfoBar.ActionButton><Button Content="已核对指纹，仅此挂载信任并重试" Click="TrustCertificate"/></InfoBar.ActionButton>
+                    </InfoBar>
+                    <ToggleSwitch x:Name="AutoConnectField" Header="随程序启动连接" IsOn="True"/>
+                    <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Title="弱条件写入" Message="上传替换前会核对元数据和内容摘要，但不具备原子条件写入保证。失败或中断时请核对远端，不要盲目重试。"/>
+                </StackPanel>
+                <StackPanel x:Name="SettingsFields" Spacing="12">
+                    <ToggleSwitch x:Name="RemoteAuto" Header="远端自动检测（完整目录轮询）" IsOn="True"/>
+                    <NumberBox x:Name="IncrementalField" Header="检测调度间隔（秒）" Minimum="10" Maximum="86400" Value="60" SpinButtonPlacementMode="Compact"/>
+                    <NumberBox x:Name="FullField" Header="完整对账间隔（秒）" Minimum="30" Maximum="604800" Value="300" SpinButtonPlacementMode="Compact"/>
+                    <TextBlock Text="群晖没有增量变更游标，目录扫描按完整对账间隔执行。" TextWrapping="Wrap"/>
+                    <Button x:Name="SaveIntervalsButton" Content="保存检测设置" Click="SaveIntervals" Visibility="Collapsed"/>
+                    <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap"/>
+                    <StackPanel x:Name="ExistingSettings" Spacing="12" Visibility="Collapsed">
+                        <ToggleSwitch x:Name="CapacityAuto" Header="自动识别卷容量（非账号配额）"/>
+                        <TextBox x:Name="MaximumField" Header="手动最大容量（GB，留空不限）"/>
+                        <Button Content="保存容量设置" Click="SaveCapacity"/>
+                        <Button Content="从服务器抓取容量信息" Click="RecheckCapacity"/>
+                        <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap"/>
+                        <ToggleSwitch x:Name="ThumbnailToggle" Header="缩略图（实验性）"/>
+                        <Button Content="保存缩略图设置" Click="SaveThumbnails"/>
+                    </StackPanel>
+                </StackPanel>
+                <InfoBar x:Name="ProbeBar" IsOpen="False" IsClosable="False" Title="只读连接测试"/>
+                <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="False" Severity="Error" Title="未能完成操作"/>
+                <TextBlock x:Name="StatusText" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ContentDialog>

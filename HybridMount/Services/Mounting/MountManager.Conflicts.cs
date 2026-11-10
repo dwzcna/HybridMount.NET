@@ -82,7 +82,7 @@ public sealed partial class MountManager
             if(common.Length==0&&entry is not null&&session.IsActive(entry.Id))common="文件正在读取或下载，请稍后重新核对。";
             var localRestriction=common;
             if(localRestriction.Length==0&&FileExclusionRules.Matches(definition.ExclusionRules,path))localRestriction="文件匹配上传排除规则，请先调整规则。";
-            if(localRestriction.Length==0&&source.WriteCapabilities.ConditionalUpdate==CapabilitySupport.Unsupported)localRestriction="服务器不支持可靠的条件更新，请另存副本。";
+            if(localRestriction.Length==0&&source.WriteCapabilities.ConditionalUpdate==CapabilitySupport.Unsupported&&source is not Models.Mounting.Synology.SynologyFileSource)localRestriction="服务器不支持可靠的条件更新，请另存副本。";
             if(localRestriction.Length==0&&upload?.Resolution?.Phase=="Committing")localRestriction="上次本地替换中断；先使用远端完成恢复，原始本地备份仍保留。";
             return new(){TaskId=taskId,Definition=definition,Session=session,Source=source,Upload=upload,Entry=entry,Stamp=stamp,Remote=remote,PendingJson=pending,Path=path,
                 LocalText=stamp is null?localError:$"{stamp.Length:N0} 字节\n修改于 {DateTime.FromFileTimeUtc(stamp.LastWriteTime).ToLocalTime():G}\n{(info is null?"本地普通文件":CloudFilesNative.HasFullContent(absolute,stamp.Length)?"本地完整内容":"部分占位")}\n当前本地内容（可能不同于原上传快照）",
@@ -179,7 +179,7 @@ public sealed partial class MountManager
                     var result=_repository.PublishConflictLocal(intent,prepared);published=true;PublishUpload(result);
                 }
                 finally{root.Gate.Release();}
-                return "已按确认的远端版本提交条件上传；远端再次变化时仍会保留冲突。";
+                return comparison.Source is Models.Mounting.Synology.SynologyFileSource?"已提交群晖弱条件上传；替换前核对元数据和摘要，核对与提交之间仍可能发生外部修改。":"已按确认的远端版本提交条件上传；远端再次变化时仍会保留冲突。";
             }
             var remotePath=Path.Combine(Path.GetDirectoryName(intent.Resolution!.BackupPath)!,"remote.snapshot");
             var remoteHash=await RemoteStaging.DownloadAsync(comparison.Source,remote,remotePath,token).ConfigureAwait(false);

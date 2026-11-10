@@ -126,6 +126,7 @@
     <Compile Include="..\HybridMount\Models\Mounting\UploadAttention.cs" Link="Production\Models\Mounting\UploadAttention.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\UploadModels.cs" Link="Production\Models\Mounting\UploadModels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\UploadRules.cs" Link="Production\Models\Mounting\UploadRules.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Synology\*.cs" Link="Production\Models\Mounting\Synology\%(Filename)%(Extension)"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\RemoteTemporaryItem.cs" Link="Production\Models\Mounting\WebDAV\RemoteTemporaryItem.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavCapabilityDiagnostics.cs" Link="Production\Models\Mounting\WebDAV\WebDavCapabilityDiagnostics.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavCapabilitySnapshot.cs" Link="Production\Models\Mounting\WebDAV\WebDavCapabilitySnapshot.cs"/>

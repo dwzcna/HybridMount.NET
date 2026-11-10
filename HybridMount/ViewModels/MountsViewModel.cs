@@ -102,6 +102,8 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     /// <summary>只读探测继续由应用登记、取消和等待；页面关闭使用自己的等待令牌。</summary>
     public Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,CancellationToken token)
         =>_manager.TestConnectionAsync(settings,credentials,token);
+    public Task<Models.Mounting.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,CancellationToken token)
+        =>_manager.TestSynologyConnectionAsync(settings,credentials,oneTimePassword,token);
     /// <summary>新建或保存连接，应用拥有网络工作；持久化成功但连接失败时返回可重试的配置，校验失败仍抛出。</summary>
     public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id,string name,string path,bool autoConnect,FileSourceConfiguration settings,SourceCredentials credentials,IReadOnlyList<FileExclusionRule>? exclusions=null)
     {

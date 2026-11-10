@@ -55,7 +55,7 @@ public sealed partial class MountManager
             await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
-                if(root.RemovalRequested||root.Definition.RemovalPending||root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3))throw new IOException("当前挂载不能更改容量设置。");
+                if(root.RemovalRequested||root.Definition.RemovalPending||root.Definition.Source?.Kind is not(FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology))throw new IOException("当前挂载不能更改容量设置。");
                 var definition=root.Definition with{CapacityAutoDetectEnabled=automatic,MaximumCapacityBytes=maximumBytes};
                 _repository.SaveDefinition(definition);root.Definition=definition;
                 lock(root.ConnectionSync){root.CapacityScope=null;root.CapacityStatus=new(CapacityInitial(definition));}

@@ -15,7 +15,12 @@ public sealed class MountBackupRow : ObservableObject
         {
             var source = Configuration.Source;
             var address = Uri.TryCreate(source.Endpoint, UriKind.Absolute, out var uri) && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0 ? source.Endpoint : "地址无效";
-            return source.Kind == FileSourceKind.S3 ? $"S3：{address}；桶 {source.Bucket}；前缀 {source.Prefix}" : $"{source.Kind}：{address}";
+            return source.Kind switch
+            {
+                FileSourceKind.S3=>$"S3：{address}；桶 {source.Bucket}；前缀 {source.Prefix}",
+                FileSourceKind.Synology=>$"群晖 NAS：{address}；远端根 {source.Prefix}",
+                _=>$"{source.Kind}：{address}"
+            };
         }
     }
     public string OptionsDisplay => $"随程序启动连接：{(Configuration.AutoConnect ? "是" : "否")}；缩略图：{(Configuration.ThumbnailsEnabled ? "开启" : "关闭")}" +

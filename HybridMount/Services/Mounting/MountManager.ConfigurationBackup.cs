@@ -22,13 +22,13 @@ public sealed partial class MountManager
                     cancel.ThrowIfCancellationRequested();
                     if (!_roots.ContainsKey(id) || root.RemovalRequested || root.Definition.RemovalPending) throw new IOException("选中的挂载正在移除，请重新选择。");
                     var definition = root.Definition;
-                    if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 } source) throw new NotSupportedException("仅支持备份 WebDAV 和 S3 挂载。");
+                    if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology } source) throw new NotSupportedException("仅支持备份 WebDAV、S3 和群晖挂载。");
                     var credentials = FileSourceFactory.BackupCredentials(definition,_repository.DataDirectory);
                     items.Add(new(definition.Name, definition.LocalPath, source, credentials, definition.AutoConnect, definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds,definition.Sqs,FileSourceFactory.BackupAdditionalCredentials(definition,_repository.DataDirectory),definition.CapacityAutoDetectEnabled,definition.MaximumCapacityBytes,definition.ExclusionRules));
                 }
                 finally { root.Gate.Release(); }
             }
-            var bytes = MountBackupCodec.Encode(new(5, DateTimeOffset.UtcNow, items), password, cancel);
+            var bytes = MountBackupCodec.Encode(new(6, DateTimeOffset.UtcNow, items), password, cancel);
             await MountBackupCodec.WriteAtomicAsync(path, bytes, cancel, (temporary, destination) =>
             {
                 lock (_lifetime) { ThrowIfStopping(); cancel.ThrowIfCancellationRequested(); File.Move(temporary, destination, true); }
@@ -138,7 +138,7 @@ public sealed partial class MountManager
     /// <summary>复用新增与导入的连接参数校验，只验证本地参数，不建立协议客户端。</summary>
     private static void ValidateNewConnection(FileSourceConfiguration? source, SourceCredentials? credentials)
     {
-        if (source is null || source.Kind is not (FileSourceKind.WebDav or FileSourceKind.S3)) throw new NotSupportedException("请选择已实现的 WebDAV 或 S3 协议。");
+        if (source is null || source.Kind is not (FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology)) throw new NotSupportedException("请选择已实现的 WebDAV、S3 或群晖协议。");
         if (source.Endpoint is null || source.Bucket is null || source.Prefix is null || source.Region is null || credentials is null ||
             credentials.UserName is null || credentials.Password is null || credentials.AccessKey is null || credentials.SecretKey is null || credentials.SessionToken is null)
             throw new ArgumentException("连接配置或凭据字段不完整。");

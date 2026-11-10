@@ -1,5 +1,6 @@
 using HybridMount.Commons;
 using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting.Synology;
 
 namespace HybridMount.Models.Mounting.Sources;
 
@@ -12,12 +13,13 @@ public interface IFileSourceFactory
 public sealed class FileSourceFactory : IFileSourceFactory
 {
     private static readonly IReadOnlyDictionary<FileSourceKind,IFileSourceProtocol> Protocols=new Dictionary<FileSourceKind,IFileSourceProtocol>
-    {[FileSourceKind.WebDav]=new WebDavSourceProtocol(),[FileSourceKind.S3]=new S3SourceProtocol()};
+    {[FileSourceKind.WebDav]=new WebDavSourceProtocol(),[FileSourceKind.S3]=new S3SourceProtocol(),[FileSourceKind.Synology]=new SynologySourceProtocol()};
     private readonly Dictionary<FileSourceKind, Func<FileSourceConfiguration, SourceCredentials, string, IFileSource>> _adapters = new();
     public FileSourceFactory()
     {
         Register(FileSourceKind.S3, Protocols[FileSourceKind.S3].Create);
         Register(FileSourceKind.WebDav, Protocols[FileSourceKind.WebDav].Create);
+        Register(FileSourceKind.Synology, Protocols[FileSourceKind.Synology].Create);
     }
     /// <summary>启动前注册未来适配器；不增加工程或修改统一契约。</summary>
     public void Register(FileSourceKind kind, Func<FileSourceConfiguration, SourceCredentials, string, IFileSource> adapter) => _adapters.Add(kind, adapter);
@@ -61,8 +63,29 @@ public sealed class FileSourceFactory : IFileSourceFactory
             return Protocols.TryGetValue(settings.Kind,out var protocol)?protocol.Timeout(error):new(false,"连接测试超时，请检查网络及服务响应。");
         }
         catch(SourceConnectionException error) { return new(false,error.Message,error.Diagnostic); }
+        catch(SynologyCertificateException error) { return new(false,error.Message,CertificateSha256:error.CertificateSha256); }
         catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException)
         { return new(false,error.Message); }
+    }
+    /// <summary>群晖只读登录与共享文件夹发现；OTP 不持久化，设备凭据由保存表单时交付。</summary>
+    public async Task<SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,
+        CancellationToken token=default)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        IReadOnlyList<SynologySharedFolder> shares=[];SourceCredentials? authenticated=null;
+        try
+        {
+            if(settings.Kind!=FileSourceKind.Synology||settings.Prefix is null)throw new ArgumentException("请选择完整的群晖连接配置。");
+            var root=settings.Prefix.Length==0?settings with{Prefix="/__probe__"}:settings;
+            await using var source=new SynologyFileSource(root,credentials,new WholeFileCache(Path.Combine(Path.GetTempPath(),"HybridMount.ReadOnlyProbe",Guid.NewGuid().ToString("N"))),oneTimePassword);
+            shares=await source.ListSharedFoldersAsync(deadline.Token).ConfigureAwait(false);authenticated=source.DeviceCredentials;
+            if(settings.Prefix.Length!=0)await source.ProbeAsync(deadline.Token).ConfigureAwait(false);
+            return new(true,shares.Count==0?"登录成功，但账号没有可访问的共享文件夹。":"只读连接测试成功；未保存挂载，也未验证远端写入权限。",shares,source.DeviceCredentials);
+        }
+        catch(SynologyCertificateException error){return new(false,error.Message,[],CertificateSha256:error.CertificateSha256);}
+        catch(SynologyAuthenticationException error){return new(false,error.Message,[],AuthenticationCode:error.Code);}
+        catch(OperationCanceledException)when(!token.IsCancellationRequested){return new(false,"群晖连接测试超时，请检查地址、端口与 File Station 服务。",[]);}
+        catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException){return new(false,error.Message,shares,authenticated);}
     }
     /// <summary>公共层通过适配策略校验，SDK／签名／条件规则留在对应模块；不建立连接。</summary>
     internal static void ValidateProtocolOptions(FileSourceConfiguration options)=>Protocol(options.Kind).ValidateOptions(options);
@@ -77,7 +100,7 @@ public sealed class FileSourceFactory : IFileSourceFactory
     {if(mount.Source is {} source&&Protocols.TryGetValue(source.Kind,out var protocol))protocol.DeleteAdditionalCredentials(mount.Id,directory);}
     internal static void ValidateBackupFields(MountBackupItem item)
     {foreach(var protocol in Protocols.Values)protocol.ValidateBackupFields(item);}
-    internal static string CapacityWriteScope(MountDefinition definition)=>definition.Source is {Kind:FileSourceKind.WebDav or FileSourceKind.S3} source?Protocol(source.Kind).CapacityWriteScope(source):definition.Id.ToString("N");
+    internal static string CapacityWriteScope(MountDefinition definition)=>definition.Source is {Kind:FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology} source?Protocol(source.Kind).CapacityWriteScope(source):definition.Id.ToString("N");
     private static IFileSourceProtocol Protocol(FileSourceKind kind)=>Protocols.TryGetValue(kind,out var value)?value:throw new NotSupportedException("此协议尚未实现。");
     /// <summary>禁止 URL 账户、查询和片段，HTTP 必须由用户显式启用；不接受重定向后的身份转发。</summary>
     public static Uri Endpoint(FileSourceConfiguration options)

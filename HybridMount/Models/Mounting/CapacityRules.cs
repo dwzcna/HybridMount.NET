@@ -8,10 +8,10 @@ public sealed record RemoteUsage(string Scope,long UsedBytes,bool IsComplete=tru
 public static class CapacityRules
 {
     public static bool Enabled(MountDefinition definition)=>definition.CapacityAutoDetectEnabled||definition.MaximumCapacityBytes is not null;
-    /// <summary>自动识别仅适用于 DAV；手动值为空表示不限，零与负数均拒绝。</summary>
+    /// <summary>自动识别适用于 DAV 与群晖；手动值为空表示不限，零与负数均拒绝。</summary>
     public static void Validate(FileSourceKind? kind,bool automatic,long? maximum)
     {
-        if(automatic&&kind!=FileSourceKind.WebDav)throw new ArgumentException("只有 WebDAV 支持自动识别容量。");
+        if(automatic&&kind is not(FileSourceKind.WebDav or FileSourceKind.Synology))throw new ArgumentException("只有 WebDAV 和群晖支持自动识别容量。");
         if(maximum is <=0)throw new ArgumentException("最大容量必须大于零；留空表示不限。");
     }
     /// <summary>使用十进制 GB/TB 和 decimal 换算；不接受指数、负数、零、字节小数或溢出。</summary>

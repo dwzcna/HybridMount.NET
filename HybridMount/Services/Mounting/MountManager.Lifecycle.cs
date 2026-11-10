@@ -36,6 +36,8 @@ public sealed partial class MountManager
         },token);
     private Task OwnAsync(Func<CancellationToken,Task> action,CancellationToken token)
         =>OwnAsync(async cancel=>{await action(cancel).ConfigureAwait(false);return true;},token);
+    public Task<Models.Mounting.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,CancellationToken token)
+        =>OwnAsync(cancel=>(_factory as FileSourceFactory??new FileSourceFactory()).TestSynologyConnectionAsync(settings,credentials,oneTimePassword,cancel),token);
     /// <summary>先向所有生产者发停止信号，不持根锁等待；重复请求不重复取消已释放的资源。</summary>
     public void RequestStop()
     {

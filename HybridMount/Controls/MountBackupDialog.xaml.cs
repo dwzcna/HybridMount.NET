@@ -29,7 +29,7 @@ public sealed partial class MountBackupDialog : ContentDialog
         RowsList.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         if (!_importing)
         {
-            foreach (var mount in App.Current.Mounts.Mounts.Where(item => item.Definition.Source?.Kind is FileSourceKind.WebDav or FileSourceKind.S3))
+            foreach (var mount in App.Current.Mounts.Mounts.Where(item => item.Definition.Source?.Kind is FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology))
             {
                 var definition = mount.Definition;
                 var row = new MountBackupRow(new(definition.Name, definition.LocalPath, definition.Source!, new(), definition.AutoConnect, definition.ThumbnailsEnabled), false, definition.Id);
@@ -37,7 +37,7 @@ public sealed partial class MountBackupDialog : ContentDialog
                 _rows.Add(row);
             }
             IsPrimaryButtonEnabled = _rows.Any(row => row.Selected);
-            if (_rows.Count == 0) ShowStatus("当前没有可导出的 WebDAV 或 S3 挂载。", InfoBarSeverity.Informational);
+            if (_rows.Count == 0) ShowStatus("当前没有可导出的 WebDAV、S3 或群晖挂载。", InfoBarSeverity.Informational);
         }
     }
     private MountImportItem[] Requests() => _rows.Select(row => new MountImportItem(row.Configuration, row.LocalPath, row.Selected)).ToArray();
