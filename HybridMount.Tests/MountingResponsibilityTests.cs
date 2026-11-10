@@ -10,18 +10,18 @@ public sealed class MountingResponsibilityTests
     private static string RepositoryRoot()
     {
         for(var directory=new DirectoryInfo(AppContext.BaseDirectory);directory is not null;directory=directory.Parent)
-            if(File.Exists(Path.Combine(directory.FullName,"Directory.Build.props"))&&Directory.Exists(Path.Combine(directory.FullName,"HybridMount.NET","Services","Mounting")))return directory.FullName;
+            if(File.Exists(Path.Combine(directory.FullName,"Directory.Build.props"))&&Directory.Exists(Path.Combine(directory.FullName,"HybridMount","Services","Mounting")))return directory.FullName;
         throw new IOException("结构检查需要源码仓库。");
     }
     [Fact]
     public void Shared_models_have_no_service_or_native_dependency_and_service_roots_are_classified()
     {
-        var root=RepositoryRoot();var model=Path.Combine(root,"HybridMount.NET","Models","Mounting");
+        var root=RepositoryRoot();var model=Path.Combine(root,"HybridMount","Models","Mounting");
         foreach(var file in Directory.EnumerateFiles(model,"*.cs",SearchOption.TopDirectoryOnly))
         {
             var text=File.ReadAllText(file);Assert.DoesNotContain("HybridMount.Services.",text);Assert.DoesNotContain("DllImport(",text);Assert.DoesNotContain("LibraryImport(",text);
         }
-        var services=Path.Combine(root,"HybridMount.NET","Services","Mounting");
+        var services=Path.Combine(root,"HybridMount","Services","Mounting");
         foreach(var file in Directory.EnumerateFiles(services,"*.cs",SearchOption.TopDirectoryOnly))
         {
             var name=Path.GetFileName(file);

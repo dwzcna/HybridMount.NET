@@ -14,7 +14,7 @@
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
   </Project>
-  <Project Path="HybridMount.NET/HybridMount.NET.csproj">
+  <Project Path="HybridMount/HybridMount.csproj">
     <BuildDependency Project="HybridMount.Ext/HybridMount.Ext.vcxproj" />
     <BuildDependency Project="HybridMount.Stock/HybridMount.Stock.vcxproj" />
     <!-- 主工程的 Debug / Release 均参与打包生成和部署。 -->

@@ -71,3 +71,7 @@ PR #16来源a0911b2回并旧master，产品实现已在0.0.9.21合入；新测�
 | [#20](https://github.com/dwzcna/HybridMount.NET/pull/20) | 0.0.9.27 | 一次性文件戳过滤水合及占位自事件 | 130 | 1084 | 1084 | 通过；ARM64未实机运行 |
 
 每版先最小编译及针对性，再完整回归与签名包核验，之后独立双父合并提交。全部完成后按本次授权普通推送GitHub、Azure，并核对master包含来源后精确删除远程分支；来源SHA变化则保留。最终提交、双远端SHA和删除结果见artifacts/validation/pr-round3-publication.json，逐版证据见本节对应验收文档。未启动或安装正式程序，未连接真实服务、未操作正式配置或同步根；GUI／Explorer、安装升级与ARM64实机按实际边界待测。
+
+## 原生分支PR远端收尾（0.0.9.56）
+
+#22—#37的功能已在.46／.48—.52修订整合，并由用户发布到远端.55。2026-11-10按用户明确授权关闭剩余Open PR并精确删除来源；最终16项均Closed，merged_at均为空，不计为GitHub Merged。各HEAD保留本地refs/archive/native-pr-<编号>-00956。仅#21仍Open，保留其master目标与来源；远端仅3分支，两个目标分支和本地master未变，未推送.56代码。详见[精确核对与实际结果](GitHub-PR-Cleanup-0.0.9.56.md)。

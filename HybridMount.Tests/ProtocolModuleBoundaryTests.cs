@@ -15,7 +15,7 @@ public sealed class ProtocolModuleBoundaryTests
     [Fact]
     public void Protocol_implementations_and_wire_dependencies_stay_inside_modules()
     {
-        var root=Path.Combine(Root(),"HybridMount.NET");
+        var root=Path.Combine(Root(),"HybridMount");
         var dav=Path.Combine(root,"Models","Mounting","WebDAV")+Path.DirectorySeparatorChar;
         var s3=Path.Combine(root,"Models","Mounting","S3")+Path.DirectorySeparatorChar;
         foreach(var file in Directory.EnumerateFiles(root,"*.cs",SearchOption.AllDirectories).Where(x=>!x.Contains(Path.DirectorySeparatorChar+"obj"+Path.DirectorySeparatorChar)&&!x.Contains(Path.DirectorySeparatorChar+"bin"+Path.DirectorySeparatorChar)))

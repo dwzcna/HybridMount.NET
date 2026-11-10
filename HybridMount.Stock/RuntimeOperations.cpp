@@ -4,6 +4,7 @@
 #include "CloudProperties.h"
 #include "LocalReadLeases.h"
 #include "RootRegistryGuard.h"
+#include "NativeDiagnostics.h"
 #include "PreviewObserver.h"
 #include <charconv>
 #include <winrt/Windows.Foundation.h>
@@ -47,7 +48,7 @@ winrt::Windows::Storage::Provider::StorageProviderSyncRootInfo Descriptor(const 
     using namespace winrt::Windows::Storage;using namespace winrt::Windows::Storage::Provider;
     auto path=FullPath(Text(data,"rootPath"));auto id=RootId(data);
     auto folder=StorageFolder::GetFolderFromPathAsync(path).get();StorageProviderSyncRootInfo info;
-    info.Id(id);info.Path(folder);info.DisplayNameResource(Text(data,"name"));info.IconResource(ModuleDirectory()+L"\\HybridMount.NET.exe,0");info.HydrationPolicy(StorageProviderHydrationPolicy::Partial);info.PopulationPolicy(StorageProviderPopulationPolicy::AlwaysFull);info.HydrationPolicyModifier(StorageProviderHydrationPolicyModifier::None);
+    info.Id(id);info.Path(folder);info.DisplayNameResource(Text(data,"name"));info.IconResource(ModuleDirectory()+L"\\HybridMount.exe,0");info.HydrationPolicy(StorageProviderHydrationPolicy::Partial);info.PopulationPolicy(StorageProviderPopulationPolicy::AlwaysFull);info.HydrationPolicyModifier(StorageProviderHydrationPolicyModifier::None);
     info.InSyncPolicy(StorageProviderInSyncPolicy::FileLastWriteTime|StorageProviderInSyncPolicy::DirectoryLastWriteTime|StorageProviderInSyncPolicy::FileCreationTime|StorageProviderInSyncPolicy::DirectoryCreationTime);info.AllowPinning(true);info.HardlinkPolicy(StorageProviderHardlinkPolicy::None);info.Version(Text(data,"version"));info.ShowSiblingsAsGroup(false);
     auto marker=Json{{"Product",Utf8(ProductScope())},{"Schema",1},{"MountId",data.at("mountId")},{"Owner",Utf8(CurrentSid())}}.dump();std::vector<BYTE> bytes(marker.begin(),marker.end());info.Context(winrt::Windows::Security::Cryptography::CryptographicBuffer::CreateFromByteArray(bytes));
     for(auto pair:{std::pair{1,L"同步问题"},std::pair{2,L"上传排除"}}){StorageProviderItemPropertyDefinition property;property.Id(pair.first);property.DisplayNameResource(pair.second);info.StorageProviderItemPropertyDefinitions().Append(property);}
@@ -67,17 +68,33 @@ Json EnsureDefinition(const Json& data){
     if(!info)info=Descriptor(data);for(auto property:info.StorageProviderItemPropertyDefinitions())if(property.Id()==id)return Json::object();
     StorageProviderItemPropertyDefinition property;property.Id(id);property.DisplayNameResource(id==1?L"同步问题":L"上传排除");info.StorageProviderItemPropertyDefinitions().Append(property);GuardRoot(data);StorageProviderSyncRootManager::Register(info);GuardRoot(data);return Json::object();
 }
+/// <summary>只刷新已核验自有根的图标；沿用系统返回的整个描述符，失败记录诊断而不伪造新策略。</summary>
+Json RefreshRootIcon(const Json& data,winrt::Windows::Storage::Provider::StorageProviderSyncRootInfo info){
+    GuardRoot(data);Require(info&&info.Id()==RootId(data)&&info.Path()&&SamePath(std::wstring(info.Path().Path()),FullPath(Text(data,"rootPath"))),E_ACCESSDENIED);
+    auto icon=ModuleDirectory()+L"\\HybridMount.exe,0";
+    try{if(_wcsicmp(info.IconResource().c_str(),icon.c_str())==0)return {{"registered",true},{"iconUpdated",false}};info.IconResource(icon);GuardRoot(data);winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::Register(info);GuardRoot(data);return {{"registered",true},{"iconUpdated",true}};}
+    catch(const winrt::hresult_error& error){RecordNativeFailure("NativeRuntime",error.code(),"RootIconRefresh");return {{"registered",true},{"iconUpdated",false},{"iconHresult",static_cast<HRESULT>(error.code())}};}
+}
 Json RegisterRoot(const Json& data){
     using namespace winrt::Windows::Storage;using namespace winrt::Windows::Storage::Provider;
-    GuardRoot(data,false);auto path=FullPath(Text(data,"rootPath"));auto id=RootId(data);bool existing=false;
+    GuardRoot(data,false);auto path=FullPath(Text(data,"rootPath"));auto id=RootId(data);bool existing=false;StorageProviderSyncRootInfo existingInfo{nullptr};
     for(const auto& item:RootSnapshot()){
         if(item.Path.empty()){Require(item.Id!=id,E_FAIL);continue;}auto other=FullPath(item.Path);const auto under=[](const std::wstring& root,const std::wstring& full){return SamePath(root,full)||(full.size()>root.size()&&full[root.size()]==L'\\'&&SamePath(root,full.substr(0,root.size())));};
-        if(under(path,other)||under(other,path)){Require(item.Id==id&&SamePath(path,other),HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS));existing=true;}
+        if(under(path,other)||under(other,path)){Require(item.Id==id&&SamePath(path,other),HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS));existing=true;existingInfo=item.Info;}
     }
-    if(existing){GuardRoot(data);return {{"registered",true}};}
+    if(existing)return RefreshRootIcon(data,existingInfo);
     {
         auto current=RootQuery(Json{{"path",Utf8(path)}});auto code=current.at("hresult").get<HRESULT>();
-        if(SUCCEEDED(code)){GuardRoot(data);return {{"registered",true}};}
+        if(SUCCEEDED(code)){
+            GuardRoot(data);StorageProviderSyncRootInfo info{nullptr};
+            // 枚举可能漏掉已断开但仍持久注册的根；按准确ID查询，不能重建描述符覆盖原策略。
+            try{
+                try{info=StorageProviderSyncRootManager::GetSyncRootInformationForId(id);}
+                catch(const winrt::hresult_error& error){if(error.code()!=HRESULT_FROM_WIN32(ERROR_NOT_FOUND))throw;info=StorageProviderSyncRootManager::GetSyncRootInformationForFolder(StorageFolder::GetFolderFromPathAsync(path).get());}
+            }
+            catch(const winrt::hresult_error& error){RecordNativeFailure("NativeRuntime",error.code(),"RootIconLookup");return {{"registered",true},{"iconUpdated",false},{"iconHresult",static_cast<HRESULT>(error.code())}};}
+            return RefreshRootIcon(data,info);
+        }
         Require(code==static_cast<HRESULT>(0x80070186)||code==static_cast<HRESULT>(0x80070195),code);
         Require(path.size()>3,E_ACCESSDENIED);auto drive=path.substr(0,3);Require(GetDriveTypeW(drive.c_str())!=DRIVE_REMOTE,E_ACCESSDENIED);wchar_t fs[64]{};WinCheck(GetVolumeInformationW(drive.c_str(),nullptr,0,nullptr,nullptr,nullptr,fs,64));Require(_wcsicmp(fs,L"NTFS")==0,E_ACCESSDENIED);
         auto file=OpenAttributes(path);Require(InspectFile(file.Value).Directory);WIN32_FIND_DATAW item{};auto search=FindFirstFileW((path+L"\\*").c_str(),&item);Require(search!=INVALID_HANDLE_VALUE,HRESULT_FROM_WIN32(GetLastError()));bool empty=true;do{if(wcscmp(item.cFileName,L".")&&wcscmp(item.cFileName,L"..")){empty=false;break;}}while(FindNextFileW(search,&item));auto findError=empty?GetLastError():ERROR_SUCCESS;FindClose(search);Require(!empty||findError==ERROR_NO_MORE_FILES,HRESULT_FROM_WIN32(findError));Require(empty,HRESULT_FROM_WIN32(ERROR_DIR_NOT_EMPTY));

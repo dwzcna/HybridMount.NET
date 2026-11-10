@@ -47,7 +47,7 @@ internal static class CloudShellState
                 var server=item.Parent;
                 if(server?.Name!=com+"ExeServer"||server.Attribute("Arguments")?.Value is not("--thumbnail-server" or "--shell-server"))continue;
                 var path=server.Attribute("Executable")?.Value;
-                if(path!="HybridMount.Stock.exe"||application.Attribute("Executable")?.Value!="HybridMount.NET.exe")continue;
+                if(path!="HybridMount.Stock.exe"||application.Attribute("Executable")?.Value!="HybridMount.exe")continue;
                 if(exists(path)&&exists("HybridMount.Ext.dll"))return true;
             }
         }
@@ -61,7 +61,7 @@ internal static class CloudShellState
         bool Matches(XAttribute? attribute)=>Guid.TryParse(attribute?.Value,out var id)&&id==expected;
         foreach(var application in manifest.Root?.Element(f+"Applications")?.Elements(f+"Application")??[])
         {
-            if(application.Attribute("Executable")?.Value!="HybridMount.NET.exe")continue;
+            if(application.Attribute("Executable")?.Value!="HybridMount.exe")continue;
             var extensions=application.Element(f+"Extensions");if(extensions is null)continue;
             if(!extensions.Descendants().Any(x=>x.Name.LocalName=="Verb"&&Matches(x.Attribute("Clsid"))))continue;
             foreach(var item in extensions.Elements(c+"Extension").Where(x=>x.Attribute("Category")?.Value=="windows.comServer").Descendants(c+"Class").Where(x=>Matches(x.Attribute("Id"))))

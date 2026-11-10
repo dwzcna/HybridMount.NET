@@ -26,13 +26,13 @@ public static class CloudRootRegistration
     {
         await(await NativeRuntimeClient.GetAsync().ConfigureAwait(false)).InvokeAsync("ensureDefinition",NativeRuntimeArguments.Root(mount,new{propertyId=id}),token:token).ConfigureAwait(false);
     }
-    /// <summary>两种运行模式共用新根描述符并允许原生固定；已有根不因本版重新注册或改变CFAPI策略。</summary>
+    /// <summary>两种运行模式共用新根描述符并允许原生固定；已有根只更新主映像图标引用，保留CFAPI策略和身份。</summary>
     internal static async Task<StorageProviderSyncRootInfo> CreateDescriptorAsync(MountDefinition mount)
     {
         return new StorageProviderSyncRootInfo
         {
             Id = Id(mount), Path = await StorageFolder.GetFolderFromPathAsync(mount.LocalPath),
-            DisplayNameResource = mount.Name, IconResource = Path.Combine(AppContext.BaseDirectory,"HybridMount.NET.exe")+",0",
+            DisplayNameResource = mount.Name, IconResource = Path.Combine(AppContext.BaseDirectory,"HybridMount.exe")+",0",
             HydrationPolicy = StorageProviderHydrationPolicy.Partial, PopulationPolicy = StorageProviderPopulationPolicy.AlwaysFull,
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.None,
             InSyncPolicy = StorageProviderInSyncPolicy.FileLastWriteTime | StorageProviderInSyncPolicy.DirectoryLastWriteTime |

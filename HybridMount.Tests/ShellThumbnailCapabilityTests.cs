@@ -8,7 +8,7 @@ public sealed class ShellThumbnailCapabilityTests
     private const string Id="A749B295-9CB5-4F08-98D4-00EB47345E09";
     private static XDocument Manifest(string path="HybridMount.Stock.exe",bool bound=true)=>XDocument.Parse($"""
         <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:d="http://schemas.microsoft.com/appx/manifest/desktop/windows10/3" xmlns:c="http://schemas.microsoft.com/appx/manifest/com/windows10">
-        <Applications><Application Id="App" Executable="HybridMount.NET.exe"><Extensions>
+        <Applications><Application Id="App" Executable="HybridMount.exe"><Extensions>
         <d:Extension Category="windows.cloudFiles"><d:CloudFiles><d:ThumbnailProviderHandler {(bound?$"Clsid='{Id}'":"")}/></d:CloudFiles></d:Extension>
         <c:Extension Category="windows.comServer"><c:ComServer><c:ExeServer Executable="{path}" Arguments="--thumbnail-server"><c:Class Id="{Id}"/></c:ExeServer></c:ComServer></c:Extension>
         </Extensions></Application></Applications></Package>

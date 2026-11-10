@@ -52,7 +52,7 @@ RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make
     auto authenticate=[](bool valid,const char* stage){if(!valid){RecordNativeFailure("NativeRuntime",E_ACCESSDENIED,stage);Require(false,E_ACCESSDENIED);}};
     DWORD selfSession{},peerSession{};WinCheck(ProcessIdToSessionId(GetCurrentProcessId(),&selfSession));WinCheck(ProcessIdToSessionId(parent,&peerSession));authenticate(peerSession==selfSession,"ParentSessionMismatch");authenticate(User(p.Parent.Value)==CurrentSid(),"ParentUserMismatch");authenticate(Family(p.Parent.Value)==Family(GetCurrentProcess()),"ParentPackageMismatch");
 #ifndef HYBRIDMOUNT_NATIVE_TESTS
-    authenticate(SamePath(ProcessPath(p.Parent.Value),ModuleDirectory()+L"\\HybridMount.NET.exe"),"ParentImageMismatch");
+    authenticate(SamePath(ProcessPath(p.Parent.Value),ModuleDirectory()+L"\\HybridMount.exe"),"ParentImageMismatch");
 #endif
     auto prefix=L"\\\\.\\pipe\\"+ProductScope()+L".runtime.v1."+CurrentSid()+L"."+std::to_wstring(selfSession)+L"."+nonce;
     p.Control=std::make_unique<Pipe>(prefix+L".control",parent,p.Parent.Value,p.Stop.Value);p.Data=std::make_unique<Pipe>(prefix+L".data",parent,p.Parent.Value,p.Stop.Value);

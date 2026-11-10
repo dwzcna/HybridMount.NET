@@ -7,8 +7,12 @@ $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
 try {
     $entries = @{}
     foreach ($entry in $archive.Entries) { $entries[$entry.FullName.Replace('\','/')] = $entry }
-    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
+    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.exe','HybridMount.dll','HybridMount.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
         if (-not $entries.ContainsKey($required)) { throw "包缺少 $required" }
+    }
+    # 改名后的包只允许当前主映像，防止增量构建夹带旧入口。
+    foreach($obsolete in @('HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.deps.json','HybridMount.NET.runtimeconfig.json')){
+        if($entries.ContainsKey($obsolete)){throw "包夹带旧主程序入口：$obsolete"}
     }
     function Read-Bytes([string]$entryName) {
         $stream = $entries[$entryName].Open(); $buffer = [IO.MemoryStream]::new()
@@ -41,13 +45,15 @@ try {
     if($apps.Count -ne 2 -or $main.Count -ne 1 -or $maintenance.Count -ne 1){throw '应用及隐藏维护入口缺失或重复。'}
     $runtimeNamespace='http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
     $entry=$maintenance[0]
-    if($main[0].EntryPoint -ne 'Windows.FullTrustApplication' -or $entry.HasAttribute('EntryPoint') -or
-       $entry.Executable -ne 'HybridMount.NET.exe' -or $entry.GetAttribute('RuntimeBehavior',$runtimeNamespace) -ne 'win32App' -or
+    if($main[0].Executable -ne 'HybridMount.exe' -or $main[0].EntryPoint -ne 'Windows.FullTrustApplication' -or $entry.HasAttribute('EntryPoint') -or
+       $entry.Executable -ne 'HybridMount.exe' -or $entry.GetAttribute('RuntimeBehavior',$runtimeNamespace) -ne 'win32App' -or
        $entry.GetAttribute('TrustLevel',$runtimeNamespace) -ne 'mediumIL' -or $entry.VisualElements.AppListEntry -ne 'none'){
         throw '隐藏维护入口运行行为不正确，不能据此进行真实Shell清理。'
     }
+    $startup=@($main[0].Extensions.Extension | Where-Object {$_.Category -eq 'windows.startupTask'})
+    if($startup.Count -ne 1 -or $startup[0].Executable -ne 'HybridMount.exe'){throw '登录启动入口未使用当前主映像。'}
     $expectedMachine = if ($Platform -eq 'ARM64') { 0xaa64 } else { 0x8664 }
-    foreach ($entryName in @('HybridMount.NET.exe','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','coreclr.dll')) {
+    foreach ($entryName in @('HybridMount.exe','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','coreclr.dll')) {
         $bytes = Read-Bytes $entryName
         $pe = [BitConverter]::ToInt32($bytes,0x3c)
         if ([BitConverter]::ToUInt16($bytes,$pe+4) -ne $expectedMachine) { throw "$entryName 架构不正确。" }
@@ -69,7 +75,7 @@ try {
             if ($width -ne [Math]::Ceiling($spec[1]*$scale/100) -or $height -ne [Math]::Ceiling($spec[2]*$scale/100)) { throw "图形尺寸错误：$entryName" }
         }
     }
-    $runtime = [Text.Encoding]::UTF8.GetString((Read-Bytes 'HybridMount.NET.runtimeconfig.json')) | ConvertFrom-Json
+    $runtime = [Text.Encoding]::UTF8.GetString((Read-Bytes 'HybridMount.runtimeconfig.json')) | ConvertFrom-Json
     if ($runtime.runtimeOptions.framework -or $runtime.runtimeOptions.frameworks) { throw '主程序仍依赖共享 .NET 运行时。' }
     if ($entries.Keys | Where-Object { $_ -match '(?i)EPaperKit|ProKit|Square44x44Logo|StoreLogo' }) { throw '包内出现旧产品资源或组件。' }
     $text = $manifest.OuterXml

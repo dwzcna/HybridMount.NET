@@ -33,7 +33,7 @@ try {
     Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "native-$Platform-$Configuration"
     Invoke-BuildStep $msbuild @('HybridMount.Stock\HybridMount.Stock.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo') "runtime-$Platform-$Configuration"
     $packageDirectory = Join-Path $repoRoot $(if($ExperimentalThumbnails){"artifacts\packages-preview\$Platform\"}else{"artifacts\packages\$Platform\"})
-    $managedArguments = @('HybridMount.NET\HybridMount.NET.csproj','/restore','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo',"/p:HybridMountDeployment=$Deployment","/p:GenerateAppxPackageOnBuild=$($Package.IsPresent)")
+    $managedArguments = @('HybridMount\HybridMount.csproj','/restore','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/v:minimal','/nologo',"/p:HybridMountDeployment=$Deployment","/p:GenerateAppxPackageOnBuild=$($Package.IsPresent)")
     $managedArguments += "/p:HybridMountShellProfile=$ShellProfile"
     if ($Package) { $managedArguments += @("/p:AppxPackageDir=$packageDirectory",'/p:UapAppxPackageBuildMode=SideloadOnly','/p:AppxBundle=Never','/p:AppxPackageSigningEnabled=false') }
     Invoke-BuildStep $msbuild $managedArguments "managed-$Platform-$Configuration-$Deployment"

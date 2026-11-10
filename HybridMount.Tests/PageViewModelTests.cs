@@ -225,15 +225,15 @@ public sealed class PageViewModelTests
         var root=Root();
         foreach(var name in new[]{"Home","Mounts","Tasks","Logs","Settings"})
         {
-            var page=File.ReadAllText(Path.Combine(root,"HybridMount.NET","Pages",name+"Page.xaml.cs"));
+            var page=File.ReadAllText(Path.Combine(root,"HybridMount","Pages",name+"Page.xaml.cs"));
             var declarations=Regex.Matches(page,@"public\s+(\w+ViewModel)\s+ViewModel\b");Assert.Single(declarations);Assert.Equal(name+"ViewModel",declarations[0].Groups[1].Value);
             Assert.DoesNotContain("App.Current.Mounts.",page);Assert.DoesNotContain("new AppearanceSettingsViewModel",page);
-            var vm=File.ReadAllText(Path.Combine(root,"HybridMount.NET","ViewModels",name+"ViewModel.cs"));
+            var vm=File.ReadAllText(Path.Combine(root,"HybridMount","ViewModels",name+"ViewModel.cs"));
             Assert.DoesNotContain("Microsoft.UI",vm);Assert.DoesNotContain("MainWindow",vm);Assert.DoesNotContain("App.Current",vm);
             foreach(var other in new[]{"Home","Mounts","Tasks","Logs","Settings"}.Where(x=>x!=name))Assert.DoesNotContain(other+"ViewModel",vm);
         }
-        Assert.False(File.Exists(Path.Combine(root,"HybridMount.NET","ViewModels","AppearanceSettingsViewModel.cs")));
-        var app=File.ReadAllText(Path.Combine(root,"HybridMount.NET","App.xaml.cs"));Assert.DoesNotContain("SettingsViewModel",app);Assert.Contains("Preferences.CloseToTray",app);
+        Assert.False(File.Exists(Path.Combine(root,"HybridMount","ViewModels","AppearanceSettingsViewModel.cs")));
+        var app=File.ReadAllText(Path.Combine(root,"HybridMount","App.xaml.cs"));Assert.DoesNotContain("SettingsViewModel",app);Assert.Contains("Preferences.CloseToTray",app);
     }
     [Fact]
     public async Task Mount_drafts_and_selection_survive_refresh_and_each_mount_has_independent_busy_guard()

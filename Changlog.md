@@ -1,5 +1,11 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.56 — 恢复主工程和程序名称（2026-11-10）
+
+- 主目录和工程恢复HybridMount/HybridMount.csproj，主输出改为HybridMount.exe／HybridMount.dll；.55职责目录和HybridMount.Stock原生工程保留。
+- 同步原生父映像校验、Shell菜单启动、包内主入口／维护／登录启动、缩略图能力检查、解决方案及测试／资源／构建路径；已有自有根在能读取原描述符时尝试只刷新图标资源引用，查询失败保留注册和安全诊断；旧图标实际刷新尚未通过验证，原策略及身份继续保护。NativePreview包身份、AUMID、CLSID、管道、配置与数据目录保持兼容。
+- 按明确授权关闭#22—#37共16项GitHub PR并删除来源、保留固定HEAD本地归档，仅#21保留；状态Closed并非Merged，目标分支和master未变。Release相关131/131与隔离新映像Shell／卸载验证通过；最后Debug130/131及隔离大媒体超时、旧图标查询失败如实保留。精确清理测试注册／缓存，实际构建、产物及待测见docs/Validation-0.0.9.56.md。
+
 ## 0.0.9.55 — 工程改名与职责目录整理（2026-11-10）
 
 - 主目录和项目为HybridMount.NET／HybridMount.NET.csproj，原生为HybridMount.Stock／HybridMount.Stock.vcxproj，输出HybridMount.Stock.exe；更新解决方案、构建／打包、进程路径和COM激活声明，保留四工程、Debug／Release、x64／ARM64及主输出HybridMount.NET.exe。

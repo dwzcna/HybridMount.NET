@@ -117,7 +117,7 @@ namespace {
 		const auto count = GetModuleFileNameW(g_module, modulePath.data(), static_cast<DWORD>(modulePath.size()));
 		Check(count > 0 && count < modulePath.size());
 		modulePath.resize(count);
-		const auto exe = modulePath.substr(0, modulePath.find_last_of(L'\\') + 1) + L"HybridMount.NET.exe";
+		const auto exe = modulePath.substr(0, modulePath.find_last_of(L'\\') + 1) + L"HybridMount.exe";
 		auto command = L"\"" + exe + L"\" --background";
 		STARTUPINFOW startup{ sizeof(startup) };
 		PROCESS_INFORMATION process{};

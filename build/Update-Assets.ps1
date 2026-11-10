@@ -3,7 +3,7 @@
 param([switch]$StatusIconsOnly)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationCore,PresentationFramework,WindowsBase
-$assetRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\HybridMount.NET\Assets'))
+$assetRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\HybridMount\Assets'))
 $settings=[Xml.XmlReaderSettings]::new();$settings.DtdProcessing='Prohibit';$settings.XmlResolver=$null
 $reader=[Xml.XmlReader]::Create((Join-Path $assetRoot 'HybridMount.svg'),$settings)
 $svg=[Xml.XmlDocument]::new();$svg.XmlResolver=$null
