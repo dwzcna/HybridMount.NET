@@ -17,5 +17,5 @@ internal sealed class SynologySourceProtocol : IFileSourceProtocol
     public SourceCredentials BackupCredentials(MountDefinition mount,string directory)=>new CredentialStore(directory).Load(mount.Id) with{SessionToken=""};
     public SourceCredentials NormalizeImportCredentials(FileSourceConfiguration options,SourceCredentials credentials)=>credentials with{SessionToken=""};
     public void ValidateBackupFields(MountBackupItem item)
-    {if(item.Source.Kind==FileSourceKind.Synology)ValidateOptions(item.Source);else if(item.Source.PinnedCertificateSha256 is not null)throw new ArgumentException("证书指纹字段仅适用于群晖连接。");}
+    {if(item.Source.Kind==FileSourceKind.Synology)ValidateOptions(item.Source);else if(item.Source.Kind!=FileSourceKind.WebDav&&item.Source.PinnedCertificateSha256 is not null)throw new ArgumentException("证书指纹字段仅适用于群晖或 HTTPS WebDAV 连接。");}
 }

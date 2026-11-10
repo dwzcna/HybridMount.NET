@@ -20,7 +20,8 @@ public sealed partial class WebDavFileSource
         _endpoint = FileSourceFactory.Endpoint(options); _cache = cache;
         _temporaryScope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(_endpoint.AbsoluteUri+"\0"+credentials.UserName)));
         if (credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 用户名不能包含冒号。");
-        _http = new HttpClient(new DavTransport(this, credentials, handler ?? CreateHttpHandler()))
+        var certificatePin=NormalizeCertificatePin(options);
+        _http = new HttpClient(new DavTransport(this, credentials, handler ?? CreateHttpHandler(certificatePin)))
           { Timeout=Timeout.InfiniteTimeSpan };
         _dav = new WebDAVClient.DavClient(_endpoint, _http, new() { MetadataTimeout=TimeSpan.FromSeconds(120) });
     }

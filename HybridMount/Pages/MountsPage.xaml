@@ -23,6 +23,7 @@
                     <Button.Flyout>
                         <MenuFlyout>
                             <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
+                            <MenuFlyoutItem Text="WebDAV(HTTPS)" Click="CreateWebDavHttpsMount"/>
                             <MenuFlyoutItem Text="S3 对象存储" Click="CreateS3Mount"/>
                             <MenuFlyoutItem Text="群晖 NAS（Synology）" Click="CreateSynologyMount"/>
                         </MenuFlyout>

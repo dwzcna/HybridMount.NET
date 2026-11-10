@@ -169,16 +169,19 @@ internal sealed class TlsFixture : IAsyncDisposable
     private readonly CancellationTokenSource _stop=new();
     private readonly ConcurrentBag<Task> _clients=[];
     private readonly Task _accept;
-    private readonly bool _reset,_stall;
+    private readonly bool _reset,_stall,_davResponses;
     private readonly X509Certificate2 _certificate;
     private int _connections,_hello;
     public ConcurrentQueue<string> Failures {get;}=new();
     public int Connections=>Volatile.Read(ref _connections);
     public bool ClientHelloSeen=>Volatile.Read(ref _hello)!=0;
     public Uri Address {get;}
-    public TlsFixture(bool wrongHost=false,bool reset=false,bool stall=false)
+    /// <summary>仅供隔离测试显式核验服务器证书，不安装系统信任。</summary>
+    public string CertificatePin=>Convert.ToHexString(SHA256.HashData(_certificate.RawData));
+    public ConcurrentQueue<string> Methods {get;}=new();
+    public TlsFixture(bool wrongHost=false,bool reset=false,bool stall=false,bool davResponses=false)
     {
-        _reset=reset;_stall=stall;
+        _reset=reset;_stall=stall;_davResponses=davResponses;
         using var rsa=RSA.Create(2048);var request=new CertificateRequest("CN=hybridmount-test",rsa,HashAlgorithmName.SHA256,RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false,false,0,true));
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection{new("1.3.6.1.5.5.7.3.1")},true));
@@ -210,6 +213,24 @@ internal sealed class TlsFixture : IAsyncDisposable
             if(_stall){await Task.Delay(Timeout.InfiniteTimeSpan,_stop.Token);return;}
             await using var tls=new SslStream(network,false);
             await tls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions{ServerCertificate=_certificate,EnabledSslProtocols=SslProtocols.None},_stop.Token);
+            if(_davResponses)
+            {
+                // 实际消费请求头及正文后返回只读 DAV 集合，避免仅凭握手成功宣称探测通过。
+                var header=new List<byte>();var one=new byte[1];
+                while(header.Count<16384)
+                {
+                    if(await tls.ReadAsync(one,_stop.Token)==0)throw new IOException("请求提前结束。");
+                    header.Add(one[0]);if(header.Count>=4&&header.TakeLast(4).SequenceEqual(new byte[]{13,10,13,10}))break;
+                }
+                var lines=System.Text.Encoding.ASCII.GetString(header.ToArray()).Split("\r\n");
+                var method=lines[0].Split(' ')[0];Methods.Enqueue(method);
+                var length=lines.Where(x=>x.StartsWith("Content-Length:",StringComparison.OrdinalIgnoreCase)).Select(x=>int.Parse(x.Split(':')[1])).SingleOrDefault();
+                if(length>0)await tls.ReadExactlyAsync(new byte[length],_stop.Token);
+                var body=method=="PROPFIND"?"<d:multistatus xmlns:d=\"DAV:\"><d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype><d:getcontentlength>0</d:getcontentlength><d:getetag>&amp;quot;root&amp;quot;</d:getetag></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>":"";
+                var bytes=System.Text.Encoding.UTF8.GetBytes(body);var status=method=="PROPFIND"?"207 Multi-Status":"200 OK";
+                await tls.WriteAsync(System.Text.Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\nContent-Length: {bytes.Length}\r\nContent-Type: application/xml\r\nConnection: close\r\n\r\n"),_stop.Token);
+                if(bytes.Length>0)await tls.WriteAsync(bytes,_stop.Token);return;
+            }
             await tls.WriteAsync("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"u8.ToArray(),_stop.Token);
         }
         catch(Exception error)when(error is IOException or AuthenticationException or OperationCanceledException or SocketException)

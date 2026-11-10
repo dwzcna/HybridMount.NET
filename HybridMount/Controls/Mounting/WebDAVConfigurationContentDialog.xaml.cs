@@ -11,30 +11,36 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private MountsViewModel _model=null!;
     private MountDefinition? _existing;
     private FileSourceKind _kind;
+    private readonly bool _httpsOnly;
     private CancellationTokenSource? _testing;
     private bool _loading=true,_submitting,_picking,_disposed,_stopping;
     public MountDefinition? CreatedMount {get;private set;}
     public string ResultMessage {get;private set;}="";
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
     /// <summary>只加载一次连接草稿；后续刷新仅更新已保存设置，不覆盖正在编辑的账号或地址。</summary>
-    public WebDAVConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null)
+    public WebDAVConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,bool httpsOnly=false)
     {
         InitializeComponent();_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
+        _httpsOnly=httpsOnly||existing?.Source?.PinnedCertificateSha256 is not null;
         try
         {
-            NameField.Text=existing?.Name??(_kind==FileSourceKind.S3?"S3 挂载":"WebDAV 挂载");
-            EndpointField.PlaceholderText=_kind==FileSourceKind.S3?"https://s3.example.com":"https://dav.example.com/dav/";
+            NameField.Text=existing?.Name??(_httpsOnly?"WebDAV(HTTPS) 挂载":"WebDAV 挂载");
+            EndpointField.PlaceholderText=_httpsOnly?"https://nas.example.com:5006/共享文件夹/":"https://dav.example.com/dav/";
+            HttpsFields.Visibility=_httpsOnly?Visibility.Visible:Visibility.Collapsed;
+            HttpField.Visibility=_httpsOnly?Visibility.Collapsed:Visibility.Visible;
             if(existing is not null)
             {
                 var editable=false;var source=existing.Source!;
                 NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
                 EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;HttpField.IsChecked=source.AllowHttp;HttpField.IsEnabled=editable;
+                CertificatePinField.Text=source.PinnedCertificateSha256??"";
                 AutoConnectField.IsOn=existing.AutoConnect;AutoConnectField.IsEnabled=false;
                 LoadProtocol(existing,model.ReadCredentials(existing.Id),editable);SettingsFields.Visibility=Visibility.Visible;
             }
+            EndpointField.TextChanged+=EndpointChanged;
             ExclusionList.ItemsSource=model.ExclusionDraft(existing?.Id,_kind);
             SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
-            Title=(existing is null?"新增":"设置 · ")+(existing?.Name??(_kind==FileSourceKind.S3?"S3 挂载":"WebDAV 挂载"));
+            Title=(existing is null?"新增 · ":"设置 · ")+(existing?.Name??(_httpsOnly?"WebDAV(HTTPS)":"WebDAV 挂载"));
             PrimaryButtonText=existing is null?"创建并连接":"保存连接并重连";SecondaryButtonText="测试连接";CloseButtonText="关闭";
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
@@ -145,10 +151,21 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     {
         if(_disposed)return;_disposed=true;_testing?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;_model.PropertyChanged-=ModelPropertyChanged;
+        EndpointField.TextChanged-=EndpointChanged;
         PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }
-    private FileSourceConfiguration ReadSettings(string endpoint,bool allowHttp)=>new(FileSourceKind.WebDav,endpoint,AllowHttp:allowHttp);
+    /// <summary>在窗口线程读取草稿；HTTPS 预设拒绝明文地址，指纹由协议层校验且仅属于当前挂载。</summary>
+    private FileSourceConfiguration ReadSettings(string endpoint,bool allowHttp)
+    {
+        if(_httpsOnly&&(!Uri.TryCreate(endpoint,UriKind.Absolute,out var uri)||uri.Scheme!="https"))
+            throw new ArgumentException("WebDAV(HTTPS) 入口仅接受 HTTPS 地址；群晖通常使用 5006 端口。");
+        return new(FileSourceKind.WebDav,endpoint,AllowHttp:!_httpsOnly&&allowHttp,
+            PinnedCertificateSha256:string.IsNullOrWhiteSpace(CertificatePinField.Text)?null:CertificatePinField.Text.Trim());
+    }
     private SourceCredentials ReadCredentials()=>new(UserField.Text.Trim(),PasswordField.Password);
     private void LoadProtocol(MountDefinition definition,SourceCredentials credentials,bool rootEditable){UserField.Text=credentials.UserName;PasswordField.Password=credentials.Password;}
+    /// <summary>地址变更立即撤销旧指纹草稿，防止将旧服务器授权带到新地址；初始化加载不触发撤销。</summary>
+    private void EndpointChanged(object sender,TextChangedEventArgs args)
+    {if(!_loading)CertificatePinField.Text="";}
     private void ClearSecrets()=>PasswordField.Password="";
 }

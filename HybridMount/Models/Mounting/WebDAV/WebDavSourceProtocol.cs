@@ -6,7 +6,10 @@ internal sealed class WebDavSourceProtocol : IFileSourceProtocol
 {
     public IFileSource Create(FileSourceConfiguration options,SourceCredentials credentials,string work)=>new WebDavFileSource(options,credentials,new WholeFileCache(work));
     public string CapacityWriteScope(FileSourceConfiguration options)=>"DAV:"+FileSourceFactory.Endpoint(options).GetLeftPart(UriPartial.Authority);
-    public void ValidateOptions(FileSourceConfiguration options)=>FileSourceFactory.Endpoint(options);
+    public void ValidateOptions(FileSourceConfiguration options)
+    {FileSourceFactory.Endpoint(options);WebDavFileSource.NormalizeCertificatePin(options);}
+    public void ValidateBackupFields(MountBackupItem item)
+    {if(item.Source.Kind==FileSourceKind.WebDav)ValidateOptions(item.Source);}
     public void ValidateCredentials(FileSourceConfiguration options,SourceCredentials credentials)
     {if(credentials.UserName.Contains(':'))throw new ArgumentException("WebDAV 账号不能包含冒号。");}
     public ConnectionTestResult Timeout(OperationCanceledException error)

@@ -1,5 +1,10 @@
 # HybridMount.NET 变更记录
 
+## 0.0.9.58 — 群晖 WebDAV HTTPS 5006（2026-11-10）
+
+- 整合指定 synology-webdav-https-5006.patch，增加 WebDAV(HTTPS) 新建预设及群晖5006指引，复用原DAV协议与证书字段。未填写指纹使用系统验证；填写后严格限当前挂载匹配，地址变化清空草稿，禁止重定向及证书失败重试。
+- 带指纹备份使用已有v6，普通WebDAV／S3继续v5；补对话框事件解绑及中文注释。四工程、HybridMount.exe和NativePreview身份保持。最小编译及Debug／Release相关各102/102通过，双架构签名包和ARM64测试交叉编译通过；阶段失败、同期界面差异及实机待测见docs/Validation-0.0.9.58.md。
+
 ## 0.0.9.57 — 修订整合群晖 File Station（2026-11-10）
 
 - 基于9656d81修订整合PR #38的3e496b0，新增群晖File Station源及配置窗口，以DSM6.2／7.x为兼容目标，真实设备尚待验收。保留四工程、HybridMount.exe及NativePreview身份；公共IPC v2、文件源公共接口、产品SQLite结构和通用冲突保护不变。

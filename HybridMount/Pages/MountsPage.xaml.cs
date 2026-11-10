@@ -78,13 +78,13 @@ public sealed partial class MountsPage : Page,IDisposable
     });
     private Task EditSettingsAsync(Guid id)=>ViewModel.FindMount(id) is {} mount?ShowConfigurationAsync(mount.Definition.Source!.Kind,mount.Definition):Task.CompletedTask;
     /// <summary>新增和编辑都使用协议专属 XAML；SQS 选项在 S3 配置内部折叠，不再弹出其他配置窗口。</summary>
-    private Task ShowConfigurationAsync(FileSourceKind kind,MountDefinition? existing=null)=>ViewModel.RunDialogAsync(async()=>
+    private Task ShowConfigurationAsync(FileSourceKind kind,MountDefinition? existing=null,bool httpsOnly=false)=>ViewModel.RunDialogAsync(async()=>
     {
         try
         {
             ContentDialog dialog=kind switch
             {
-                FileSourceKind.WebDav=>new WebDAVConfigurationContentDialog(ViewModel,existing),
+                FileSourceKind.WebDav=>new WebDAVConfigurationContentDialog(ViewModel,existing,httpsOnly),
                 FileSourceKind.S3=>new S3ConfigurationContentDialog(ViewModel,existing),
                 FileSourceKind.Synology=>new SynologyConfigurationContentDialog(ViewModel,existing),
                 _=>throw new NotSupportedException("此协议尚未提供配置窗口。")
@@ -99,6 +99,7 @@ public sealed partial class MountsPage : Page,IDisposable
         finally{_configurationDialog?.Dispose();_configurationDialog=null;}
     });
     private async void CreateWebDavMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav);
+    private async void CreateWebDavHttpsMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav,httpsOnly:true);
     private async void CreateS3Mount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.S3);
     private async void CreateSynologyMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.Synology);
     /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与密文写入由应用服务执行。</summary>

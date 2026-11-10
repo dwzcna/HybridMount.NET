@@ -13,6 +13,11 @@
                         <Button x:Name="ChooseButton" Grid.Column="1" Content="选择目录" VerticalAlignment="Bottom" Click="ChooseFolder"/>
                     </Grid>
                     <TextBox x:Name="EndpointField" Header="服务器地址"/>
+                    <StackPanel x:Name="HttpsFields" Spacing="12" Visibility="Collapsed">
+                        <TextBlock Text="群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。" TextWrapping="Wrap"/>
+                        <TextBox x:Name="CertificatePinField" Header="HTTPS 证书 SHA-256 指纹（可选）" PlaceholderText="留空使用系统证书验证"/>
+                        <TextBlock Text="自签名证书需先通过可信渠道核对指纹后填写，仅信任当前挂载；证书更新后需重新核验。不要填写未经核对的指纹。" TextWrapping="Wrap"/>
+                    </StackPanel>
                     <StackPanel Spacing="12">
                                     <TextBox x:Name="UserField" Header="账号"/>
                                     <PasswordBox x:Name="PasswordField" Header="密码或第三方应用密码"/>
