@@ -42,6 +42,11 @@ public sealed class ThumbnailHostNativeTests
             Assert.Equal(0,provider.Thumbnail(32,out _,out var bitmap));NativePreviewInterop.DeleteObject(bitmap);stopping.GetAwaiter().GetResult();
         });
     }
+    [Fact(Timeout=15000)]
+    public async Task BackgroundWorkKeepsHostAliveUntilNotificationsFinish()
+    {
+        await Mta(()=>{var pending=1;using var host=new Host((_,_)=>null,200,()=>Volatile.Read(ref pending)!=0);Thread.Sleep(500);Assert.False(host.Exited);Interlocked.Exchange(ref pending,0);var until=DateTime.UtcNow.AddSeconds(3);while(!host.Exited&&DateTime.UtcNow<until)Thread.Sleep(25);Assert.True(host.Exited);});
+    }
     private static Task Mta(Action action)
     {
         var done=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var thread=new Thread(()=>{var initialized=CoInitializeEx(0,0);try{if(initialized<0)Marshal.ThrowExceptionForHR(initialized);action();done.SetResult();}catch(Exception error){done.SetException(error);}finally{if(initialized>=0)CoUninitialize();}}){IsBackground=true};thread.SetApartmentState(ApartmentState.MTA);thread.Start();return done.Task;
@@ -53,9 +58,12 @@ public sealed class ThumbnailHostNativeTests
         internal static readonly Guid ClassId=new("d0037037-4d1c-4c7e-a519-34c76b9bb281");
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]private delegate int Read(nint context,[MarshalAs(UnmanagedType.LPWStr)]string path,uint size,out nint png,out uint length);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]private delegate int Run(Read read,nint context,nint stop,uint idle);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]private delegate bool Busy(nint context);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]private delegate int RunActivity(Read read,nint context,nint stop,uint idle,uint flags,Busy busy);
+        private readonly Busy? _busy;
         private readonly nint _library;private readonly Read _read;private readonly EventWaitHandle _stop=new(false,EventResetMode.ManualReset);private readonly TaskCompletionSource<int> _exit=new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal bool Exited=>_exit.Task.IsCompleted;
-        internal Host(Func<string,uint,byte[]?> read,uint idle)
+        internal Host(Func<string,uint,byte[]?> read,uint idle,Func<bool>? pending=null)
         {
             var root=new DirectoryInfo(AppContext.BaseDirectory);while(root is not null&&!File.Exists(Path.Combine(root.FullName,"Directory.Build.props")))root=root.Parent;Assert.NotNull(root);
 #if DEBUG
@@ -65,11 +73,12 @@ public sealed class ThumbnailHostNativeTests
 #endif
             var path=Path.Combine(root.FullName,"artifacts","native-thumbnail-host",RuntimeInformation.ProcessArchitecture==Architecture.Arm64?"ARM64":"x64",configuration,"HybridMount.Ext.dll");Assert.True(File.Exists(path),"先构建隔离缩略图宿主测试DLL："+path);_library=NativeLibrary.Load(path);
             _read=(nint context,string file,uint size,out nint png,out uint length)=>{png=0;length=0;try{var bytes=read(file,size);if(bytes is null)return unchecked((int)0x80070490);png=Marshal.AllocCoTaskMem(bytes.Length);Marshal.Copy(bytes,0,png,bytes.Length);length=(uint)bytes.Length;return 0;}catch{if(png!=0)Marshal.FreeCoTaskMem(png);png=0;length=0;return unchecked((int)0x80004005);}};
-            var run=Marshal.GetDelegateForFunctionPointer<Run>(NativeLibrary.GetExport(_library,"HybridMountRunThumbnailServer"));var thread=new Thread(()=>{try{_exit.SetResult(run(_read,0,_stop.SafeWaitHandle.DangerousGetHandle(),idle));}catch(Exception error){_exit.SetException(error);}}){IsBackground=true};thread.SetApartmentState(ApartmentState.STA);thread.Start();
+            _busy=pending is null?null:_=>pending();
+            var run=Marshal.GetDelegateForFunctionPointer<Run>(NativeLibrary.GetExport(_library,"HybridMountRunThumbnailServer"));var thread=new Thread(()=>{try{_exit.SetResult(_busy is null?run(_read,0,_stop.SafeWaitHandle.DangerousGetHandle(),idle):Marshal.GetDelegateForFunctionPointer<RunActivity>(NativeLibrary.GetExport(_library,"HybridMountRunShellServerWithActivity"))(_read,0,_stop.SafeWaitHandle.DangerousGetHandle(),idle,1,_busy));}catch(Exception error){_exit.SetException(error);}}){IsBackground=true};thread.SetApartmentState(ApartmentState.STA);thread.Start();
         }
         internal Provider Create(string path)=>new(path,_exit.Task);
         internal void Stop()=>_stop.Set();
-        public void Dispose(){_stop.Set();Assert.True(_exit.Task.Wait(TimeSpan.FromSeconds(10)),"COM对象必须释放后再停止宿主");Assert.Equal(0,_exit.Task.GetAwaiter().GetResult());GC.KeepAlive(_read);_stop.Dispose();NativeLibrary.Free(_library);Registry.CurrentUser.DeleteSubKeyTree(@"Software\HybridMount.NET.Tests\ShellProbe\d0037037",false);}
+        public void Dispose(){_stop.Set();Assert.True(_exit.Task.Wait(TimeSpan.FromSeconds(10)),"COM对象必须释放后再停止宿主");Assert.Equal(0,_exit.Task.GetAwaiter().GetResult());GC.KeepAlive(_read);GC.KeepAlive(_busy);_stop.Dispose();NativeLibrary.Free(_library);Registry.CurrentUser.DeleteSubKeyTree(@"Software\HybridMount.NET.Tests\ShellProbe\d0037037",false);}
     }
     private sealed unsafe class Provider:IDisposable
     {

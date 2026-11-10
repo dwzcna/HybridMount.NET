@@ -17,20 +17,20 @@ public static class PreviewWorker
             var request=IpcProtocol.ReadAsync<PreviewWorkerPacket>(input).GetAwaiter().GetResult();
             if(request.Kind!="decode"||request.Length<0||request.Extension is null||!Supports("file"+request.Extension))return 2;
             using var stream=new BrokerStream(input,output,request.Length);var frames=new Dictionary<int,byte[]>();
-            foreach(var size in Sizes)
-            {
-                stream.Position=0;byte[]? png;
-                if(request.Extension==".exe")png=ExeIconExtractor.Extract(stream,size);
-                else
-                {
-                    var status=Decode(new ComReadStream(stream),request.Extension,(uint)size,out var memory,out var count);
-                    try{if(status<0||memory==0||count is <8 or >ExePreviewCache.MaximumPngBytes)throw new IOException("系统解码不可用。");png=new byte[count];Marshal.Copy(memory,png,0,(int)count);}finally{if(memory!=0)Marshal.FreeCoTaskMem(memory);}
-                }
-                if(png is null)throw new IOException("未取得媒体帧。");frames[size]=png;
-            }
+            // 仅256像素帧访问原始媒体，派生尺寸只读取已生成的内存PNG。
+            var primary=request.Extension==".exe"?ExeIconExtractor.Extract(stream,256):DecodeFrame(stream,request.Extension,256);
+            if(primary is null)throw new IOException("未取得媒体帧。");frames[256]=primary;
+            foreach(var size in Sizes.Where(value=>value!=256))using(var small=new MemoryStream(primary,false))frames[size]=DecodeFrame(small,".png",size);
             IpcProtocol.WriteAsync(output,new PreviewWorkerPacket("result",Frames:frames)).GetAwaiter().GetResult();return 0;
         }
         catch{try{IpcProtocol.WriteAsync(output,new PreviewWorkerPacket("unsupported")).GetAwaiter().GetResult();}catch{}return 1;}
+    }
+    /// <summary>将当前只读流缩放为单帧；原生缓冲区无论成功或失败均在调用线程归还。</summary>
+    private static byte[] DecodeFrame(Stream stream,string extension,int size)
+    {
+        var status=Decode(new ComReadStream(stream),extension,(uint)size,out var memory,out var count);
+        try{if(status<0||memory==0||count is <8 or >ExePreviewCache.MaximumPngBytes)throw new IOException("系统解码不可用。");var png=new byte[count];Marshal.Copy(memory,png,0,(int)count);return png;}
+        finally{if(memory!=0)Marshal.FreeCoTaskMem(memory);}
     }
     [DllImport("HybridMount.Ext.dll",EntryPoint="HybridMountDecodePreview",CharSet=CharSet.Unicode)]
     private static extern int Decode([MarshalAs(UnmanagedType.Interface)]IStream stream,string extension,uint size,out nint png,out uint length);

@@ -16,7 +16,7 @@ namespace {
     };
 }
 /// <summary>STA消息循环服务Shell；只有工厂自身的基线引用时才空闲退出，不终止仍有对象／锁的宿主。</summary>
-extern "C" HRESULT WINAPI HybridMountRunShellServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds,DWORD flags) noexcept{
+extern "C" HRESULT WINAPI HybridMountRunShellServerWithActivity(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds,DWORD flags,BOOL(WINAPI* busy)(void*)) noexcept{
     if(!flags||(flags&~3u)||((flags&1)&&!read)||!stopEvent||idleMilliseconds<100)return E_INVALIDARG;
     auto initialized=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);if(FAILED(initialized))return initialized;
     HRESULT status=S_OK;DWORD cookie=0,menuCookie=0;std::atomic<bool> closing{false};bool suspended=false;
@@ -29,16 +29,16 @@ extern "C" HRESULT WINAPI HybridMountRunShellServer(HybridMountReadThumbnail rea
         if(SUCCEEDED(status))status=CoResumeClassObjects();
         auto lastActive=GetTickCount64();
         while(SUCCEEDED(status)&&(cookie||menuCookie)){
-            const auto count=g_objects.load();if(count>baseline)lastActive=GetTickCount64();
+            const auto count=g_objects.load();const bool working=busy&&busy(context);if(count>baseline||working)lastActive=GetTickCount64();
             const auto signaled=WaitForSingleObject(stopEvent,0)==WAIT_OBJECT_0;
             if(signaled||GetTickCount64()-lastActive>=idleMilliseconds){
                 closing.store(true);if(!suspended){status=CoSuspendClassObjects();suspended=true;}
-                if(g_objects.load()==baseline)break;
+                if(g_objects.load()==baseline&&!working)break;
             }
             auto result=MsgWaitForMultipleObjects(suspended?0:1,suspended?nullptr:&stopEvent,FALSE,100,QS_ALLINPUT);
             if(result==WAIT_FAILED){status=HRESULT_FROM_WIN32(GetLastError());break;}
             MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
-                if(message.message==WM_QUIT){closing.store(true);CoSuspendClassObjects();suspended=true;}
+                if(message.message==WM_QUIT){SetEvent(stopEvent);closing.store(true);CoSuspendClassObjects();suspended=true;}
                 else{TranslateMessage(&message);DispatchMessageW(&message);}
             }
         }
@@ -46,6 +46,9 @@ extern "C" HRESULT WINAPI HybridMountRunShellServer(HybridMountReadThumbnail rea
     }catch(...){status=E_OUTOFMEMORY;}
     if(cookie)CoRevokeClassObject(cookie);if(menuCookie)CoRevokeClassObject(menuCookie);CoUninitialize();return status;
 }
+
+/// <summary>保留原宿主ABI；新宿主额外提供只读工作计数以覆盖后台解码和通知生命周期。</summary>
+extern "C" HRESULT WINAPI HybridMountRunShellServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds,DWORD flags) noexcept{return HybridMountRunShellServerWithActivity(read,context,stopEvent,idleMilliseconds,flags,nullptr);}
 
 /// <summary>保留既有单缩略图ABI供旧宿主与隔离回归使用。</summary>
 extern "C" HRESULT WINAPI HybridMountRunThumbnailServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds) noexcept{return HybridMountRunShellServer(read,context,stopEvent,idleMilliseconds,1);}

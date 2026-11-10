@@ -1,4 +1,5 @@
 #include "LocalThumbnail.h"
+#include "LocalThumbnailQueue.h"
 #include "NativeFile.h"
 #include "NativeWire.h"
 #include "NativeDiagnostics.h"
@@ -80,9 +81,9 @@ public:
     IFACEMETHODIMP LockRegion(ULARGE_INTEGER,ULARGE_INTEGER,DWORD)override{return E_NOTIMPL;}
     IFACEMETHODIMP UnlockRegion(ULARGE_INTEGER,ULARGE_INTEGER,DWORD)override{return E_NOTIMPL;}
 };
-bool FullLocal(const std::wstring& path){auto file=OpenAttributes(path);auto stamp=InspectFile(file.Value);if(stamp.Directory||stamp.Links!=1)return false;FILE_ATTRIBUTE_TAG_INFO tag{};WinCheck(GetFileInformationByHandleEx(file.Value,FileAttributeTagInfo,&tag,sizeof(tag)));return Persisted(file.Value)?HasFullContent(file.Value,stamp.Length):(tag.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)==0;}
+bool FullLocal(const std::wstring& path){auto file=OpenAttributes(path);auto stamp=InspectFile(file.Value);if(stamp.Directory||stamp.Links!=1||stamp.Length==0)return false;FILE_ATTRIBUTE_TAG_INFO tag{};WinCheck(GetFileInformationByHandleEx(file.Value,FileAttributeTagInfo,&tag,sizeof(tag)));return Persisted(file.Value)?HasFullContent(file.Value,stamp.Length):(tag.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)==0;}
 /// <summary>仅本次创建的子进程进入512MiB Job；仅继承输出句柄，两秒期限包括启动、读取和解码。</summary>
-std::vector<BYTE> DecodeLocal(const std::wstring& path,UINT size) {
+std::vector<BYTE> DecodeLocal(const std::wstring& path,UINT size,HANDLE stopping=nullptr,std::string* verifiedStamp=nullptr,LocalThumbnailTiming* timing=nullptr) {
     const auto deadline=GetTickCount64()+2000;auto before=InspectFile(path);auto grant=ReadThumbnailGrant(path);
     Handle output,write;SECURITY_ATTRIBUTES security{sizeof(security),nullptr,TRUE};WinCheck(CreatePipe(&output.Value,&write.Value,&security,0));WinCheck(SetHandleInformation(output.Value,HANDLE_FLAG_INHERIT,0));
     SIZE_T length{};InitializeProcThreadAttributeList(nullptr,1,0,&length);std::vector<BYTE> memory(length);auto attributes=reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(memory.data());WinCheck(InitializeProcThreadAttributeList(attributes,1,0,&length));
@@ -92,11 +93,11 @@ std::vector<BYTE> DecodeLocal(const std::wstring& path,UINT size) {
     STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof(startup);startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES|STARTF_FORCEOFFFEEDBACK;startup.StartupInfo.hStdOutput=write.Value;startup.lpAttributeList=attributes;
     auto executable=ModuleDirectory()+L"\\HybridMount.Stock.exe";auto arguments=L"\""+executable+L"\" --local-thumbnail-worker \""+path+L"\" "+std::to_wstring(size)+L" "+std::to_wstring(reinterpret_cast<ULONG_PTR>(acknowledged.Value));PROCESS_INFORMATION process{};
     Handle job(CreateJobObjectW(nullptr,nullptr));WinCheck(job.Value!=nullptr);JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE|JOB_OBJECT_LIMIT_PROCESS_MEMORY;limits.ProcessMemoryLimit=512ULL*1024*1024;WinCheck(SetInformationJobObject(job.Value,JobObjectExtendedLimitInformation,&limits,sizeof(limits)));
-    WinCheck(CreateProcessW(executable.c_str(),arguments.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW|CREATE_SUSPENDED|EXTENDED_STARTUPINFO_PRESENT,nullptr,ModuleDirectory().c_str(),&startup.StartupInfo,&process));Handle child(process.hProcess),thread(process.hThread);
+    const auto launching=GetTickCount64();WinCheck(CreateProcessW(executable.c_str(),arguments.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW|CREATE_SUSPENDED|EXTENDED_STARTUPINFO_PRESENT,nullptr,ModuleDirectory().c_str(),&startup.StartupInfo,&process));Handle child(process.hProcess),thread(process.hThread);if(timing){timing->Started=true;timing->Startup=GetTickCount64()-launching;}
     if(!AssignProcessToJobObject(job.Value,child.Value)){TerminateProcess(child.Value,1);throw Failure(HRESULT_FROM_WIN32(GetLastError()));}
     WinCheck(ResumeThread(thread.Value)!=static_cast<DWORD>(-1));CloseHandle(write.Value);write.Value=nullptr;
     std::vector<BYTE> bytes;DWORD expected{};bool header=false;
-    while(GetTickCount64()<deadline) {
+    while(GetTickCount64()<deadline&&(!stopping||WaitForSingleObject(stopping,0)==WAIT_TIMEOUT)) {
         DWORD available{};if(!PeekNamedPipe(output.Value,nullptr,0,nullptr,&available,nullptr)){Require(GetLastError()==ERROR_BROKEN_PIPE,HRESULT_FROM_WIN32(GetLastError()));break;}
         if(available) {
             if(!header&&available>=4){Transfer(output.Value,&expected,4,false);Require(expected>0&&expected<=1024*1024);header=true;bytes.reserve(expected);available-=4;}
@@ -106,29 +107,53 @@ std::vector<BYTE> DecodeLocal(const std::wstring& path,UINT size) {
         WaitForSingleObject(child.Value,10);
     }
     if(!header||bytes.size()!=expected){TerminateJobObject(job.Value,1);throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}
-    auto result=Parse(std::string(bytes.begin(),bytes.end()),1024*1024);if(result.at("kind")!="localResult"){ThumbnailEvidence=result.value("evidence",Json::object());LocalFailureStage=result.value("stage","local-worker");if(LocalFailureStage.size()>64||!LocalFailureStage.starts_with("local-"))LocalFailureStage="local-worker";throw Failure(result.value("hresult",E_FAIL),LocalFailureStage.c_str());}
-    if(result.at("initial")!=ContentStamp(before)||result.at("stamp")!=ContentStamp(InspectFile(path))||ReadThumbnailGrant(path)!=grant)throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-parent-validation");
-    auto png=Base64(result.at("png").get<std::string>());WinCheck(SetEvent(acknowledged.Value));return png;
+    auto result=Parse(std::string(bytes.begin(),bytes.end()),1024*1024);if(timing)timing->Decode=result.value("decodeMs",0ULL);if(result.at("kind")!="localResult"){ThumbnailEvidence=result.value("evidence",Json::object());LocalFailureStage=result.value("stage","local-worker");if(LocalFailureStage.size()>64||!LocalFailureStage.starts_with("local-"))LocalFailureStage="local-worker";throw Failure(result.value("hresult",E_FAIL),LocalFailureStage.c_str());}
+    if(result.at("initial")!=ContentStamp(before))throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-parent-initial");
+    auto png=Base64(result.at("png").get<std::string>());WinCheck(SetEvent(acknowledged.Value));
+    const auto now=GetTickCount64();Require(now<deadline&&WaitForSingleObject(child.Value,static_cast<DWORD>(deadline-now))==WAIT_OBJECT_0,HRESULT_FROM_WIN32(ERROR_TIMEOUT));
+    const auto stamp=result.at("stamp").get<std::string>();
+    if(stamp!=ContentStamp(InspectFile(path))||ReadThumbnailGrant(path)!=grant)throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-parent-validation");
+    if(verifiedStamp)*verifiedStamp=stamp;return png;
 }
 }
-std::vector<BYTE> ReadAvailableThumbnail(const std::wstring& path,UINT size) {
-    Require(size>=1&&size<=256);try{auto cached=ReadCachedThumbnail(path,size);if(!cached.empty())return cached;}catch(const Failure&){}catch(const Json::exception&){}
-    ThumbnailReadStage="local-authorization";ReadThumbnailGrant(path);ThumbnailReadStage="local-completeness";if(!FullLocal(path))return {};
-    ThumbnailReadStage="local-decode";auto png=DecodeLocal(path,size);ThumbnailReadStage="local-ready";return png;
+std::string LocalThumbnailStamp(const std::wstring& path){return ContentStamp(InspectFile(path));}
+std::vector<BYTE> DecodeLocalThumbnail(const std::wstring& path,HANDLE stopping,std::string& verifiedStamp,LocalThumbnailTiming& timing){return DecodeLocal(path,256,stopping,&verifiedStamp,&timing);}
+std::vector<BYTE> ReadAvailableThumbnail(const std::wstring& path,UINT size,bool asynchronous) {
+    Require(size>=1&&size<=256);Json grant;auto cached=ReadThumbnailSnapshot(path,size,grant);if(!cached.empty())return cached;
+    ThumbnailReadStage="local-completeness";if(!FullLocal(path))return {};
+    if(!asynchronous){ThumbnailReadStage="local-decode";auto png=DecodeLocal(path,size);ThumbnailReadStage="local-ready";return png;}
+    const auto stamp=LocalThumbnailStamp(path);auto png=QueueLocalThumbnail(path,stamp,grant);
+    if(!png.empty()){Require(LocalThumbnailStamp(path)==stamp,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));ThumbnailReadStage="local-ready";}else ThumbnailReadStage="local-queued";
+    return png;
 }
 int RunLocalThumbnailWorker(const std::wstring& path,UINT size,HANDLE acknowledged)noexcept {
     auto initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Apartment{HRESULT Code;~Apartment(){if(SUCCEEDED(Code))CoUninitialize();}} apartment{initialized};
-    std::shared_ptr<Content> content;
+    std::shared_ptr<Content> content;ULONGLONG decodeMilliseconds{};
     try {
-        Check(initialized);Require(size>=1&&size<=256);auto grant=ReadThumbnailGrant(path);content=std::make_shared<Content>(path,grant);auto stream=Microsoft::WRL::Make<LocalStream>(content);Require(stream!=nullptr);
+        Check(initialized);WinCheck(SetPriorityClass(GetCurrentProcess(),PROCESS_MODE_BACKGROUND_BEGIN));Require(size>=1&&size<=256);auto grant=ReadThumbnailGrant(path);
+        // 命名互斥量先于任何正文保护引用；与托管生成者按同SID及NTFS身份共享。
+        auto identity=InspectFile(path).Identity;auto hash=Sha256(Utf8(CurrentSid())+"|"+identity);for(auto& letter:hash)letter=static_cast<char>(tolower(letter));
+        Handle mutex(CreateMutexW(nullptr,FALSE,(L"Local\\HybridMount.Preview.Decode."+Wide(hash)).c_str()));WinCheck(mutex.Value!=nullptr);
+        auto acquired=WaitForSingleObject(mutex.Value,1500);Require(acquired==WAIT_OBJECT_0||acquired==WAIT_ABANDONED,HRESULT_FROM_WIN32(ERROR_TIMEOUT));
+        struct MutexOwner{HANDLE Value;~MutexOwner(){ReleaseMutex(Value);}} mutexOwner{mutex.Value};
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+        // 仅隔离映像可注入慢解码；产品映像不读取此变量，仍使用原有两秒Job期限。
+        wchar_t delay[16]{};if(GetEnvironmentVariableW(L"HYBRIDMOUNT_TEST_LOCAL_DELAY_MS",delay,16)){auto milliseconds=wcstoul(delay,nullptr,10);Sleep(std::min(milliseconds,5000ul));}
+#endif
+        content=std::make_shared<Content>(path,grant);auto stream=Microsoft::WRL::Make<LocalStream>(content);Require(stream!=nullptr);
         auto extension=path.substr(path.find_last_of(L'.'));for(auto& letter:extension)letter=static_cast<wchar_t>(towlower(letter));
         bool supported=false;for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4"})supported|=extension==item;Require(supported,E_NOTIMPL);
         auto module=LoadLibraryExW((ModuleDirectory()+L"\\HybridMount.Ext.dll").c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);Require(module!=nullptr,HRESULT_FROM_WIN32(ERROR_MOD_NOT_FOUND));
         struct Module{HMODULE Value;~Module(){FreeLibrary(Value);}} owner{module};using Decode=HRESULT(WINAPI*)(IStream*,const wchar_t*,UINT,BYTE**,DWORD*);Decode decode{};auto proc=GetProcAddress(module,"HybridMountDecodePreview");Require(proc!=nullptr);memcpy(&decode,&proc,sizeof(decode));
-        BYTE* png{};DWORD count{};auto status=decode(stream.Get(),extension.c_str(),std::clamp(size,16u,256u),&png,&count);struct Memory{BYTE* Value;~Memory(){CoTaskMemFree(Value);}} bytes{png};Check(status);Require(png&&count>=33&&count<=384*1024);
-        auto final=content->Verify();if(ReadThumbnailGrant(path)!=grant)throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-worker-validation");
-        WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","localResult"},{"png",Base64(png,count)},{"initial",ContentStamp(content->Before)},{"stamp",ContentStamp(final)}});WaitForSingleObject(acknowledged,2500);return 0;
-    }catch(const Failure& error){try{WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","unavailable"},{"hresult",error.Code},{"stage",content&&content->ReadStage?content->ReadStage:error.Stage},{"evidence",content?content->Evidence:Json::object()}});}catch(...){}return 1;}
+        BYTE* png{};DWORD count{};const auto decoding=GetTickCount64();auto status=decode(stream.Get(),extension.c_str(),std::clamp(size,16u,256u),&png,&count);struct Memory{BYTE* Value;~Memory(){CoTaskMemFree(Value);}} bytes{png};decodeMilliseconds=GetTickCount64()-decoding;Check(status);Require(png&&count>=33&&count<=384*1024);
+        auto final=content->Verify();content->Close();auto closed=InspectFile(path);
+        Require(closed.Identity==final.Identity&&closed.Length==final.Length&&closed.LastWrite==final.LastWrite,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        // 只吸收本次只读保护引用关闭造成的已知元数据USN；无法证明或包含正文变化时拒绝。
+        if(ContentStamp(closed)!=ContentStamp(final))Require(final.Usn>0&&closed.Usn>final.Usn&&(closed.Reasons&(USN_REASON_DATA_OVERWRITE|USN_REASON_DATA_EXTEND|USN_REASON_DATA_TRUNCATION|USN_REASON_NAMED_DATA_OVERWRITE|USN_REASON_NAMED_DATA_EXTEND|USN_REASON_NAMED_DATA_TRUNCATION))==0,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        if(content->Cloud){auto file=OpenAttributes(path);auto info=InspectPlaceholder(file.Value);Require(info.Identity==content->Cloud->Identity&&info.InSync==content->Cloud->InSync&&info.Pin==content->Cloud->Pin&&info.Modified==content->Cloud->Modified&&HasFullContent(file.Value,closed.Length),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));}
+        final=closed;if(ReadThumbnailGrant(path)!=grant)throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-worker-validation");
+        WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","localResult"},{"png",Base64(png,count)},{"decodeMs",decodeMilliseconds},{"initial",ContentStamp(content->Before)},{"stamp",ContentStamp(final)}});WaitForSingleObject(acknowledged,2500);return 0;
+    }catch(const Failure& error){try{WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","unavailable"},{"decodeMs",decodeMilliseconds},{"hresult",error.Code},{"stage",content&&content->ReadStage?content->ReadStage:error.Stage},{"evidence",content?content->Evidence:Json::object()}});}catch(...){}return 1;}
     catch(...){try{WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","unavailable"},{"hresult",E_FAIL}});}catch(...){}return 1;}
 }
 }

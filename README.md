@@ -1,16 +1,18 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.58 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.59 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 本分支 `codex/native-backend` 基于 .42，未包含 .43；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份及现有挂载数据保持兼容。
 
-挂载任务由应用级 TasksQueueService 调度，任务页经 TasksViewModel 读取状态与提交命令；每挂载的存储网络步骤串行，跨挂载最多两路。按需读取优先于用户操作、自动同步、目录检测、缩略图和维护；低优先级在范围块、分页或分片边界让路，已发送的完整写入先安全结束。冲突与依赖等待不占网络名额，任务页显示优先级、阶段、阻塞任务和重试时间。
+挂载任务由应用级 TasksQueueService 调度，任务页经 TasksViewModel 读取状态与提交命令；每挂载的存储网络步骤串行，跨挂载最多两路。按需读取优先于用户操作、自动同步、目录检测、缩略图和维护；低优先级在范围块、分页或分片边界让路，已发送的完整写入先安全结束。冲突与依赖等待不占网络名额，任务页显示优先级、阶段、阻塞任务和重试时间；每行任务ID支持选中复制，图标工具栏保留悬停提示。
 
 导航为“首页 → 挂载 → 任务 → 日志”，设置位于底部；使用页面枚举和 Frame.Navigate 切换，采用内置淡入与上移动画，并保留原生返回历史。标题栏返回按钮与 Alt＋左方向键共用返回入口；无历史时按钮禁用，弹层打开时保持底层页面。五页缓存各自的草稿、选择和滚动。设置标题固定在滚动区上方，选项卡片保持左侧对齐，宽屏限制内容列宽，窄窗口内控件随可用宽度收缩。挂载使用 MapDrive 图标；品牌资源采用银灰色硬盘与骡子探头图形，覆盖程序、托盘、扩展及 MSIX 全部缩放资源。
 
 群晖 File Station 首版以 DSM 6.2／7.x 为兼容目标，真实设备验收仍待执行。选择“群晖 NAS”后填写 DSM 地址（默认 HTTPS 5001），测试连接、选择共享文件夹与子目录；二步验证码只用于本次登录，证书信任限当前挂载。首次读取先取得并核验完整文件快照，可能需要等待整文件下载。新建和另存副本仅在服务通过同名拒绝探测后允许上传；已有文件修改保留冲突，覆盖、删除及移动暂不支持。仅联机缩略图保持普通图标，完整本地文件继续使用原生缩略图。群晖配置导出为 v6，纯 WebDAV／S3 配置继续使用 v5，加密算法及可选密码语义相同。
+
+缩略图首次生成优先保持资源管理器响应：未命中先显示普通图标，后台生成后逐张刷新；完整本地内容在主程序退出后仍可由原生宿主补图。浏览观察采用有界视口采样，静止时五秒补查；格式不支持或失败按内容版本暂缓五分钟。冷占位不会因原生本地回退下载正文。
 
 ## 使用
 

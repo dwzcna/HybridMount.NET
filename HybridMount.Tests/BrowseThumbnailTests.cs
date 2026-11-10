@@ -13,6 +13,7 @@ public sealed class BrowseThumbnailTests
         test.Manager.LocalPreviewsForTests=true;test.Manager.RemoteThumbnailsForTests=true;test.Manager.BrowsePreviewsForTests=true;await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);
         await Task.Delay(150);Assert.DoesNotContain(test.Dav.Server.Requests,x=>x.Method=="GET");var path=Path.Combine(test.Local,"visible.bmp");test.Manager.ApplyPreviewDemandForTests(test.Id,[path]);
         await Ready(test,path);var count=test.Dav.Server.Requests.Count;for(var i=0;i<50;i++)test.Manager.ApplyPreviewDemandForTests(test.Id,[path]);await Task.Delay(150);
+        var notifiedUntil=DateTime.UtcNow.AddSeconds(3);while(notifications.IsEmpty&&DateTime.UtcNow<notifiedUntil)await Task.Delay(25);
         Assert.Equal(path,Assert.Single(notifications));Assert.Equal(count,test.Dav.Server.Requests.Count);Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));Assert.DoesNotContain(test.Dav.Server.Requests,x=>x.Method=="GET"&&x.Target.Contains("hidden.bmp",StringComparison.Ordinal));
         Assert.All(test.Dav.Server.Requests.Where(x=>x.Method=="GET"),x=>Assert.NotNull(x.Headers.GetValueOrDefault("Range")));Assert.DoesNotContain(test.Dav.Server.Requests,x=>x.Method is "PUT" or "MOVE" or "DELETE");
     }

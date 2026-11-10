@@ -190,6 +190,7 @@
     <Compile Include="..\HybridMount\Models\Thumbnails\BackgroundPreviewProcess.cs" Link="Production\Models\Thumbnails\BackgroundPreviewProcess.cs"/>
     <Compile Include="..\HybridMount\Models\Thumbnails\ExeIconExtractor.cs" Link="Production\Models\Thumbnails\ExeIconExtractor.cs"/>
     <Compile Include="..\HybridMount\Models\Thumbnails\PreviewRangeBudget.cs" Link="Production\Models\Thumbnails\PreviewRangeBudget.cs"/>
+    <Compile Include="..\HybridMount\Models\Thumbnails\PreviewDecodeLease.cs" Link="Production\Models\Thumbnails\PreviewDecodeLease.cs"/>
     <Compile Include="..\HybridMount\Models\Thumbnails\PreviewWorker.cs" Link="Production\Models\Thumbnails\PreviewWorker.cs"/>
     <Compile Include="..\HybridMount\Models\Thumbnails\PreviewWorkerClient.cs" Link="Production\Models\Thumbnails\PreviewWorkerClient.cs"/>
     <Compile Include="..\HybridMount\Models\Thumbnails\ThumbnailCacheCatalog.cs" Link="Production\Models\Thumbnails\ThumbnailCacheCatalog.cs"/>

@@ -61,7 +61,7 @@ namespace {
                     if(SUCCEEDED(status)&&bytes&&length>=8&&length<=384*1024){try{png.assign(bytes,bytes+length);}catch(...){CoTaskMemFree(bytes);return E_OUTOFMEMORY;}}
                     CoTaskMemFree(bytes);if(FAILED(status))return status;if(png.empty())return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
                     status=Decode(png,bitmap,std::min(size,256u));
-                }else{png=hm::ReadAvailableThumbnail(_path,bounded);status=Decode(png,bitmap,std::min(size,256u));}
+                }else{png=hm::ReadCachedThumbnail(_path,bounded);status=Decode(png,bitmap,std::min(size,256u));}
                 if(SUCCEEDED(status))*alpha=WTSAT_ARGB;return status;
             }catch(const hm::Failure& error){return error.Code;}catch(...){return E_FAIL;}
         }

@@ -151,6 +151,21 @@ internal sealed class ThumbnailCacheStore(string database)
         }
         catch(Exception error)when(Miss(error)){return null;}
     }
+    /// <summary>一个只读事务检查四种尺寸的头部及当前绑定；不重复打开库或加载完整BLOB。</summary>
+    internal bool HasFrames(string path,Func<ThumbnailCacheBinding,bool> validate)
+    {
+        try
+        {
+            using var db=Open(false);if(!Supported(db))return false;using var tx=db.BeginTransaction(deferred:true);
+            using var bindingQuery=db.CreateCommand();bindingQuery.Transaction=tx;bindingQuery.CommandText="SELECT json FROM bindings WHERE path=$p AND length(json)<=65536 LIMIT 2";bindingQuery.Parameters.AddWithValue("$p",path);
+            ThumbnailCacheBinding binding;using(var rows=bindingQuery.ExecuteReader()){if(!rows.Read())return false;binding=JsonSerializer.Deserialize<ThumbnailCacheBinding>(rows.GetString(0))??throw new IOException("空缩略图绑定。");if(rows.Read())return false;}
+            if(ReadRoot(db,binding.Root.MountId,tx)!=binding.Root||!binding.Root.Enabled||!validate(binding))return false;
+            using var images=db.CreateCommand();images.Transaction=tx;images.CommandText="SELECT size,substr(png,1,24) FROM images WHERE content=$c AND size IN (32,64,128,256) AND length(png) BETWEEN 33 AND 393216";images.Parameters.AddWithValue("$c",binding.ContentKey);using var frames=images.ExecuteReader();var count=0;
+            while(frames.Read()){var size=frames.GetInt32(0);var header=(byte[])frames[1];if(header.Length!=24||!header.AsSpan(0,8).SequenceEqual(Signature)||!header.AsSpan(12,4).SequenceEqual("IHDR"u8))return false;var width=System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(16,4));var height=System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(20,4));if(width<1||height<1||width>size||height>size)return false;++count;}
+            return count==4;
+        }
+        catch(Exception error)when(Miss(error)){return false;}
+    }
     /// <summary>取绑定元数据供本机校验，不解码或读取文件正文。</summary>
     internal ThumbnailCacheBinding? Binding(string path)
     {

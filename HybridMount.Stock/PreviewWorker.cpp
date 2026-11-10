@@ -66,15 +66,18 @@ int RunPreviewWorker()noexcept{
     auto channel=std::make_shared<Channel>();const auto initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
     struct Scope{HRESULT Code;~Scope(){if(SUCCEEDED(Code))CoUninitialize();}} apartment{initialized};
     try{
-        Check(initialized);auto request=ReadFrame(channel->Input);Require(request.at("kind")=="decode");const auto extension=Text(request,"extension");auto length=Integer(request,"length");Require(length>=0);
+        Check(initialized);WinCheck(SetPriorityClass(GetCurrentProcess(),PROCESS_MODE_BACKGROUND_BEGIN));auto request=ReadFrame(channel->Input);Require(request.at("kind")=="decode");const auto extension=Text(request,"extension");auto length=Integer(request,"length");Require(length>=0);
         bool supported=false;for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4",L".exe"})supported|=extension==item;Require(supported);
         auto module=LoadLibraryExW((ModuleDirectory()+L"\\HybridMount.Ext.dll").c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);Require(module!=nullptr);
         struct Module{HMODULE Value;~Module(){FreeLibrary(Value);}} owner{module};using Decode=HRESULT(WINAPI*)(IStream*,const wchar_t*,UINT,BYTE**,DWORD*);Decode decode{};auto proc=GetProcAddress(module,"HybridMountDecodePreview");Require(proc!=nullptr);memcpy(&decode,&proc,sizeof(decode));
         auto input=Microsoft::WRL::Make<BrokerStream>(channel,length);Require(input!=nullptr);Json frames=Json::object();
-        for(UINT size:{32u,64u,128u,256u}){
-            ComPtr<IStream> content=input;if(extension==L".exe")content=ExecutableIcon(input.Get(),size);else Check(content->Seek(LARGE_INTEGER{},STREAM_SEEK_SET,nullptr));
-            BYTE* bytes{};DWORD count{};auto status=decode(content.Get(),extension==L".exe"?L".ico":extension.c_str(),size,&bytes,&count);
-            struct Memory{BYTE* Value;~Memory(){CoTaskMemFree(Value);}} memory{bytes};Check(status);Require(bytes&&count>=8&&count<=384*1024);frames[std::to_string(size)]=Base64(bytes,count);
+        // 原图或视频只提取一次；后续只解码内存中的256像素PNG，不再读取源流。
+        ComPtr<IStream> content=input;if(extension==L".exe")content=ExecutableIcon(input.Get(),256);
+        BYTE* primary{};DWORD primaryCount{};auto status=decode(content.Get(),extension==L".exe"?L".ico":extension.c_str(),256,&primary,&primaryCount);
+        struct Memory{BYTE* Value;~Memory(){CoTaskMemFree(Value);}} original{primary};Check(status);Require(primary&&primaryCount>=8&&primaryCount<=384*1024);frames["256"]=Base64(primary,primaryCount);
+        for(UINT size:{32u,64u,128u}){
+            ComPtr<IStream> scaledInput;Check(CreateStreamOnHGlobal(nullptr,TRUE,&scaledInput));ULONG written{};Check(scaledInput->Write(primary,primaryCount,&written));Require(written==primaryCount);Check(scaledInput->Seek(LARGE_INTEGER{},STREAM_SEEK_SET,nullptr));
+            BYTE* bytes{};DWORD count{};status=decode(scaledInput.Get(),L".png",size,&bytes,&count);Memory memory{bytes};Check(status);Require(bytes&&count>=8&&count<=384*1024);frames[std::to_string(size)]=Base64(bytes,count);
         }
         WriteFrame(channel->Output,{{"kind","result"},{"frames",frames}});return 0;
     }catch(const Failure& error){try{WriteFrame(channel->Output,{{"kind","unsupported"},{"hResult",error.Code}});}catch(...){}return 1;}catch(...){try{WriteFrame(channel->Output,{{"kind","unsupported"},{"hResult",E_FAIL}});}catch(...){}return 1;}

@@ -43,6 +43,16 @@ public sealed partial class MountRepository
             return result;
         }
     }
+    /// <summary>按有界视口路径读取候选；只反序列化命中行，不将整个挂载索引复制到事件处理线程。</summary>
+    internal IReadOnlyList<MountEntry> EntriesAtPaths(Guid mount,IReadOnlyCollection<string> paths)
+    {
+        if(paths.Count==0)return [];if(paths.Count>128)throw new ArgumentOutOfRangeException(nameof(paths));
+        lock(_gate)
+        {
+            using var db=Open();using var cmd=db.CreateCommand();cmd.CommandText="SELECT e.id,e.source,e.local,e.version,e.directory,e.deleted,e.protected,e.materialized,COALESCE(p.presence,0) FROM entries e LEFT JOIN remote_presence p ON e.mount=p.mount AND e.id=p.id WHERE e.mount=$m AND e.local COLLATE NOCASE IN (SELECT value FROM json_each($paths))";cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$paths",JsonSerializer.Serialize(paths));
+            using var row=cmd.ExecuteReader();var result=new List<MountEntry>();while(row.Read())result.Add(new(row.GetString(0),row.GetString(1),row.GetString(2),row.GetString(3),row.GetInt64(4)!=0,row.GetInt64(5)!=0,row.GetInt64(6)!=0,row.GetInt64(7)!=0,(RemotePresence)row.GetInt64(8)));return result;
+        }
+    }
     public void SaveEntry(Guid mount, MountEntry entry)
     {
         lock (_gate)

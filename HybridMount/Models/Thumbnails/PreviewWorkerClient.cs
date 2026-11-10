@@ -7,7 +7,7 @@ using HybridMount.Models.Mounting;
 namespace HybridMount.Models.Thumbnails;
 
 /// <summary>只启动本产品的独立工作模式；匿名管道传输有界字节，512MiB Job 与十秒期限限制系统解码器。</summary>
-public sealed class PreviewWorkerClient(string? executable=null,Action<int>? diagnostic=null)
+public sealed class PreviewWorkerClient(string? executable=null,Action<int>? diagnostic=null,Action<string,long>? timing=null)
 {
     private static string DefaultExecutable()
     {
@@ -29,13 +29,13 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
     private async Task<Dictionary<int,byte[]>?> DecodeCoreAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]?>> read,CancellationToken token)
     {
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(10));var stopping=timeout.Token;
-        using var child=BackgroundPreviewProcess.Start(executable??DefaultExecutable());var process=child.Process;using var job=CreateJobObject(0,null);Task? drain=null;
+        var startup=Stopwatch.GetTimestamp();using var child=BackgroundPreviewProcess.Start(executable??DefaultExecutable());var process=child.Process;using var job=CreateJobObject(0,null);Task? drain=null;
         var limits=new ExtendedLimits{Basic=new BasicLimits{Flags=0x2000|0x100},ProcessMemoryLimit=(nuint)(512L*1024*1024)};
         try
         {
             if(job.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
             if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf<ExtendedLimits>())||!AssignProcessToJobObject(job,process.Handle))throw new Win32Exception(Marshal.GetLastWin32Error());
-            child.Resume();drain=child.Error.CopyToAsync(Stream.Null,stopping);
+            child.Resume();timing?.Invoke("启动",(long)Stopwatch.GetElapsedTime(startup).TotalMilliseconds);var decoding=Stopwatch.GetTimestamp();drain=child.Error.CopyToAsync(Stream.Null,stopping);
             await IpcProtocol.WriteAsync(child.Input,new PreviewWorkerPacket("decode",Extension:extension.ToLowerInvariant(),Length:length),stopping).ConfigureAwait(false);
             while(true)
             {
@@ -49,7 +49,7 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
                         if(!frames.TryGetValue(size,out var png)||png.Length is <24 or >ExePreviewCache.MaximumPngBytes||!png.AsSpan(0,8).SequenceEqual(new byte[]{137,80,78,71,13,10,26,10}))return null;
                         var width=System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16));var height=System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20));if(width<1||height<1||width>size||height>size)return null;
                     }
-                    await process.WaitForExitAsync(stopping).ConfigureAwait(false);await drain.ConfigureAwait(false);return process.ExitCode==0?frames:null;
+                    timing?.Invoke("解码",(long)Stopwatch.GetElapsedTime(decoding).TotalMilliseconds);await process.WaitForExitAsync(stopping).ConfigureAwait(false);await drain.ConfigureAwait(false);return process.ExitCode==0?frames:null;
                 }
                 if(message.Kind!="read"||message.Offset<0||message.Count is <1 or >PreviewRangeBudget.WindowBytes||message.Offset>length-message.Count)throw new IOException("工作进程读取越界。");
                 var data=await read(message.Offset,message.Count,stopping).ConfigureAwait(false);if(data is null)return null;if(data.Length!=message.Count)throw new IOException("预览读取长度不符。");

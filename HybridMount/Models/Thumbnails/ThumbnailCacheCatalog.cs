@@ -20,6 +20,7 @@ internal sealed class ThumbnailCacheCatalog(string directory)
         var root=MountPathGuard.ReadRoot(path);return root is not null&&root.Owner==ThumbnailCacheReader.CurrentOwner?Store(root.MountId):null;
     }
     internal byte[]? Read(string path,int size,Func<ThumbnailCacheBinding,bool> validate)=>StoreFor(path)?.Read(path,size,validate);
+    internal bool HasFrames(ThumbnailCacheBinding binding)=>Store(binding.Root.MountId).HasFrames(binding.Path,current=>current.ContentKey==binding.ContentKey&&ThumbnailCacheReader.Valid(current));
     internal ThumbnailCacheBinding? Binding(string path)=>StoreFor(path)?.Binding(path);
     internal bool Publish(ThumbnailCacheBinding binding,IReadOnlyDictionary<int,byte[]> frames)=>Store(binding.Root.MountId).Publish(binding,frames);
     internal bool Rebind(ThumbnailCacheBinding previous,ThumbnailCacheBinding current)=>Store(current.Root.MountId).Rebind(previous,current);

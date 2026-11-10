@@ -15,11 +15,21 @@ using Microsoft::WRL::ComPtr;
 namespace hm {
 namespace {
 thread_local Json ViewDiagnostics=Json::object();
+ULONGLONG ViewChanged{};
+/// <summary>只记录Explorer窗口的布局／滚动事件；事件回调不访问UIA或文件、不修改视图。</summary>
+void CALLBACK ViewEvent(HWINEVENTHOOK,DWORD,HWND window,LONG,LONG,DWORD,DWORD){
+    if(!window)return;wchar_t name[64]{};GetClassNameW(GetAncestor(window,GA_ROOT),name,64);if(_wcsicmp(name,L"CabinetWClass")==0)ViewChanged=GetTickCount64();
+}
+struct ViewEvents {
+    HWINEVENTHOOK Objects=SetWinEventHook(EVENT_OBJECT_CREATE,EVENT_OBJECT_CONTENTSCROLLED,nullptr,ViewEvent,0,0,WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS);
+    HWINEVENTHOOK Scroll=SetWinEventHook(EVENT_SYSTEM_SCROLLINGSTART,EVENT_SYSTEM_SCROLLINGEND,nullptr,ViewEvent,0,0,WINEVENT_OUTOFCONTEXT|WINEVENT_SKIPOWNPROCESS);
+    ~ViewEvents(){if(Objects)UnhookWinEvent(Objects);if(Scroll)UnhookWinEvent(Scroll);}
+};
 bool Media(const std::wstring& path){auto dot=path.find_last_of(L'.');if(dot==std::wstring::npos)return false;auto extension=path.substr(dot);for(auto& letter:extension)letter=static_cast<wchar_t>(towlower(letter));for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4",L".exe"})if(extension==item)return true;return false;}
 /// <summary>优先真实文件系统路径；侧栏别名下的项目可退回已核验目录内的单一文件名，不接收任意相对路径。</summary>
 std::optional<std::wstring> ItemPath(IShellItem* item,const std::wstring& directory=L""){PWSTR raw{};if(FAILED(item->GetDisplayName(SIGDN_FILESYSPATH,&raw))){if(directory.empty()||FAILED(item->GetDisplayName(SIGDN_PARENTRELATIVEPARSING,&raw)))return {};std::wstring name(raw);CoTaskMemFree(raw);if(name.empty()||name==L"."||name==L".."||name.find_first_of(L"\\/:")!=std::wstring::npos)return {};try{return FullPath(directory+L"\\"+name);}catch(...){return {};}}std::wstring path(raw);CoTaskMemFree(raw);try{return FullPath(path);}catch(...){return {};}}
 Json Views(const std::set<std::string>& mounts){
-    Json result=Json::array();ViewDiagnostics={{"windows",0},{"accepted",0},{"visible",0},{"session",0},{"process",0},{"explorer",0},{"failures",Json::array()}};if(mounts.empty()||!GetShellWindow())return result;ComPtr<IShellWindows> windows;Check(CoCreateInstance(CLSID_ShellWindows,nullptr,CLSCTX_LOCAL_SERVER,IID_PPV_ARGS(&windows)));long count{};Check(windows->get_Count(&count));ViewDiagnostics["windows"]=count;int total{};const char* stage="window";
+    Json result=Json::array();ViewDiagnostics={{"windows",0},{"accepted",0},{"visible",0},{"session",0},{"process",0},{"explorer",0},{"failures",Json::array()},{"enumerationComplete",true}};if(mounts.empty()||!GetShellWindow())return result;ComPtr<IShellWindows> windows;Check(CoCreateInstance(CLSID_ShellWindows,nullptr,CLSCTX_LOCAL_SERVER,IID_PPV_ARGS(&windows)));long count{};Check(windows->get_Count(&count));ViewDiagnostics["windows"]=count;int total{};const char* stage="window";
     for(long i=0;i<count&&i<32&&result.size()<16;++i)try {
         stage="dispatch";VARIANT index{};index.vt=VT_I4;index.lVal=i;ComPtr<IDispatch> dispatch;Check(windows->Item(index,&dispatch));if(!dispatch)continue;
         ComPtr<IWebBrowserApp> browser;Check(dispatch.As(&browser));SHANDLE_PTR rawWindow{};Check(browser->get_HWND(&rawWindow));auto window=reinterpret_cast<HWND>(rawWindow);if(!IsWindowVisible(window)||IsIconic(window))continue;ViewDiagnostics["visible"]=ViewDiagnostics["visible"].get<int>()+1;
@@ -33,11 +43,11 @@ Json Views(const std::set<std::string>& mounts){
         if(!directory){BSTR location{};if(SUCCEEDED(browser->get_LocationURL(&location))&&location){std::wstring url(location,SysStringLen(location));SysFreeString(location);if(url.starts_with(L"file:///")){std::wstring decoded(32768,L'\0');DWORD length=static_cast<DWORD>(decoded.size());if(SUCCEEDED(PathCreateFromUrlW(url.c_str(),decoded.data(),&length,0)))try{decoded.resize(wcslen(decoded.c_str()));directory=FullPath(decoded);}catch(...){}}}}
         ViewDiagnostics["directoryAvailable"]=directory.has_value();if(!directory||directory->size()>4096)continue;stage="root";auto marker=RootMarker(*directory);if(!mounts.contains(GuidN(marker.at("MountId"))))continue;
         ViewDiagnostics["accepted"]=ViewDiagnostics["accepted"].get<int>()+1;stage="viewport";auto sample=ReadVisiblePreviewItems(view.Get(),folderView.Get(),*directory);
-        ViewDiagnostics["strategy"]="UIA.viewport";ViewDiagnostics["candidates"]=ViewDiagnostics.value("candidates",0)+sample.Candidates;
+        ViewDiagnostics["sampleMs"]=ViewDiagnostics.value("sampleMs",0ULL)+sample.Milliseconds;ViewDiagnostics["strategy"]="UIA.viewport";ViewDiagnostics["candidates"]=ViewDiagnostics.value("candidates",0)+sample.Candidates;
         if(!sample.Complete&&ViewDiagnostics["failures"].size()<16)ViewDiagnostics["failures"].push_back({{"stage",stage},{"hresult",sample.Error}});
         Json paths=Json::array();for(auto& path:sample.Paths){if(total>=128)break;paths.push_back(path);++total;}
         result.push_back({{"directory",Utf8(*directory)},{"complete",sample.Complete},{"paths",std::move(paths)}});
-    }catch(const Failure& error){if(ViewDiagnostics["failures"].size()<16)ViewDiagnostics["failures"].push_back({{"stage",stage},{"hresult",error.Code}});}catch(...){/* 一个关闭中或非文件系统窗口不能阻止其他视图。 */}
+    }catch(const Failure& error){ViewDiagnostics["enumerationComplete"]=false;if(ViewDiagnostics["failures"].size()<16)ViewDiagnostics["failures"].push_back({{"stage",stage},{"hresult",error.Code}});}catch(...){ViewDiagnostics["enumerationComplete"]=false;/* 不确定窗口只发布无效样本，不能冒充确认关闭。 */}
     return result;
 }
 struct Child {
@@ -55,19 +65,29 @@ struct Child {
 }
 int RunPreviewObserver(const std::vector<std::string>& mounts)noexcept {
     const auto initialized=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);struct Apartment{HRESULT Code;~Apartment(){if(SUCCEEDED(Code))CoUninitialize();}} apartment{initialized};
-    try{Check(initialized);std::set<std::string> allowed(mounts.begin(),mounts.end());while(true){auto views=Views(allowed);WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","previewViews"},{"views",views},{"diagnostics",ViewDiagnostics}});auto until=GetTickCount64()+1000;while(GetTickCount64()<until){MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){TranslateMessage(&message);DispatchMessageW(&message);}Sleep(25);}}}
-    catch(...){return 1;}
+    try{
+        Check(initialized);SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);ViewEvents events;std::set<std::string> allowed(mounts.begin(),mounts.end());
+        Json views=Json::array();ULONGLONG sampled{},heartbeat{},observed{},samples{};
+        while(true){
+            MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){TranslateMessage(&message);DispatchMessageW(&message);}
+            const auto now=GetTickCount64();const bool changed=ViewChanged!=observed&&now-ViewChanged>=250;
+            if(!sampled||changed||now-sampled>=5000){auto started=GetTickCount64();views=Views(allowed);sampled=GetTickCount64();observed=ViewChanged;++samples;ViewDiagnostics["samplingMs"]=sampled-started;ViewDiagnostics["samples"]=samples;}
+            if(!heartbeat||now-heartbeat>=1000||changed){WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","previewViews"},{"views",views},{"diagnostics",ViewDiagnostics}});heartbeat=now;}
+            Sleep(25);
+        }
+    }catch(...){return 1;}
 }
 struct PreviewObserver::Impl {
     RuntimeHost& Host;Handle Stopping{CreateEventW(nullptr,TRUE,FALSE,nullptr)};std::mutex Gate;std::map<std::string,Json> Roots;std::thread Worker;
     explicit Impl(RuntimeHost& host):Host(host),Worker([this]{Run();}){}
-    /// <summary>观察进程失败时仅取消预览需求；不影响CFAPI连接，也不让旧视口任务无期限保留。</summary>
-    void CancelDemand()noexcept{try{std::map<std::string,Json> roots;{std::lock_guard lock(Gate);roots=Roots;}for(auto& [session,root]:roots)Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",Json::array()},{"complete",true},{"observation",{{"strategy","UIA.viewport"},{"failures",Json::array({{{"stage","observer"},{"hresult",HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)}}})}}}}}});}catch(...){}}
+    /// <summary>观察进程失败只发布无效样本；保留当前需求，待恢复后确认窗口关闭／目录离开再取消。</summary>
+    void CancelDemand()noexcept{try{std::map<std::string,Json> roots;{std::lock_guard lock(Gate);roots=Roots;}for(auto& [session,root]:roots)Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",Json::array()},{"complete",false},{"observation",{{"strategy","UIA.viewport"},{"failures",Json::array({{{"stage","observer"},{"hresult",HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)}}})}}}}}});}catch(...){}}
     void Run()noexcept {
-        ULONGLONG retry{};while(WaitForSingleObject(Stopping.Value,100)==WAIT_TIMEOUT) {
+        std::map<std::string,Json> lastDemand;ULONGLONG retry{};while(WaitForSingleObject(Stopping.Value,100)==WAIT_TIMEOUT) {
             {std::lock_guard lock(Gate);if(Roots.empty())continue;}if(GetTickCount64()<retry)continue;
             try {
-                std::map<std::string,Json> initial;{std::lock_guard lock(Gate);initial=Roots;}Child child(initial);std::vector<BYTE> buffer;auto heartbeat=GetTickCount64();DWORD expected{};
+                std::map<std::string,Json> initial;{std::lock_guard lock(Gate);initial=Roots;}for(auto item=lastDemand.begin();item!=lastDemand.end();)if(!initial.contains(item->first))item=lastDemand.erase(item);else ++item;
+                Child child(initial);std::map<std::string,ULONGLONG> lastSample;std::vector<BYTE> buffer;auto heartbeat=GetTickCount64();DWORD expected{};
                 while(WaitForSingleObject(Stopping.Value,25)==WAIT_TIMEOUT&&!Host.IsStopping()){
                     std::map<std::string,Json> roots;{std::lock_guard lock(Gate);roots=Roots;}if(roots.empty()||roots!=initial)break;
                     DWORD available{};WinCheck(PeekNamedPipe(child.Output.Value,nullptr,0,nullptr,&available,nullptr));
@@ -76,12 +96,21 @@ struct PreviewObserver::Impl {
                     if(expected&&buffer.size()==expected){
                         auto frame=Parse(std::string(buffer.begin(),buffer.end()),1024*1024);Require(frame.at("kind")=="previewViews"&&frame.at("views").is_array()&&frame.at("views").size()<=16);heartbeat=GetTickCount64();expected=0;
                         for(auto& [session,root]:roots)try {
-                            auto base=FullPath(Text(root,"rootPath"));Json paths=Json::array();std::set<std::wstring> seen;bool complete=true;ValidateRuntimeRoot(root);
+                            auto base=FullPath(Text(root,"rootPath"));Json paths=Json::array();std::set<std::wstring> seen,uncertain;bool complete=frame.value("diagnostics",Json::object()).value("enumerationComplete",true);ValidateRuntimeRoot(root);
                             for(auto& view:frame.at("views")){
                                 auto directory=FullPath(Text(view,"directory"));if(!(SamePath(base,directory)||(directory.size()>base.size()&&directory[base.size()]==L'\\'&&SamePath(base,directory.substr(0,base.size())))))continue;
-                                if(!view.value("complete",true)){complete=false;continue;}Require(view.at("paths").is_array()&&view.at("paths").size()<=64);
+                                if(!view.value("complete",true)){complete=false;uncertain.insert(directory);}Require(view.at("paths").is_array()&&view.at("paths").size()<=64);
                                 for(auto& item:view.at("paths")){auto path=FullPath(Wide(item.get<std::string>()));if(path.size()>4096||path.size()<=directory.size()||path[directory.size()]!=L'\\'||!SamePath(directory,path.substr(0,directory.size()))||path.find(L'\\',directory.size()+1)!=std::wstring::npos||!Media(path)||!seen.insert(path).second)continue;if(paths.size()<128)paths.push_back(Utf8(path));}
                             }
+                            // 无效视图保留其旧需求，同时接受其他窗口及本轮已验证的命中；不能因一个超时阻塞全部窗口。
+                            if(!complete&&lastDemand.contains(session)&&lastDemand.at(session).value("complete",false)){
+                                const bool enumeration=frame.value("diagnostics",Json::object()).value("enumerationComplete",true);
+                                for(auto& previous:lastDemand.at(session).at("paths")){auto old=FullPath(Wide(previous.get<std::string>()));auto parent=old.substr(0,old.find_last_of(L'\\'));if((!enumeration||uncertain.contains(parent))&&seen.insert(old).second&&paths.size()<128)paths.push_back(previous);}
+                                complete=true;
+                            }else if(!complete&&!paths.empty())complete=true;
+                            Json demand={{"paths",paths},{"complete",complete}};if(lastDemand.contains(session)&&lastDemand.at(session)==demand){
+                                const auto sample=frame.value("diagnostics",Json::object()).value("samples",0ULL);if(lastSample[session]!=sample){lastSample[session]=sample;Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",Json::array()},{"complete",false},{"observation",frame.value("diagnostics",Json::object())}}}});}continue;
+                            }lastDemand[session]=demand;lastSample[session]=frame.value("diagnostics",Json::object()).value("samples",0ULL);
                             Host.SendPreview({{"kind","event"},{"mountId",GuidN(root.at("mountId"))},{"sessionId",session},{"event","previewDemand"},{"data",{{"paths",paths},{"complete",complete},{"observation",frame.value("diagnostics",Json::object())}}}});
                         }catch(...){/* 根刚断开或身份变化时丢弃提示，不能关闭CFAPI通道。 */}
                     }

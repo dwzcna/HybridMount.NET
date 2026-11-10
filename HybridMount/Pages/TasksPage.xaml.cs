@@ -32,9 +32,13 @@ public sealed partial class TasksPage : Page, IDisposable
         try{JobList.SelectedItem=ViewModel.Selected;}finally{_restoring=false;}
         _viewport.Restore(JobList);
     }
-    /// <summary>窄窗口将历史清理放在下一行，避免新增按钮被裁切；不影响任务列表状态。</summary>
+    /// <summary>操作与历史清理菜单已合并到同一面板；按当前XAML容器占满工具栏列，不再访问旧历史面板。</summary>
     private void ToolbarSizeChanged(object sender,SizeChangedEventArgs args)
-    {if(_disposed||HistoryToolbar is null)return;var narrow=args.NewSize.Width<1150;Grid.SetRow(HistoryToolbar,narrow?1:0);Grid.SetColumn(HistoryToolbar,narrow?0:1);Grid.SetColumnSpan(HistoryToolbar,narrow?2:1);Toolbar.RowSpacing=narrow?8:0;}
+    {
+        if(_disposed||sender is not Grid toolbar)return;
+        var actions=toolbar.Children.OfType<StackPanel>().FirstOrDefault();if(actions is null)return;
+        Grid.SetColumnSpan(actions,Math.Max(1,toolbar.ColumnDefinitions.Count));toolbar.RowSpacing=0;
+    }
     private void ClearIssueFilter(object sender,RoutedEventArgs args)=>ViewModel.ClearIssueFilter();
     /// <summary>只读核对改名事务，界面不直接发送远端改名。</summary>
     private void RecheckRename(object sender,RoutedEventArgs args)=>ViewModel.RecheckSelected();
