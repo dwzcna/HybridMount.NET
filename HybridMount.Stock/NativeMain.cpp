@@ -3,6 +3,7 @@
 #include "PreviewWorker.h"
 #include "LocalThumbnail.h"
 #include "LocalThumbnailQueue.h"
+#include "RemoteThumbnailHints.h"
 #include "PreviewObserver.h"
 #include "RuntimeHost.h"
 #include "NativeDiagnostics.h"
@@ -24,16 +25,33 @@ int ShellServer(const std::wstring& role){
 }
 /// <summary>原生宿主仅接受固定角色，不隐式创建挂载；异常仅作为退出码回传。</summary>
 int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int){
+    struct CacheScope{~CacheScope(){hm::StopRemoteThumbnailHints();hm::StopLocalThumbnails();hm::StopLocalThumbnailDecoder();hm::StopThumbnailReadCache();}} cache;
     int count{};auto argv=CommandLineToArgvW(GetCommandLineW(),&count);if(!argv)return 2;
     struct Args{LPWSTR* Value;~Args(){LocalFree(Value);}} owner{argv};
     const char* role=count>=2&&wcscmp(argv[1],L"--preview-worker")==0?"PreviewWorker":count>=2&&wcscmp(argv[1],L"--runtime")==0?"NativeRuntime":"ShellServer";
     try{
         if(count==4&&wcscmp(argv[1],L"--runtime")==0){wchar_t* end{};auto parent=wcstoul(argv[2],&end,10);hm::Require(end&&!*end&&parent>0);return hm::RunRuntime(parent,argv[3]);}
+        if(count==2&&wcscmp(argv[1],L"--local-thumbnail-service")==0)return hm::RunLocalThumbnailService();
         if(count==2&&wcscmp(argv[1],L"--preview-worker")==0)return hm::RunPreviewWorker();
         if(count>=2&&count<=130&&wcscmp(argv[1],L"--preview-observer")==0){std::vector<std::string> mounts;for(int i=2;i<count;++i)mounts.push_back(hm::GuidN(hm::Utf8(argv[i])));return hm::RunPreviewObserver(mounts);}
         if(count==5&&wcscmp(argv[1],L"--local-thumbnail-worker")==0){wchar_t* end{};auto size=wcstoul(argv[3],&end,10);hm::Require(end&&!*end&&size>=1&&size<=256);auto acknowledged=wcstoull(argv[4],&end,10);hm::Require(end&&!*end&&acknowledged>0);return hm::RunLocalThumbnailWorker(argv[2],static_cast<UINT>(size),reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(acknowledged)));}
         if(count==2&&wcscmp(argv[1],L"--identity")==0){auto value=hm::Utf8(hm::ProductScope())+"\n";DWORD written{};WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),value.data(),static_cast<DWORD>(value.size()),&written,nullptr);return 0;}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+        // 隔离测试复用同一解码拥有者，支持观察真实30秒闲置退出，不启动正式应用。
+        if(count==2&&wcscmp(argv[1],L"--test-local-thumbnail-reader")==0){
+            while(true){auto request=hm::ReadFrame(GetStdHandle(STD_INPUT_HANDLE));if(request.at("kind")=="stop")return 0;
+                hm::Json response;try{if(request.at("kind")=="decode"){std::string stamp;hm::LocalThumbnailTiming timing;hm::Json frames;auto png=hm::DecodeLocalThumbnail(hm::Text(request,"path"),nullptr,stamp,timing,&frames);response={{"hit",!png.empty()},{"frames",frames},{"started",timing.Started},{"stamp",stamp}};}response["decoder"]=hm::LocalThumbnailDecoderStatistics();}
+                catch(const hm::Failure& error){response={{"hit",false},{"hresult",error.Code},{"stage",error.Stage}};}
+                hm::WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),response);
+            }
+        }
+        // 仅隔离映像验证查询复用和空闲句柄收尾；路径仍经过生产授权，不生成、不访问远端。
+        if(count==2&&wcscmp(argv[1],L"--test-thumbnail-reader")==0){
+            auto request=hm::ReadFrame(GetStdHandle(STD_INPUT_HANDLE));auto path=hm::Text(request,"path");const auto samples=hm::Integer(request,"samples");hm::Require(samples>=1&&samples<=2000);hm::Json results=hm::Json::array();
+            for(long long i=0;i<samples;++i){auto started=std::chrono::steady_clock::now();bool hit=false;HRESULT code=S_OK;try{hit=!hm::ReadCachedThumbnail(path,64).empty();}catch(const hm::Failure& error){code=error.Code;}catch(...){code=E_FAIL;}
+                results.push_back({{"hit",hit},{"code",code},{"ms",std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count()}});}
+            hm::WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"samples",results},{"query",hm::ThumbnailQueryStatistics()}});hm::ReadFrame(GetStdHandle(STD_INPUT_HANDLE));return 0;
+        }
         // 仅隔离映像提供批量压力入口；所有路径仍逐项经过生产根授权和完整性检查。
         if(count==2&&wcscmp(argv[1],L"--test-thumbnail-batch")==0){
             struct QueueScope{~QueueScope(){hm::StopLocalThumbnails();}} queue;auto input=hm::ReadFrame(GetStdHandle(STD_INPUT_HANDLE));auto paths=input.at("paths");hm::Require(paths.is_array()&&paths.size()<=1000);
@@ -43,10 +61,10 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int){
 #endif
         // 显式隔离性能探针复用生产异步读取；只有该角色等待采样，COM调用自身从不等待。
         if(count==5&&wcscmp(argv[1],L"--diagnose-async-thumbnail")==0){
-            const auto size=wcstoul(argv[3],nullptr,10),samples=wcstoul(argv[4],nullptr,10);hm::Require(size>=1&&size<=256&&samples>=1&&samples<=1000);
+            const auto size=wcstoul(argv[3],nullptr,10),samples=wcstoul(argv[4],nullptr,10);hm::Require(size>=1&&size<=256&&samples>=1&&samples<=2000);
             struct QueueScope{~QueueScope(){hm::StopLocalThumbnails();}} queue;hm::Json values=hm::Json::array();
             for(unsigned i=0;i<samples;++i){auto started=std::chrono::steady_clock::now();BYTE* bytes{};DWORD length{};auto code=hm::ReadThumbnail(nullptr,argv[2],size,&bytes,&length);CoTaskMemFree(bytes);auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();values.push_back({{"ms",elapsed},{"hit",SUCCEEDED(code)&&length>0},{"code",code}});Sleep(10);}
-            auto output=hm::Json({{"samples",values},{"statistics",hm::LocalThumbnailStatistics()},{"query",hm::ThumbnailQueryStatistics()}}).dump()+"\n";DWORD written{};hm::WinCheck(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),output.data(),static_cast<DWORD>(output.size()),&written,nullptr));return 0;
+            auto output=hm::Json({{"samples",values},{"statistics",hm::LocalThumbnailStatistics()},{"query",hm::ThumbnailQueryStatistics()},{"remote",hm::RemoteThumbnailHintStatistics()}}).dump()+"\n";DWORD written{};hm::WinCheck(WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),output.data(),static_cast<DWORD>(output.size()),&written,nullptr));return 0;
         }
         // 只读诊断复用生产缓存读取；不接受数据库路径，不写文件或启动提供程序。
         if(count==4&&(wcscmp(argv[1],L"--diagnose-thumbnail")==0||wcscmp(argv[1],L"--diagnose-available-thumbnail")==0)){

@@ -94,47 +94,68 @@ public sealed partial class MountManager
         using var queueTask=TasksQueue.EnterTask(mount.Id,"preview:"+mount.Id+":"+entry.Id,MountingPriority.Thumbnail,"thumbnail",entry.SourcePath,entry.Id,entry.Version);
         using var cancelOwner=TasksQueue.RegisterCancellation("preview:"+mount.Id+":"+entry.Id,()=>_previews.CancelEntry(mount.Id,entry.Id));
         allowRemote=allowRemote&&(LegacyRemotePreviewsAllowed||RemoteThumbnailsAllowed); // 仅新按需请求允许有界远端预览。
-        NativeLocalReadLease? local=null;LocalFileStamp? stamp=null;Commons.IFileSource? source=null;long length=0;
+        NativeLocalReadLease? local=null;PreviewDecodeLease? decode=null;LocalFileStamp? stamp=null;Commons.IFileSource? source=null;CloudMountSession? session=null;long length=0;var nativeLocal=false;
+        var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
+#if HYBRIDMOUNT_HEADLESS_TEST
+        // 旧预算专项显式保留原经纪路径；生产和新的本地原生集成回归使用单一Stock生成者。
+        var nativeCompleteLocal=!LegacyPreviewsForTests;
+#else
+        var nativeCompleteLocal=true;
+#endif
         async ValueTask ReleaseLocal(){if(local is {} lease){local=null;await lease.DisposeAsync().ConfigureAwait(false);stamp=lease.Stamp;}}
         try
         {
+            if(!nativeCompleteLocal)decode=await PreviewDecodeLease.AcquireAsync(path,token).ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 if(!root.Definition.ThumbnailsEnabled||root.RemovalRequested||root.Session is null||root.Source is null)return null;
-                var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);
-                var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+                MountPathGuard.ValidateOperation(root.Definition,path);var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
                 if(marker?.MountId!=mount.Id||marker.EntryId!=entry.Id)return null;
-                length=new FileInfo(path).Length;source=root.Source;
+                length=new FileInfo(path).Length;source=root.Source;session=root.Session;
                 if(CloudFilesNative.HasFullContent(path,length))
                 {
-                    local=await NativeLocalReadLease.OpenAsync(root.Definition,entry,token).ConfigureAwait(false);stamp=local.Stamp;
+                    if(nativeCompleteLocal)nativeLocal=true;
+                    else{local=await NativeLocalReadLease.OpenAsync(root.Definition,entry,token).ConfigureAwait(false);stamp=local.Stamp;}
                 }
                 else if(!allowRemote||entry.Protected||info!.Value.Info.InSyncState!=1||info.Value.Info.ModifiedSize!=0)return null;
             }
             finally{root.Gate.Release();}
-            PreviewRangeBudget budget;
-            if(local is not null)
+            if(!nativeLocal&&decode is null)
             {
-                budget=PreviewRangeBudget.ForLocal(length,local.ReadAsync);
+                decode=await PreviewDecodeLease.AcquireAsync(path,token).ConfigureAwait(false);
+                // 排队期间可能已经水合完成，先归还托管互斥量，再由原生端取得自己的互斥量及保护租约。
+                if(nativeCompleteLocal&&CloudFilesNative.HasFullContent(path,length)){await decode.DisposeAsync().ConfigureAwait(false);decode=null;nativeLocal=true;}
             }
-            else if(source!.Capabilities.RangeRead==CapabilitySupport.Unsupported){_previews.RecordOutcome(mount.Id,"远端严格预览不支持");return null;}
-            else budget=new PreviewRangeBudget(source!,new SourceEntry(entry.Id,entry.SourcePath,false,length,DateTimeOffset.MinValue,entry.Version));
-            var frames=await new PreviewWorkerClient(timing:(stage,ms)=>_previews.RecordTiming(mount.Id,stage,ms),diagnostic:code=>{_previews.RecordOutcome(mount.Id,"媒体解码",code,true);_logger.Queue("缩略图","Warning",$"媒体解码失败；HRESULT=0x{code:X8}");}).DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget,token).ConfigureAwait(false);
-            if(frames is null&&budget.UnavailableReason is {} reason)_previews.RecordOutcome(mount.Id,"预览不可用："+reason);
-            // 解码结束先归还oplock；上传／清空可能已持有根锁，不能带着正文保护引用重新等待该锁。
-            await ReleaseLocal().ConfigureAwait(false);
-            await root.Gate.WaitAsync(token).ConfigureAwait(false);
+            Dictionary<int,byte[]>? frames;
+            if(nativeLocal)
+            {
+                var result=await session!.Runtime.InvokeAsync("renderLocalThumbnail",session.EntryArgs(entry),token:token).ConfigureAwait(false);
+                frames=System.Text.Json.JsonSerializer.Deserialize<Dictionary<int,byte[]>>(result.GetProperty("frames"));stamp=NativeRuntimeArguments.Stamp(result);
+                if(frames is null||frames.Count!=4||PreviewWorker.Sizes.Any(size=>!frames.TryGetValue(size,out var png)||png.Length is <24 or >ExePreviewCache.MaximumPngBytes))return null;
+                _previews.RecordTiming(mount.Id,"原生启动",result.GetProperty("startupMs").GetInt64());_previews.RecordTiming(mount.Id,"原生解码",result.GetProperty("decodeMs").GetInt64());
+            }
+            else
+            {
+                PreviewRangeBudget budget;
+                if(local is not null)budget=PreviewRangeBudget.ForLocal(length,local.ReadAsync);
+                else if(source!.Capabilities.RangeRead==CapabilitySupport.Unsupported){_previews.RecordOutcome(mount.Id,"远端严格预览不支持");return null;}
+                else budget=new PreviewRangeBudget(source!,new SourceEntry(entry.Id,entry.SourcePath,false,length,DateTimeOffset.MinValue,entry.Version));
+                frames=await new PreviewWorkerClient(timing:(stage,ms)=>_previews.RecordTiming(mount.Id,stage,ms),diagnostic:code=>{_previews.RecordOutcome(mount.Id,"媒体解码",code,true);_logger.Queue("缩略图","Warning",$"媒体解码失败；HRESULT=0x{code:X8}");}).DecodeAsync(Path.GetExtension(entry.LocalPath),length,budget,token).ConfigureAwait(false);
+                if(frames is null&&budget.UnavailableReason is {} reason)_previews.RecordOutcome(mount.Id,"预览不可用："+reason);
+            }
+            // 归还本地保护引用后才重新等待根锁；不能让上传或清空与预览的锁次序相反。
+            await ReleaseLocal().ConfigureAwait(false);await root.Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                if(!root.Definition.ThumbnailsEnabled||root.RemovalRequested||root.Session is null||!ReferenceEquals(root.Source,source)||_stop.IsCancellationRequested)return null;
-                var current=_repository.EntriesAtPaths(mount.Id,[entry.LocalPath]).FirstOrDefault(item=>item.Id==entry.Id);if(current is null||current.Version!=entry.Version||current.LocalPath!=entry.LocalPath||current.Deleted||current.RemotePresence==RemotePresence.Deleted)return null;
-                var path=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(root.Definition,path);var info=CloudFilesNative.Inspect(path);
-                if(info is null||stamp is not null&&LocalFileState.Read(path).Key!=stamp.Key)return null;
-                return frames;
+                if(!root.Definition.ThumbnailsEnabled||root.RemovalRequested||root.Session is null||!ReferenceEquals(root.Session,session)||!ReferenceEquals(root.Source,source)||_stop.IsCancellationRequested){_previews.RecordOutcome(mount.Id,"生成完成后连接或设置已变化");return null;}
+                var current=_repository.EntriesAtPaths(mount.Id,[entry.LocalPath]).FirstOrDefault(item=>item.Id==entry.Id);if(current is null||current.Version!=entry.Version||current.LocalPath!=entry.LocalPath||current.Deleted||current.RemotePresence==RemotePresence.Deleted){_previews.RecordOutcome(mount.Id,"生成完成后索引版本已变化");return null;}
+                MountPathGuard.ValidateOperation(root.Definition,path);var info=CloudFilesNative.Inspect(path);if(info is null){_previews.RecordOutcome(mount.Id,"生成完成后占位身份不可用");return null;}
+                if(stamp is not null){var actual=LocalFileState.Read(path);if(actual.Key!=stamp.Key){_previews.RecordOutcome(mount.Id,$"生成完成后本地状态戳已变化（USN {stamp.Usn}→{actual.Usn}）");return null;}}
+                return frames is null?null:new VerifiedPreviewFrames(frames,LocalFileState.Read(path));
             }
             finally{root.Gate.Release();}
         }
-        finally{await ReleaseLocal().ConfigureAwait(false);}
+        finally{await ReleaseLocal().ConfigureAwait(false);if(decode is not null)await decode.DisposeAsync().ConfigureAwait(false);}
     }
 }

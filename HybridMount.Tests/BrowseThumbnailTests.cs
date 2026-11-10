@@ -59,6 +59,21 @@ public sealed class BrowseThumbnailTests
         test.Manager.LocalPreviewsForTests=true;test.Manager.RemoteThumbnailsForTests=true;test.Manager.BrowsePreviewsForTests=true;await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);test.Manager.ApplyPreviewDemandForTests(test.Id,[path]);await Ready(test,path);
         var after=CloudFilesNative.InspectPersisted(path);Assert.Equal(before.Identity,after.Identity);Assert.Equal(before.Info.PinState,after.Info.PinState);Assert.Equal(before.Info.InSyncState,after.Info.InSyncState);Assert.Equal(reads,test.Dav.Server.Requests.Count(x=>x.Method=="GET"));Assert.Equal(bytes,File.ReadAllBytes(path));
     }
+    /// <summary>真实15秒负缓存只恢复仍在视口的需求；已经离开的文件不再次读取远端。</summary>
+    [Fact(Timeout=60000)]
+    public async Task RemoteFailureRetriesAfterFifteenSecondsOnlyForCurrentVisibleDemand()
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);test.Manager.LocalPreviewsForTests=true;test.Manager.RemoteThumbnailsForTests=true;test.Manager.BrowsePreviewsForTests=true;
+        foreach(var name in new[]{"visible-retry.bmp","abandoned.bmp"})test.Dav.Put(name,PreviewPipelineTests.Bmp());await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);
+        var counts=new System.Collections.Concurrent.ConcurrentDictionary<string,int>();var original=test.Dav.Server.Handler;
+        test.Dav.Server.Handler=async request=>{var response=await original(request);if(request.Method=="GET"&&counts.AddOrUpdate(request.Target,1,(_,count)=>count+1)==1)return response with{Body=new byte[response.Body.Length]};return response;};
+        var visible=Path.Combine(test.Local,"visible-retry.bmp");var abandoned=Path.Combine(test.Local,"abandoned.bmp");test.Manager.ApplyPreviewDemandForTests(test.Id,[visible,abandoned]);
+        var until=DateTime.UtcNow.AddSeconds(8);while((test.Manager.PreviewState(visible)!="unsupported"||test.Manager.PreviewState(abandoned)!="unsupported")&&DateTime.UtcNow<until)await Task.Delay(25);
+        Assert.Equal("unsupported",test.Manager.PreviewState(visible));Assert.Equal("unsupported",test.Manager.PreviewState(abandoned));var failedAt=Stopwatch.StartNew();
+        for(var i=0;i<50;i++)test.Manager.ApplyPreviewDemandForTests(test.Id,[visible]);await Task.Delay(1000);Assert.All(counts.Values,count=>Assert.Equal(1,count));
+        await Ready(test,visible);Assert.True(failedAt.Elapsed>=TimeSpan.FromSeconds(12));Assert.Null(test.Manager.GetPreview(abandoned,64));Assert.Equal(2,counts.Single(pair=>pair.Key.Contains("visible-retry.bmp",StringComparison.Ordinal)).Value);Assert.Equal(1,counts.Single(pair=>pair.Key.Contains("abandoned.bmp",StringComparison.Ordinal)).Value);
+        Assert.False(CloudFilesNative.HasFullContent(visible,new FileInfo(visible).Length));
+    }
     private static async Task Ready(UploadFlowTests.Fixture test,string path){var until=DateTime.UtcNow.AddSeconds(15);while(test.Manager.GetPreview(path,64) is null&&DateTime.UtcNow<until)await Task.Delay(25);Assert.NotNull(test.Manager.GetPreview(path,64));}
     /// <summary>模拟裸PROPFIND标签、标准HTTP强标签；浏览生成仍不水合，重复提示不重读源。</summary>
     [Fact(Timeout=90000)]

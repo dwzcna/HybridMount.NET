@@ -7,6 +7,9 @@
 #include "RootRegistryGuard.h"
 #include "NativeDiagnostics.h"
 #include "PreviewObserver.h"
+#include "LocalThumbnail.h"
+#include "LocalThumbnailQueue.h"
+#include "RemoteThumbnailHints.h"
 #include <charconv>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
@@ -120,6 +123,7 @@ RuntimeOperations::RuntimeOperations(RuntimeHost& host):_impl(std::make_unique<I
 RuntimeOperations::~RuntimeOperations()=default;
 Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
+    if(operation=="thumbnailDiagnostics")return {{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
     if(operation=="testDiscardableHints"){auto count=data.at("count").get<int>();Require(count>0&&count<=4096);for(int i=0;i<count;++i)_impl->Host.Send({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",GuidN(data.at("sessionId"))},{"event","renameRejected"},{"data",{{"sourcePath","sample.txt"},{"reason","outOfRoot"}}}},false);return Json::object();}

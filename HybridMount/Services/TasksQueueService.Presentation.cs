@@ -12,7 +12,7 @@ public sealed partial class TasksQueueService
     {if(_backend is not null)throw new InvalidOperationException("任务业务执行器已经注册。");_backend=backend;backend.Changed+=BackendChanged;}
     private void BackendChanged()=>RaiseChanged();
     public bool IsStopping=>_stopping||_disposed||_backend?.IsStopping==true;
-    public IReadOnlyList<MountSnapshot> Mounts=>Backend.Mounts;
+    public IReadOnlyList<MountSnapshot> Mounts=>Backend.DisplayMounts;
     public IReadOnlyList<MountOperationSnapshot> SyncIssues=>EnrichAll(Backend.SyncIssues);
     public IReadOnlyList<MountOperationSnapshot> Conflicts=>EnrichAll(Backend.Conflicts);
     /// <summary>冲突对象按当前持久记录重建，不占调度名额；清除展示历史不能删除待决冲突。</summary>

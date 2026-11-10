@@ -25,6 +25,8 @@ public sealed partial class MountManager
                     if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath)||protectedPaths.Contains(entry.LocalPath)||_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)||UploadRules.DeletedSourceAncestor(entries,entry.SourcePath) is not null)continue;
                     try
                     {
+                        var observed=CloudFilesNative.InspectPersisted(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));if(observed.Info.PinState!=2)continue;
+                        await PreserveBeforeDehydrateAsync(root,entry,token).ConfigureAwait(false);
                         if(root.Session.CompletePendingUnpin(entry) is not {} bytes)continue;
                         freed+=bytes;changed.Add(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));
                     }

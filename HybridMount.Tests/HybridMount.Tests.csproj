@@ -220,9 +220,11 @@
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.ExcludedRenameWorker.cs" Link="Production\Services\Mounting\MountManager.ExcludedRenameWorker.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.ExcludedRenames.cs" Link="Production\Services\Mounting\MountManager.ExcludedRenames.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Exclusions.cs" Link="Production\Services\Mounting\MountManager.Exclusions.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.DisplaySnapshots.cs" Link="Production\Services\Mounting\MountManager.DisplaySnapshots.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Lifecycle.cs" Link="Production\Services\Mounting\MountManager.Lifecycle.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.PinIntents.cs" Link="Production\Services\Mounting\MountManager.PinIntents.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Previews.cs" Link="Production\Services\Mounting\MountManager.Previews.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.PreservePreview.cs" Link="Production\Services\Mounting\MountManager.PreservePreview.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Recovery.cs" Link="Production\Services\Mounting\MountManager.Recovery.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.RemoteApply.cs" Link="Production\Services\Mounting\MountManager.RemoteApply.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.RemoteDeletion.cs" Link="Production\Services\Mounting\MountManager.RemoteDeletion.cs"/>

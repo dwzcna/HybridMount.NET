@@ -89,6 +89,7 @@ public sealed partial class MountManager
         Task[] foreground;lock(_lifetime)foreground=_foreground.ToArray();
         await Step("Foreground",()=>Task.WhenAll(foreground)).ConfigureAwait(false);
         await Step("Jobs",()=>Task.WhenAll(_jobs.Values.Select(job=>job.Work))).ConfigureAwait(false);
+        await Step("DisplaySnapshots",()=>_displayWorker).ConfigureAwait(false);
         if(_issuePublishing is not null)await Step("IssuePublishing",()=>_issuePublishing).ConfigureAwait(false);
         if(_maintenance is not null)await Step("Maintenance",()=>_maintenance).ConfigureAwait(false);
         await Step("PinIntents",()=>Task.WhenAll(_roots.Values.Select(StopPinIntentsAsync))).ConfigureAwait(false);
@@ -108,7 +109,7 @@ public sealed partial class MountManager
             }).ConfigureAwait(false);
         }
         if(_ownsTasksQueue)await Step("TasksQueue",()=>TasksQueue.DisposeAsync().AsTask()).ConfigureAwait(false);
-        foreach(var job in _jobs.Values)job.Cancel.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_stop.Dispose();
+        foreach(var job in _jobs.Values)job.Cancel.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_displayWake.Dispose();_stop.Dispose();
         ObserveStop(errors.Count==0?"Stopped":"StoppedWithErrors",null);
         if(errors.Count!=0)throw new AggregateException("挂载停止时有资源未正常释放。",errors);
     }

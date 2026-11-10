@@ -93,7 +93,12 @@ internal sealed class ThumbnailCacheStore(string database)
         }
         using(var db=Open(true)){using var command=db.CreateCommand();command.CommandText="PRAGMA wal_checkpoint(TRUNCATE)";using var result=command.ExecuteReader();if(result.Read()&&result.GetInt32(0)!=0)throw new IOException("缩略图库仍在读取，稍后重试移除。");}
         // SQLite已关闭且不使用连接池；仅删除这一个库及同名日志，失败不扩大清理范围。
-        foreach(var path in new[]{database+"-wal",database+"-shm",database})if(File.Exists(path))File.Delete(path);
+        var deletionStarted=System.Diagnostics.Stopwatch.GetTimestamp();
+        foreach(var path in new[]{database+"-wal",database+"-shm",database})
+            while(true)
+                try{if(File.Exists(path))File.Delete(path);break;}
+                catch(IOException error)when((error.HResult&0xffff) is 32 or 33&&System.Diagnostics.Stopwatch.GetElapsedTime(deletionStarted).TotalMilliseconds<1500)
+                {Thread.Sleep(25);} // 原生只读句柄500ms空闲回收；只对共享占用有界退让，其他故障保持失败。
         return true;
     });
     internal bool IsEmpty

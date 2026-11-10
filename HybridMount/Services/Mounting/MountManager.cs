@@ -108,12 +108,12 @@ public sealed partial class MountManager : IAsyncDisposable
         var definitions=repository.LoadDefinitions();
         repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
-        _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
+        _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null,renderOwnsMutex:true);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
         {
             _roots[definition.Id]=new Runtime(definition){RequiresInspection=true,Status="检查中",Detail=""};
         }
-        TasksQueue.Attach(this);
+        TasksQueue.Attach(this);_displayWorker=Task.Run(UpdateDisplaySnapshotsAsync);RefreshDisplaySnapshot();
     }
     private sealed class PreviewLease(SemaphoreSlim gate) : IDisposable
     {
@@ -173,7 +173,9 @@ public sealed partial class MountManager : IAsyncDisposable
                 .Select(row=>row.Id).ToArray():Array.Empty<string>();
             var count=_repository.ClearOperations(mode,interrupted);Notify();return count;
         },cancel),token);
-    private void Notify() { foreach(var root in _roots.Values)_previews.ConfigureMount(root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested});NotifyIssues();if(Changed is not {} handlers)return; foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.QueueException("挂载界面","Warning","操作未完成",error);} }
+    private void Notify() { foreach(var root in _roots.Values)_previews.ConfigureMount(root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested});NotifyIssues();RefreshDisplaySnapshot();NotifyChanged(); }
+    /// <summary>仅发布已有内存状态；后台快照回调不能反过来重新请求同一查询。</summary>
+    private void NotifyChanged(){if(Changed is not {} handlers)return;foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.QueueException("挂载界面","Warning","操作未完成",error);}}
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
     private Task? _startup;
     public Task StartAsync() { lock(_lifetime){ThrowIfStopping();_maintenance??=Task.Run(CacheLoopAsync);_issuePublishing??=Task.Run(PublishIssueLoopAsync);return _startup??=Task.Run(InitializeAsync);} }
@@ -614,7 +616,7 @@ public sealed partial class MountManager : IAsyncDisposable
                         var itemStarted=System.Diagnostics.Stopwatch.GetTimestamp();
                         var session=root.Session;
                         if(operation=="keepOnDevice")session.RequestPin(entry);
-                        else session.Runtime.Invoke("releaseFile",session.EntryArgs(entry));
+                        else{await PreserveBeforeDehydrateAsync(root,entry,job.Cancel.Token).ConfigureAwait(false);session.Runtime.Invoke("releaseFile",session.EntryArgs(entry));}
                         if(operation=="keepOnDevice"&&!entry.IsDirectory)
                         {
                             root.Gate.Release();held=false;
@@ -826,7 +828,8 @@ public sealed partial class MountManager : IAsyncDisposable
                         var info=CloudFilesNative.Inspect(path);
                         if(info is null || info.Value.Info.PinState is not(0 or 2) || info.Value.Info.InSyncState!=1 || info.Value.Info.ModifiedSize!=0 || root.Session.IsActive(entry.Id))continue;
                         var marker=MountPathGuard.ReadEntry(info.Value.Identity);if(marker?.MountId!=root.Definition.Id||marker.EntryId!=entry.Id)continue;
-                        var released=root.Session.Runtime.Invoke("trimFile",root.Session.EntryArgs(entry));if(released.GetProperty("changed").GetBoolean())freed+=NativeRuntimeProtocol.Read<long>(released.GetProperty("freed"));
+                        await PreserveBeforeDehydrateAsync(root,entry,token).ConfigureAwait(false);
+                        var released=root.Session.Runtime.Invoke("trimFile",root.Session.EntryArgs(entry));if(released.GetProperty("changed").GetBoolean()){freed+=NativeRuntimeProtocol.Read<long>(released.GetProperty("freed"));_previews.RebindMetadata(root.Definition,entry);}
                     }
                     catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException){}
                 }

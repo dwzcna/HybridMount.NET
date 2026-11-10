@@ -15,16 +15,19 @@ public static class AsyncShellAcceptanceProbe
     public static async Task<int> RegisterAsync(string area)
     {
         await NativeThumbnailBindingProbe.RegisterForUninstallAsync(area);var root=Read(area,"uninstall-root.json").GetProperty("Root").Deserialize<MountDefinition>()!;
-        var local=Path.Combine(root.LocalPath,"async-local.bmp");var cold=Path.Combine(root.LocalPath,"async-cold.bmp");var bytes=PreviewPipelineTests.Bmp(600,600);
+        var local=Path.Combine(root.LocalPath,"async-local.bmp");var cold=Path.Combine(root.LocalPath,"async-cold.bmp");var cached=Path.Combine(root.LocalPath,"async-cached.bmp");var bytes=PreviewPipelineTests.Bmp(600,600);
         var runtime=NativeRuntimeClient.Get();var session=Guid.NewGuid().ToString("N");
         await runtime.InvokeAsync("connectRoot",NativeRuntimeArguments.Root(root,new{sessionId=session,blockHydration=true}));
-        try{await runtime.InvokeAsync("createPlaceholder",NativeRuntimeArguments.Root(root,new{sessionId=session,path=cold,entryId="async-cold",directory=false,size=(long)bytes.Length,time=DateTime.UtcNow.ToFileTimeUtc()}));}
+        try{foreach(var item in new[]{(Path:cold,Id:"async-cold"),(Path:cached,Id:"async-cached")})await runtime.InvokeAsync("createPlaceholder",NativeRuntimeArguments.Root(root,new{sessionId=session,path=item.Path,entryId=item.Id,directory=false,size=(long)bytes.Length,time=DateTime.UtcNow.ToFileTimeUtc()}));}
         finally{await runtime.InvokeAsync("disconnectRoot",NativeRuntimeArguments.Root(root,new{sessionId=session}));await NativeRuntimeClient.StopSharedAsync();}
         await File.WriteAllBytesAsync(local,bytes);
         // 千文件目录用于实际Explorer响应测量；普通空文本不触发媒体解码或源读取。
-        for(var i=0;i<997;i++)await File.WriteAllBytesAsync(Path.Combine(root.LocalPath,$"item-{i:D4}.txt"),[]);
+        for(var i=0;i<996;i++)await File.WriteAllBytesAsync(Path.Combine(root.LocalPath,$"item-{i:D4}.txt"),[]);
         var store=new ThumbnailCacheStore(ThumbnailCachePaths.ForMount(root.Id));var grant=store.Configure(ThumbnailCacheReader.RootFor(root with{ThumbnailsEnabled=true}),true);
-        Save(area,"async-ready.json",new{Root=root,Local=local,Cold=cold,Grant=grant,Database=store.Database,Pid=Environment.ProcessId,Started=Process.GetCurrentProcess().StartTime.ToUniversalTime(),Installed=global::Windows.ApplicationModel.Package.Current.InstalledLocation.Path,Before=Facts(local,cold),Count=Directory.EnumerateFiles(root.LocalPath).Count()});return 0;
+        var budget=new PreviewRangeBudget(bytes.Length,(offset,buffer,_)=>{bytes.AsMemory((int)offset,buffer.Length).CopyTo(buffer);return ValueTask.FromResult(new PreviewRangeResult(true,buffer.Length));});
+        var frames=await new PreviewWorkerClient().DecodeAsync(".bmp",bytes.Length,budget.ReadAsync);Assert.NotNull(frames);
+        var binding=ThumbnailCacheReader.Capture(grant,new MountEntry("async-cached","async-cached.bmp","async-cached.bmp","probe61",false,Materialized:true,RemotePresence:RemotePresence.Present));Assert.NotNull(binding);Assert.True(store.Publish(binding,frames));
+        Save(area,"async-ready.json",new{Root=root,Local=local,Cold=cold,Cached=cached,Grant=grant,Database=store.Database,Pid=Environment.ProcessId,Started=Process.GetCurrentProcess().StartTime.ToUniversalTime(),Installed=global::Windows.ApplicationModel.Package.Current.InstalledLocation.Path,Before=Facts(local,cold),Count=Directory.EnumerateFiles(root.LocalPath).Count()});return 0;
     }
     private static object Facts(string local,string cold){var state=CloudFilesNative.InspectPersisted(cold);return new{Local=LocalFileState.Read(local).Identity,Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(local))),Cold=Convert.ToBase64String(state.Identity),state.Info.PinState,state.Info.InSyncState,state.Info.OnDiskSize,state.Info.ModifiedSize};}
     /// <summary>只对已登记的本轮根执行显式包COM、Shell自动图像和Explorer消息测量，输出原始样本。</summary>
@@ -39,13 +42,19 @@ public static class AsyncShellAcceptanceProbe
             var tag=Path.GetFileName(area)[^8..];var clsid=Guid.Parse(tag+"-4d1c-4c7e-a519-34c76b9bb281");
             using(var localCom=new Reader(local,clsid))
             {
-                report["ColdActivationMs"]=localCom.ActivationMilliseconds;var samples=localCom.Samples(300);report["LocalSamples"]=samples;Assert.False(samples[0].Hit);Assert.Contains(samples,x=>x.Hit);
-                var hot=samples.Skip(1).Select(x=>x.Milliseconds).Order().ToArray();report["LocalP95"]=hot[(int)(hot.Length*.95)];report["LocalP99"]=hot[(int)(hot.Length*.99)];Assert.True(hot[(int)(hot.Length*.95)]<=50);Assert.True(hot[(int)(hot.Length*.99)]<=150);
-                using(var coldCom=new Reader(cold,clsid)){var misses=coldCom.Samples(100);report["ColdSamples"]=misses;Assert.All(misses,x=>Assert.False(x.Hit));}
+                report["ColdActivationMs"]=localCom.ActivationMilliseconds;var samples=localCom.Samples(1001);report["LocalSamples"]=samples;Assert.False(samples[0].Hit);Assert.Contains(samples,x=>x.Hit);
+                var hotSamples=localCom.Samples(1000);report["MemoryHitSamples"]=hotSamples;Assert.All(hotSamples,sample=>Assert.True(sample.Hit));var hot=hotSamples.Select(x=>x.Milliseconds).Order().ToArray();report["LocalP95"]=hot[(int)(hot.Length*.95)];report["LocalP99"]=hot[(int)(hot.Length*.99)];Assert.True(hot[(int)(hot.Length*.95)]<=50);Assert.True(hot[(int)(hot.Length*.99)]<=150);
+                using(var coldCom=new Reader(cold,clsid)){var misses=coldCom.Samples(1000);report["ColdSamples"]=misses;Assert.All(misses,x=>Assert.False(x.Hit));}
+                using(var cachedCom=new Reader(setup.GetProperty("Cached").GetString()!,clsid)){var hits=cachedCom.Samples(1000);report["PersistentHitSamples"]=hits;Assert.All(hits,sample=>Assert.True(sample.Hit));}
                 report["AutomaticImage"]=typeof(NativeThumbnailBindingProbe).GetMethod("Image",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,[local]);
                 var store=new ThumbnailCacheStore(setup.GetProperty("Database").GetString()!);store.Configure(setup.GetProperty("Grant").Deserialize<ThumbnailCacheRoot>()! with{Enabled=false},true);
-                var disabled=localCom.Samples(100);report["DisabledSamples"]=disabled;Assert.All(disabled,x=>Assert.False(x.Hit));
+                var disabled=localCom.Samples(1000);report["DisabledSamples"]=disabled;Assert.All(disabled,x=>Assert.False(x.Hit));
             }
+            var performance=new Dictionary<string,object>();foreach(var label in new[]{"LocalSamples","MemoryHitSamples","PersistentHitSamples","ColdSamples","DisabledSamples"})
+            {
+                var times=((Sample[])report[label]!).Select(sample=>sample.Milliseconds).Order().ToArray();var p95=times[(int)(times.Length*.95)];var p99=times[(int)(times.Length*.99)];performance[label]=new{Count=times.Length,P95=p95,P99=p99,Maximum=times[^1]};Assert.True(p95<=50,label+" P95="+p95);Assert.True(p99<=150,label+" P99="+p99);
+            }
+            report["Performance"]=performance;
             report["After"]=Facts(local,cold);Assert.True(JsonElement.DeepEquals(setup.GetProperty("Before"),JsonSerializer.SerializeToElement(report["After"],Json)));
             Assert.False(CloudFilesNative.HasFullContent(cold,new FileInfo(cold).Length));report["ColdRemainsOffline"]=true;
             var native=Process.GetProcessesByName("HybridMount.Stock").Where(p=>{try{return p.MainModule?.FileName?.StartsWith(setup.GetProperty("Installed").GetString()!,StringComparison.OrdinalIgnoreCase)==true;}catch{return false;}}).ToArray();
@@ -75,7 +84,7 @@ public static class AsyncShellAcceptanceProbe
     private static object Explorer(string path)
     {
         object shell=Activator.CreateInstance(Type.GetTypeFromProgID("Shell.Application")!)!;object? owned=null;
-        try{((dynamic)shell).Explore(path);for(var i=0;i<60&&owned is null;i++){foreach(var window in ((dynamic)shell).Windows())try{if(string.Equals((string)window.Document.Folder.Self.Path,path,StringComparison.OrdinalIgnoreCase)){owned=window;break;}}catch(COMException){}if(owned is null)Thread.Sleep(100);}Assert.NotNull(owned);var hwnd=new IntPtr(Convert.ToInt64(((dynamic)owned).HWND));var samples=new List<double>();var timeouts=0;for(var i=0;i<300;i++){var watch=Stopwatch.StartNew();if(SendMessageTimeout(hwnd,0,0,0,2,1000,out _)==0)timeouts++;samples.Add(watch.Elapsed.TotalMilliseconds);Thread.Sleep(10);}var sorted=samples.Order().ToArray();Assert.Equal(0,timeouts);Assert.True(sorted[(int)(sorted.Length*.95)]<=200);Assert.True(sorted[^1]<1000);return new{Samples=samples,P95=sorted[(int)(sorted.Length*.95)],P99=sorted[(int)(sorted.Length*.99)],Maximum=sorted[^1],Timeouts=timeouts};}
+        try{((dynamic)shell).Explore(path);for(var i=0;i<60&&owned is null;i++){foreach(var window in ((dynamic)shell).Windows())try{if(string.Equals((string)window.Document.Folder.Self.Path,path,StringComparison.OrdinalIgnoreCase)){owned=window;break;}}catch(COMException){}if(owned is null)Thread.Sleep(100);}Assert.NotNull(owned);var hwnd=new IntPtr(Convert.ToInt64(((dynamic)owned).HWND));var samples=new List<double>();var timeouts=0;for(var i=0;i<1000;i++){var watch=Stopwatch.StartNew();if(SendMessageTimeout(hwnd,0,0,0,2,1000,out _)==0)timeouts++;samples.Add(watch.Elapsed.TotalMilliseconds);Thread.Sleep(10);}var sorted=samples.Order().ToArray();Assert.Equal(0,timeouts);Assert.True(sorted[(int)(sorted.Length*.95)]<=200);Assert.True(sorted[^1]<1000);return new{Samples=samples,P95=sorted[(int)(sorted.Length*.95)],P99=sorted[(int)(sorted.Length*.99)],Maximum=sorted[^1],Timeouts=timeouts};}
         finally{if(owned is not null){try{if(string.Equals((string)((dynamic)owned).Document.Folder.Self.Path,path,StringComparison.OrdinalIgnoreCase))((dynamic)owned).Quit();}catch(COMException){}Marshal.ReleaseComObject(owned);}Marshal.ReleaseComObject(shell);}
     }
     /// <summary>卸载前只清除本轮测试数据和缓存，保留原零字节占位供系统注销验收。</summary>
@@ -83,7 +92,7 @@ public static class AsyncShellAcceptanceProbe
     {
         var row=Read(area,"async-ready.json");var root=row.GetProperty("Root").Deserialize<MountDefinition>()!;Assert.StartsWith(Path.GetFullPath(area)+Path.DirectorySeparatorChar,Path.GetFullPath(root.LocalPath),StringComparison.OrdinalIgnoreCase);Assert.True(JsonElement.DeepEquals(row.GetProperty("Before"),JsonSerializer.SerializeToElement(Facts(row.GetProperty("Local").GetString()!,row.GetProperty("Cold").GetString()!),Json)));
         var store=new ThumbnailCacheStore(row.GetProperty("Database").GetString()!);Assert.True(store.DeleteDatabase(store.Root(root.Id)));
-        foreach(var file in Directory.EnumerateFiles(root.LocalPath)){var name=Path.GetFileName(file);if(name=="zero.bin")continue;Assert.True(name is "async-local.bmp" or "async-cold.bmp"||name.StartsWith("item-",StringComparison.Ordinal)&&name.EndsWith(".txt",StringComparison.Ordinal)&&new FileInfo(file).Length==0);File.Delete(file);}Save(area,"async-cleanup.json",new{Passed=true});return 0;
+        foreach(var file in Directory.EnumerateFiles(root.LocalPath)){var name=Path.GetFileName(file);if(name=="zero.bin")continue;Assert.True(name is "async-local.bmp" or "async-cold.bmp" or "async-cached.bmp"||name.StartsWith("item-",StringComparison.Ordinal)&&name.EndsWith(".txt",StringComparison.Ordinal)&&new FileInfo(file).Length==0);File.Delete(file);}Save(area,"async-cleanup.json",new{Passed=true});return 0;
     }
     [DllImport("ole32.dll")]private static extern int CoInitializeEx(nint reserved,uint flags);
     [DllImport("ole32.dll")]private static extern void CoUninitialize();

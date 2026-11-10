@@ -62,23 +62,40 @@ ComPtr<IStream> ExecutableIcon(IStream* stream,UINT requested){
     ComPtr<IStream> result;Check(CreateStreamOnHGlobal(nullptr,TRUE,&result));ULONG written{};Check(result->Write(ico.data(),static_cast<ULONG>(ico.size()),&written));Require(written==ico.size());Check(result->Seek(LARGE_INTEGER{},STREAM_SEEK_SET,nullptr));return result;
 }
 }
-int RunPreviewWorker()noexcept{
-    auto channel=std::make_shared<Channel>();const auto initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
-    struct Scope{HRESULT Code;~Scope(){if(SUCCEEDED(Code))CoUninitialize();}} apartment{initialized};
-    try{
-        Check(initialized);WinCheck(SetPriorityClass(GetCurrentProcess(),PROCESS_MODE_BACKGROUND_BEGIN));auto request=ReadFrame(channel->Input);Require(request.at("kind")=="decode");const auto extension=Text(request,"extension");auto length=Integer(request,"length");Require(length>=0);
-        bool supported=false;for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4",L".exe"})supported|=extension==item;Require(supported);
+bool SupportsPreviewExtension(const std::wstring& extension)noexcept{
+    for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4",L".exe"})if(extension==item)return true;return false;
+}
+/// <summary>两条原生路径共用格式和四帧契约；原始媒体只解码256像素一次，其余从内存派生。</summary>
+Json DecodePreviewFrames(IStream* input,const std::wstring& extension){
+        Require(input!=nullptr&&SupportsPreviewExtension(extension),E_NOTIMPL);
         auto module=LoadLibraryExW((ModuleDirectory()+L"\\HybridMount.Ext.dll").c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);Require(module!=nullptr);
         struct Module{HMODULE Value;~Module(){FreeLibrary(Value);}} owner{module};using Decode=HRESULT(WINAPI*)(IStream*,const wchar_t*,UINT,BYTE**,DWORD*);Decode decode{};auto proc=GetProcAddress(module,"HybridMountDecodePreview");Require(proc!=nullptr);memcpy(&decode,&proc,sizeof(decode));
-        auto input=Microsoft::WRL::Make<BrokerStream>(channel,length);Require(input!=nullptr);Json frames=Json::object();
+        Json frames=Json::object();
         // 原图或视频只提取一次；后续只解码内存中的256像素PNG，不再读取源流。
-        ComPtr<IStream> content=input;if(extension==L".exe")content=ExecutableIcon(input.Get(),256);
+        ComPtr<IStream> content;content=input;if(extension==L".exe")content=ExecutableIcon(input,256);
         BYTE* primary{};DWORD primaryCount{};auto status=decode(content.Get(),extension==L".exe"?L".ico":extension.c_str(),256,&primary,&primaryCount);
         struct Memory{BYTE* Value;~Memory(){CoTaskMemFree(Value);}} original{primary};Check(status);Require(primary&&primaryCount>=8&&primaryCount<=384*1024);frames["256"]=Base64(primary,primaryCount);
         for(UINT size:{32u,64u,128u}){
             ComPtr<IStream> scaledInput;Check(CreateStreamOnHGlobal(nullptr,TRUE,&scaledInput));ULONG written{};Check(scaledInput->Write(primary,primaryCount,&written));Require(written==primaryCount);Check(scaledInput->Seek(LARGE_INTEGER{},STREAM_SEEK_SET,nullptr));
             BYTE* bytes{};DWORD count{};status=decode(scaledInput.Get(),L".png",size,&bytes,&count);Memory memory{bytes};Check(status);Require(bytes&&count>=8&&count<=384*1024);frames[std::to_string(size)]=Base64(bytes,count);
         }
+        return frames;
+}
+int RunPreviewWorker()noexcept{
+    auto channel=std::make_shared<Channel>();const auto initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
+    struct Scope{HRESULT Code;~Scope(){if(SUCCEEDED(Code))CoUninitialize();}} apartment{initialized};
+    try{
+        Check(initialized);WinCheck(SetPriorityClass(GetCurrentProcess(),PROCESS_MODE_BACKGROUND_BEGIN));
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+        wchar_t readyDelay[16]{};if(GetEnvironmentVariableW(L"HYBRIDMOUNT_TEST_PREVIEW_READY_MS",readyDelay,16)>0)Sleep(std::min(15000ul,wcstoul(readyDelay,nullptr,10)));
+#endif
+        WriteFrame(channel->Output,{{"kind","ready"}});
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+        wchar_t decodeDelay[16]{};if(GetEnvironmentVariableW(L"HYBRIDMOUNT_TEST_PREVIEW_DECODE_MS",decodeDelay,16)>0)Sleep(std::min(15000ul,wcstoul(decodeDelay,nullptr,10)));
+#endif
+        auto request=ReadFrame(channel->Input);Require(request.at("kind")=="decode");const auto extension=Text(request,"extension");auto length=Integer(request,"length");Require(length>=0);
+        bool supported=false;for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4",L".exe"})supported|=extension==item;Require(supported);
+        auto input=Microsoft::WRL::Make<BrokerStream>(channel,length);Require(input!=nullptr);auto frames=DecodePreviewFrames(input.Get(),extension);
         WriteFrame(channel->Output,{{"kind","result"},{"frames",frames}});return 0;
     }catch(const Failure& error){try{WriteFrame(channel->Output,{{"kind","unsupported"},{"hResult",error.Code}});}catch(...){}return 1;}catch(...){try{WriteFrame(channel->Output,{{"kind","unsupported"},{"hResult",E_FAIL}});}catch(...){}return 1;}
 }

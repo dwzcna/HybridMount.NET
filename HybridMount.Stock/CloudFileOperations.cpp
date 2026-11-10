@@ -1,5 +1,6 @@
 #include "CloudFileOperations.h"
 #include "CloudProperties.h"
+#include "LocalThumbnail.h"
 #include <winioctl.h>
 
 namespace hm {
@@ -54,6 +55,13 @@ Json Create(const Json& data){
 }
 Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* session,bool& handled){
     handled=true;auto& data=command.Data;const auto& operation=command.Operation;
+    if(operation=="renderLocalThumbnail"){
+        Require(session!=nullptr);auto path=EntryPath(data);
+        // 属性探针必须在解码前关闭，避免其延迟最终只读USN更新并使回执戳落后于响应后的文件。
+        {auto file=OpenAttributes(path);auto info=InspectPlaceholder(file.Value);Identity(data,info);auto before=InspectFile(file.Value);Require(!before.Directory&&HasFullContent(file.Value,before.Length),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));}
+        command.CheckCancel();std::string stamp;LocalThumbnailTiming timing;Json frames;auto png=DecodeLocalThumbnail(path,command.Cancel.Value,stamp,timing,&frames);command.CheckCancel();
+        Require(!png.empty()&&LocalThumbnailStamp(path)==stamp,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));return {{"frames",frames},{"stamp",FileJson(InspectFile(path))},{"startupMs",timing.Startup},{"decodeMs",timing.Decode}};
+    }
     if(operation=="createPlaceholder")return Create(data);
     if(operation=="applyExclusion"){
         auto path=EntryPath(data);

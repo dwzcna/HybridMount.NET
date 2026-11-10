@@ -14,6 +14,7 @@ public static class PreviewWorker
         using var input=Console.OpenStandardInput();using var output=Console.OpenStandardOutput();
         try
         {
+            IpcProtocol.WriteAsync(output,new PreviewWorkerPacket("ready")).GetAwaiter().GetResult();
             var request=IpcProtocol.ReadAsync<PreviewWorkerPacket>(input).GetAwaiter().GetResult();
             if(request.Kind!="decode"||request.Length<0||request.Extension is null||!Supports("file"+request.Extension))return 2;
             using var stream=new BrokerStream(input,output,request.Length);var frames=new Dictionary<int,byte[]>();

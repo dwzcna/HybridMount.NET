@@ -79,11 +79,11 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         if(_disposed||Interlocked.Exchange(ref _pending,1)!=0)return;
         if(!_dispatcher.TryEnqueue(()=>{Interlocked.Exchange(ref _pending,0);if(!_disposed)Refresh();}))Interlocked.Exchange(ref _pending,0);
     }
-    public void RefreshNow()=>Refresh();
+    public void RefreshNow(){if(_disposed)return;_manager.RefreshDisplaySnapshot();Refresh();}
     private void Refresh()
     {
         if(_disposed)return;
-        try{var snapshots=_manager.Mounts;Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
+        try{var snapshots=_manager.DisplayMounts;if(_manager.DisplaySnapshotError is {} error&&StatusMessage.Update(error))OnPropertyChanged(nameof(Status));Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
         catch(Exception error){if(StatusMessage.Update(error.Message))OnPropertyChanged(nameof(Status));_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
@@ -125,11 +125,11 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         if(IsStopping)throw new OperationCanceledException("程序正在停止。",new CancellationToken(true));
         var busyId=id??Guid.Empty;
         if(!_busyMounts.Add(busyId))throw new InvalidOperationException("该配置正在处理其他操作。");
-        NotifyStateChanged();var before=_manager.Mounts.Select(x=>x.Definition.Id).ToHashSet();
+        NotifyStateChanged();var before=_manager.TaskDefinitions.Keys.ToHashSet();
         try
         {
             MountDefinition saved;
-            if(id is {} existing){await _manager.UpdateCredentialsAsync(existing,credentials,settings:settings);saved=_manager.Mounts.Single(x=>x.Definition.Id==existing).Definition;}
+            if(id is {} existing){await _manager.UpdateCredentialsAsync(existing,credentials,settings:settings);saved=_manager.TaskDefinitions[existing];}
             else saved=await _manager.AddAsync(name,path,autoConnect,source:settings,credentials:credentials,exclusions:exclusions);
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
             return new(saved,$"已连接 {saved.Name}。");
@@ -137,10 +137,10 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         catch(OperationCanceledException)when(_manager.IsStopping){throw;}
         catch(Exception error)
         {
-            var saved=_manager.Mounts.FirstOrDefault(x=>id is {} existing?x.Definition.Id==existing:!before.Contains(x.Definition.Id)&&x.Definition.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase));
+            var saved=_manager.TaskDefinitions.Values.FirstOrDefault(x=>id is {} existing?x.Id==existing:!before.Contains(x.Id)&&x.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase));
             if(saved is null||error is ArgumentException or NotSupportedException)throw;
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
-            Report(error);return new(saved.Definition,$"连接未完成：{error.Message}；已保存的配置保留，可编辑或重试。");
+            Report(error);return new(saved,$"连接未完成：{error.Message}；已保存的配置保留，可编辑或重试。");
         }
         finally{_busyMounts.Remove(busyId);if(!_disposed){Refresh();NotifyStateChanged();}}
     }
@@ -229,7 +229,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public Task RecheckCapacityAsync(Guid id)=>RunForMountAsync(id,async mount=>
     {
         await _manager.RefreshCapacityAsync(mount.Definition.Id,true);
-        Status=_manager.Mounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error??"容量核实完成；等待任务将重新检查可用空间。";
+        Status=_manager.DisplayMounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error??"容量核实完成；等待任务将重新检查可用空间。";
     });
     public async Task ReadCapacityAsync(Guid? id)
     {
