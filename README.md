@@ -1,10 +1,12 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.64 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前版本 **0.0.9.65 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 本分支 `codex/native-backend` 基于 .42，未包含 .43；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份及现有挂载数据保持兼容。
+
+CFAPI通知使用独立有界邮箱；打开／关闭以带序号的绝对计数合并，关键改名／删除保持顺序，回调排队共享45毫秒预算。通知无法可靠交付时后台显式停止连接并保留注册与恢复记录，等待重新核对。
 
 挂载任务由应用级 TasksQueueService 调度，任务页经 TasksViewModel 读取状态与提交命令；每挂载的存储网络步骤串行，跨挂载最多两路。按需读取优先于用户操作、自动同步、目录检测、缩略图和维护；低优先级在范围块、分页或分片边界让路，已发送的完整写入先安全结束。冲突与依赖等待不占网络名额，任务页显示优先级、阶段、阻塞任务和重试时间；每项以四行显示挂载及任务类型、相对路径与速度／状态、靠右可复制的任务ID和进度条。目录及应用远端更改不显示字节总量；上传／下载中显示实际采样速度，完成后按文件大小与本次耗时显示平均速度。左侧选中指示条和8%不透明度浅底分别使用绿色、同步问题红色及冲突黄色，文字沿用系统颜色；高对比度使用系统选择色。等待、错误、阶段和重试时间可在悬停／“查看结果”中查看，图标工具栏保留悬停提示。
 

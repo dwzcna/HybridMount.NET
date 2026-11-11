@@ -34,6 +34,7 @@ public sealed partial class MountManager
         text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);
         text.Append("缩略图库：").AppendLine(ThumbnailCachePaths.ForMount(PreviewDirectory(_repository),id));
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));
+        text.Append("原生通知：").AppendLine(root.Session?.NotificationDescription??"未运行");
         text.Append("目录观察：").AppendLine(root.Definition.ThumbnailsEnabled?root.Session?.PreviewObservationDescription??"未运行":"已关闭");
         text.Append("挂载缩略图开关：").AppendLine(root.Definition.ThumbnailsEnabled?"已开启":"已关闭");
         text.Append("远端检测模式：").AppendLine(snapshot.Detection?.Mode??"尚未检测");

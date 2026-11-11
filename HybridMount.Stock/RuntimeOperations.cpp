@@ -1,4 +1,5 @@
 #include "RuntimeOperations.h"
+#include "CallbackMailbox.h"
 #include "OrphanedDirectoryRecovery.h"
 #include "CloudSession.h"
 #include "CloudFileOperations.h"
@@ -123,9 +124,32 @@ RuntimeOperations::RuntimeOperations(RuntimeHost& host):_impl(std::make_unique<I
 RuntimeOperations::~RuntimeOperations()=default;
 Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
+    if(operation=="notificationDiagnostics")return _impl->Host.CallbackStatistics();
     if(operation=="thumbnailDiagnostics")return {{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+    if(operation=="testCallbackMailbox"){
+        CallbackMailbox queue;auto event=[](const std::string& name,const std::string& id,int sequence=1){return Json{{"kind","event"},{"mountId","test"},{"sessionId","test"},{"event",name},{"data",{{"entryId",id},{"sequence",std::to_string(sequence)},{"openCount",sequence%2},{"closeCount",std::to_string(sequence/2)}}}};};
+        const auto mode=data.at("mode").get<std::string>();
+        if(mode=="bytes"){
+            for(int i=0;i<2;++i){auto value=event("activity",std::to_string(i));value["data"]["padding"]=std::string(220*1024,'x');Require(queue.Push(std::move(value),GetTickCount64()+45));}
+            auto value=event("activity","overflow");value["data"]["padding"]=std::string(220*1024,'x');auto stateAccepted=queue.Push(std::move(value),GetTickCount64());for(int i=0;i<256;++i)Require(queue.Push(event("deleted",std::to_string(1000+i)),GetTickCount64()+45));return {{"stateAccepted",stateAccepted},{"stats",queue.Statistics()}};
+        }
+        if(mode=="order"){
+            Require(queue.Push(event("activity","same",1),GetTickCount64()+45));Require(queue.Push(event("activity","same",2),GetTickCount64()+45));Require(queue.Push(event("renamed","same"),GetTickCount64()+45));Require(queue.Push(event("activity","same",3),GetTickCount64()+45));Require(queue.Push(event("activity","same",1),GetTickCount64()+45));Json events=Json::array(),item;while(queue.Pop(item))events.push_back(std::move(item));return {{"events",events},{"stats",queue.Statistics()}};
+        }
+        for(int i=0;i<128;++i)Require(queue.Push(event("activity",std::to_string(i)),GetTickCount64()+45));
+        for(int i=0;i<256;++i)Require(queue.Push(event("deleted",std::to_string(1000+i)),GetTickCount64()+45));
+        const auto before=GetTickCount64();bool accepted{};
+        if(mode=="stop"){std::thread closer([&]{Sleep(10);queue.Close();});accepted=queue.Push(event("deleted","overflow"),GetTickCount64()+45);closer.join();}
+        else accepted=queue.Push(event("deleted","overflow"),GetTickCount64()+45);
+        return {{"accepted",accepted},{"elapsedMs",GetTickCount64()-before},{"stats",queue.Statistics()}};
+    }
+    if(operation=="testCallbackWriterPause"){_impl->Host.PauseCallbackWriterForTests(data.at("paused").get<bool>());return Json::object();}
+    if(operation=="testCallbackEvents"){
+        const auto count=data.at("count").get<int>();Require(count>=1&&count<=1024);auto base=GuidN(data.at("sessionId"));
+        for(int i=0;i<count;++i){command.CheckCancel();Require(_impl->Host.SendCallback({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",base},{"event","deleted"},{"data",{{"entryId",std::to_string(i)}}}},GetTickCount64()+45),HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_QUOTA));}return Json::object();
+    }
     if(operation=="testDiscardableHints"){auto count=data.at("count").get<int>();Require(count>0&&count<=4096);for(int i=0;i<count;++i)_impl->Host.Send({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",GuidN(data.at("sessionId"))},{"event","renameRejected"},{"data",{{"sourcePath","sample.txt"},{"reason","outOfRoot"}}}},false);return Json::object();}
     if(operation=="testCheckpoint")return _impl->Host.Checkpoint(command,"test",Json::object());
     if(operation=="testManagedCheckpoint"){if(data.value("irreversible",false))_impl->Host.Checkpoint(command,"beginWrite",Json::object(),true);return _impl->Host.Checkpoint(command,data.value("irreversible",false)?"commit":"test",Json::object(),false,data.value("irreversible",false));}

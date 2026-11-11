@@ -47,7 +47,8 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     private readonly CancellationTokenSource _stop=new();private readonly Process _process;private readonly SafeFileHandle _job;
     private Task _reader=Task.CompletedTask,_stderr=Task.CompletedTask;private Task? _dispose;
     private int _failed;
-    private readonly Channel<NativeRuntimeEvent> _events=Channel.CreateBounded<NativeRuntimeEvent>(512);
+    private readonly NativeEventInbox _events=new();
+    internal string EventStatistics=>_events.Statistics;
     private Task _eventWorker=Task.CompletedTask,_previewWorker=Task.CompletedTask;
     private readonly Channel<NativeRuntimeEvent> _previewEvents=Channel.CreateBounded<NativeRuntimeEvent>(new BoundedChannelOptions(16){FullMode=BoundedChannelFullMode.DropOldest,SingleReader=true,SingleWriter=true});
     internal event Action<NativeRuntimeEvent>? EventReceived;
@@ -181,7 +182,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 }
                 else if(kind=="event")
                 {
-                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event is "previewDemand" or "renameRejected"){_previewEvents.Writer.TryWrite(value);continue;}if(!_events.Writer.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
+                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event is "previewDemand" or "renameRejected"){_previewEvents.Writer.TryWrite(value);continue;}if(!_events.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
                 }
                 else throw new IOException("原生消息类型无效。");
             }
@@ -198,7 +199,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     }
     private async Task EventLoopAsync()
     {
-        try{await foreach(var value in _events.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception error){Fail(error);}}
+        try{await foreach(var value in _events.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception error){Fail(error);}}
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
     /// <summary>可丢弃预览及Shell说明独立消费；会话记录诊断，提示失败绝不停止挂载或关键事件。</summary>
@@ -306,7 +307,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     }
     private async Task StopAsync()
     {
-        var cancellation=_stop.CancelAsync();_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Writer.TryComplete();_previewEvents.Writer.TryComplete();
+        var cancellation=_stop.CancelAsync();_control.Dispose();_data.Dispose();await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Complete();_previewEvents.Writer.TryComplete();
         await AwaitCheckpointOwnersAsync(Task.WhenAll(_checkpoints.Values.Concat(new[]{_eventWorker,_previewWorker,cancellation}))).ConfigureAwait(false);
         try{await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);}catch(TimeoutException){_job.Dispose();await _process.WaitForExitAsync().ConfigureAwait(false);}
         await _stderr.ConfigureAwait(false);_job.Dispose();_process.Dispose();

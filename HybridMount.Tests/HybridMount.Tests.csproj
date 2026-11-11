@@ -247,6 +247,7 @@
     <Compile Include="..\HybridMount\Services\NavigationService.cs" Link="Production\Services\NavigationService.cs"/>
     <Compile Include="..\HybridMount\Services\Notifications\UploadIssueNotificationService.cs" Link="Production\Services\Notifications\UploadIssueNotificationService.cs"/>
     <Compile Include="..\HybridMount\Services\Observers\SqsEventHub.cs" Link="Production\Services\Observers\SqsEventHub.cs"/>
+    <Compile Include="..\HybridMount\Models\Runtime\NativeEventInbox.cs" Link="Production\Models\Runtime\NativeEventInbox.cs"/>
     <Compile Include="..\HybridMount\Services\Runtime\NativeRuntimeClient.cs" Link="Production\Services\Runtime\NativeRuntimeClient.cs"/>
     <Compile Include="..\HybridMount\Services\Shell\LocalPreviewRequestClient.cs" Link="Production\Services\Shell\LocalPreviewRequestClient.cs"/>
     <Compile Include="..\HybridMount\Services\Shell\ShellMaintenanceProcess.cs" Link="Production\Services\Shell\ShellMaintenanceProcess.cs"/>

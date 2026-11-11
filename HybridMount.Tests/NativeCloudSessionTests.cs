@@ -5,7 +5,7 @@ namespace HybridMount.Tests;
 
 /// <summary>全新NTFS根的原生端到端链路；托管端只提供内容字节，不注册回调或执行CfExecute。</summary>
 [Collection("Native IPC")]
-public sealed class NativeCloudSessionTests
+public sealed class NativeCloudSessionTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     [Fact(Timeout=90000)]
     public async Task NativeRootFetchAndReleasePreserveIdentityAndUseSeparateContentChannel()
@@ -33,6 +33,7 @@ public sealed class NativeCloudSessionTests
             await runtime.InvokeAsync("createPlaceholder",NativeRuntimeArguments.Entry(mount,entry,new{size=(long)bytes.Length,time}));var path=Path.Combine(area,"payload.bin");var before=LocalFileState.Read(path);Assert.False(CloudFilesNative.HasFullContent(path,bytes.Length));
             Assert.Equal(bytes,await File.ReadAllBytesAsync(path).WaitAsync(TimeSpan.FromSeconds(20)));await Task.WhenAll(jobs.ToArray());Assert.True(fetchCount>0);Assert.True(CloudFilesNative.HasFullContent(path,bytes.Length));Assert.Equal(before.Identity,LocalFileState.Read(path).Identity);
             var stale=NativeRuntimeArguments.Entry(mount,entry,new{sessionId=Guid.NewGuid().ToString("N"),propertyId=2,text="must-not-write",icon=""});await Assert.ThrowsAnyAsync<Exception>(()=>runtime.InvokeAsync("setProperty",stale));Assert.Empty(CloudCustomStateReader.Read(path).Ids);
+            var notificationStats=await runtime.InvokeAsync("notificationDiagnostics",new{});output.WriteLine(notificationStats.GetRawText());Assert.True(notificationStats.GetProperty("callbackCount").GetInt64()>0);
             var lease=Guid.NewGuid();var stamp=LocalFileState.Read(path);await runtime.InvokeAsync("openLocalRead",NativeRuntimeArguments.Entry(mount,entry,new{leaseId=lease,expectedStamp=stamp.Key}));
             await runtime.InvokeAsync("confirmLocalRead",new{mountId=id,leaseId=lease});
             var block=await runtime.ReadLocalRangeAsync(id,lease,17,NativeRuntimeProtocol.BlockBytes,CancellationToken.None);Assert.Equal(bytes.AsSpan(17,block.Length).ToArray(),block);Assert.Equal(stamp,LocalFileState.Read(path));

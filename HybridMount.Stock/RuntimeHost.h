@@ -29,7 +29,16 @@ public:
     std::function<void(const RuntimeBlock&)> Content;
     std::function<void()> Stopping;
     bool Send(Json value,bool waitForCapacity=false)noexcept;
-    /// <summary>预览提示独立合并且允许丢弃，绝不占用关键回调的512条队列。</summary>
+    /// <summary>回调独立队列；共享绝对截止时间，失败只置位故障，由专用监视线程关闭通道。</summary>
+    bool SendCallback(Json value,ULONGLONG deadline)noexcept;
+    void FailCallbacks()noexcept;
+    Json CallbackStatistics()const;
+    /// <summary>回调结束只累加数值，不等待队列或记录路径。</summary>
+    void RecordCallbackTime(ULONGLONG elapsed)noexcept;
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+    void PauseCallbackWriterForTests(bool paused);
+#endif
+    /// <summary>预览提示独立合并且允许丢弃，绝不占用关键回调队列。</summary>
     void SendPreview(Json value)noexcept;
     bool IsStopping()const noexcept;
     /// <summary>仅原生内部等待宿主停止；不可逆属性收尾不再使用已经取消的用户事件，不通过管道传出句柄。</summary>
