@@ -27,7 +27,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     /// <summary>本页可关闭提示；后台刷新不重新打开已关闭消息。</summary>
     public PageStatusMessage StatusMessage {get;}=new();
     /// <summary>执行中、排队／等待和历史分组展示，同组使用稳定提交顺序。</summary>
-    public ObservableCollection<MountOperationSnapshot> Operations { get; }=[];
+    public ObservableCollection<TaskListItem> Operations { get; }=[];
     /// <summary>刷新后由页面按任务 ID 恢复选择。</summary>
     public event Action? Refreshing;
     public event Action? Refreshed;
@@ -80,7 +80,8 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IssuesOnly));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
     }
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
-    public MountOperationSnapshot? Selected=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
+    public TaskListItem? SelectedRow=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
+    public MountOperationSnapshot? Selected=>SelectedRow?.Snapshot;
     public string CopyPath {get=>_copyPath;set{if(!_disposed)SetProperty(ref _copyPath,value);}}
     public string CopyContentNotice=>global::HybridMount.Services.Localization.UiText.Text("Text_1501CBC59F3C");
     public void CancelSelected()
@@ -177,7 +178,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_disposed)return;
         try { var source=_issuesOnly||_conflictsOnly?(_conflictsOnly?_queue.Conflicts:_queue.SyncIssues).Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_queue.Operations;
-            var now=System.Diagnostics.Stopwatch.GetTimestamp();var snapshots=OperationDisplayOrder.Sort(source.Select(value=>_rates.Apply(value,now))).ToArray();_rates.Retain(snapshots.Select(value=>value.Id).ToHashSet(StringComparer.Ordinal));OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
+            var now=System.Diagnostics.Stopwatch.GetTimestamp();var snapshots=OperationDisplayOrder.Sort(source.Select(value=>_rates.Apply(value,now))).ToArray();_rates.Retain(snapshots.Select(value=>value.Id).ToHashSet(StringComparer.Ordinal));OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));var structure=!Operations.Select(row=>row.Id).SequenceEqual(snapshots.Select(value=>value.Id),StringComparer.Ordinal);if(structure)Refreshing?.Invoke();TaskListItem.Reconcile(Operations,snapshots);NotifyClearState();OnPropertyChanged(nameof(Selected));if(structure)Refreshed?.Invoke(); }
         catch(Exception error) { if(StatusMessage.Update(global::HybridMount.Services.Localization.ResourceMessage.Raw(error.Message),PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>

@@ -2639,5 +2639,9 @@
   "Text_EC4D1F9F82B1": {
     "Source": "退出 HybridMount.NET",
     "LocalizableArguments": []
+  },
+  "Text_07E49220E577": {
+    "Source": "远端已写入，本地核验未完成；不会重复上传，请重试本地提交。",
+    "LocalizableArguments": []
   }
 }

@@ -42,7 +42,7 @@ public sealed partial class MountManager
     }
     /// <summary>与改名收尾共享同一可运行候选集，冲突和退避不会挡住其他文件。</summary>
     private LocalUpload[] UploadCandidates(Runtime root)=>_repository.Uploads(root.Definition.Id).Where(x=>
-                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&string.IsNullOrEmpty(x.Error)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&(string.IsNullOrEmpty(x.Error)||x.NextAttemptUtc is not null)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
     private sealed class UploadReporter(Action<UploadProgress> action) : IProgress<UploadProgress>
     {public void Report(UploadProgress value)=>action(value);}
     /// <summary>发送前持久化快照及阶段；返回成功后先保存回执，再修改本地占位和索引。</summary>
@@ -90,7 +90,7 @@ public sealed partial class MountManager
                 var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token,capacity.Definition).ConfigureAwait(false);if(sending is null)return;prepared=sending;sendingStarted=true;
                 receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,token).ConfigureAwait(false);
             }
-            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total,TransferDurationSeconds=System.Diagnostics.Stopwatch.GetElapsedTime(attemptStarted).TotalSeconds})!;
+            prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total,TransientFailureCount=0,NextAttemptUtc=null,TransferDurationSeconds=System.Diagnostics.Stopwatch.GetElapsedTime(attemptStarted).TotalSeconds})!;
             capacity.Committed(receipt);receiptSaved=true;PublishCapacity(root,capacity.Definition,capacity.Snapshot);
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);
             await CommitUploadAsync(root,prepared,stopping).ConfigureAwait(false);

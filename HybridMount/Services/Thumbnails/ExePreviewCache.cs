@@ -272,7 +272,8 @@ public sealed class ExePreviewCache : IAsyncDisposable
                 using var lease=_enter is null?null:await _enter(mount,entry,token).ConfigureAwait(false);if(_enter is null||lease is not null)await ExtractAsync(work,token).ConfigureAwait(false);
             }
         }
-        catch(OperationCanceledException error){if(!token.IsCancellationRequested){Cooldown(work);ReportFailure(mount.Id,"解码期限已到",error);}else{_canceledCount.AddOrUpdate(mount.Id,1,(_,count)=>count+1);RecordOutcome(mount.Id,"浏览或挂载工作已取消");}}
+        catch(PreviewPhaseTimeoutException error)when(!token.IsCancellationRequested){Cooldown(work);ReportFailure(mount.Id,error.Stage,error);}
+        catch(OperationCanceledException error){if(!token.IsCancellationRequested){Cooldown(work);ReportFailure(mount.Id,"内部读取或生成已取消",error);}else{_canceledCount.AddOrUpdate(mount.Id,1,(_,count)=>count+1);RecordOutcome(mount.Id,"浏览或挂载工作已取消");}}
         catch(Exception error)when(error is IOException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException or System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException)
         {Cooldown(work);ReportFailure(mount.Id,error.HResult==unchecked((int)0x80070718)?"读取预算耗尽":error.HResult==unchecked((int)0x80004001)?"严格范围读取不支持":"生成或缓存发布",error);}
         finally

@@ -3,6 +3,8 @@ namespace HybridMount.Models.Mounting;
 /// <summary>上传意图、类型、变化与删除屏障的纯规则；不读文件、数据库或原生占位状态。</summary>
 public static class UploadRules
 {
+    /// <summary>远端成功不等于本地提交完成；保留回执，最多自动核验三次，随后由用户显式重试本地收尾。</summary>
+    public const string LocalCommitPendingMessage="远端已写入，本地核验未完成；不会重复上传，请重试本地提交。";
     /// <summary>区分可重试网络／服务拒绝和永久故障；主动取消先由上传所有者处理。</summary>
     public static bool IsTransient(Exception error)=>error switch
     {
@@ -36,7 +38,7 @@ public static class UploadRules
     /// <summary>综合稳定期、旧记录检查间隔和新退避时间，返回本代次最早允许调度的时刻。</summary>
     public static DateTimeOffset AttemptUtc(LocalUpload item)
     {
-        var checkedAt=item.State=="Waiting"&&item.NextAttemptUtc is {} next?next:
+        var checkedAt=item.State is "Waiting" or "RemoteCommitted"&&item.NextAttemptUtc is {} next?next:
             item.LastCheckedUtc is {} last?last+TimeSpan.FromSeconds(item.State is "OutcomeUnknown" or "WaitingCapacity"?60:3):DateTimeOffset.MinValue;
         var stable=item.ChangedUtc+TimeSpan.FromSeconds(2);return checkedAt>stable?checkedAt:stable;
     }

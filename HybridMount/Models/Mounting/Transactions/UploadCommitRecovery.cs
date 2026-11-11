@@ -9,6 +9,8 @@ namespace HybridMount.Models.Mounting.Transactions;
 internal sealed record UploadCommitCapture(LocalUpload Row,LocalFileStamp? Stamp,bool NeedsHash)
 {
     internal LocalFileStamp? VerifiedStamp {get;init;}
+    /// <summary>完整只读摘要且最终戳稳定时才证明存在后续正文；缺失证明不得重新发送。</summary>
+    internal bool ContentDifferent {get;init;}
 }
 
 /// <summary>原生提交的可选恢复边界；摘要由协调器在锁外完成，适配器在保护句柄内重验状态。</summary>
@@ -41,7 +43,7 @@ internal static class UploadCommitRecovery
         {
             if(!current(attempt!))return null;
             failure?.Throw();
-            return attempt! with{VerifiedStamp=attempt!.NeedsHash&&digest==attempt.Row.SnapshotSha256?attempt.Stamp:null};
+            return attempt! with{VerifiedStamp=attempt!.NeedsHash&&digest==attempt.Row.SnapshotSha256?attempt.Stamp:null,ContentDifferent=attempt.NeedsHash&&digest is not null&&digest!=attempt.Row.SnapshotSha256};
         },()=>{},token).ConfigureAwait(false);
     }
 

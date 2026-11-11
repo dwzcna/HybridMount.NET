@@ -110,7 +110,7 @@ public sealed partial class MountManager
             var row=_repository.Upload(prepared.Id);if(row!=prepared||row.State!="RemoteCommitted"||root.RemovalRequested||root.Definition.RemovalPending)return null;
             MountPathGuard.ValidateOperation(definition,prepared.IsCopy||RenamedUploadMissing(prepared)?definition.LocalPath:localPath);capturedEntry=Entry();
             var stamp=prepared.IsCopy||LocalMissing(localPath)||RenamedUploadMissing(prepared)?null:LocalFileState.Read(localPath);
-            var needsHash=stamp is not null&&row.Generation==prepared.SnapshotGeneration&&_uploadCommitter is IRecoveryUploadCommitter committer&&committer.NeedsRecovery(definition,capturedEntry,prepared,stamp);
+            var needsHash=stamp is not null&&_uploadCommitter is IRecoveryUploadCommitter committer&&committer.NeedsRecovery(definition,capturedEntry,prepared,stamp);
             return new(row,stamp,needsHash);
         },Current,capture=>UploadCommitRecovery.HashAsync(localPath,capture.Stamp!,token,()=>UploadCheckpointAsync("RecoveryHash",prepared)),token).ConfigureAwait(false);
         if(recovery is null)return;
@@ -122,6 +122,8 @@ public sealed partial class MountManager
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
             {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});return;}
+            // 当前代次即使由元数据观察推进，也只能在完整同内容证明后被本次回执覆盖。
+            if(recovery.VerifiedStamp is not null)prepared=prepared with{SnapshotGeneration=recovery.Row.Generation};
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path)&&!RenamedUploadMissing(prepared);LocalFileStamp? committedStamp=null;
             UploadRules.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
             if(_repository.Upload(prepared.Id)?.Error==UploadRules.TypeConflictMessage)throw new SourceConflictException(UploadRules.TypeConflictMessage);
@@ -141,8 +143,9 @@ public sealed partial class MountManager
                     committer.Commit(root.Definition,entry,prepared,recovery.VerifiedStamp):_uploadCommitter.Commit(root.Definition,entry,prepared);
             }
             if(committedStamp is not null)await UploadCheckpointAsync("CommitVerified",prepared).ConfigureAwait(false);
-            var completed=_repository.TryCommitUploadedEntry(recovery.Row,prepared,entry,receipt,committedStamp,!exists);
+            var completed=_repository.TryCommitUploadedEntry(recovery.Row,prepared,entry,receipt,committedStamp,!exists,recovery.ContentDifferent);
             if(completed is null)return;
+            if(recovery.NeedsHash||completed.State=="RemoteCommitted"||recovery.ContentDifferent)_logger.Queue("本地上传提交",completed.State=="RemoteCommitted"?"Warning":"Info",$"阶段=commit；同身份={recovery.Stamp?.Identity==prepared.SnapshotIdentity}；原代次={recovery.Row.Generation==recovery.Row.SnapshotGeneration}；需摘要={recovery.NeedsHash}；同内容={recovery.VerifiedStamp is not null}；正文变化={recovery.ContentDifferent}；本地提交={committedStamp is not null}；重试={completed.TransientFailureCount}");
             if(committedStamp is not null&&completed.State=="Completed")notifyPath=path;
             CompleteOwnUploadEcho(root,receipt);
             await UploadCheckpointAsync("Committed",completed).ConfigureAwait(false);

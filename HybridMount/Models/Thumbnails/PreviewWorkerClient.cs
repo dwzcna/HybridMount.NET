@@ -11,6 +11,9 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
 {
     internal TimeSpan StartupTimeout{get;init;}=TimeSpan.FromSeconds(5);
     internal TimeSpan DecodeTimeout{get;init;}=TimeSpan.FromSeconds(10);
+    internal TimeSpan PrefetchTimeout{get;init;}=TimeSpan.FromSeconds(30);
+    /// <summary>诊断订阅失败不能跳过子进程及管道的真实收尾。</summary>
+    private void RecordTiming(string stage,long milliseconds){try{timing?.Invoke(stage,milliseconds);}catch{/* 仅诊断回调，不能替换业务结果。 */}}
     private static string DefaultExecutable()
     {
 #if HYBRIDMOUNT_HEADLESS_TEST
@@ -24,13 +27,15 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
     /// <summary>预览不可用由状态结束，不制造正常分支异常；首次预算窗口失败时不启动解码子进程。</summary>
     internal async Task<Dictionary<int,byte[]>?> DecodeAsync(string extension,long length,PreviewRangeBudget budget,CancellationToken token=default)
     {
-        var prefetched=Stopwatch.GetTimestamp();using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(DecodeTimeout);
-        if(length>0&&await budget.TryReadAsync(0,(int)Math.Min(length,PreviewRangeBudget.WindowBytes),deadline.Token).ConfigureAwait(false) is null)return null;
-        return await DecodeCoreAsync(extension,length,budget.TryReadAsync,token,DecodeTimeout-Stopwatch.GetElapsedTime(prefetched)).ConfigureAwait(false);
+        var prefetched=Stopwatch.GetTimestamp();using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(PrefetchTimeout);
+        try{if(length>0&&await budget.TryReadAsync(0,(int)Math.Min(length,PreviewRangeBudget.WindowBytes),deadline.Token).ConfigureAwait(false) is null)return null;}
+        catch(OperationCanceledException)when(deadline.IsCancellationRequested&&!token.IsCancellationRequested){throw new PreviewPhaseTimeoutException(PreviewPhase.Prefetch);}
+        finally{RecordTiming("首块预取",(long)Stopwatch.GetElapsedTime(prefetched).TotalMilliseconds);}
+        token.ThrowIfCancellationRequested();return await DecodeCoreAsync(extension,length,budget.TryReadAsync,token).ConfigureAwait(false);
     }
-    private async Task<Dictionary<int,byte[]>?> DecodeCoreAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]?>> read,CancellationToken token,TimeSpan? remaining=null)
+    private async Task<Dictionary<int,byte[]>?> DecodeCoreAsync(string extension,long length,Func<long,int,CancellationToken,Task<byte[]?>> read,CancellationToken token)
     {
-        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(StartupTimeout);var stopping=timeout.Token;
+        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(StartupTimeout);var stopping=timeout.Token;var phase=PreviewPhase.Startup;long decoding=0,reading=0;
         var startup=Stopwatch.GetTimestamp();using var child=BackgroundPreviewProcess.Start(executable??DefaultExecutable());var process=child.Process;using var job=CreateJobObject(0,null);Task? drain=null;
         // 匿名同步管道的取消不能只依赖ReadAsync；期限触发仅终止本次拥有的子进程，使在途读真实完成。
         using var terminate=stopping.Register(()=>{try{if(!process.HasExited)process.Kill();}catch(InvalidOperationException){}catch(Win32Exception){}});
@@ -41,8 +46,7 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
             if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf<ExtendedLimits>())||!AssignProcessToJobObject(job,process.Handle))throw new Win32Exception(Marshal.GetLastWin32Error());
             child.Resume();drain=child.Error.CopyToAsync(Stream.Null,stopping);
             var ready=await IpcProtocol.ReadAsync<PreviewWorkerPacket>(child.Output,stopping).ConfigureAwait(false);if(ready.Kind!="ready")throw new IOException("预览工作进程未就绪。");
-            timing?.Invoke("启动",(long)Stopwatch.GetElapsedTime(startup).TotalMilliseconds);var decoding=Stopwatch.GetTimestamp();
-            var budget=remaining??DecodeTimeout;if(budget<=TimeSpan.Zero)throw new OperationCanceledException("预览读取期限已到。",stopping);timeout.CancelAfter(budget);
+            RecordTiming("启动",(long)Stopwatch.GetElapsedTime(startup).TotalMilliseconds);decoding=Stopwatch.GetTimestamp();phase=PreviewPhase.Decode;timeout.CancelAfter(DecodeTimeout);
             await IpcProtocol.WriteAsync(child.Input,new PreviewWorkerPacket("decode",Extension:extension.ToLowerInvariant(),Length:length),stopping).ConfigureAwait(false);
             while(true)
             {
@@ -56,16 +60,21 @@ public sealed class PreviewWorkerClient(string? executable=null,Action<int>? dia
                         if(!frames.TryGetValue(size,out var png)||png.Length is <24 or >ExePreviewCache.MaximumPngBytes||!png.AsSpan(0,8).SequenceEqual(new byte[]{137,80,78,71,13,10,26,10}))return null;
                         var width=System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16));var height=System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20));if(width<1||height<1||width>size||height>size)return null;
                     }
-                    timing?.Invoke("解码",(long)Stopwatch.GetElapsedTime(decoding).TotalMilliseconds);await process.WaitForExitAsync(stopping).ConfigureAwait(false);await drain.ConfigureAwait(false);return process.ExitCode==0?frames:null;
+                    await process.WaitForExitAsync(stopping).ConfigureAwait(false);await drain.ConfigureAwait(false);return process.ExitCode==0?frames:null;
                 }
                 if(message.Kind!="read"||message.Offset<0||message.Count is <1 or >PreviewRangeBudget.WindowBytes||message.Offset>length-message.Count)throw new IOException("工作进程读取越界。");
-                var data=await read(message.Offset,message.Count,stopping).ConfigureAwait(false);if(data is null)return null;if(data.Length!=message.Count)throw new IOException("预览读取长度不符。");
+                phase=PreviewPhase.Read;var readStarted=Stopwatch.GetTimestamp();byte[]? data;
+                try{data=await read(message.Offset,message.Count,stopping).ConfigureAwait(false);}
+                finally{var milliseconds=(long)Stopwatch.GetElapsedTime(readStarted).TotalMilliseconds;reading+=milliseconds;RecordTiming("工作读取",milliseconds);}
+                phase=PreviewPhase.Decode;if(data is null)return null;if(data.Length!=message.Count)throw new IOException("预览读取长度不符。");
                 await IpcProtocol.WriteAsync(child.Input,new PreviewWorkerPacket("data",Data:data),stopping).ConfigureAwait(false);
             }
         }
-        catch(Exception)when(stopping.IsCancellationRequested){throw new OperationCanceledException(stopping);}
+        catch(Exception)when(stopping.IsCancellationRequested){if(token.IsCancellationRequested)throw new OperationCanceledException(token);throw new PreviewPhaseTimeoutException(phase);}
         finally
         {
+            if(decoding!=0){var elapsed=(long)Stopwatch.GetElapsedTime(decoding).TotalMilliseconds;RecordTiming("解码",elapsed);RecordTiming("解码交互",Math.Max(0,elapsed-reading));}
+            else RecordTiming("启动失败",(long)Stopwatch.GetElapsedTime(startup).TotalMilliseconds);
             // 进程对象来自本次 Start，Job 只包含此子进程，不按名称选取或影响用户实例。
             if(!process.HasExited){try{process.Kill();}catch(InvalidOperationException)when(process.HasExited){}await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);}
             if(drain is not null)try{await drain.ConfigureAwait(false);}catch(OperationCanceledException)when(stopping.IsCancellationRequested){}catch(IOException){}

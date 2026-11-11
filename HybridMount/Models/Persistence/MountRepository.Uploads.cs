@@ -85,16 +85,16 @@ public sealed partial class MountRepository
         }
     }
     /// <summary>仓库锁内比较完整捕获记录后提交，记录已变化返回空值，不覆盖新代次或取消状态。</summary>
-    internal LocalUpload? TryCommitUploadedEntry(LocalUpload captured,LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false)
+    internal LocalUpload? TryCommitUploadedEntry(LocalUpload captured,LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false,bool contentChanged=false)
     {
         lock(_gate)
         {
             if(Upload(prepared.Id)!=captured)return null;
-            return CommitUploadedEntry(prepared,entry,receipt,committedStamp,missing);
+            return CommitUploadedEntry(prepared,entry,receipt,committedStamp,missing,contentChanged);
         }
     }
     /// <summary>在同一事务保存远端版本、索引和上传日志；只有已验证的当前代次才解除本地保护。</summary>
-    public LocalUpload CommitUploadedEntry(LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false)
+    public LocalUpload CommitUploadedEntry(LocalUpload prepared,MountEntry entry,SourceEntry receipt,LocalFileStamp? committedStamp,bool missing=false,bool contentChanged=false)
     {
         lock(_gate)
         {
@@ -103,11 +103,18 @@ public sealed partial class MountRepository
             if(current.IsDirectory!=prepared.IsDirectory||entry.IsDirectory!=receipt.IsDirectory)throw new SourceConflictException(UploadRules.TypeConflictMessage);
             var clean=committedStamp is not null&&committedStamp.Identity==prepared.SnapshotIdentity&&current.Generation==prepared.SnapshotGeneration;
             var completed=clean||missing||current.IsCopy;
+            var pending=!completed&&!contentChanged;
+            var attempts=pending?Math.Min(3,current.TransientFailureCount+1):0;
+            var now=DateTimeOffset.UtcNow;
             var next=current with{EntryId=entry.Id,ExpectedVersion=receipt.Version,BaselineSha256=prepared.SnapshotSha256,
                 ObservedStamp=clean?committedStamp!.Key:current.ObservedStamp,
-                State=completed?"Completed":current.CancelRequested?"Canceled":"Queued",Receipt=null,SnapshotPath=null,SnapshotSha256=null,
-                SnapshotStamp=null,SnapshotIdentity=null,SnapshotGeneration=0,Bytes=completed?prepared.Total:0,Total=completed?prepared.Total:0,AutoRetryCount=0,NextAttemptUtc=null,TransientFailureCount=0,
-                Error=missing?"远端已经上传；本地项已移除，未传播删除。":clean||current.IsCopy?null:"上传期间本地再次变化，保留新一代更改。",ExplicitRequest=false,LastCheckedUtc=null};
+                State=pending?"RemoteCommitted":completed?"Completed":current.CancelRequested?"Canceled":"Queued",
+                Receipt=pending?receipt:null,SnapshotPath=pending?prepared.SnapshotPath:null,SnapshotSha256=pending?prepared.SnapshotSha256:null,
+                SnapshotStamp=pending?prepared.SnapshotStamp:null,SnapshotIdentity=pending?prepared.SnapshotIdentity:null,SnapshotGeneration=pending?prepared.SnapshotGeneration:0,
+                Generation=contentChanged&&current.Generation<=prepared.SnapshotGeneration?prepared.SnapshotGeneration+1:current.Generation,
+                Bytes=completed||pending?prepared.Total:0,Total=completed||pending?prepared.Total:0,AutoRetryCount=0,
+                NextAttemptUtc=pending&&attempts<3?now+TimeSpan.FromSeconds(3*attempts):null,TransientFailureCount=attempts,
+                Error=pending?UploadRules.LocalCommitPendingMessage:missing?"远端已经上传；本地项已移除，未传播删除。":clean||current.IsCopy?null:"上传期间本地再次变化，保留新一代更改。",ExplicitRequest=false,LastCheckedUtc=pending?now:null};
             using var db=Open();using var transaction=db.BeginTransaction();
             if(!current.IsCopy)
             {

@@ -146,12 +146,12 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
     }
     if(operation=="commitUpload"){
         auto path=EntryPath(data);ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE|CF_OPEN_FILE_FLAG_WRITE_ACCESS);auto stamp=InspectFile(file.Raw);
-        if(stamp.Directory!=data.at("directory").get<bool>())return {{"committed",false},{"typeConflict",true},{"stamp",FileJson(stamp)}};
-        auto expected=data.at("snapshotIdentity");if(expected.is_null()||stamp.Identity!=expected.get<std::string>())return {{"committed",false}};
-        auto info=Maybe(file.Raw);Json marker;bool committed=false;
-        if(info){marker=Parse(std::string(info->Identity.begin(),info->Identity.end()),4096);committed=GuidN(marker.at("MountId"))==GuidN(data.at("mountId"))&&marker.at("EntryId")==data.at("entryId")&&info->InSync==CF_IN_SYNC_STATE_IN_SYNC;}
+        if(stamp.Directory!=data.at("directory").get<bool>())return {{"committed",false},{"reason","type"},{"typeConflict",true},{"stamp",FileJson(stamp)}};
+        auto expected=data.at("snapshotIdentity");if(expected.is_null()||stamp.Identity!=expected.get<std::string>())return {{"committed",false},{"reason","identity"},{"stamp",FileJson(stamp)}};
+        auto info=Maybe(file.Raw);Json marker;
+        if(info){marker=Parse(std::string(info->Identity.begin(),info->Identity.end()),4096);Require(GuidN(marker.at("MountId"))==GuidN(data.at("mountId")),E_ACCESSDENIED);}
         if(!stamp.Directory&&(data.at("snapshotStamp").is_null()||stamp.Key()!=data.at("snapshotStamp").get<std::string>())){
-            if(!committed||data.at("verifiedStamp").is_null()||stamp.Key()!=data.at("verifiedStamp").get<std::string>())return {{"committed",false}};
+            if(data.at("verifiedStamp").is_null()||stamp.Key()!=data.at("verifiedStamp").get<std::string>())return {{"committed",false},{"reason","stamp"},{"stamp",FileJson(stamp)}};
         }
         auto identity=Json{{"MountId",data.at("mountId")},{"EntryId",data.at("entryId")}}.dump();USN usn=stamp.Usn;
         if(!info)Check(CfConvertToPlaceholder(file.Value,identity.data(),static_cast<DWORD>(identity.size()),CF_CONVERT_FLAG_NONE,&usn,nullptr));

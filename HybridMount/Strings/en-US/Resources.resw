@@ -1997,4 +1997,5 @@ Mount: {1}
   </data>
   <data name="Text_91A1D31663B9" xml:space="preserve"><value>Show main window</value></data>
   <data name="Text_EC4D1F9F82B1" xml:space="preserve"><value>Exit HybridMount.NET</value></data>
+  <data name="Text_07E49220E577" xml:space="preserve"><value>The remote write succeeded. Local verification is pending; the file will not be sent again. Retry the local commit.</value></data>
 </root>

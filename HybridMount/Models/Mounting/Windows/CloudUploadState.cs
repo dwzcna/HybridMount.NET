@@ -15,15 +15,9 @@ internal static class CloudUploadState
     public static void ValidateTypes(LocalUpload intent,LocalFileStamp? local=null,bool? remoteDirectory=null)
         =>UploadRules.ValidateTypes(intent,local,remoteDirectory);
 
-    /// <summary>只读核对本挂载占位身份及同步标记，判断崩溃恢复是否需要锁外摘要。</summary>
-    internal static bool IsCommitted(MountDefinition mount,MountEntry entry,string path)
-    {
-        var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-        return marker?.MountId==mount.Id&&marker.EntryId==entry.Id&&info?.Info.InSyncState==1;
-    }
-    /// <summary>恢复证明只适用于已经提交且状态戳仍一致的同一对象；保护范围内变化时拒绝。</summary>
-    internal static bool MatchesRecovery(LocalFileStamp stamp,LocalFileStamp? verifiedStamp,bool alreadyCommitted)
-        =>alreadyCommitted&&verifiedStamp is not null&&stamp.Key==verifiedStamp.Key;
+    /// <summary>完整内容证明适用于同一对象，无论是否已InSync；原生保护范围内仍须精确重验状态戳。</summary>
+    internal static bool MatchesRecovery(LocalFileStamp stamp,LocalFileStamp? verifiedStamp)
+        =>verifiedStamp is not null&&stamp.Identity==verifiedStamp.Identity&&stamp.Key==verifiedStamp.Key;
 
     /// <summary>保护引用内核验内容并返回提交后稳定戳；并发编辑返回空值，类型冲突拒绝原生转换。</summary>
     public static LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp=null)
@@ -40,6 +34,6 @@ internal sealed class CloudUploadCommitter : ILocalUploadCommitter,IRecoveryUplo
 {
     public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)=>CloudUploadState.Commit(mount,entry,prepared);
     public bool NeedsRecovery(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp stamp)
-        =>!entry.IsDirectory&&stamp.Identity==prepared.SnapshotIdentity&&stamp.Key!=prepared.SnapshotStamp&&CloudUploadState.IsCommitted(mount,entry,RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath));
+        =>!entry.IsDirectory&&stamp.Identity==prepared.SnapshotIdentity&&(stamp.Key!=prepared.SnapshotStamp||prepared.Generation!=prepared.SnapshotGeneration)&&CloudFilesNative.HasFullContent(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath),stamp.Length);
     public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp)=>CloudUploadState.Commit(mount,entry,prepared,verifiedStamp);
 }

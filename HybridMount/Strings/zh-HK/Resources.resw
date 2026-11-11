@@ -1997,4 +1997,5 @@
   </data>
   <data name="Text_91A1D31663B9" xml:space="preserve"><value>顯示主視窗</value></data>
   <data name="Text_EC4D1F9F82B1" xml:space="preserve"><value>結束 HybridMount.NET</value></data>
+  <data name="Text_07E49220E577" xml:space="preserve"><value>遠端已寫入，本機核驗未完成；不會重複上載，請重試本機提交。</value></data>
 </root>

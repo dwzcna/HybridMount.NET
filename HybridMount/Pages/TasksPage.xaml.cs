@@ -20,7 +20,7 @@ public sealed partial class TasksPage : Page, IDisposable
     public TasksPage()
     {
         try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
-        JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is MountOperationSnapshot job)ViewModel.SelectedJobId=job.Id;};
+        JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is TaskListItem job)ViewModel.SelectedJobId=job.Id;};
         ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;Loaded+=PageLoaded;
     }
     private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(JobList);
@@ -30,7 +30,7 @@ public sealed partial class TasksPage : Page, IDisposable
     private void RestoreSelection()
     {
         if(_disposed)return;_restoring=true;
-        try{JobList.SelectedItem=ViewModel.Selected;}finally{_restoring=false;}
+        try{if(!ReferenceEquals(JobList.SelectedItem,ViewModel.SelectedRow))JobList.SelectedItem=ViewModel.SelectedRow;}finally{_restoring=false;}
         _viewport.Restore(JobList);
     }
     private void ClearIssueFilter(object sender,RoutedEventArgs args)=>ViewModel.ClearIssueFilter();

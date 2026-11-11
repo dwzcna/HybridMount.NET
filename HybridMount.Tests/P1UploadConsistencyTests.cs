@@ -68,7 +68,7 @@ public sealed class P1UploadConsistencyTests
         Assert.True(result.Generation>original.Generation);Assert.Equal(2,TargetWrites(test,"legacy-dirty.txt"));
     }
 
-    /// <summary>持久提交在同一事务保存核验戳；新代次出现时不覆盖其观察戳或解除保护。</summary>
+    /// <summary>持久提交在同一事务保存核验戳；未证明新代内容时保留已确认回执和快照，不覆盖观察戳或解除保护。</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -85,9 +85,9 @@ public sealed class P1UploadConsistencyTests
             repository.SaveUpload(newerGeneration?prepared with{Generation=2,ObservedStamp="new-generation-observation"}:prepared);
             var receipt=new SourceEntry("","transaction.txt",false,8,DateTimeOffset.UtcNow,"remote-A");var entry=new MountEntry(prepared.Id,receipt.Path,prepared.LocalPath,receipt.Version,false,Materialized:true);
             var verified=stamp with{Usn=stamp.Usn+100};var result=repository.CommitUploadedEntry(prepared,entry,receipt,verified);
-            Assert.Equal(newerGeneration?"Queued":"Completed",result.State);Assert.Equal(newerGeneration?"new-generation-observation":verified.Key,result.ObservedStamp);
+            Assert.Equal(newerGeneration?"RemoteCommitted":"Completed",result.State);Assert.Equal(newerGeneration?"new-generation-observation":verified.Key,result.ObservedStamp);
             Assert.Equal(result,repository.Upload(prepared.Id));Assert.Equal(newerGeneration,repository.Entries(mount).Single(item=>item.Id==entry.Id).Protected);
-            Assert.Equal("remote-A",result.ExpectedVersion);Assert.Null(result.SnapshotStamp);Assert.Equal(digest,repository.Baseline(mount,"transaction.txt","remote-A"));
+            Assert.Equal("remote-A",result.ExpectedVersion);Assert.Equal(newerGeneration?prepared.SnapshotStamp:null,result.SnapshotStamp);Assert.Equal(newerGeneration?receipt:null,result.Receipt);Assert.Equal(digest,repository.Baseline(mount,"transaction.txt","remote-A"));
         }
         finally{Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);Directory.Delete(area,true);}
     }

@@ -167,29 +167,29 @@ public sealed partial class WebDavFileSource
             if(lease is null)Condition(request,condition.ExpectedVersion);else request.Headers.Add("If",lease.IfHeader);
             using var response=await SendAsync(request,lease?.Cancellation??token,true).ConfigureAwait(false);Success(response);
             var digest=input.Digest;
-            var receipt=NormalizeTag(response.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);
+            var receipt=NormalizeTag(response.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);var verificationStage="metadata";
             try
             {
                 var metadata=await GetMetadataAsync(path,lease?.Cancellation??token).ConfigureAwait(false);
-                if(metadata.IsDirectory||metadata.Size!=input.BytesRead)throw new IOException("上传后类型或长度不符。");
+                verificationStage="type-length";if(metadata.IsDirectory||metadata.Size!=input.BytesRead)throw new IOException("上传后类型或长度不符。");
                 if(weakUpdate&&lease is not null)lease.Cancellation.ThrowIfCancellationRequested();
                 if(Strong(receipt))
                 {
-                    if(NormalizeTag(Version(metadata).ETag)!=receipt)throw new IOException("上传回执与当前远端版本不同。");
+                    verificationStage="receipt-version";if(NormalizeTag(Version(metadata).ETag)!=receipt)throw new IOException("上传回执与当前远端版本不同。");
                 }
                 else if(!(weakUpdate&&lease is not null&&WriteCapabilities.ExclusiveLock==CapabilitySupport.Supported&&
                     Strong(Version(metadata).ETag)))
                 {
-                    var readback=await ReadContentHashAsync(path,lease?.Token,lease?.Cancellation??token).ConfigureAwait(false);
+                    verificationStage="readback";var readback=await ReadContentHashAsync(path,lease?.Token,lease?.Cancellation??token).ConfigureAwait(false);
                     if(readback!=digest)throw new IOException("上传后内容摘要不符。");
-                    var after=await GetMetadataAsync(path,lease?.Cancellation??token).ConfigureAwait(false);
+                    verificationStage="readback-version";var after=await GetMetadataAsync(path,lease?.Cancellation??token).ConfigureAwait(false);
                     if(!IsSameVersion(metadata.Version,after.Version))throw new IOException("上传核对期间远端版本变化。");
                 }
                 try{ContentBaseline?.Invoke(new(path,metadata.Version,digest));}catch{ /* 观察者失败不能导致重复写入。 */ }
                 return metadata;
             }
             catch(Exception error)when(error is IOException or OperationCanceledException)
-            {throw new SourceOutcomeUnknownException("DAV 上传后核对",new IOException("写入已响应，但未能确认对应内容与版本。"));}
+            {throw new SourceOutcomeUnknownException("DAV 上传后核对",new SourceWriteVerificationException(verificationStage,error));}
         }
         finally{if(lease is not null)await lease.DisposeAsync().ConfigureAwait(false);}
     }

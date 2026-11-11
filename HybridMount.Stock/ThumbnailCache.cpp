@@ -15,10 +15,10 @@ namespace hm {
 thread_local const char* ThumbnailReadStage="start";
 thread_local Json ThumbnailEvidence=Json::object();
 namespace {
-std::atomic<ULONGLONG> QueryCount{},QueryMilliseconds{},BusyCount{},ConnectionCount{},ConnectionReuse{},ConnectionEvictions{};
+std::atomic<ULONGLONG> QueryCount{},QueryMilliseconds{},BusyCount{},GateBusyCount{},SqliteBusyCount{},CapacityBusyCount{},ConnectionCount{},ConnectionReuse{},ConnectionEvictions{};
 struct QueryTiming {ULONGLONG Started=GetTickCount64();~QueryTiming(){++QueryCount;QueryMilliseconds+=GetTickCount64()-Started;}};
 struct sqlite3;struct sqlite3_stmt;
-void SqliteCheck(int code,ULONGLONG deadline=0){if(code==9&&deadline&&GetTickCount64()>=deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}if(code==5||code==6)++BusyCount;if(code!=0)throw Failure(HRESULT_FROM_WIN32(code==5||code==6?ERROR_BUSY:code==11||code==26?ERROR_FILE_CORRUPT:ERROR_INVALID_DATA));}
+void SqliteCheck(int code,ULONGLONG deadline=0){if(code==9&&deadline&&GetTickCount64()>=deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}if(code==5||code==6){ThumbnailReadStage="sqlite-busy";++BusyCount;++SqliteBusyCount;}if(code!=0)throw Failure(HRESULT_FROM_WIN32(code==5||code==6?ERROR_BUSY:code==11||code==26?ERROR_FILE_CORRUPT:ERROR_INVALID_DATA));}
 void ReportThumbnailFailure(HRESULT code)noexcept{if(code==HRESULT_FROM_WIN32(ERROR_NOT_FOUND)||code==HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)||code==E_NOTIMPL||code==E_ACCESSDENIED)return;static std::atomic<ULONGLONG> last{};auto now=GetTickCount64(),previous=last.load();if(now-previous<60000||!last.compare_exchange_strong(previous,now))return;std::string type="Thumbnail.";auto stage=std::string(ThumbnailReadStage);if(stage.size()>64||stage.find_first_not_of("abcdefghijklmnopqrstuvwxyz-")!=std::string::npos)stage="read";type+=stage;RecordNativeFailure("ShellServer",code,type.c_str());}
 /// <summary>只解析应用目录的现有SQLite C ABI；不搜索PATH，不创建第二写入者。</summary>
 struct Sqlite {
@@ -95,12 +95,12 @@ struct ContextCache {
         pin.Value=nullptr;state.release();return true;
     }
     std::shared_ptr<CacheContext> Find(const std::wstring& path){
-        std::unique_lock lock(Gate,std::try_to_lock);if(!lock.owns_lock()){++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}
+        std::unique_lock lock(Gate,std::try_to_lock);if(!lock.owns_lock()){ThumbnailReadStage="context-gate-busy";++GateBusyCount;++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}
         Require(!Closing,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));const auto now=GetTickCount64();Trim(now);
         if(auto found=Entries.find(path);found!=Entries.end()){found->second->Used=now;return found->second;}
         if(Entries.size()>=16){
             auto oldest=Entries.end();for(auto item=Entries.begin();item!=Entries.end();++item)if(item->second.use_count()==1&&(oldest==Entries.end()||item->second->Used<oldest->second->Used))oldest=item;
-            if(oldest==Entries.end()){++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}Entries.erase(oldest);++ConnectionEvictions;
+            if(oldest==Entries.end()){ThumbnailReadStage="connection-capacity";++CapacityBusyCount;++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}Entries.erase(oldest);++ConnectionEvictions;
         }
         auto context=std::make_shared<CacheContext>();context->Db=std::make_unique<Database>(Api,path);context->Used=now;Entries.emplace(path,context);
         if(!Schedule())Entries.erase(path);return context;
@@ -122,8 +122,8 @@ struct ReadLease {
         if(background){
             // 背景校验只申请短期优先权；新的COM查询立即退让，已有查询收尾后最多100ms取得连接。
             struct Waiter{std::atomic<unsigned>& Value;Waiter(std::atomic<unsigned>& value):Value(value){++Value;}~Waiter(){--Value;}} waiter(Context->Background);
-            const auto until=GetTickCount64()+100;while(!Lock.try_lock()){if(GetTickCount64()>=until){++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}Sleep(1);}
-        }else if(Context->Background.load()!=0||!Lock.try_lock()){++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}
+            const auto until=GetTickCount64()+100;while(!Lock.try_lock()){if(GetTickCount64()>=until){ThumbnailReadStage="query-gate-timeout";++GateBusyCount;++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}Sleep(1);}
+        }else if(Context->Background.load()!=0||!Lock.try_lock()){ThumbnailReadStage="query-gate-busy";++GateBusyCount;++BusyCount;throw Failure(HRESULT_FROM_WIN32(ERROR_BUSY));}
         try{
             NoLinks(path,false);const auto identity=InspectFile(path).Identity;
             if(!Context->Db||!Context->Db->Healthy||Context->Db->Identity!=identity)Context->Db=std::make_unique<Database>(Cache().Api,path);else ++ConnectionReuse;
@@ -162,7 +162,7 @@ std::vector<BYTE> ReadThumbnailSnapshot(const std::wstring& path,UINT size,Json&
     auto dimension=[](const BYTE* value){return (DWORD(value[0])<<24)|(DWORD(value[1])<<16)|(DWORD(value[2])<<8)|value[3];};auto width=dimension(bytes+16),height=dimension(bytes+20);Require(width>0&&height>0&&width<=256&&height<=256);
     if(GetTickCount64()>=db.Deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}ThumbnailReadStage="final-state";Require(Valid(binding,canonical));return {bytes,bytes+count};
 }
-Json ThumbnailQueryStatistics(){return {{"count",QueryCount.load()},{"milliseconds",QueryMilliseconds.load()},{"busy",BusyCount.load()},{"opened",ConnectionCount.load()},{"reused",ConnectionReuse.load()},{"evicted",ConnectionEvictions.load()}};}
+Json ThumbnailQueryStatistics(){return {{"count",QueryCount.load()},{"milliseconds",QueryMilliseconds.load()},{"busy",BusyCount.load()},{"gateBusy",GateBusyCount.load()},{"sqliteBusy",SqliteBusyCount.load()},{"capacityBusy",CapacityBusyCount.load()},{"opened",ConnectionCount.load()},{"reused",ConnectionReuse.load()},{"evicted",ConnectionEvictions.load()}};}
 HRESULT WINAPI ReadThumbnail(void*,const wchar_t* path,UINT size,BYTE** png,DWORD* length)noexcept{
     if(!png||!length)return E_POINTER;*png=nullptr;*length=0;if(!path)return E_INVALIDARG;
     try{

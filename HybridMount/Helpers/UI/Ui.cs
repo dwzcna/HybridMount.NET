@@ -117,6 +117,8 @@ public static class Ui
     private static readonly ConcurrentDictionary<(Type,string),DependencyProperty> Properties=new();
     private static void Write(DependencyObject target,string property,string text)
     {
+        // WinUI Run.Text是普通WinRT属性，没有TextProperty；任务DataTemplate中的Run必须走实际setter。
+        if(property=="Text"&&target is Microsoft.UI.Xaml.Documents.Run run){run.Text=text;return;}
         if(property=="ToolTip"){ToolTipService.SetToolTip(target,text);return;}if(property=="AutomationName"){AutomationProperties.SetName(target,text);return;}if(property=="HelpText"){AutomationProperties.SetHelpText(target,text);return;}
         var dp=Properties.GetOrAdd((target.GetType(),property),item=>(item.Item1.GetProperty(item.Item2+"Property",BindingFlags.Public|BindingFlags.Static|BindingFlags.FlattenHierarchy)?.GetValue(null)??item.Item1.GetField(item.Item2+"Property",BindingFlags.Public|BindingFlags.Static|BindingFlags.FlattenHierarchy)?.GetValue(null)) as DependencyProperty??throw new InvalidOperationException("UI property missing: "+item.Item1.Name+"."+item.Item2));
         target.SetValue(dp,text);
@@ -147,7 +149,7 @@ public static class Ui
         internal void SetSource(object? source){if(ReferenceEquals(source,_source))return;Detach();_source=source;Attach();Refresh(false);}
         private void Attach(){if(_loaded&&_source is INotifyPropertyChanged notifier){_notifier=notifier;notifier.PropertyChanged+=Changed;}}
         private void Detach(){if(_notifier is {} previous){_notifier=null;previous.PropertyChanged-=Changed;}}
-        private void Changed(object? sender,PropertyChangedEventArgs args)=>QueueRefresh();
+        private void Changed(object? sender,PropertyChangedEventArgs args){if(string.IsNullOrEmpty(args.PropertyName)||_paths.Values.Any(path=>path.Split('.')[0]==args.PropertyName))QueueRefresh();}
         private void Loaded(object sender,RoutedEventArgs args){if(_disposed)return;_loaded=true;Detach();Attach();Refresh(true);}
         private void Unloaded(object sender,RoutedEventArgs args){_loaded=false;++_revision;Detach();}
         private void QueueRefresh()

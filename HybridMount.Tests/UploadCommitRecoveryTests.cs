@@ -19,7 +19,7 @@ public sealed class UploadCommitRecoveryTests
     public async Task NormalAndEmptyRecoveryVerifyActualContent(int size)
     {
         using var test=new Fixture(size);var result=await test.Run();Assert.NotNull(result);Assert.Equal(test.Stamp.Key,result.VerifiedStamp!.Key);
-        Assert.True(CloudUploadState.MatchesRecovery(test.Stamp,result.VerifiedStamp,true));Assert.False(CloudUploadState.MatchesRecovery(test.Stamp,result.VerifiedStamp,false));
+        Assert.True(CloudUploadState.MatchesRecovery(test.Stamp,result.VerifiedStamp));
     }
     [Theory]
     [InlineData("generation")][InlineData("state")][InlineData("attempt")][InlineData("receipt")][InlineData("cancel")][InlineData("edit")][InlineData("replace")][InlineData("delete")]
@@ -43,12 +43,12 @@ public sealed class UploadCommitRecoveryTests
     [Fact]
     public async Task DigestMismatchCannotAuthorizeNativeRecovery()
     {
-        using var test=new Fixture(1);test.Row=test.Row with{SnapshotSha256=new string('0',64)};var result=await test.Run();Assert.NotNull(result);Assert.Null(result.VerifiedStamp);Assert.False(CloudUploadState.MatchesRecovery(test.Stamp,result.VerifiedStamp,true));
+        using var test=new Fixture(1);test.Row=test.Row with{SnapshotSha256=new string('0',64)};var result=await test.Run();Assert.NotNull(result);Assert.Null(result.VerifiedStamp);Assert.True(result.ContentDifferent);Assert.False(CloudUploadState.MatchesRecovery(test.Stamp,result.VerifiedStamp));
     }
     [Fact]
     public void NativeRecheckRejectsChangesAfterVerification()
     {
-        using var test=new Fixture(1);Assert.False(CloudUploadState.MatchesRecovery(test.Stamp with{Usn=test.Stamp.Usn+1},test.Stamp,true));Assert.False(CloudUploadState.MatchesRecovery(test.Stamp,null,true));
+        using var test=new Fixture(1);Assert.False(CloudUploadState.MatchesRecovery(test.Stamp with{Usn=test.Stamp.Usn+1},test.Stamp));Assert.False(CloudUploadState.MatchesRecovery(test.Stamp,null));
     }
     [Fact]
     public async Task NormalCommitDoesNotHash()
@@ -92,7 +92,7 @@ public sealed class UploadCommitRecoveryTests
             await files.Gate.WaitAsync();
             try
             {
-                Assert.True(Current(recovery));Assert.Equal(0,files.Gate.CurrentCount);Assert.True(CloudUploadState.MatchesRecovery(files.Stamp,recovery.VerifiedStamp,true));calls++;
+                Assert.True(Current(recovery));Assert.Equal(0,files.Gate.CurrentCount);Assert.True(CloudUploadState.MatchesRecovery(files.Stamp,recovery.VerifiedStamp));calls++;
                 if(change=="transaction")repository.UpdateUpload(item.Id,current=>current with{Generation=2});
                 var entry=new MountEntry(item.Id,"file","file",receipt.Version,false,Materialized:true);
                 committed=repository.TryCommitUploadedEntry(recovery.Row,item,entry,receipt,recovery.VerifiedStamp);

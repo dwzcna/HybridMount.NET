@@ -14,6 +14,14 @@ public sealed record SourceCredentials(string UserName = "", string Password = "
 public sealed class SourceOutcomeUnknownException(string operation, Exception inner)
     : IOException($"{operation}结果不确定，请刷新远端并核对后再操作。", inner);
 
+/// <summary>已响应写入的只读核对失败；仅保留有限阶段与类型／码，原始异常消息和响应正文不进入诊断。</summary>
+internal sealed class SourceWriteVerificationException:IOException
+{
+    internal string Stage {get;}
+    internal string FailureType {get;}
+    internal SourceWriteVerificationException(string stage,Exception error):base($"写入核对阶段={stage}；类型={error.GetType().Name}；HRESULT=0x{error.HResult:X8}",error is SourceConnectionException?error:null)
+    {Stage=stage;FailureType=error.GetType().Name;HResult=error.HResult;}
+}
 /// <summary>服务明确拒绝请求，区别于写入可能已提交但响应丢失；不触发盲目重试。</summary>
 public sealed class SourceRequestRejectedException(int status,string message,TimeSpan? retryAfter=null) : IOException(message)
 {

@@ -43,14 +43,14 @@ public sealed partial class WebDavFileSource
             if(mutation)throw new SourceOutcomeUnknownException(request.Method.Method,error);
             throw;
         }
-        catch (WebDAVClient.Helpers.WebDAVException)
+        catch (WebDAVClient.Helpers.WebDAVException error)
         {
-            if(mutation)throw new SourceOutcomeUnknownException(request.Method.Method,new IOException("DAV 响应无法确认写入结果。"));
+            if(mutation)throw new SourceOutcomeUnknownException(request.Method.Method,new SourceWriteVerificationException("response-format",error));
             throw new IOException("WebDAV 响应格式、范围或 XML 无效。");
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
         {
-            if (mutation) throw new SourceOutcomeUnknownException(request.Method.Method, new IOException("网络请求未确认完成。"));
+            if (mutation) throw new SourceOutcomeUnknownException(request.Method.Method, WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应",timeout:error is OperationCanceledException));
             if(error is OperationCanceledException&&token.IsCancellationRequested)throw;
             throw WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应",timeout:error is OperationCanceledException);
         }
