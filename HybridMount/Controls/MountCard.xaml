@@ -37,54 +37,54 @@
                     <TextBlock Grid.Column="1" Text="{x:Bind Item.ConnectionStatus,Mode=OneWay}" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 </Grid>
                 <StackPanel x:Name="ActionsGrid" Orientation="Horizontal" Spacing="6" Visibility="Collapsed">
-                    <ToggleButton x:Name="ConnectionButton" Tag="connection" Width="36" Height="32" Padding="6"
+                    <ToggleButton x:Name="ConnectionButton" Tag="connection" Height="32" Padding="8,4"
                                   IsChecked="{x:Bind Item.IsConnected,Mode=OneWay}" IsEnabled="{x:Bind Item.CanChangeConnection,Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind Item.ConnectionText,Mode=OneWay}"
                                   AutomationProperties.Name="{x:Bind Item.ConnectionText,Mode=OneWay}" Click="PerformAction">
-                        <FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}" FontSize="16"/><TextBlock Text="{x:Bind Item.ConnectionText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </ToggleButton>
-                    <Button x:Name="SettingsButton" Tag="settings" Width="36" Height="32" Padding="6"
+                    <Button x:Name="SettingsButton" Tag="settings" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" loc:Ui.ToolTipKey="Text_F797B44CFD54" loc:Ui.AutomationNameKey="Text_F797B44CFD54" Click="PerformAction">
-                        <FontIcon Glyph="&#xE713;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE713;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_F797B44CFD54" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Border x:Name="ConnectionSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <Button x:Name="ScanButton" Tag="scan" Width="36" Height="32" Padding="6"
+                    <Button x:Name="ScanButton" Tag="scan" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_0C9E1C407AF7" loc:Ui.AutomationNameKey="Text_0C9E1C407AF7" Click="PerformAction">
-                        <FontIcon Glyph="&#xE721;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE721;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_0C9E1C407AF7" VerticalAlignment="Center"/></StackPanel>
                     </Button>
-                    <Button x:Name="DetectButton" Tag="refresh" Width="36" Height="32" Padding="6"
+                    <Button x:Name="DetectButton" Tag="refresh" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_6C17E763C3ED" loc:Ui.AutomationNameKey="Text_80A92AD480C0" Click="PerformAction">
-                        <FontIcon Glyph="&#xE895;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE895;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_80A92AD480C0" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Border x:Name="ManualSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <ToggleButton x:Name="ThumbnailButton" Tag="thumbnails" Width="36" Height="32" Padding="6"
+                    <ToggleButton x:Name="ThumbnailButton" Tag="thumbnails" Height="32" Padding="8,4"
                                   IsChecked="{x:Bind Item.ThumbnailsEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind Item.ThumbnailText,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.ThumbnailText,Mode=OneWay}" Click="PerformAction">
-                        <SymbolIcon Symbol="Pictures"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Pictures"/><TextBlock Text="{x:Bind Item.ThumbnailText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </ToggleButton>
-                    <ToggleButton x:Name="RemoteDetectionButton" Tag="remoteDetection" Width="36" Height="32" Padding="6"
+                    <ToggleButton x:Name="RemoteDetectionButton" Tag="remoteDetection" Height="32" Padding="8,4"
                                   IsChecked="{x:Bind Item.RemoteDetectionEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}"
                                   ToolTipService.ToolTip="{x:Bind Item.DetectionText,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DetectionText,Mode=OneWay}" Click="PerformAction">
-                        <FontIcon Glyph="&#xE895;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE895;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/><TextBlock Text="{x:Bind Item.DetectionText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </ToggleButton>
                     <Border x:Name="OptionsSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <Button x:Name="KeepButton" Tag="keepOnDevice" Width="36" Height="32" Padding="6"
+                    <Button x:Name="KeepButton" Tag="keepOnDevice" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_121799CED97E" loc:Ui.AutomationNameKey="Text_121799CED97E" Click="PerformAction">
-                        <FontIcon Glyph="&#xE718;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE718;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_121799CED97E" VerticalAlignment="Center"/></StackPanel>
                     </Button>
-                    <Button x:Name="FreeButton" Tag="freeSpace" Width="36" Height="32" Padding="6"
+                    <Button x:Name="FreeButton" Tag="freeSpace" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_3D1D2F450C37" loc:Ui.AutomationNameKey="Text_3D1D2F450C37" Click="PerformAction">
-                        <FontIcon Glyph="&#xE753;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE753;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_3D1D2F450C37" VerticalAlignment="Center"/></StackPanel>
                     </Button>
-                    <Button x:Name="CapacityButton" Tag="capacity" Width="36" Height="32" Padding="6"
+                    <Button x:Name="CapacityButton" Tag="capacity" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" loc:Ui.ToolTipKey="Text_F6B3FF7C362A" loc:Ui.AutomationNameKey="Text_F6B3FF7C362A" Click="PerformAction">
-                        <FontIcon Glyph="&#xEDA2;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEDA2;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_F6B3FF7C362A" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Border x:Name="StorageSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <Button x:Name="RemoveButton" Tag="remove" Width="36" Height="32" Padding="6"
+                    <Button x:Name="RemoveButton" Tag="remove" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRemove,Mode=OneWay}" ToolTipService.ToolTip="{x:Bind Item.RemoveText,Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind Item.RemoveText,Mode=OneWay}" Click="PerformAction">
-                        <FontIcon Glyph="&#xE74D;" FontSize="16"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="16"/><TextBlock Text="{x:Bind Item.RemoveText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <DropDownButton x:Name="MoreButton" Width="48" Height="32" Padding="6" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}"
                                     loc:Ui.AutomationNameKey="Text_F5651904C35C" loc:Ui.ToolTipKey="Text_9F07D2CE4115">
@@ -133,10 +133,10 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="12,0,0,0">
                 <Grid RowSpacing="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Button Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Width="36" Height="32" Padding="6" loc:Ui.ToolTipKey="Text_7D0D5850515D" loc:Ui.AutomationNameKey="Text_7D0D5850515D"><FontIcon Glyph="&#xED25;" FontSize="16"/></Button>
-                    <Grid Grid.Row="2" Height="32" Width="36">
-                        <Button Tag="diagnostics" Click="PerformAction" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" Width="36" Height="32" Padding="6" ToolTipService.ToolTip="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}">
-                            <FontIcon Glyph="&#xE9D9;" FontSize="16"/>
+                    <Button Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Height="32" Padding="8,4" loc:Ui.ToolTipKey="Text_7D0D5850515D" loc:Ui.AutomationNameKey="Text_7D0D5850515D"><StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xED25;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_7D0D5850515D" VerticalAlignment="Center"/></StackPanel></Button>
+                    <Grid Grid.Row="2" Height="32">
+                        <Button Tag="diagnostics" Click="PerformAction" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" Height="32" Padding="8,4" ToolTipService.ToolTip="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9D9;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_40FF6300F981" VerticalAlignment="Center"/></StackPanel>
                             <Button.ContextFlyout><MenuFlyout Opening="OverflowOpening"><MenuFlyoutItem loc:Ui.TextKey="Text_F1B417B318B5" Tag="fullDiagnostics" Click="PerformAction"/></MenuFlyout></Button.ContextFlyout>
                         </Button>
                         <Border Background="{ThemeResource MountIssueBadgeBackgroundBrush}" CornerRadius="7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-6,0" MinWidth="14" Height="14" IsHitTestVisible="False" Visibility="{x:Bind helpers:TextVisibility.ForFlag(Item.HasUploadIssues),Mode=OneWay}">

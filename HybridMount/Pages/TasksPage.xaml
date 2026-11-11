@@ -55,36 +55,35 @@
     </Page.Resources>
     <Grid Style="{StaticResource SharedPageGridStyle}">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Grid RowSpacing="8">
-            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <VisualStateManager.VisualStateGroups><VisualStateGroup>
-                <VisualState><VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="760"/></VisualState.StateTriggers><VisualState.Setters><Setter Target="TaskFilters.(Grid.Row)" Value="0"/><Setter Target="TaskFilters.(Grid.Column)" Value="1"/><Setter Target="TaskFilters.Margin" Value="16,0,0,0"/></VisualState.Setters></VisualState>
-            </VisualStateGroup></VisualStateManager.VisualStateGroups>
+        <StackPanel Spacing="8">
             <TextBlock loc:Ui.TextKey="Text_5253040DB864" Style="{ThemeResource TitleTextBlockStyle}"/>
-            <StackPanel x:Name="TaskFilters" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <ToggleButton loc:Ui.ContentKey="Text_73213BCEB8A1" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" loc:Ui.ToolTipKey="Text_E7E1C13CAFC0" AccessKey="I"/>
-                <ToggleButton loc:Ui.ContentKey="Text_45FB95610363" IsChecked="{x:Bind ViewModel.ConflictsOnly,Mode=TwoWay}" AccessKey="F"/>
-                <Button loc:Ui.ContentKey="Text_E3C64D1D126F" Click="ClearIssueFilter" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
-            </StackPanel>
-            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
+            <TextBlock Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
+        </StackPanel>
+        <!-- 筛选始终靠左，动作靠右；筛选仅收起标签，动作使用系统溢出菜单。 -->
+        <Grid x:Name="TaskToolbar" Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="12" SizeChanged="TaskToolbarSizeChanged">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <CommandBar x:Name="TaskFilters" Style="{StaticResource PageCommandBarStyle}" IsDynamicOverflowEnabled="False" OverflowButtonVisibility="Collapsed" SizeChanged="TaskToolbarSizeChanged">
+                <AppBarToggleButton x:Name="IssuesFilter" loc:Ui.AutomationNameKey="Text_73213BCEB8A1" loc:Ui.LabelKey="Text_73213BCEB8A1" Icon="Important" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" loc:Ui.ToolTipKey="Text_E7E1C13CAFC0" AccessKey="I"/>
+                <AppBarToggleButton x:Name="ConflictsFilter" loc:Ui.AutomationNameKey="Text_45FB95610363" loc:Ui.ToolTipKey="Text_45FB95610363" loc:Ui.LabelKey="Text_45FB95610363" Icon="Switch" IsChecked="{x:Bind ViewModel.ConflictsOnly,Mode=TwoWay}" AccessKey="F"/>
+                <AppBarButton x:Name="ClearFilterButton" loc:Ui.AutomationNameKey="Text_E3C64D1D126F" loc:Ui.ToolTipKey="Text_E3C64D1D126F" loc:Ui.LabelKey="Text_E3C64D1D126F" Icon="Clear" Click="ClearIssueFilter" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
+            </CommandBar>
+            <CommandBar x:Name="TaskActions" Grid.Column="1" HorizontalContentAlignment="Right" SizeChanged="TaskToolbarSizeChanged" DynamicOverflowItemsChanging="TaskOverflowChanged" Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_21A07234FEB3">
+                <AppBarButton loc:Ui.AutomationNameKey="Text_037626EE90B0" loc:Ui.ToolTipKey="Text_037626EE90B0" loc:Ui.LabelKey="Text_037626EE90B0" Icon="Cancel" AccessKey="C" Click="CancelJob"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_1A65AC5B8FC1" loc:Ui.ToolTipKey="Text_1A65AC5B8FC1" loc:Ui.LabelKey="Text_1A65AC5B8FC1" Icon="Help" AccessKey="X" Click="ResolveConflict"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_D06BC6EFDD8C" loc:Ui.ToolTipKey="Text_D06BC6EFDD8C" loc:Ui.LabelKey="Text_D06BC6EFDD8C" Icon="View" AccessKey="V" Click="ShowResults"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_B043D167A20C" loc:Ui.ToolTipKey="Text_B043D167A20C" loc:Ui.LabelKey="Text_B043D167A20C" Icon="Refresh" AccessKey="R" Click="RetryUpload"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_710B1958F2AB" loc:Ui.ToolTipKey="Text_710B1958F2AB" loc:Ui.LabelKey="Text_710B1958F2AB" Icon="Sync" AccessKey="K" Click="RecheckRename"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_8CE158B4E774" loc:Ui.ToolTipKey="Text_8CE158B4E774" loc:Ui.LabelKey="Text_8CE158B4E774" Icon="SaveLocal" AccessKey="S" Click="SaveUploadCopy"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_59389C2718F4" loc:Ui.ToolTipKey="Text_59389C2718F4" loc:Ui.LabelKey="Text_59389C2718F4" Icon="OpenFile" AccessKey="O" Click="OpenLocation"/>
+                <AppBarButton loc:Ui.AutomationNameKey="Text_5D48FFBF5714" loc:Ui.ToolTipKey="Text_5D48FFBF5714" loc:Ui.LabelKey="Text_5D48FFBF5714" Icon="Delete" AccessKey="H">
+                    <AppBarButton.Flyout><MenuFlyout>
+                        <MenuFlyoutItem loc:Ui.TextKey="Text_349C4B7EB1F3" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" loc:Ui.ToolTipKey="Text_FC2942B518E1"/>
+                        <MenuFlyoutItem loc:Ui.TextKey="Text_2952F4853185" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" loc:Ui.ToolTipKey="Text_8A8B89ACE6E7"/>
+                        <MenuFlyoutItem loc:Ui.TextKey="Text_3C507E43EF88" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" loc:Ui.ToolTipKey="Text_B7CB05D81A06"/>
+                    </MenuFlyout></AppBarButton.Flyout>
+                </AppBarButton>
+            </CommandBar>
         </Grid>
-        <CommandBar Grid.Row="1" Margin="0,16,0,0" HorizontalContentAlignment="Left" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent" loc:Ui.AutomationNameKey="Text_21A07234FEB3">
-            <AppBarButton loc:Ui.LabelKey="Text_037626EE90B0" Icon="Cancel" AccessKey="C" Click="CancelJob"/>
-            <AppBarButton loc:Ui.LabelKey="Text_1A65AC5B8FC1" Icon="Help" AccessKey="X" Click="ResolveConflict"/>
-            <AppBarButton loc:Ui.LabelKey="Text_D06BC6EFDD8C" Icon="View" AccessKey="V" Click="ShowResults"/>
-            <AppBarButton loc:Ui.LabelKey="Text_B043D167A20C" Icon="Refresh" AccessKey="R" Click="RetryUpload"/>
-            <AppBarButton loc:Ui.LabelKey="Text_710B1958F2AB" Icon="Sync" AccessKey="K" Click="RecheckRename"/>
-            <AppBarButton loc:Ui.LabelKey="Text_8CE158B4E774" Icon="SaveLocal" AccessKey="S" Click="SaveUploadCopy"/>
-            <AppBarButton loc:Ui.LabelKey="Text_59389C2718F4" Icon="OpenFile" AccessKey="O" Click="OpenLocation"/>
-            <AppBarButton loc:Ui.LabelKey="Text_5D48FFBF5714" Icon="Delete" AccessKey="H">
-                <AppBarButton.Flyout><MenuFlyout>
-                    <MenuFlyoutItem loc:Ui.TextKey="Text_349C4B7EB1F3" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" loc:Ui.ToolTipKey="Text_FC2942B518E1"/>
-                    <MenuFlyoutItem loc:Ui.TextKey="Text_2952F4853185" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" loc:Ui.ToolTipKey="Text_8A8B89ACE6E7"/>
-                    <MenuFlyoutItem loc:Ui.TextKey="Text_3C507E43EF88" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" loc:Ui.ToolTipKey="Text_B7CB05D81A06"/>
-                </MenuFlyout></AppBarButton.Flyout>
-            </AppBarButton>
-        </CommandBar>
         <ListView x:Name="JobList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" loc:Ui.AutomationNameKey="Text_1E087C26D53F">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="vm:TaskListItem">

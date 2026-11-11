@@ -14,8 +14,9 @@ public sealed partial class MountCard : UserControl
     public event EventHandler<MountCardActionEventArgs>? ActionRequested;
     private MountListItem? _observed;
     private bool _initialized;
+    private bool _overflowQueued;
     private Guid? _flyoutMount;
-    public MountCard(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());_initialized=true;Loaded+=(_,_)=>Observe();Unloaded+=(_,_)=>Detach();}
+    public MountCard(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>{Bindings.Update();QueueOverflow();});_initialized=true;Loaded+=(_,_)=>Observe();Unloaded+=(_,_)=>Detach();}
     private static void ItemChanged(DependencyObject owner,DependencyPropertyChangedEventArgs args)=>((MountCard)owner).Observe();
     private void Observe()
     {
@@ -27,7 +28,7 @@ public sealed partial class MountCard : UserControl
     private void Detach(){if(_observed is {} item)item.PropertyChanged-=PresentationChanged;_observed=null;_flyoutMount=null;if(_initialized)MoreButton.Flyout?.Hide();}
     private void PresentationChanged(object? sender,PropertyChangedEventArgs args)=>UpdateSelection();
     private void UpdateSelection()
-    {if(!_initialized)return;var selected=Item?.IsSelected==true;StatusPanel.Visibility=selected?Visibility.Collapsed:Visibility.Visible;ActionsGrid.Visibility=selected?Visibility.Visible:Visibility.Collapsed;UpdateOverflow(ActionsHost.ActualWidth);}
+    {if(!_initialized)return;var selected=Item?.IsSelected==true;StatusPanel.Visibility=selected?Visibility.Collapsed:Visibility.Visible;ActionsGrid.Visibility=selected?Visibility.Visible:Visibility.Collapsed;QueueOverflow();}
     private void PerformAction(object sender,RoutedEventArgs args)
     {
         var tag=sender is FrameworkElement element?element.Tag:null;
@@ -46,9 +47,18 @@ public sealed partial class MountCard : UserControl
     }
     // 保留本次打开捕获的身份至下次打开或回收，避免菜单关闭先于 Click 时丢失动作。
     private void OverflowOpening(object sender,object args)=>_flyoutMount=Item?.Id;
-    /// <summary>容量列在窄窗缩小；操作只保留能完整显示的图标，其余进入同一个下拉菜单。</summary>
-    private void CardSizeChanged(object sender,SizeChangedEventArgs args){if(_initialized)CapacityColumn.Width=new(args.NewSize.Width<700?145:180);}
+    /// <summary>容量列在窄窗缩小，为图标文字快捷操作及路径保留空间。</summary>
+    private void CardSizeChanged(object sender,SizeChangedEventArgs args){if(_initialized)CapacityColumn.Width=new(args.NewSize.Width<550?100:args.NewSize.Width<700?145:180);}
     private void ActionsSizeChanged(object sender,SizeChangedEventArgs args)=>UpdateOverflow(args.NewSize.Width);
+    /// <summary>模型与语言绑定更新后合并一次UI测量；卸载后放弃迟到布局，不执行任何挂载动作。</summary>
+    private void QueueOverflow()
+    {
+        if(!_initialized||_overflowQueued)return;
+        _overflowQueued=true;
+        if(!DispatcherQueue.TryEnqueue(()=>{_overflowQueued=false;if(IsLoaded)UpdateOverflow(ActionsHost.ActualWidth);}))_overflowQueued=false;
+    }
+    /// <summary>在UI线程按完整图标文字内容的自然宽度选择可见前缀，其余保留原菜单与挂载身份。</summary>
+    /// <param name="width">当前操作区域可用宽度，非正值时只保留更多菜单。</param>
     private void UpdateOverflow(double width)
     {
         if(!_initialized)return;
@@ -56,7 +66,18 @@ public sealed partial class MountCard : UserControl
         FrameworkElement[] overflow=[ConnectionOverflow,SettingsOverflow,ScanOverflow,DetectOverflow,ThumbnailOverflow,RemoteDetectionOverflow,KeepOverflow,FreeOverflow,CapacityOverflow,RemoveOverflow];
         int[] boundaries=[2,4,6,9];
         var active=Enumerable.Range(0,buttons.Length).Where(index=>index!=4||Item?.CanConfigureThumbnails==true).ToArray();
-        double RequiredWidth(int count,bool menu)=>count==0?(menu?48:0):count*36+(count-1)*6+boundaries.Count(boundary=>active.Take(count).Any(x=>x<boundary)&&active.Take(count).Any(x=>x>=boundary))*7+(menu?54:0);
+        // 即使按钮已折叠也直接测量其内容；不能用折叠按钮的零DesiredSize或旧语言宽度。
+        var widths=buttons.Cast<ContentControl>().Select(button=>
+        {
+            var content=(FrameworkElement)button.Content;
+            // 折叠内容没有Loaded事件，先更新自有静态标签再测量，避免语言切换沿用旧宽度。
+            if(content is Panel panel)
+                foreach(var label in panel.Children.OfType<TextBlock>())
+                    if(global::HybridMount.Helpers.UI.Ui.GetTextKey(label) is {Length:>0} key)label.Text=global::HybridMount.Services.Localization.UiText.Text(key);
+            content.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity,double.PositiveInfinity));
+            return Math.Ceiling(Math.Max(button.MinWidth,content.DesiredSize.Width+button.Padding.Left+button.Padding.Right+button.BorderThickness.Left+button.BorderThickness.Right));
+        }).ToArray();
+        double RequiredWidth(int count,bool menu)=>count==0?(menu?48:0):active.Take(count).Sum(index=>widths[index])+(count-1)*6+boundaries.Count(boundary=>active.Take(count).Any(x=>x<boundary)&&active.Take(count).Any(x=>x>=boundary))*7+(menu?54:0);
         var showAll=width>=RequiredWidth(active.Length,false);var visible=showAll?active.Length:active.Length-1;
         while(!showAll&&visible>0&&RequiredWidth(visible,true)>Math.Max(0,width))visible--;
         if(showAll)MoreButton.Flyout?.Hide();MoreButton.Visibility=showAll?Visibility.Collapsed:Visibility.Visible;

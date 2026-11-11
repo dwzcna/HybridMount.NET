@@ -36,7 +36,7 @@
               <controls:SettingRow loc:Ui.HeaderKey="Text_970F3009DDCD"><ToggleSwitch loc:Ui.AutomationNameKey="Text_970F3009DDCD" IsOn="{x:Bind ViewModel.CloseToTraySelection, Mode=TwoWay}"/></controls:SettingRow>
               <controls:SettingRow loc:Ui.HeaderKey="Text_4C0B929BDBE0"><ToggleSwitch loc:Ui.AutomationNameKey="Text_4C0B929BDBE0" IsOn="{x:Bind ViewModel.StartupSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditStartup, Mode=OneWay}"/></controls:SettingRow>
               <TextBlock Text="{x:Bind ViewModel.StartupDetail, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.StartupDetail),Mode=OneWay}"/>
-              <Button loc:Ui.ContentKey="Text_E4170809495B" Click="OpenStartupSettings" Style="{StaticResource PageActionButtonStyle}"/>
+              <CommandBar Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_E4170809495B"><AppBarButton loc:Ui.AutomationNameKey="Text_E4170809495B" loc:Ui.ToolTipKey="Text_E4170809495B" loc:Ui.LabelKey="Text_E4170809495B" Icon="Setting" Click="OpenStartupSettings"/></CommandBar>
               <InfoBar Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
           </Border>
@@ -47,7 +47,10 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="320"/></Grid.ColumnDefinitions>
                 <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" loc:Ui.HeaderKey="Text_479D45C856A1" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch"/>
               </Grid>
-              <StackPanel Orientation="Horizontal" Spacing="8"><Button IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" loc:Ui.ContentKey="Text_DCA2D1E7505B" Click="SaveCache"/><Button IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" loc:Ui.ContentKey="Text_A6124727E357" Click="TrimCache"/></StackPanel>
+              <CommandBar Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_ED068529662D">
+                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" loc:Ui.AutomationNameKey="Text_DCA2D1E7505B" loc:Ui.ToolTipKey="Text_DCA2D1E7505B" loc:Ui.LabelKey="Text_DCA2D1E7505B" Icon="Save" Click="SaveCache"/>
+                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" loc:Ui.AutomationNameKey="Text_A6124727E357" loc:Ui.ToolTipKey="Text_A6124727E357" loc:Ui.LabelKey="Text_A6124727E357" Icon="Delete" Click="TrimCache"/>
+              </CommandBar>
               <InfoBar Message="{x:Bind ViewModel.CacheStatus,Mode=OneWay}" IsOpen="{x:Bind ViewModel.CacheMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.CacheMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.CacheMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
           </Border>

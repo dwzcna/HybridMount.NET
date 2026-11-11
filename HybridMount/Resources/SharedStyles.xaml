@@ -24,6 +24,13 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
             <Style x:Key="FieldErrorTextStyle" TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Foreground" Value="{ThemeResource FieldErrorForegroundBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+            <!-- 页面命令统一显示图标和右侧文字，宽度不足时使用系统溢出菜单。 -->
+            <Style x:Key="PageCommandBarStyle" TargetType="CommandBar">
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="DefaultLabelPosition" Value="Right"/>
+                <Setter Property="IsDynamicOverflowEnabled" Value="True"/>
+                <Setter Property="Background" Value="Transparent"/>
+            </Style>
             <Style x:Key="SharedPageGridStyle" TargetType="Grid"><Setter Property="Padding" Value="24"/><Setter Property="helpers:PageLayout.Enabled" Value="True"/></Style>
             <!-- <summary>共享页头只设置Background，不改变布局、边框、字体、命令或其他卡片。</summary> -->
             <Style x:Key="PageHeaderBorderStyle" TargetType="Border">

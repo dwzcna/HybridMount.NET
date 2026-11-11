@@ -15,15 +15,55 @@ public sealed partial class TasksPage : Page, IDisposable
     /// <summary>UI 线程上的任务快照集合。</summary>
     public TasksViewModel ViewModel { get; }=new(App.Current.TasksQueue,App.Current.UiDispatcher,App.Current.TaskFocus);
     private bool _restoring,_disposed;
+    private bool _toolbarPending,_filterWidthDirty=true,_toolbarHasIssueFilter;
+    private double _expandedFilterWidth;
     private readonly PageScrollBookmark _viewport=new();
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
     public TasksPage()
     {
-        try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
+        try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>{Bindings.Update();QueueTaskToolbar(true);});NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
         JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is TaskListItem job)ViewModel.SelectedJobId=job.Id;};
-        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;Loaded+=PageLoaded;
+        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.PropertyChanged+=ToolbarStateChanged;Loaded+=PageLoaded;
     }
-    private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(JobList);
+    private void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(JobList);QueueTaskToolbar(true);}
+    private void TaskToolbarSizeChanged(object sender,SizeChangedEventArgs args)=>QueueTaskToolbar();
+    private void TaskOverflowChanged(CommandBar sender,DynamicOverflowItemsChangingEventArgs args)=>QueueTaskToolbar();
+    private void ToolbarStateChanged(object? sender,System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if(args.PropertyName!=nameof(TasksViewModel.HasIssueFilter)||_toolbarHasIssueFilter==ViewModel.HasIssueFilter)return;
+        _toolbarHasIssueFilter=ViewModel.HasIssueFilter;QueueTaskToolbar(true);
+    }
+    /// <summary>在UI布局及语言更新后合并排版；离开可视树或释放后拒绝迟到更新，不修改业务筛选。</summary>
+    /// <param name="measureFilters">标签语言或定位条件变化时重新测量展开宽度。</param>
+    private void QueueTaskToolbar(bool measureFilters=false)
+    {
+        _filterWidthDirty|=measureFilters;
+        if(_disposed||_toolbarPending)return;
+        _toolbarPending=true;
+        if(!DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,()=>
+        {
+            _toolbarPending=false;if(_disposed||!IsLoaded)return;
+            if(_filterWidthDirty)
+            {
+                _filterWidthDirty=false;var position=TaskFilters.DefaultLabelPosition;
+                TaskFilters.DefaultLabelPosition=CommandBarDefaultLabelPosition.Right;
+                TaskFilters.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity,double.PositiveInfinity));
+                _expandedFilterWidth=Math.Ceiling(TaskFilters.DesiredSize.Width);
+                TaskFilters.DefaultLabelPosition=position;
+            }
+            var actions=TaskActions.PrimaryCommands.OfType<AppBarButton>().Where(button=>button.Visibility==Visibility.Visible).ToArray();
+            if(actions.Any(button=>button.IsInOverflow))
+            {
+                if(TaskFilters.DefaultLabelPosition!=CommandBarDefaultLabelPosition.Collapsed)TaskFilters.DefaultLabelPosition=CommandBarDefaultLabelPosition.Collapsed;
+            }
+            else if(TaskFilters.DefaultLabelPosition==CommandBarDefaultLabelPosition.Collapsed&&actions.All(button=>button.ActualWidth>0))
+            {
+                // 仅在余量容得下完整标签时恢复，预留8DIP避免临界宽度来回切换。
+                var spare=TaskActions.ActualWidth-actions.Sum(button=>button.ActualWidth);
+                if(spare>=Math.Max(0,_expandedFilterWidth-TaskFilters.ActualWidth)+8)TaskFilters.DefaultLabelPosition=CommandBarDefaultLabelPosition.Right;
+            }
+        }))_toolbarPending=false;
+    }
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(JobList);RestoreSelection();}
     protected override void OnNavigatedFrom(NavigationEventArgs args){ViewModel.EndDialog();_viewport.Leave(JobList);base.OnNavigatedFrom(args);}
     private void CaptureScroll(){_restoring=true;_viewport.Capture(JobList);}
@@ -96,5 +136,5 @@ public sealed partial class TasksPage : Page, IDisposable
         finally { ViewModel.EndDialog(); }
     }
     /// <summary>窗口释放时解除订阅；页面离开导航时仍保留缓存。</summary>
-    public void Dispose() {_localization?.Dispose();_localization=null; if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
+    public void Dispose() {_localization?.Dispose();_localization=null; if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.PropertyChanged-=ToolbarStateChanged;ViewModel.Dispose(); }
 }

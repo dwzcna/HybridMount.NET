@@ -15,11 +15,11 @@
             <InfoBar IsOpen="{x:Bind ViewModel.HasRuntimeFailedMounts,Mode=OneWay}" IsClosable="False" Severity="Warning"
                      loc:Ui.TitleKey="Text_70CCDAD8E77E" loc:Ui.MessageKey="Text_92B13F21F95E">
                 <InfoBar.ActionButton>
-                    <Button loc:Ui.ContentKey="Text_335DD2ADA3E2" Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}"/>
+                    <Button loc:Ui.AutomationNameKey="Text_335DD2ADA3E2" Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Sync"/><TextBlock loc:Ui.TextKey="Text_335DD2ADA3E2" VerticalAlignment="Center"/></StackPanel></Button>
                 </InfoBar.ActionButton>
             </InfoBar>
-            <CommandBar HorizontalContentAlignment="Left" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" loc:Ui.AutomationNameKey="Text_FAF3E262130E">
-                <AppBarButton x:Name="AddButton" loc:Ui.LabelKey="Text_12E2E50738C5" Icon="Add" AccessKey="N" loc:Ui.AutomationNameKey="Text_12E2E50738C5">
+            <CommandBar Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_FAF3E262130E">
+                <AppBarButton x:Name="AddButton" loc:Ui.ToolTipKey="Text_12E2E50738C5" loc:Ui.LabelKey="Text_12E2E50738C5" Icon="Add" AccessKey="N" loc:Ui.AutomationNameKey="Text_12E2E50738C5">
                     <AppBarButton.Flyout><MenuFlyout>
                         <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
                         <MenuFlyoutItem Text="WebDAV(HTTPS)" Click="CreateWebDavHttpsMount"/>
@@ -27,9 +27,9 @@
                         <MenuFlyoutItem loc:Ui.TextKey="Text_A0E1ADC4B7E5" Click="CreateSynologyMount"/>
                     </MenuFlyout></AppBarButton.Flyout>
                 </AppBarButton>
-                <AppBarButton x:Name="ExportButton" loc:Ui.LabelKey="Text_429EA3AF443D" Icon="Save" AccessKey="E" Click="ExportConfigurations"/>
-                <AppBarButton x:Name="ImportButton" loc:Ui.LabelKey="Text_B48B6518293A" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations"/>
-                <AppBarButton x:Name="RecoveryButton" loc:Ui.LabelKey="Text_0F25BC7459AB" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts"/>
+                <AppBarButton x:Name="ExportButton" loc:Ui.AutomationNameKey="Text_429EA3AF443D" loc:Ui.ToolTipKey="Text_429EA3AF443D" loc:Ui.LabelKey="Text_429EA3AF443D" Icon="Save" AccessKey="E" Click="ExportConfigurations"/>
+                <AppBarButton x:Name="ImportButton" loc:Ui.AutomationNameKey="Text_B48B6518293A" loc:Ui.ToolTipKey="Text_B48B6518293A" loc:Ui.LabelKey="Text_B48B6518293A" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations"/>
+                <AppBarButton x:Name="RecoveryButton" loc:Ui.AutomationNameKey="Text_0F25BC7459AB" loc:Ui.ToolTipKey="Text_0F25BC7459AB" loc:Ui.LabelKey="Text_0F25BC7459AB" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts"/>
             </CommandBar>
         </StackPanel>
         <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"

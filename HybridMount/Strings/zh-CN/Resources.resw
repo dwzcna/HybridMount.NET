@@ -1998,4 +1998,7 @@
   <data name="Text_91A1D31663B9" xml:space="preserve"><value>显示主窗口</value></data>
   <data name="Text_EC4D1F9F82B1" xml:space="preserve"><value>退出 HybridMount.NET</value></data>
   <data name="Text_07E49220E577" xml:space="preserve"><value>远端已写入，本地核验未完成；不会重复上传，请重试本地提交。</value></data>
+  <data name="Text_40FF6300F981" xml:space="preserve">
+    <value>诊断</value>
+  </data>
 </root>

@@ -10,12 +10,12 @@
       <ComboBox x:Name="SeverityBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="SeverityChanged" HorizontalAlignment="Stretch" loc:Ui.AutomationNameKey="Text_DE0DA0AE8DA4">
         <ComboBoxItem loc:Ui.ContentKey="Text_81F9B5554532" Tag="All"/><ComboBoxItem loc:Ui.ContentKey="Text_E7028601E7DA" Tag="Information"/><ComboBoxItem loc:Ui.ContentKey="Text_A8B7A4480407" Tag="Warning"/><ComboBoxItem loc:Ui.ContentKey="Text_0BC1FB72AE1B" Tag="Error"/>
       </ComboBox>
-      <CommandBar Grid.Row="1" Grid.ColumnSpan="2" HorizontalContentAlignment="Left" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" loc:Ui.AutomationNameKey="Text_66D6E64FB489">
-        <AppBarButton loc:Ui.LabelKey="Text_AEE887434131" Icon="Refresh" AccessKey="R" Click="RefreshClicked"/>
-        <AppBarButton loc:Ui.LabelKey="Text_63D90D977348" Icon="Copy" AccessKey="C" Click="CopyClicked"/>
-        <AppBarButton loc:Ui.LabelKey="Text_76420433F22D" Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked"/>
-        <AppBarButton loc:Ui.LabelKey="Text_BCE2377283C2" Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked"/>
-        <AppBarButton loc:Ui.LabelKey="Text_0BD7CE0F30C6" Icon="Document" AccessKey="L" Click="LifecycleClicked"/>
+      <CommandBar Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_66D6E64FB489">
+        <AppBarButton loc:Ui.AutomationNameKey="Text_AEE887434131" loc:Ui.ToolTipKey="Text_AEE887434131" loc:Ui.LabelKey="Text_AEE887434131" Icon="Refresh" AccessKey="R" Click="RefreshClicked"/>
+        <AppBarButton loc:Ui.AutomationNameKey="Text_63D90D977348" loc:Ui.ToolTipKey="Text_63D90D977348" loc:Ui.LabelKey="Text_63D90D977348" Icon="Copy" AccessKey="C" Click="CopyClicked"/>
+        <AppBarButton loc:Ui.AutomationNameKey="Text_76420433F22D" loc:Ui.ToolTipKey="Text_76420433F22D" loc:Ui.LabelKey="Text_76420433F22D" Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked"/>
+        <AppBarButton loc:Ui.AutomationNameKey="Text_BCE2377283C2" loc:Ui.ToolTipKey="Text_BCE2377283C2" loc:Ui.LabelKey="Text_BCE2377283C2" Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked"/>
+        <AppBarButton loc:Ui.AutomationNameKey="Text_0BD7CE0F30C6" loc:Ui.ToolTipKey="Text_0BD7CE0F30C6" loc:Ui.LabelKey="Text_0BD7CE0F30C6" Icon="Document" AccessKey="L" Click="LifecycleClicked"/>
       </CommandBar>
     </Grid>
     <Grid Grid.Row="2" Margin="0,10,0,0" ColumnSpacing="10" RowSpacing="8">
@@ -33,7 +33,7 @@
     <ProgressRing Grid.Row="3" IsActive="{x:Bind ViewModel.IsReading,Mode=OneWay}" Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.IsReading),Mode=OneWay}" loc:Ui.AutomationNameKey="Text_AEFE72DC1317"/>
     <TextBlock Grid.Row="3" loc:Ui.TextKey="Text_7DE8A6DFD5E0" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyAndIdle(ViewModel.Entries.Count,ViewModel.IsReading),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
     <Grid Grid.Row="4" Margin="0,16,0,0" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Button loc:Ui.ContentKey="Text_C3266E411EA3" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" VerticalAlignment="Top"/>
+      <Button loc:Ui.AutomationNameKey="Text_C3266E411EA3" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" VerticalAlignment="Top"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Download"/><TextBlock loc:Ui.TextKey="Text_C3266E411EA3" VerticalAlignment="Center"/></StackPanel></Button>
     <InfoBar Grid.Column="1" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
     </Grid>
   </Grid>
