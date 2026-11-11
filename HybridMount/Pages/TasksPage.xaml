@@ -53,52 +53,38 @@
         </DataTemplate>
         </ResourceDictionary>
     </Page.Resources>
-    <Grid Padding="28">
+    <Grid Style="{StaticResource SharedPageGridStyle}">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <StackPanel Orientation="Horizontal" Spacing="16">
+        <Grid RowSpacing="8">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <VisualStateManager.VisualStateGroups><VisualStateGroup>
+                <VisualState><VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="760"/></VisualState.StateTriggers><VisualState.Setters><Setter Target="TaskFilters.(Grid.Row)" Value="0"/><Setter Target="TaskFilters.(Grid.Column)" Value="1"/><Setter Target="TaskFilters.Margin" Value="16,0,0,0"/></VisualState.Setters></VisualState>
+            </VisualStateGroup></VisualStateManager.VisualStateGroups>
             <TextBlock Text="任务" Style="{ThemeResource TitleTextBlockStyle}"/>
-            <ToggleButton Content="同步问题" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" VerticalAlignment="Center" ToolTipService.ToolTip="查看独立保存的未解决同步问题"/>
-            <ToggleButton Content="冲突" IsChecked="{x:Bind ViewModel.ConflictsOnly,Mode=TwoWay}" VerticalAlignment="Center"/>
-            <TextBlock Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" VerticalAlignment="Center" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
-            <Button Content="全部挂载" Click="ClearIssueFilter" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
-        </StackPanel>
-        <Grid x:Name="Toolbar" Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="8" SizeChanged="ToolbarSizeChanged">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button ToolTipService.ToolTip="取消选中任务" AutomationProperties.Name="取消选中任务" Click="CancelJob">
-                    <FontIcon Glyph="&#xE711;" />
-                </Button>
-                <Button ToolTipService.ToolTip="处理冲突" AutomationProperties.Name="处理冲突" Click="ResolveConflict">
-                    <FontIcon Glyph="&#xE90F;" />
-                </Button>
-                <Button ToolTipService.ToolTip="查看结果" AutomationProperties.Name="查看结果" Click="ShowResults">
-                    <FontIcon Glyph="&#xE8A5;" />
-                </Button>
-                <Button ToolTipService.ToolTip="重试选中" AutomationProperties.Name="重试选中" Click="RetryUpload">
-                    <FontIcon Glyph="&#xE7A6;" />
-                </Button>
-                <Button ToolTipService.ToolTip="重新核对" AutomationProperties.Name="重新核对" Click="RecheckRename">
-                    <FontIcon Glyph="&#xE72C;" />
-                </Button>
-                <Button ToolTipService.ToolTip="另存副本" AutomationProperties.Name="另存副本" Click="SaveUploadCopy">
-                    <FontIcon Glyph="&#xE8C8;" />
-                </Button>
-                <Button ToolTipService.ToolTip="打开所在位置" AutomationProperties.Name="打开所在位置" Click="OpenLocation">
-                    <FontIcon Glyph="&#xE838;" />
-                </Button>
-                <Button ToolTipService.ToolTip="清理任务历史" AutomationProperties.Name="清理任务历史">
-                    <FontIcon Glyph="&#xE74D;" />
-                    <Button.Flyout>
-                        <MenuFlyout>
-                            <MenuFlyoutItem Text="清除已完成" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" ToolTipService.ToolTip="清除成功完成的任务历史，保留其他任务及同步数据。"/>
-                            <MenuFlyoutItem Text="清除失败" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" ToolTipService.ToolTip="清除失败及部分失败的任务历史，不删除文件或恢复数据。"/>
-                            <MenuFlyoutItem Text="清除所有" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" ToolTipService.ToolTip="清除所有已结束任务；保留进行中、等待、冲突和结果待核对，不删除文件或恢复数据。"/>
-                        </MenuFlyout>
-                    </Button.Flyout>
-                </Button>
+            <StackPanel x:Name="TaskFilters" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ToggleButton Content="同步问题" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" ToolTipService.ToolTip="查看独立保存的未解决同步问题" AccessKey="I"/>
+                <ToggleButton Content="冲突" IsChecked="{x:Bind ViewModel.ConflictsOnly,Mode=TwoWay}" AccessKey="F"/>
+                <Button Content="全部挂载" Click="ClearIssueFilter" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
             </StackPanel>
+            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
         </Grid>
+        <CommandBar Grid.Row="1" Margin="0,16,0,0" HorizontalContentAlignment="Left" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent" AutomationProperties.Name="任务操作">
+            <AppBarButton Label="取消选中任务" Icon="Cancel" AccessKey="C" Click="CancelJob"/>
+            <AppBarButton Label="处理冲突" Icon="Help" AccessKey="X" Click="ResolveConflict"/>
+            <AppBarButton Label="查看结果" Icon="View" AccessKey="V" Click="ShowResults"/>
+            <AppBarButton Label="重试选中" Icon="Refresh" AccessKey="R" Click="RetryUpload"/>
+            <AppBarButton Label="重新核对" Icon="Sync" AccessKey="K" Click="RecheckRename"/>
+            <AppBarButton Label="另存副本" Icon="SaveLocal" AccessKey="S" Click="SaveUploadCopy"/>
+            <AppBarButton Label="打开所在位置" Icon="OpenFile" AccessKey="O" Click="OpenLocation"/>
+            <AppBarButton Label="清理任务历史" Icon="Delete" AccessKey="H">
+                <AppBarButton.Flyout><MenuFlyout>
+                    <MenuFlyoutItem Text="清除已完成" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" ToolTipService.ToolTip="清除成功完成的任务历史，保留其他任务及同步数据。"/>
+                    <MenuFlyoutItem Text="清除失败" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" ToolTipService.ToolTip="清除失败及部分失败的任务历史，不删除文件或恢复数据。"/>
+                    <MenuFlyoutItem Text="清除所有" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" ToolTipService.ToolTip="清除所有已结束任务；保留进行中、等待、冲突和结果待核对，不删除文件或恢复数据。"/>
+                </MenuFlyout></AppBarButton.Flyout>
+            </AppBarButton>
+        </CommandBar>
         <ListView x:Name="JobList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" AutomationProperties.Name="挂载任务">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="mounts:MountOperationSnapshot">
@@ -117,6 +103,7 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
-        <InfoBar Grid.Row="3" Margin="0,16,0,0" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="Informational" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
+        <TextBlock Grid.Row="2" Text="当前筛选下没有任务。" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Operations.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
+        <InfoBar Grid.Row="3" Margin="0,16,0,0" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
     </Grid>
 </Page>

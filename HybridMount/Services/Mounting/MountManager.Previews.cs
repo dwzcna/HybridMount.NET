@@ -47,6 +47,7 @@ public sealed partial class MountManager
     public Task SetThumbnailsEnabledAsync(Guid id,bool enabled,CancellationToken token=default)=>OwnAsync(cancel=>SetThumbnailsCoreAsync(id,enabled,cancel),token);
     private async Task SetThumbnailsCoreAsync(Guid id,bool enabled,CancellationToken token)
     {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         if(!CustomPreviewsAvailable)throw new NotSupportedException(ShellExtensionPolicy.PauseReason);
         var root=Root(id);await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try{if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("移除过程中不能更改缩略图。");var updated=root.Definition with{ThumbnailsEnabled=enabled};_repository.SaveDefinition(updated);root.Definition=updated;}

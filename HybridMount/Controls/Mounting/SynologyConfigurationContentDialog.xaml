@@ -1,7 +1,7 @@
 <ContentDialog x:Class="HybridMount.Controls.Mounting.SynologyConfigurationContentDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid MinWidth="360" MaxWidth="520" MaxHeight="640">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.Helpers.UI" xmlns:controls="using:HybridMount.Controls">
+    <Grid MinWidth="360" MaxWidth="520" MaxHeight="640"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="12">
                 <TextBlock Text="首版支持读取、新建及另存副本。覆盖、删除和移动保持冲突保护；仅联机缩略图暂不支持。" TextWrapping="Wrap" />
@@ -13,7 +13,7 @@
                     </Grid>
                     <TextBox x:Name="EndpointField" Header="DSM 服务器地址" PlaceholderText="https://nas.example.com:5001" TextChanged="EndpointChanged"/>
                     <CheckBox x:Name="HttpField" Content="允许明文 HTTP（5000 端口）" Checked="ConnectionChanged" Unchecked="ConnectionChanged"/>
-                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="False" Severity="Warning" Title="明文连接不安全" Message="HTTP 会以明文传输账号、密码和文件内容。仅在可信网络中明确允许后使用；建议使用 HTTPS（5001）。"/>
+                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="True" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" Severity="Warning" Title="明文连接不安全" Message="HTTP 会以明文传输账号、密码和文件内容。仅在可信网络中明确允许后使用；建议使用 HTTPS（5001）。"/>
                     <TextBox x:Name="UserField" Header="账号" TextChanged="CredentialsChanged"/>
                     <PasswordBox x:Name="PasswordField" Header="密码" PasswordChanged="PasswordChanged"/>
                     <PasswordBox x:Name="OtpField" Header="二步验证码（仅本次登录，不保存）" Visibility="Collapsed"/>
@@ -25,29 +25,30 @@
                     <InfoBar x:Name="CertificateBar" IsOpen="False" IsClosable="False" Severity="Warning" Title="请核对服务器证书">
                         <InfoBar.ActionButton><Button Content="已核对指纹，仅此挂载信任并重试" Click="TrustCertificate"/></InfoBar.ActionButton>
                     </InfoBar>
-                    <ToggleSwitch x:Name="AutoConnectField" Header="随程序启动连接" IsOn="True"/>
+                    <controls:SettingRow Header="随程序启动连接"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" AutomationProperties.Name="随程序启动连接"/></controls:SettingRow>
                 </StackPanel></UserControl>
-                <UserControl x:Name="SettingsFields"><StackPanel Spacing="12">
-                    <ToggleSwitch x:Name="RemoteAuto" Header="远端自动检测（完整目录轮询）" IsOn="True"/>
+                <Expander Header="同步、容量与预览（高级）" HorizontalAlignment="Stretch"><UserControl x:Name="SettingsFields"><StackPanel Spacing="12">
+                    <controls:SettingRow Header="远端自动检测（完整目录轮询）"><ToggleSwitch x:Name="RemoteAuto" IsOn="True" Toggled="RemoteAutoChanged" AutomationProperties.Name="远端自动检测（完整目录轮询）"/></controls:SettingRow>
                     <NumberBox x:Name="IncrementalField" Header="检测调度间隔（秒）" Minimum="10" Maximum="86400" Value="60" SpinButtonPlacementMode="Compact"/>
                     <NumberBox x:Name="FullField" Header="完整对账间隔（秒）" Minimum="30" Maximum="604800" Value="300" SpinButtonPlacementMode="Compact"/>
                     <TextBlock Text="群晖没有增量变更游标，目录扫描按完整对账间隔执行。" TextWrapping="Wrap"/>
                     <Button x:Name="SaveIntervalsButton" Content="保存检测设置" Click="SaveIntervals" Visibility="Collapsed"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap"/>
                     <StackPanel x:Name="ExistingSettings" Spacing="12" Visibility="Collapsed">
-                        <ToggleSwitch x:Name="CapacityAuto" Header="自动识别卷容量（非账号配额）"/>
+                        <controls:SettingRow Header="自动识别卷容量（非账号配额）" Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityAutoChanged" AutomationProperties.Name="自动识别卷容量（非账号配额）"/></controls:SettingRow>
                         <TextBox x:Name="MaximumField" Header="手动最大容量（GB，留空不限）"/>
-                        <Button Content="保存容量设置" Click="SaveCapacity"/>
-                        <Button Content="从服务器抓取容量信息" Click="RecheckCapacity"/>
+                        <Button x:Name="SaveCapacityButton" Content="保存容量设置" Click="SaveCapacity"/>
+                        <Button x:Name="RecheckButton" Content="从服务器抓取容量信息" Click="RecheckCapacity"/>
                         <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap"/>
-                        <ToggleSwitch x:Name="ThumbnailToggle" Header="缩略图（实验性）"/>
-                        <Button Content="保存缩略图设置" Click="SaveThumbnails"/>
+                        <controls:SettingRow Header="缩略图（实验性）" Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="SaveThumbnails" AutomationProperties.Name="缩略图（实验性）"/></controls:SettingRow>
                     </StackPanel>
-                </StackPanel></UserControl>
-                <InfoBar x:Name="ProbeBar" IsOpen="False" IsClosable="False" Title="只读连接测试"/>
-                <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="False" Severity="Error" Title="未能完成操作"/>
-                <TextBlock x:Name="StatusText" TextWrapping="Wrap"/>
+                </StackPanel></UserControl></Expander>
             </StackPanel>
         </ScrollViewer>
+        <ScrollViewer Grid.Row="1" MaxHeight="160" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" Visibility="{x:Bind helpers:TextVisibility.ForOpenFeedback(ProbeBar.IsOpen,ErrorBar.IsOpen,OperationBar.IsOpen),Mode=OneWay}"><StackPanel Spacing="8">
+                <InfoBar x:Name="ProbeBar" IsOpen="False" IsClosable="True" Title="只读连接测试"/>
+                <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="True" Severity="Error" Title="未能完成操作"/>
+                <InfoBar x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
+        </StackPanel></ScrollViewer>
     </Grid>
 </ContentDialog>

@@ -48,7 +48,7 @@ public sealed partial class MountManager
     /// <summary>保存设置不探测连接；退出纳入应用所有者，失败保持旧定义，停止旧查询时不持根锁。</summary>
     public Task SetCapacityAsync(Guid id,bool automatic,long? maximumBytes,CancellationToken token=default)=>OwnAsync(async cancel=>
     {
-        var root=Root(id);CapacityRules.Validate(root.Definition.Source?.Kind,automatic,maximumBytes);
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);var root=Root(id);CapacityRules.Validate(root.Definition.Source?.Kind,automatic,maximumBytes);
         await _configurationGate.WaitAsync(cancel).ConfigureAwait(false);
         try
         {

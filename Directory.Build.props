@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.9.61</Version>
+    <Version>0.0.9.62</Version>
     <Configurations>Debug;Release</Configurations>
     <InformationalVersion>$(Version)</InformationalVersion>
     <BinaryVersion>$(Version)</BinaryVersion>

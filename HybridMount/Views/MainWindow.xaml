@@ -19,9 +19,6 @@
             <TitleBar.IconSource>
                 <BitmapIconSource UriSource="ms-appx:///Assets/HybridMount.png" ShowAsMonochrome="False"/>
             </TitleBar.IconSource>
-            <TitleBar.Resources>
-                <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
-            </TitleBar.Resources>
         </TitleBar>
         <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" AutomationProperties.Name="主导航">
             <NavigationView.MenuItems>

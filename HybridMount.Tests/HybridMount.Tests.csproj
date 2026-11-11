@@ -224,6 +224,7 @@
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Lifecycle.cs" Link="Production\Services\Mounting\MountManager.Lifecycle.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.PinIntents.cs" Link="Production\Services\Mounting\MountManager.PinIntents.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Previews.cs" Link="Production\Services\Mounting\MountManager.Previews.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.Preferences.cs" Link="Production\Services\Mounting\MountManager.Preferences.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.PreservePreview.cs" Link="Production\Services\Mounting\MountManager.PreservePreview.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Recovery.cs" Link="Production\Services\Mounting\MountManager.Recovery.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.RemoteApply.cs" Link="Production\Services\Mounting\MountManager.RemoteApply.cs"/>

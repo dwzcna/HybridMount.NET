@@ -83,8 +83,8 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     private void Refresh()
     {
         if(_disposed)return;
-        try{var snapshots=_manager.DisplayMounts;if(_manager.DisplaySnapshotError is {} error&&StatusMessage.Update(error))OnPropertyChanged(nameof(Status));Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
-        catch(Exception error){if(StatusMessage.Update(error.Message))OnPropertyChanged(nameof(Status));_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
+        try{var snapshots=_manager.DisplayMounts;if(_manager.DisplaySnapshotError is {} error&&StatusMessage.Update(error,PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
+        catch(Exception error){if(StatusMessage.Update(error.Message,PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
     {
@@ -120,7 +120,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         Models.Mounting.Synology.SynologySessionTicket? previous=null)
         =>_manager.TestSynologyConnectionAsync(settings,credentials,oneTimePassword,token,previous);
     /// <summary>新建或保存连接，应用拥有网络工作；持久化成功但连接失败时返回可重试的配置，校验失败仍抛出。</summary>
-    public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id,string name,string path,bool autoConnect,FileSourceConfiguration settings,SourceCredentials credentials,IReadOnlyList<FileExclusionRule>? exclusions=null)
+    public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id,string name,string path,bool autoConnect,FileSourceConfiguration settings,SourceCredentials credentials,IReadOnlyList<FileExclusionRule>? exclusions=null,MountCreationOptions? initial=null)
     {
         if(IsStopping)throw new OperationCanceledException("程序正在停止。",new CancellationToken(true));
         var busyId=id??Guid.Empty;
@@ -130,7 +130,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         {
             MountDefinition saved;
             if(id is {} existing){await _manager.UpdateCredentialsAsync(existing,credentials,settings:settings);saved=_manager.TaskDefinitions[existing];}
-            else saved=await _manager.AddAsync(name,path,autoConnect,source:settings,credentials:credentials,exclusions:exclusions);
+            else saved=await _manager.AddAsync(name,path,autoConnect,source:settings,credentials:credentials,exclusions:exclusions,initial:initial);
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
             return new(saved,$"已连接 {saved.Name}。");
         }
@@ -140,7 +140,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
             var saved=_manager.TaskDefinitions.Values.FirstOrDefault(x=>id is {} existing?x.Id==existing:!before.Contains(x.Id)&&x.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase));
             if(saved is null||error is ArgumentException or NotSupportedException)throw;
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
-            Report(error);return new(saved,$"连接未完成：{error.Message}；已保存的配置保留，可编辑或重试。");
+            Report(error);return new(saved,$"连接未完成：{error.Message}；已保存的配置保留，可编辑或重试。",PageMessageSeverity.Error);
         }
         finally{_busyMounts.Remove(busyId);if(!_disposed){Refresh();NotifyStateChanged();}}
     }
@@ -168,7 +168,8 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         catch(Exception error){Report(error);}
         finally{_dialogBusy=false;if(!_disposed){Refresh();NotifyStateChanged();}}
     }
-    private void Report(Exception error){if(_disposed)return;Status=error.Message;_manager.ReportDiagnosticException("挂载","挂载页面操作未完成",error);}
+    public void PublishStatus(string text,PageMessageSeverity severity=PageMessageSeverity.Information){if(!_disposed&&StatusMessage.Show(text,severity))OnPropertyChanged(nameof(Status));}
+    private void Report(Exception error){if(_disposed)return;PublishStatus(error.Message,PageMessageSeverity.Error);_manager.ReportDiagnosticException("挂载","挂载页面操作未完成",error);}
     public Task SaveSelectedDetectionAsync()=>SelectedMountId is {} id?SaveDetectionAsync(id):Task.CompletedTask;
     public Task SaveDetectionAsync(Guid mountId)
     {
@@ -179,7 +180,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
             try
             {
                 if(!double.IsFinite(draft.Incremental)||!double.IsFinite(draft.Full)||draft.Incremental!=Math.Truncate(draft.Incremental)||draft.Full!=Math.Truncate(draft.Full))throw new ArgumentException("检测间隔必须为有效的整数秒。");
-                await _manager.SetRemoteDetectionAsync(id,draft.Enabled,checked((int)draft.Incremental),checked((int)draft.Full));Status="检测设置已保存。";
+                await _manager.SetRemoteDetectionAsync(id,draft.Enabled,checked((int)draft.Incremental),checked((int)draft.Full));PublishStatus("检测设置已保存。",PageMessageSeverity.Success);
             }
             finally{_drafts.Remove(id);}
         });
@@ -190,7 +191,16 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         var definition=mount.Definition;
         await _manager.SetRemoteDetectionAsync(id,enabled,definition.RemoteIncrementalSeconds,definition.RemoteFullSeconds);
         if(_drafts.TryGetValue(id,out var draft))_drafts[id]=draft with{Enabled=enabled};
-        Status=enabled?"远端自动检测已打开。":"远端自动检测已关闭。";
+        PublishStatus(enabled?"远端自动检测已打开。":"远端自动检测已关闭。",PageMessageSeverity.Success);
+    });
+    /// <summary>启动开关即时保存；RunMount统一报告故障并刷新正式快照，表单用正式值回滚。</summary>
+    public Task SetAutoConnectAsync(Guid id,bool enabled)=>RunForMountAsync(id,async _=>{await _manager.SetAutoConnectAsync(id,enabled);PublishStatus("启动连接设置已保存。",PageMessageSeverity.Success);});
+    /// <summary>仅切换容量来源，保留已保存上限和未提交的文本草稿，不把其他字段一起保存。</summary>
+    public Task SetCapacityAutomaticAsync(Guid id,bool enabled)=>RunForMountAsync(id,async mount=>
+    {
+        await _manager.SetCapacityAsync(id,enabled,mount.Definition.MaximumCapacityBytes);
+        if(_capacityDrafts.TryGetValue(id,out var draft))_capacityDrafts[id]=draft with{Automatic=enabled};
+        PublishStatus("容量来源设置已保存。",PageMessageSeverity.Success);
     });
     /// <summary>读取指定行当前完整诊断；不联网、不保存，也不依赖当前页面选择。</summary>
     /// <summary>完整诊断由应用后台只读生成，旧简要入口保持兼容。</summary>
@@ -201,15 +211,18 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     {
         if(FindMount(mountId) is not {} selected||IsBusy(mountId))return Task.CompletedTask;
         var id=selected.Definition.Id;_thumbnailDrafts[id]=enabled;
-        return RunMountAsync(id,async()=>{try{await _manager.SetThumbnailsEnabledAsync(id,enabled);Status=enabled?"缩略图已开启，无法高效读取时显示普通图标。":"缩略图已关闭，后台预览已停止。";}finally{_thumbnailDrafts.Remove(id);}});
+        return RunMountAsync(id,async()=>{try{await _manager.SetThumbnailsEnabledAsync(id,enabled);PublishStatus(enabled?"缩略图已开启，无法高效读取时显示普通图标。":"缩略图已关闭，后台预览已停止。",PageMessageSeverity.Success);}finally{_thumbnailDrafts.Remove(id);}});
     }
     /// <summary>SQS 折叠区只读取当前用户的独立凭据，不解析默认凭据链。</summary>
     public SourceCredentials ReadSqsCredentials(Guid id)=>_manager.GetSqsCredentials(id);
     public Task<ConnectionTestResult> TestSqsConnectionAsync(Guid id,SqsConfiguration options,SourceCredentials credentials,CancellationToken token)
         =>_manager.TestSqsConnectionAsync(id,options,credentials,token);
+    /// <summary>只保存SQS启用值，队列参数及凭据仍由独立保存按钮提交；无有效已保存队列时启用失败并回滚。</summary>
+    public Task SetSqsEnabledAsync(Guid id,bool enabled)=>RunForMountAsync(id,async mount=>
+    {await _manager.SetSqsConfigurationAsync(id,(mount.Definition.Sqs??new()) with{Enabled=enabled});PublishStatus("SQS 开关已保存。",PageMessageSeverity.Success);});
     /// <summary>按固定挂载身份保存队列设置，失败保留原配置，应用拥有订阅停止和重启。</summary>
     public Task SaveSqsConfigurationAsync(Guid id,SqsConfiguration options,SourceCredentials credentials)=>RunForMountAsync(id,async _=>
-    {await _manager.SetSqsConfigurationAsync(id,options,credentials);Status="SQS 事件加速设置已保存。";});
+    {await _manager.SetSqsConfigurationAsync(id,options,credentials);PublishStatus("SQS 事件加速设置已保存。",PageMessageSeverity.Success);});
     /// <summary>字节值以十进制 GB 无损呈现；草稿按挂载隔离，列表刷新和选择切换不写回。</summary>
     public CapacityDraft CapacitySettingsDraft(MountDefinition definition)=>_capacityDrafts.GetValueOrDefault(definition.Id)??new(definition.CapacityAutoDetectEnabled,
         definition.MaximumCapacityBytes is {} bytes?((decimal)bytes/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"","GB");
@@ -221,7 +234,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         var id=selected.Definition.Id;var draft=CapacitySettingsDraft(selected.Definition);
         return RunMountAsync(id,async()=>
         {
-            try{var bytes=CapacityRules.ParseMaximum(draft.Text,draft.Unit);await _manager.SetCapacityAsync(id,draft.Automatic,bytes);Status="容量设置已保存；上传前将按当前设置检查。";}
+            try{var bytes=CapacityRules.ParseMaximum(draft.Text,draft.Unit);await _manager.SetCapacityAsync(id,draft.Automatic,bytes);PublishStatus("容量设置已保存；上传前将按当前设置检查。",PageMessageSeverity.Success);}
             finally{_capacityDrafts.Remove(id);}
         });
     }
@@ -229,7 +242,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public Task RecheckCapacityAsync(Guid id)=>RunForMountAsync(id,async mount=>
     {
         await _manager.RefreshCapacityAsync(mount.Definition.Id,true);
-        Status=_manager.DisplayMounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error??"容量核实完成；等待任务将重新检查可用空间。";
+        var error=_manager.DisplayMounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error;PublishStatus(error??"容量核实完成；等待任务将重新检查可用空间。",error is null?PageMessageSeverity.Success:PageMessageSeverity.Warning);
     });
     public async Task ReadCapacityAsync(Guid? id)
     {
@@ -278,4 +291,4 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
 }
 
 /// <summary>配置保存的实际结果；连接失败不冒充未保存，也不自动重试写入。</summary>
-public sealed record MountConnectionSaveResult(MountDefinition Mount,string Message);
+public sealed record MountConnectionSaveResult(MountDefinition Mount,string Message,PageMessageSeverity Severity=PageMessageSeverity.Success);

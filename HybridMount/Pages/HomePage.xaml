@@ -1,6 +1,6 @@
 <Page x:Class="HybridMount.Pages.HomePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <ScrollViewer x:Name="HomeScroll">
-    <StackPanel Margin="32" Spacing="24" MaxWidth="1040" HorizontalAlignment="Stretch">
+  <Grid Style="{StaticResource SharedPageGridStyle}"><ScrollViewer x:Name="HomeScroll">
+    <StackPanel Spacing="24" HorizontalAlignment="Stretch">
       <StackPanel Orientation="Horizontal" Spacing="16"><Image Source="ms-appx:///Assets/HybridMount.png" Width="64" Height="64"/><StackPanel Spacing="8"><TextBlock Text="HybridMount.NET" Style="{ThemeResource TitleTextBlockStyle}"/></StackPanel></StackPanel>
       <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
         <TextBlock Text="按需挂载已就绪" FontSize="20" FontWeight="SemiBold"/>
@@ -12,5 +12,5 @@
         <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12"><FontIcon Glyph="&#xE8A5;" FontSize="28" HorizontalAlignment="Left"/><TextBlock Text="查看运行记录" FontSize="18" FontWeight="SemiBold"/><Button Content="查看日志" Click="OpenLogs" Style="{StaticResource PageActionButtonStyle}"/></StackPanel></Border>
       </Grid>
     </StackPanel>
-  </ScrollViewer>
+  </ScrollViewer></Grid>
 </Page>

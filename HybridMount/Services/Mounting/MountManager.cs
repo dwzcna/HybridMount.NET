@@ -201,14 +201,17 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         finally{root.Gate.Release();Notify();}
     }
-    public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true,IReadOnlyList<FileExclusionRule>? exclusions=null)
-        =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults())),token);
-    private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload,IReadOnlyList<FileExclusionRule> exclusions)
+    public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true,IReadOnlyList<FileExclusionRule>? exclusions=null,MountCreationOptions? initial=null)
+        =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults()),initial??new()),token);
+    private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload,IReadOnlyList<FileExclusionRule> exclusions,MountCreationOptions initial)
     {
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         MountDefinition definition;
         await _configurationGate.WaitAsync(token).ConfigureAwait(false);
-        try { definition = SaveNewMountCore(name, directory, autoConnect, source, credentials, false, token,exclusions:exclusions); }
+        try {
+            if(initial.RemoteIncrementalSeconds is <10 or >86400||initial.RemoteFullSeconds is <30 or >604800)throw new ArgumentException("检测间隔超出允许范围。");
+            definition = SaveNewMountCore(name,directory,autoConnect,source,credentials,initial.ThumbnailsEnabled,token,remoteAuto:initial.RemoteAutoDetectEnabled,incremental:initial.RemoteIncrementalSeconds,full:initial.RemoteFullSeconds,sqs:initial.Sqs,sqsCredentials:initial.SqsCredentials,capacityAuto:initial.CapacityAutoDetectEnabled,maximumCapacity:initial.MaximumCapacityBytes,exclusions:exclusions);
+        }
         finally { _configurationGate.Release(); }
         Notify(); await ConnectOwnedAsync(definition.Id, token).ConfigureAwait(false); return Root(definition.Id).Definition;
     }

@@ -29,6 +29,8 @@ public sealed record MountDefinition(Guid Id, string Name, string LocalPath, boo
 
 /// <summary>记录源路径与本地路径的映射；已删除或保护项不会被扫描复活。</summary>
 public sealed record MountEntry(string Id, string SourcePath, string LocalPath, string Version, bool IsDirectory, bool Deleted = false, bool Protected = false, bool Materialized = false, RemotePresence RemotePresence = RemotePresence.Unknown);
+/// <summary>新建表单一次提交的可选设置，连接前完整保存；不增加配置或备份格式。</summary>
+public sealed record MountCreationOptions(bool ThumbnailsEnabled=false,bool RemoteAutoDetectEnabled=true,int RemoteIncrementalSeconds=60,int RemoteFullSeconds=300,bool CapacityAutoDetectEnabled=false,long? MaximumCapacityBytes=null,SqsConfiguration? Sqs=null,SourceCredentials? SqsCredentials=null);
 public sealed record MountSnapshot(MountDefinition Definition, string Status, string Detail, RemoteDetectionStatus? Detection=null, bool IsConnected=false, bool IsConnecting=false, bool IsDisconnecting=false, string? ActiveOperation=null, RemoteCapacitySnapshot? Capacity=null,int UploadIssueCount=0)
 {
     public string CapacityDisplay=>Capacity?.Display??(!CapacityRules.Enabled(Definition)?"远端容量：未设置容量限制。":Definition.CapacityAutoDetectEnabled?"远端容量：自动识别，尚未查询。":$"远端容量：手动配置上限 {TaskByteFormat.Format(Definition.MaximumCapacityBytes!.Value)}；已用及可用尚未核实。");

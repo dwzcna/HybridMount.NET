@@ -14,6 +14,8 @@ public sealed partial class MainWindow : Window
     private readonly NavigationService _navigation;
     public MainWindowViewModel ViewModel {get;}
     private AppearanceBackdrop? _appliedBackdrop;
+    private ResourceDictionary? _compactResources;private bool _released;
+    private Microsoft.UI.System.ThemeSettings? _themeSettings;
     /// <summary>原生窗口句柄，用于系统文件选择器。</summary>
     public IntPtr Handle => WinRT.Interop.WindowNative.GetWindowHandle(this);
     /// <summary>创建标题栏、导航和符合当前偏好的背景。</summary>
@@ -36,6 +38,7 @@ public sealed partial class MainWindow : Window
                 DispatcherQueue.TryEnqueue(()=>{if(ViewModel.CurrentPage is {} current)SynchronizeSelection(current);});
         };
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
+        App.Current.Preferences.LayoutChanged+=ApplyDensity;ObserveThemeSettings();ApplyDensity();
         ApplyAppearance();
         ViewModel.Navigate(ApplicationPage.Home);RefreshUploadIssueNotifications();
     }
@@ -90,8 +93,27 @@ public sealed partial class MainWindow : Window
             ? (Style)RootGrid.Resources["NoneBackdropStyle"] : null;
         UpdateCaptionTheme();
     }
-    private void UpdateCaptionTheme() => AppWindow.TitleBar.ButtonForegroundColor = RootGrid.ActualTheme == ElementTheme.Dark
-        ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black;
+    /// <summary>高对比度交由Windows决定标题按钮颜色；普通主题保留明暗文字色。</summary>
+    private void UpdateCaptionTheme()=>AppWindow.TitleBar.ButtonForegroundColor=_themeSettings?.HighContrast!=false?null:RootGrid.ActualTheme==ElementTheme.Dark?Microsoft.UI.Colors.White:Microsoft.UI.Colors.Black;
+    /// <summary>使用绑定桌面窗口的主题API；系统监听不可用只记录警告，标题按钮保留系统颜色且不阻断启动。</summary>
+    private void ObserveThemeSettings()
+    {
+        try
+        {
+            var settings=Microsoft.UI.System.ThemeSettings.CreateForWindowId(AppWindow.Id);
+            settings.Changed+=ThemeSettingsChanged;_themeSettings=settings;
+        }
+        catch(Exception error){App.Current.Logger.QueueException("外观","Warning","系统主题监听不可用，标题按钮使用系统颜色",error);}
+    }
+    /// <summary>系统回调只调度UI更新，退出后拒绝迟到事件。</summary>
+    private void ThemeSettingsChanged(Microsoft.UI.System.ThemeSettings sender,object args)=>DispatcherQueue.TryEnqueue(()=>{if(!_released)UpdateCaptionTheme();});
+    /// <summary>切换系统提供的紧凑资源，无控件重建；页面自身仍通过Loaded订阅刷新边距。</summary>
+    private void ApplyDensity()
+    {
+        if(_released)return;if(!DispatcherQueue.HasThreadAccess){DispatcherQueue.TryEnqueue(ApplyDensity);return;}
+        if(App.Current.Preferences.CompactLayout&&_compactResources is null){_compactResources=new ResourceDictionary{Source=new Uri("ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml")};RootGrid.Resources.MergedDictionaries.Add(_compactResources);}
+        else if(!App.Current.Preferences.CompactLayout&&_compactResources is {} previous){RootGrid.Resources.MergedDictionaries.Remove(previous);_compactResources=null;}
+    }
     /// <summary>在主窗口显示日志通知，不影响已经持久化的记录。</summary>
     public void ShowNotification(LogNotificationEventArgs args)
     {
@@ -115,6 +137,13 @@ public sealed partial class MainWindow : Window
     public void StopPages()=>_navigation.StopPages();
     public async Task ReleaseResourcesAsync()
     {
+        if(_released)return;_released=true;App.Current.Preferences.LayoutChanged-=ApplyDensity;
+        if(_themeSettings is {} settings)
+        {
+            _themeSettings=null;
+            try{settings.Changed-=ThemeSettingsChanged;}
+            catch(Exception error){App.Current.Logger.QueueException("外观","Warning","系统主题监听解除失败",error);}
+        }
         ViewModel.Navigated-=SynchronizeSelection;ViewModel.NoticesChanged-=RefreshUploadIssueNotifications;ViewModel.Dispose();
         try{await _navigation.DisposeAsync();}
         finally{SystemBackdrop=null;}

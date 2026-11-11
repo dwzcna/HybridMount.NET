@@ -42,7 +42,7 @@ public sealed partial class MountManager
     public Task SetSqsConfigurationAsync(Guid id,SqsConfiguration options,SourceCredentials? credentials=null,CancellationToken token=default)
         =>OwnAsync(async cancel=>
         {
-            var root=Root(id);await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);var root=Root(id);await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
                 if(root.Definition.Source is not {Kind:FileSourceKind.S3} source||root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("当前挂载不能更改 SQS 设置。");

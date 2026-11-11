@@ -69,7 +69,7 @@ public partial class App:Application
             if(!silent||_tray?.IsRegistered!=true)RestoreWindow();
             _lifecycle.Record("Ready");
         }
-        catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,$"HybridMount.NET 启动失败：\n{error.Message}","HybridMount.NET",0x10);await ExitAsync();}
+        catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,$"HybridMount.NET 启动失败：\n{Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error)}\n{error.Message}\n请查看 Logs 中的 lifecycle 启动诊断。","HybridMount.NET",0x10);await ExitAsync();}
     }
     private void RecordMountStop(string phase,Exception? error)
     {

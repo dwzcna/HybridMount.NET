@@ -20,13 +20,15 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
     private DateTimeOffset? _fromDate,_toDate;
     public ObservableCollection<DiagnosticEntry> Entries {get;}=[];
     public string Status=>StatusMessage.Text;
-    private void PublishStatus(string text,bool reopen){if(!_disposed&&(reopen?StatusMessage.Show(text):StatusMessage.Update(text)))OnPropertyChanged(nameof(Status));}
+    private void PublishStatus(string text,bool reopen,PageMessageSeverity severity=PageMessageSeverity.Information){if(!_disposed&&(reopen?StatusMessage.Show(text,severity):StatusMessage.Update(text,severity)))OnPropertyChanged(nameof(Status));}
     public string Query {get=>_query;set{if(!_disposed&&SetProperty(ref _query,value??""))_=RefreshAsync();}}
     public string Severity {get=>_severity;set{if(!_disposed&&(value is "All" or "Information" or "Warning" or "Error")&&SetProperty(ref _severity,value))_=RefreshAsync();}}
     /// <summary>本地日历的开始日，转换为UTC下界；空表示不限。</summary>
     public DateTimeOffset? FromDate {get=>_fromDate;set{if(!_disposed&&SetProperty(ref _fromDate,value))_=RefreshAsync();}}
     /// <summary>本地日历的结束日，查询包含此整天；导出记录实际UTC排他上界。</summary>
     public DateTimeOffset? ToDate {get=>_toDate;set{if(!_disposed&&SetProperty(ref _toDate,value))_=RefreshAsync();}}
+    /// <summary>查询期间显示独立加载状态，不改变消息的关闭状态。</summary>
+    public bool IsReading=>_reading;
     public bool CanInteract=>!_disposed&&!_clearing&&!_dialogBusy;
     public bool CanLoadMore=>CanInteract&&!_reading&&_hasMore;
     public LogsViewModel(LoggerService logger,IUiDispatcher dispatcher){_logger=logger;_dispatcher=dispatcher;_logger.EntryWritten+=OnEntry;}
@@ -60,7 +62,7 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
         catch(Exception error){if(generation==_generation)ReportError(error,reopenStatus);}
         finally{owner.Dispose();if(_readCancel==owner)_readCancel=null;if(generation==_generation){_reading=false;NotifyActions();}}
     }
-    private void NotifyActions(){if(_disposed)return;OnPropertyChanged(nameof(CanInteract));OnPropertyChanged(nameof(CanLoadMore));}
+    private void NotifyActions(){if(_disposed)return;OnPropertyChanged(nameof(IsReading));OnPropertyChanged(nameof(CanInteract));OnPropertyChanged(nameof(CanLoadMore));}
     public bool TryBeginDialog(){if(!CanInteract)return false;_dialogBusy=true;NotifyActions();return true;}
     public void EndDialog(){_dialogBusy=false;NotifyActions();}
     /// <summary>代次与事件epoch双屏障；清除前事件不能在清除后重新插入，新的日志仍可在刷新后看到。</summary>
@@ -72,11 +74,11 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
         finally{_clearing=false;NotifyActions();}
         if(!_disposed)await RefreshAsync();
     }
-    public void ReportError(Exception error,bool reopenStatus=true){if(_disposed)return;PublishStatus("日志操作失败："+SafeDiagnostic.ExceptionSummary(error),reopenStatus);_logger.QueueException("日志","Error","日志页面操作未完成",error);}
+    public void ReportError(Exception error,bool reopenStatus=true){if(_disposed)return;PublishStatus("日志操作失败："+SafeDiagnostic.ExceptionSummary(error),reopenStatus,PageMessageSeverity.Error);_logger.QueueException("日志","Error","日志页面操作未完成",error);}
     /// <summary>兼容复制当前显示行；导出调用异步完整筛选接口。</summary>
     public string ExportText()=>string.Join(Environment.NewLine,Entries.Select(x=>x.DisplayText));
     private void SetStatus(bool reopen=false)=>PublishStatus((_logger.LastError is {} error?"日志存储异常："+error+"；":"")+$"已显示 {_all.Count} 条；保留最近30天／最多10000条。"+
-        (_hasMore?" 可加载更早记录。":"")+(_hasNew?" 有新日志，请刷新。":"")+(_logger.DroppedCount>0?$" 本会话未保存 {_logger.DroppedCount} 条。":""),reopen);
+        (_hasMore?" 可加载更早记录。":"")+(_hasNew?" 有新日志，请刷新。":"")+(_logger.DroppedCount>0?$" 本会话未保存 {_logger.DroppedCount} 条。":""),reopen,_logger.LastError is not null?PageMessageSeverity.Error:_logger.DroppedCount>0?PageMessageSeverity.Warning:PageMessageSeverity.Information);
     private void Apply(){if(!_disposed)SnapshotCollections.Reconcile(Entries,_all.OrderByDescending(x=>x.Id).ToArray(),x=>x.Id);}
     private void OnEntry(object? sender,DiagnosticEntry entry)
     {

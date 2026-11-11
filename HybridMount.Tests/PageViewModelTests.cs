@@ -40,6 +40,36 @@ public sealed class PageViewModelTests
         public async ValueTask DisposeAsync(){await Manager.DisposeAsync();await Logger.DisposeAsync();Directory.Delete(_area,true);}
     }
 
+    [Fact]
+    public void DensitySaveFailureKeepsPublishedLayoutAndIndependentMessageCloseState()
+    {
+        var saved=false;var fail=false;var writes=0;var notifications=0;
+        var preference=new ApplicationPreferencesService(()=>true,_=>{},readCompact:()=>false,writeCompact:value=>{writes++;if(fail)throw new IOException("save");saved=value;});preference.LayoutChanged+=()=>notifications++;
+        using var vm=new SettingsViewModel(new(new AppearanceStore()),preferences:preference);vm.DensitySelection="Compact";Assert.True(saved);Assert.True(preference.CompactLayout);Assert.Equal("Compact",vm.DensitySelection);Assert.Equal(1,notifications);
+        vm.AppearanceMessage.IsOpen=false;vm.DensitySelection="Compact";Assert.False(vm.AppearanceMessage.IsOpen);Assert.Equal(1,writes);
+        fail=true;vm.DensitySelection="Comfortable";Assert.Equal("Compact",vm.DensitySelection);Assert.True(saved);Assert.Equal(1,notifications);Assert.Equal(PageMessageSeverity.Error,vm.AppearanceMessage.Severity);Assert.True(vm.AppearanceMessage.IsOpen);Assert.Equal(2,writes);
+        vm.DensitySelection="unknown";Assert.Equal(2,writes);
+    }
+    [Fact(Timeout=20000)]
+    public async Task ImmediatePreferenceFailureRollsBackAndDoesNotSaveOtherDraftFields()
+    {
+        await using var area=new Area();var id=area.A.Id;var other=area.B.Id;using var vm=new MountsViewModel(area.Manager,area.Ui);
+        area.Store.FailSave=true;await vm.SetAutoConnectAsync(id,true);area.Ui.Drain();Assert.False(area.Manager.TaskDefinitions[id].AutoConnect);Assert.Equal(PageMessageSeverity.Error,vm.StatusMessage.Severity);
+        vm.StatusMessage.IsOpen=false;await vm.SetAutoConnectAsync(id,true);Assert.True(vm.StatusMessage.IsOpen);Assert.False(area.Manager.TaskDefinitions[id].AutoConnect);
+        area.Store.FailSave=false;await vm.SetAutoConnectAsync(id,true);area.Ui.Drain();Assert.True(area.Manager.TaskDefinitions[id].AutoConnect);Assert.False(area.Manager.TaskDefinitions[other].AutoConnect);
+        await area.Manager.SetCapacityAsync(id,false,5_000_000_000);area.Ui.Drain();vm.UpdateCapacityDraft(id,false,"未提交内容","GB");
+        await vm.SetCapacityAutomaticAsync(id,true);area.Ui.Drain();var saved=area.Manager.TaskDefinitions[id];Assert.True(saved.CapacityAutoDetectEnabled);Assert.Equal(5_000_000_000,saved.MaximumCapacityBytes);Assert.Equal("未提交内容",vm.CapacitySettingsDraft(saved).Text);
+        vm.UpdateDraft(id,true,88,999);await vm.SetRemoteDetectionEnabledAsync(id,false);area.Ui.Drain();saved=area.Manager.TaskDefinitions[id];Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(60,saved.RemoteIncrementalSeconds);Assert.Equal(300,saved.RemoteFullSeconds);Assert.Equal(88,vm.Draft(saved).Incremental);Assert.Equal(999,vm.Draft(saved).Full);
+        area.Store.FailSave=true;await vm.SetCapacityAutomaticAsync(id,false);area.Ui.Drain();Assert.True(area.Manager.TaskDefinitions[id].CapacityAutoDetectEnabled);Assert.True(vm.CapacitySettingsDraft(area.Manager.TaskDefinitions[id]).Automatic);
+    }
+    [Fact(Timeout=20000)]
+    public async Task InitialSwitchOptionsAreSavedBeforeConnectionAndRetainedAfterConnectionFailure()
+    {
+        var factory=new ReconnectFactory();factory.Release.SetResult();await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.Ui);
+        var path=Path.Combine(Path.GetDirectoryName(area.A.LocalPath)!,"created");Directory.CreateDirectory(path);
+        var result=await vm.SaveConnectionAsync(null,"initial",path,false,new(FileSourceKind.WebDav,"https://example.test/dav/"),new(),initial:new(ThumbnailsEnabled:true,RemoteAutoDetectEnabled:false,RemoteIncrementalSeconds:90,RemoteFullSeconds:600,MaximumCapacityBytes:7_000_000_000));
+        var saved=area.Manager.TaskDefinitions[result.Mount.Id];Assert.True(saved.ThumbnailsEnabled);Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(90,saved.RemoteIncrementalSeconds);Assert.Equal(600,saved.RemoteFullSeconds);Assert.Equal(7_000_000_000,saved.MaximumCapacityBytes);Assert.False(saved.AutoConnect);Assert.Contains(result.Mount.Id,factory.Calls);Assert.Contains("连接未完成",result.Message);Assert.Equal(PageMessageSeverity.Error,result.Severity);
+    }
     [Theory]
     [InlineData(0,false)]
     [InlineData(2,false)]

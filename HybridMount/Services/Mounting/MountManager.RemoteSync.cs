@@ -178,6 +178,7 @@ public sealed partial class MountManager
     public Task SetRemoteDetectionAsync(Guid id,bool enabled,int incrementalSeconds,int fullSeconds,CancellationToken token=default)
         =>OwnAsync(async cancel=>
         {
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             if(incrementalSeconds is <10 or >86400||fullSeconds is <30 or >604800)throw new ArgumentException("增量间隔为 10–86400 秒，完整对账间隔为 30–604800 秒。");
             var root=Root(id);var reopened=false;await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
             try

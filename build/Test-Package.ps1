@@ -34,7 +34,7 @@ try {
     if($LASTEXITCODE -ne 0){throw '无法核验包内XAML资源索引。'}
     [xml]$resourceIndex=[IO.File]::ReadAllText($resourceXml)
     $resourceRoot='ms-resource://'+$manifest.Package.Identity.Name+'/Files/'
-    foreach($name in @('App.xbf','Views/MainWindow.xbf','Pages/HomePage.xbf','Pages/MountsPage.xbf','Pages/TasksPage.xbf','Pages/LogsPage.xbf','Pages/SettingsPage.xbf','Controls/MountCard.xbf','Controls/MountBackupDialog.xbf','Controls/ConflictResolutionContentDialog.xbf','Controls/Mounting/WebDAVConfigurationContentDialog.xbf','Controls/Mounting/S3ConfigurationContentDialog.xbf','Controls/Mounting/SynologyConfigurationContentDialog.xbf','Resources/SharedStyles.xbf')){
+    foreach($name in @('App.xbf','Views/MainWindow.xbf','Pages/HomePage.xbf','Pages/MountsPage.xbf','Pages/TasksPage.xbf','Pages/LogsPage.xbf','Pages/SettingsPage.xbf','Controls/MountCard.xbf','Controls/SettingRow.xbf','Controls/MountBackupDialog.xbf','Controls/ConflictResolutionContentDialog.xbf','Controls/Mounting/WebDAVConfigurationContentDialog.xbf','Controls/Mounting/S3ConfigurationContentDialog.xbf','Controls/Mounting/SynologyConfigurationContentDialog.xbf','Resources/SharedStyles.xbf')){
         $resource=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @uri='"+$resourceRoot+$name+"']/*[local-name()='Candidate' and @type='EmbeddedData']")
         if($resource.Count -ne 1){throw "包内编译资源缺失或重复：$name"}
     }

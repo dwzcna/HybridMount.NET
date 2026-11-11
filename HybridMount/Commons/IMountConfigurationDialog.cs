@@ -6,6 +6,8 @@ public interface IMountConfigurationDialog : IDisposable
 {
     MountDefinition? CreatedMount {get;}
     string ResultMessage {get;}
+    /// <summary>由业务结果明确提供，不按文字猜测成功或失败。</summary>
+    HybridMount.ViewModels.PageMessageSeverity ResultSeverity {get;}
     /// <summary>退出只关闭视图和发出取消，网络任务仍由应用停止并等待。</summary>
     void CancelForShutdown();
 }

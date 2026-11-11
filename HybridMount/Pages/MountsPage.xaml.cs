@@ -93,7 +93,7 @@ public sealed partial class MountsPage : Page,IDisposable
             if(!ViewModel.IsStopping)
             {
                 if(existing is null&&_configurationDialog.CreatedMount is {} created){ViewModel.SelectedMountId=created.Id;RestoreSelection();}
-                if(_configurationDialog.ResultMessage.Length>0)ViewModel.Status=_configurationDialog.ResultMessage;
+                if(_configurationDialog.ResultMessage.Length>0)ViewModel.PublishStatus(_configurationDialog.ResultMessage,_configurationDialog.ResultSeverity);
             }
         }
         finally{_configurationDialog?.Dispose();_configurationDialog=null;}

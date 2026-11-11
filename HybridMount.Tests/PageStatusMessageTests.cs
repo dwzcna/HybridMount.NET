@@ -5,6 +5,15 @@ namespace HybridMount.Tests;
 public sealed class PageStatusMessageTests
 {
     [Fact]
+    public void ExplicitSeverityDoesNotReopenClosedFeedbackButSameTextActionDoes()
+    {
+        using var message=new PageStatusMessage();message.Show("同一消息",PageMessageSeverity.Error);Assert.Equal(PageMessageSeverity.Error,message.Severity);
+        message.IsOpen=false;message.Update("同一消息",PageMessageSeverity.Warning);Assert.False(message.IsOpen);Assert.Equal(PageMessageSeverity.Warning,message.Severity);
+        message.Show("同一消息",PageMessageSeverity.Success);Assert.True(message.IsOpen);Assert.Equal(PageMessageSeverity.Success,message.Severity);
+        message.Dispose();message.Show("迟到",PageMessageSeverity.Error);Assert.Equal(PageMessageSeverity.Success,message.Severity);
+    }
+
+    [Fact]
     public void SameOperationReopensButPassiveUpdatesAndNavigationDoNot()
     {
         using var message=new PageStatusMessage();
