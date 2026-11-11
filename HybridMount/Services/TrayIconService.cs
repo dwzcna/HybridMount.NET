@@ -151,8 +151,8 @@ internal sealed class TrayIconService : IDisposable
         if (menu == IntPtr.Zero) return;
         try
         {
-            if (!AppendMenu(menu, 0, RestoreCommand, "显示主窗口")) return;
-            if (!AppendMenu(menu, 0, ExitCommand, "退出 HybridMount.NET")) return;
+            if (!AppendMenu(menu, 0, RestoreCommand, global::HybridMount.Services.Localization.UiText.Text("Text_91A1D31663B9"))) return;
+            if (!AppendMenu(menu, 0, ExitCommand, global::HybridMount.Services.Localization.UiText.Text("Text_EC4D1F9F82B1"))) return;
             if (!GetCursorPos(out var point)) return;
             SetForegroundWindow(_window);
             var selected = TrackPopupMenu(menu, 0x100 | 0x2, point.X, point.Y, 0, _window, IntPtr.Zero);

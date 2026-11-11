@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Window x:Class="HybridMount.Views.MainWindow"
+<Window xmlns:loc="using:HybridMount.Helpers.UI" x:Class="HybridMount.Views.MainWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:models="using:HybridMount.Models" Title="HybridMount.NET">
     <!-- 全局返回快捷键保留，但根容器不作为自动快捷键提示的悬停目标。 -->
     <Grid x:Name="RootGrid" KeyboardAcceleratorPlacementMode="Hidden">
@@ -20,31 +20,31 @@
                 <BitmapIconSource UriSource="ms-appx:///Assets/HybridMount.png" ShowAsMonochrome="False"/>
             </TitleBar.IconSource>
         </TitleBar>
-        <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" AutomationProperties.Name="主导航">
+        <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" loc:Ui.AutomationNameKey="Text_9BAE68040509">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="首页" Tag="{x:Bind models:ApplicationPage.Home}" AutomationProperties.Name="首页">
+                <NavigationViewItem loc:Ui.ContentKey="Text_203C08E0D44A" Tag="{x:Bind models:ApplicationPage.Home}" loc:Ui.AutomationNameKey="Text_203C08E0D44A">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Home" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="挂载" Tag="{x:Bind models:ApplicationPage.Mounts}" AutomationProperties.Name="挂载">
+                <NavigationViewItem loc:Ui.ContentKey="Text_6FC9C71CB14F" Tag="{x:Bind models:ApplicationPage.Mounts}" loc:Ui.AutomationNameKey="Text_6FC9C71CB14F">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="MapDrive" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="任务" Tag="{x:Bind models:ApplicationPage.Tasks}" AutomationProperties.Name="任务">
+                <NavigationViewItem loc:Ui.ContentKey="Text_5253040DB864" Tag="{x:Bind models:ApplicationPage.Tasks}" loc:Ui.AutomationNameKey="Text_5253040DB864">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7C4;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="日志" Tag="{x:Bind models:ApplicationPage.Logs}" AutomationProperties.Name="日志">
+                <NavigationViewItem loc:Ui.ContentKey="Text_7DBAC1C20F23" Tag="{x:Bind models:ApplicationPage.Logs}" loc:Ui.AutomationNameKey="Text_7DBAC1C20F23">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xF120;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem Content="设置" Tag="{x:Bind models:ApplicationPage.Settings}" AutomationProperties.Name="设置">
+                <NavigationViewItem loc:Ui.ContentKey="Text_DF3D58C7D84B" Tag="{x:Bind models:ApplicationPage.Settings}" loc:Ui.AutomationNameKey="Text_DF3D58C7D84B">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Setting" />
                     </NavigationViewItem.Icon>

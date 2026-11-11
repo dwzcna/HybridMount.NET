@@ -10,6 +10,7 @@ namespace HybridMount.Controls;
 /// <summary>加密导出与分阶段导入的同一对话框；解密、校验和保存由应用服务拥有，取消不回滚已保存条目。</summary>
 public sealed partial class MountBackupDialog : ContentDialog
 {
+    private IDisposable? _localization;
     private readonly bool _importing;
     private readonly string? _inputPath;
     private readonly ObservableCollection<MountBackupRow> _rows = [];
@@ -23,8 +24,8 @@ public sealed partial class MountBackupDialog : ContentDialog
     /// <summary>inputPath 为空时导出；否则先解密再预览，导入不立即连接。</summary>
     public MountBackupDialog(string? inputPath = null)
     {
-        InitializeComponent(); _inputPath = inputPath; _importing = inputPath is not null; RowsList.ItemsSource = _rows;
-        Title = _importing ? "导入配置" : "导出配置"; PrimaryButtonText = _importing ? "解密并预览" : "导出";
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update()); _inputPath = inputPath; _importing = inputPath is not null; RowsList.ItemsSource = _rows;
+        global::HybridMount.Helpers.UI.Ui.Set(this,"Title",_importing ? global::HybridMount.Services.Localization.UiText.Text("Text_B48B6518293A") : global::HybridMount.Services.Localization.UiText.Text("Text_429EA3AF443D")); global::HybridMount.Helpers.UI.Ui.Set(this,"PrimaryButtonText",_importing ? global::HybridMount.Services.Localization.UiText.Text("Text_439537652398") : global::HybridMount.Services.Localization.UiText.Text("Text_76420433F22D"));
         ConfirmPasswordField.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         RowsList.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         if (!_importing)
@@ -33,11 +34,11 @@ public sealed partial class MountBackupDialog : ContentDialog
             {
                 var definition = mount.Definition;
                 var row = new MountBackupRow(new(definition.Name, definition.LocalPath, definition.Source!, new(), definition.AutoConnect, definition.ThumbnailsEnabled), false, definition.Id);
-                if (definition.RemovalPending) { row.Selected = false; row.CanSelect = false; row.Status = "移除中的挂载暂不可导出。"; }
+                if (definition.RemovalPending) { row.Selected = false; row.CanSelect = false; row.Status = global::HybridMount.Services.Localization.UiText.Text("Text_A39C7E51EDF4"); }
                 _rows.Add(row);
             }
             IsPrimaryButtonEnabled = _rows.Any(row => row.Selected);
-            if (_rows.Count == 0) ShowStatus("当前没有可导出的 WebDAV、S3 或群晖挂载。", InfoBarSeverity.Informational);
+            if (_rows.Count == 0) ShowStatus(global::HybridMount.Services.Localization.UiText.Text("Text_5917CFAF5C13"), InfoBarSeverity.Informational);
         }
     }
     private MountImportItem[] Requests() => _rows.Select(row => new MountImportItem(row.Configuration, row.LocalPath, row.Selected)).ToArray();
@@ -101,17 +102,17 @@ public sealed partial class MountBackupDialog : ContentDialog
         {
             if (!_importing)
             {
-                if (PasswordField.Password.Length is > 0 and < 8) throw new ArgumentException("备份密码可留空；设置时至少需要 8 个字符。");
-                if (!string.Equals(PasswordField.Password, ConfirmPasswordField.Password, StringComparison.Ordinal)) throw new ArgumentException("两次输入的备份密码不一致。");
+                if (PasswordField.Password.Length is > 0 and < 8) throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_B3E7068FC529"));
+                if (!string.Equals(PasswordField.Password, ConfirmPasswordField.Password, StringComparison.Ordinal)) throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_F007E1890A6A"));
                 var ids = _rows.Where(row => row.Selected && row.CanSelect).Select(row => row.ExistingId!.Value).ToArray();
-                if (ids.Length == 0) throw new ArgumentException("请选择要导出的挂载。");
+                if (ids.Length == 0) throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_DB1CDAA04D01"));
                 var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-config-{DateTime.Now:yyyyMMdd-HHmmss}" };
-                picker.FileTypeChoices.Add("HybridMount 加密配置", new List<string> { ".hymcfg" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
+                picker.FileTypeChoices.Add(global::HybridMount.Services.Localization.UiText.Text("Text_4438ABDEDD78"), new List<string> { ".hymcfg" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
                 var file = await picker.PickSaveFileAsync();
                 if (_closed || App.Current.IsExiting) return;
-                if (file is null) { ShowStatus("已取消文件选择。", InfoBarSeverity.Informational); return; }
+                if (file is null) { ShowStatus(global::HybridMount.Services.Localization.UiText.Text("Text_B6C615F9C968"), InfoBarSeverity.Informational); return; }
                 await App.Current.Mounts.ExportConfigurationsAsync(ids, PasswordField.Password, file.Path, cancel.Token);
-                ResultMessage = $"已加密导出 {ids.Length} 个挂载配置。"; exported = true;
+                ResultMessage = global::HybridMount.Services.Localization.UiText.Text("Text_BDC65C424B91",ids.Length); exported = true;
             }
             else if (!_decoded)
             {
@@ -121,7 +122,7 @@ public sealed partial class MountBackupDialog : ContentDialog
                 try { foreach (var item in document.Mounts) _rows.Add(new MountBackupRow(item, true)); }
                 finally { _applyingPreview = false; }
                 _decoded = true; PasswordField.Password = ""; PasswordField.Visibility = Visibility.Collapsed; RowsList.Visibility = Visibility.Visible;
-                PrimaryButtonText = "导入选中项";
+                global::HybridMount.Helpers.UI.Ui.Set(this,"PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_BC2FA28989C5"));
             }
             else
             {
@@ -134,13 +135,13 @@ public sealed partial class MountBackupDialog : ContentDialog
                 finally { _applyingPreview = false; }
                 var failed = result.Results.Count(item => item.State == "Failed"); var skipped = result.Results.Count(item => item.State == "Skipped");
                 var canceled = result.Results.Count(item => item.State == "Canceled");
-                ResultMessage = $"导入结果：已保存 {ImportedIds.Count}，跳过 {skipped}，失败 {failed}，取消 {canceled}。已保存的挂载尚未连接。";
-                _finished = true; CloseButtonText = "关闭";
+                ResultMessage = global::HybridMount.Services.Localization.UiText.Text("Text_4EDAD650FAE2",ImportedIds.Count,skipped,failed,canceled);
+                _finished = true; global::HybridMount.Helpers.UI.Ui.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_3FD47EDCE45B"));
                 ShowStatus(ResultMessage, failed > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
             }
         }
         catch (OperationCanceledException)
-        { if (!App.Current.IsExiting) { ResultMessage = "配置操作已取消。已保存的条目保留，可在挂载列表查看。"; ShowStatus(ResultMessage, InfoBarSeverity.Informational); } }
+        { if (!App.Current.IsExiting) { ResultMessage = global::HybridMount.Services.Localization.UiText.Text("Text_068E55CEAFFC"); ShowStatus(ResultMessage, InfoBarSeverity.Informational); } }
         catch (Exception error) { if (!App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
         finally
         {
@@ -154,7 +155,7 @@ public sealed partial class MountBackupDialog : ContentDialog
     }
     private void OnClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
     {
-        if (!_working) return; args.Cancel = true; _cancelRequested = true; CloseButtonText = "取消中…"; _active?.Cancel();
+        if (!_working) return; args.Cancel = true; _cancelRequested = true; global::HybridMount.Helpers.UI.Ui.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_0ADDD7784578")); _active?.Cancel();
     }
     private void OnClosed(ContentDialog sender, ContentDialogClosedEventArgs args)
     { _closed = true; _finished = true; _dialogStop.Cancel(); _active?.Cancel(); ++_previewVersion; PasswordField.Password = ""; ConfirmPasswordField.Password = ""; _rows.Clear(); _dialogStop.Dispose(); }

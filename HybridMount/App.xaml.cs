@@ -23,7 +23,7 @@ public partial class App:Application
     public bool IsExiting=>_exiting;
     private LifecycleDiagnostics? _lifecycle;
     public new static App Current=>(App)Application.Current;
-    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??"未知版本";
+    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??global::HybridMount.Services.Localization.UiText.Text("Text_F1E7BEC171AE");
     public NavigationService Navigation{get;}=new();
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
@@ -35,7 +35,18 @@ public partial class App:Application
     public UploadIssueNotificationService IssueNotifications{get;private set;}=null!;
     public TasksQueueService TasksQueue{get;private set;}=null!;
     public MountManager Mounts{get;private set;}=null!;
-    public App()=>InitializeComponent();
+    public Services.Localization.UiLanguageService Languages{get;private set;}=null!;
+    private IDisposable? _languageScope;private Services.Localization.NativeUiLanguageBridge? _languageBridge;
+    public App():this(null){}
+    protected internal App(Services.Localization.UiLanguageService? languages)
+    {
+        if(languages is null)
+        {
+            try{_languageBridge=new();}catch(Exception error){System.Diagnostics.Trace.TraceWarning("Language bridge initialization: 0x{0:X8}",error.HResult);}
+            var queue=DispatcherQueue.GetForCurrentThread();languages=new(new Services.Localization.RegistryUiLanguageStore(ApplicationPaths.RegistryPath),new Services.Localization.MrtUiTextProvider(),dispatch:action=>{if(queue is null||queue.HasThreadAccess)action();else queue.TryEnqueue(()=>action());},publish:value=>{global::Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride=value.Effective;_languageBridge?.Publish(value);});
+        }
+        Languages=languages;_languageScope=Services.Localization.UiText.Use(languages);try{InitializeComponent();}catch{_languageScope.Dispose();_languageBridge?.Dispose();throw;}
+    }
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         _dispatcher=DispatcherQueue.GetForCurrentThread();UiDispatcher=new UiDispatcher(_dispatcher);
@@ -48,7 +59,7 @@ public partial class App:Application
             {
                 var request=new IpcRequest(2,Guid.NewGuid().ToString(),silent?"ping":"showWindow",[]);
                 try{await IpcClient.SendAsync(request);}
-                catch{try{await IpcClient.SendAsync(request with{Version=1},IpcProtocol.LegacyPipeName);}catch(Exception error){if(!silent)MessageBox(0,$"已有实例未响应，请退出旧实例后重试。\n{error.Message}","HybridMount.NET",0x10);}}
+                catch{try{await IpcClient.SendAsync(request with{Version=1},IpcProtocol.LegacyPipeName);}catch(Exception error){if(!silent)MessageBox(0,global::HybridMount.Services.Localization.UiText.Text("Text_2F46A49FD27E",error.Message),"HybridMount.NET",0x10);}}
                 _legacyInstance.Dispose();_instance.Dispose();_legacyInstance=null;_instance=null;Exit();return;
             }
             _lifecycle=new LifecycleDiagnostics(ApplicationPaths.LogsDirectory,Version,WinRegisterService.IsPackaged()?"Packaged":"Unpackaged");
@@ -69,7 +80,7 @@ public partial class App:Application
             if(!silent||_tray?.IsRegistered!=true)RestoreWindow();
             _lifecycle.Record("Ready");
         }
-        catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,$"HybridMount.NET 启动失败：\n{Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error)}\n{error.Message}\n请查看 Logs 中的 lifecycle 启动诊断。","HybridMount.NET",0x10);await ExitAsync();}
+        catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,global::HybridMount.Services.Localization.UiText.Text("Text_77C4A50009F0",Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error),error.Message),"HybridMount.NET",0x10);await ExitAsync();}
     }
     private void RecordMountStop(string phase,Exception? error)
     {
@@ -83,18 +94,18 @@ public partial class App:Application
     private IpcResponse HandleRequest(IpcRequest request,bool legacy)
     {
         var version=legacy?1:2;
-        if(_exiting)return new(version,request.RequestId??"","stopping","程序正在退出，不再接收新任务。");
-        if((legacy&&request.Version!=1)||!IpcProtocol.IsValid(request with{Version=legacy?2:request.Version}))return new(version,request.RequestId??"","invalidRequest","请求无效。");
-        if(request.Operation=="ping")return new(version,request.RequestId,"ready","HybridMount.NET 已运行。");
-        if(request.Operation=="showWindow") {_dispatcher?.TryEnqueue(RestoreWindow);return new(version,request.RequestId,"accepted","已请求显示窗口。");}
-        if(legacy)return new(1,request.RequestId,"notImplemented","旧版菜单未执行文件操作，请更新扩展后重试。");
+        if(_exiting)return new(version,request.RequestId??"","stopping",global::HybridMount.Services.Localization.UiText.Text("Text_E6A7881C23A2"));
+        if((legacy&&request.Version!=1)||!IpcProtocol.IsValid(request with{Version=legacy?2:request.Version}))return new(version,request.RequestId??"","invalidRequest",global::HybridMount.Services.Localization.UiText.Text("Text_37CE123BBAD6"));
+        if(request.Operation=="ping")return new(version,request.RequestId,"ready",global::HybridMount.Services.Localization.UiText.Text("Text_8D3061703E17"));
+        if(request.Operation=="showWindow") {_dispatcher?.TryEnqueue(RestoreWindow);return new(version,request.RequestId,"accepted",global::HybridMount.Services.Localization.UiText.Text("Text_F71FF9567A7C"));}
+        if(legacy)return new(1,request.RequestId,"notImplemented",global::HybridMount.Services.Localization.UiText.Text("Text_A028D7449DF0"));
         try
         {
             if(request.Operation=="showSyncIssues")
             {
                 var focus=Mounts.LocateUploadIssues(request.Paths);
                 var queued=_dispatcher?.TryEnqueue(()=>{if(_exiting)return;RestoreWindow();TaskFocus.ShowIssues(focus.MountId,focus.Paths);})==true;
-                return new(2,request.RequestId,queued?"accepted":"stopping",queued?"已定位同步问题。":"程序正在退出。");
+                return new(2,request.RequestId,queued?"accepted":"stopping",queued?global::HybridMount.Services.Localization.UiText.Text("Text_A5D176FA10BC"):global::HybridMount.Services.Localization.UiText.Text("Text_06F0E237D44A"));
             }
             if(request.Operation=="getPreview")
             {
@@ -107,11 +118,11 @@ public partial class App:Application
             if(request.Operation=="getOperation")
             {
                 var job=Mounts.GetOperation(request.JobId!);
-                return new(2,request.RequestId,job is null?"notFound":"ok","任务结果见任务页。",request.JobId,job is null?null:job with{Results=job.Results.Take(3).ToArray()});
+                return new(2,request.RequestId,job is null?"notFound":"ok",global::HybridMount.Services.Localization.UiText.Text("Text_65C8EFD51BD1"),request.JobId,job is null?null:job with{Results=job.Results.Take(3).ToArray()});
             }
-            if(request.Operation=="cancelOperation")return new(2,request.RequestId,Mounts.Cancel(request.JobId!)?"accepted":"notFound","已请求取消，已完成步骤保留。",request.JobId);
+            if(request.Operation=="cancelOperation")return new(2,request.RequestId,Mounts.Cancel(request.JobId!)?"accepted":"notFound",global::HybridMount.Services.Localization.UiText.Text("Text_234B77A1E2E0"),request.JobId);
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);
-            return new(2,request.RequestId,"accepted","操作已提交，可在任务页查看逐项结果。",id);
+            return new(2,request.RequestId,"accepted",global::HybridMount.Services.Localization.UiText.Text("Text_2E89004EB19C"),id);
         }
         catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"))Logger.QueueException("资源管理器","Warning","操作未完成",error);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"?"":error.Message);}
     }
@@ -170,6 +181,7 @@ public partial class App:Application
         stages.Run("TrayRelease",()=>{if(_tray is not null){_tray.RestoreRequested-=RestoreWindow;_tray.ExitRequested-=RequestExit;_tray.Dispose();_tray=null;}});
         stages.Run("WindowRelease",()=>{_allowClose=true;MainWindow?.Close();MainWindow=null;});
         stages.Run("LegacyInstanceRelease",()=>{_legacyInstance?.Dispose();_legacyInstance=null;});
+        stages.Run("LanguageRelease",()=>{_languageScope?.Dispose();_languageScope=null;Languages.Dispose();_languageBridge?.Dispose();_languageBridge=null;});
         stages.Run("InstanceRelease",()=>{_instance?.Dispose();_instance=null;});
         Environment.ExitCode=stages.Failures==0?0:1;
         _lifecycle?.Record(stages.Failures==0?"ExitCompleted":"ExitCompletedWithErrors",completed:stages.Failures==0,cancellationReason:"Shutdown");

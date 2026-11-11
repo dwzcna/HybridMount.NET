@@ -16,7 +16,7 @@ public sealed class MountListItem(MountSnapshot snapshot) : ObservableObject
     public int UploadIssueCount=>_snapshot.UploadIssueCount;
     public string IssueBadge=>UploadIssueCount>99?"99+":UploadIssueCount.ToString(CultureInfo.CurrentCulture);
     public bool HasUploadIssues=>UploadIssueCount>0;
-    public string DiagnosticTooltip=>HasUploadIssues?$"{UploadIssueCount} 个同步问题；点击查看，右键打开完整诊断":"完整诊断";
+    public string DiagnosticTooltip=>HasUploadIssues?global::HybridMount.Services.Localization.UiText.Text("Text_C8BCDC5DAC6A",UploadIssueCount):global::HybridMount.Services.Localization.UiText.Text("Text_F1B417B318B5");
     public bool CanOpen=>Actions.CanOpen&&!_dialogBusy;
     public bool CanInspect=>!_stopping&&!_dialogBusy;
     public bool CanEdit=>Actions.CanEdit&&!_dialogBusy;
@@ -28,23 +28,23 @@ public sealed class MountListItem(MountSnapshot snapshot) : ObservableObject
     public bool CanConfigureThumbnails {get;private set;}=true;
     public bool ThumbnailsEnabled=>_snapshot.Definition.ThumbnailsEnabled;
     public bool RemoteDetectionEnabled=>_snapshot.Definition.RemoteAutoDetectEnabled;
-    public string ThumbnailText=>ThumbnailsEnabled?"不显示缩略图":"显示缩略图（实验性）";
-    public string DetectionText=>RemoteDetectionEnabled?"关闭远端自动检测":"打开远端自动检测";
+    public string ThumbnailText=>ThumbnailsEnabled?global::HybridMount.Services.Localization.UiText.Text("Text_33042ADBD1EB"):global::HybridMount.Services.Localization.UiText.Text("Text_DE0FBF01AACB");
+    public string DetectionText=>RemoteDetectionEnabled?global::HybridMount.Services.Localization.UiText.Text("Text_5AD47509C90B"):global::HybridMount.Services.Localization.UiText.Text("Text_AEAA2A51C8AA");
     public string ConnectionActionGlyph=>_snapshot.IsConnecting?"\uE711":_snapshot.IsConnected?"\uE8CD":"\uE768";
-    public string ConnectionText=>_snapshot.IsDisconnecting?"断开中…":_snapshot.IsConnecting?"取消连接":_snapshot.IsConnected?"断开":Actions.ConnectText;
+    public string ConnectionText=>_snapshot.IsDisconnecting?global::HybridMount.Services.Localization.UiText.Text("Text_9730C3C6F841"):_snapshot.IsConnecting?global::HybridMount.Services.Localization.UiText.Text("Text_3687F953CFE8"):_snapshot.IsConnected?global::HybridMount.Services.Localization.UiText.Text("Text_F33AC04EECE6"):Actions.ConnectText;
     public bool CanChangeConnection=>!_dialogBusy&&(_snapshot.IsConnecting?Actions.CanCancelConnection&&!_canceling:_snapshot.IsConnected?Actions.CanDisconnect:Actions.CanConnect);
-    public string ConnectionStatus=>_snapshot.IsDisconnecting?"正在断开":_snapshot.IsConnecting?"正在连接":_snapshot.Status;
+    public string ConnectionStatus=>_snapshot.IsDisconnecting?global::HybridMount.Services.Localization.UiText.Text("Text_B8D23E667305"):_snapshot.IsConnecting?global::HybridMount.Services.Localization.UiText.Text("Text_694186911AE3") : global::HybridMount.Services.Localization.UiText.Legacy(_snapshot.Status);
     public string ConnectionGlyph=>_snapshot.IsConnecting||_snapshot.IsDisconnecting?"\uE895":_snapshot.Status is "异常" or "需要恢复"?"\uE7BA":_snapshot.IsConnected?"\uE73E":"\uE8CD";
     private long? Used=>_snapshot.Capacity?.Value.UsedBytes is >=0? _snapshot.Capacity.Value.UsedBytes:null;
     private long? Total=>_snapshot.Capacity?.Value.TotalBytes??(!_snapshot.Definition.CapacityAutoDetectEnabled?_snapshot.Definition.MaximumCapacityBytes:null);
-    public string UsedText=>"已用："+FormatBytes(Used);
-    public string TotalText=>"总空间："+(Total is {} total?FormatBytes(total):CapacityRules.Enabled(_snapshot.Definition)?"未知":"不限");
+    public string UsedText=>global::HybridMount.Services.Localization.UiText.Text("Text_6C05B4B383AF",FormatBytes(Used));
+    public string TotalText=>global::HybridMount.Services.Localization.UiText.Text("Text_AF2B8C4537C1",(Total is {} total?FormatBytes(total):CapacityRules.Enabled(_snapshot.Definition)?global::HybridMount.Services.Localization.UiText.Text("Text_4D8C1C5B4283"):global::HybridMount.Services.Localization.UiText.Text("Text_F203D577D142")));
     public string PercentageText=>Used is {} used&&Total is >0?$"{((decimal)used/Total.Value*100).ToString("0.0",CultureInfo.CurrentCulture)}%":"—";
     public string CapacityDetails=>_snapshot.CapacityDisplay;
     /// <summary>卡片以十进制容量单位固定两位小数；未知值不冒充零，精确值保留在容量诊断。</summary>
     public static string FormatBytes(long? bytes)
     {
-        if(bytes is null or <0)return "未知";
+        if(bytes is null or <0)return global::HybridMount.Services.Localization.UiText.Text("Text_4D8C1C5B4283");
         string[] units=["kB","MB","GB","TB","PB","EB"];decimal value=bytes.Value/1000m;var index=0;
         while(value>=1000&&index<units.Length-1){value/=1000;index++;}
         value=decimal.Round(value,2,MidpointRounding.AwayFromZero);if(value>=1000&&index<units.Length-1){value/=1000;index++;}

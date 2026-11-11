@@ -4,6 +4,7 @@
 // EITHER EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 #include "Extension.h"
 #include "MenuQuery.h"
+#include "../HybridMount.Stock/NativeLanguage.h"
 #include <shlguid.h>
 #include <new>
 #include <winternl.h>
@@ -56,7 +57,7 @@ namespace {
 		Command(Operation operation,IUnknown* site=nullptr,std::shared_ptr<hm::menu::Context> context={}):_operation(operation),_site(site),_context(context?std::move(context):std::make_shared<hm::menu::Context>()){}
 		IFACEMETHODIMP GetTitle(IShellItemArray*, PWSTR* title) override {
 			if (!title) return E_POINTER;
-			return SHStrDupW(_operation == Operation::Root ? L"HybridMount.NET" : _operation == Operation::FreeSpace ? L"释放空间" : _operation == Operation::KeepOnDevice ? L"始终保留在此设备上" : L"查看同步问题", title);
+			return SHStrDupW(hm::language::Get(_operation==Operation::Root?hm::language::Text::Product:_operation==Operation::FreeSpace?hm::language::Text::FreeSpace:_operation==Operation::KeepOnDevice?hm::language::Text::KeepOnDevice:hm::language::Text::ShowSyncIssues), title);
 		}
 		IFACEMETHODIMP GetIcon(IShellItemArray*, PWSTR* icon) override {
 			if (!icon) return E_POINTER;
@@ -73,7 +74,7 @@ namespace {
 		}
 		IFACEMETHODIMP GetToolTip(IShellItemArray*, PWSTR* text) override {
 			if (!text) return E_POINTER;
-			return SHStrDupW(_operation == Operation::ShowSyncIssues ? L"在应用中定位此文件或目录的同步问题；不会自动上传。" : L"管理此挂载的离线缓存；本地修改会受到保护。", text);
+			return SHStrDupW(hm::language::Get(_operation==Operation::ShowSyncIssues?hm::language::Text::IssuesTip:hm::language::Text::CacheTip), text);
 		}
 		IFACEMETHODIMP GetCanonicalName(GUID* name) override {
 			if (!name) return E_POINTER;

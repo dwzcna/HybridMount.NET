@@ -7,6 +7,7 @@ namespace HybridMount.Controls;
 [ContentProperty(Name=nameof(Setting))]
 public sealed partial class SettingRow:UserControl
 {
+    private IDisposable? _localization;
     public static readonly DependencyProperty HeaderProperty=DependencyProperty.Register(nameof(Header),typeof(string),typeof(SettingRow),new PropertyMetadata(""));
     public static readonly DependencyProperty DescriptionProperty=DependencyProperty.Register(nameof(Description),typeof(string),typeof(SettingRow),new PropertyMetadata(""));
     public static readonly DependencyProperty SettingProperty=DependencyProperty.Register(nameof(Setting),typeof(object),typeof(SettingRow),new PropertyMetadata(null));
@@ -14,7 +15,7 @@ public sealed partial class SettingRow:UserControl
     public string Description{get=>(string)GetValue(DescriptionProperty);set=>SetValue(DescriptionProperty,value);}
     public object? Setting{get=>GetValue(SettingProperty);set=>SetValue(SettingProperty,value);}
     private ApplicationPreferencesService? _preferences;private long _generation;
-    public SettingRow(){InitializeComponent();Loaded+=OnLoaded;Unloaded+=OnUnloaded;}
+    public SettingRow(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());Loaded+=OnLoaded;Unloaded+=OnUnloaded;}
     private void OnLoaded(object sender,RoutedEventArgs args){Unsubscribe();_preferences=App.Current.Preferences;_preferences.LayoutChanged+=Refresh;Refresh();if(Setting is FrameworkElement field)AutomationProperties.SetLabeledBy(field,Label);}
     private void OnUnloaded(object sender,RoutedEventArgs args)=>Unsubscribe();
     private void Unsubscribe(){++_generation;if(_preferences is {} previous)previous.LayoutChanged-=Refresh;_preferences=null;}

@@ -40,24 +40,22 @@ public sealed partial class MountsViewModel
     public Task SaveExclusionsAsync(Guid id)=>RunForMountAsync(id,async mount=>
     {
         var rules=ReadExclusionRules(id,mount.Definition.Source!.Kind);await _manager.SetFileExclusionRulesAsync(id,rules);
-        if(!IsStopping)Status="排除规则已保存。"+_manager.FileExclusionStatus(id);
+        if(!IsStopping)Status=global::HybridMount.Services.Localization.UiText.Text("Text_70E7E5F6BC2F",_manager.FileExclusionStatus(id));
     });
     /// <summary>设置窗口的简明容量来自已保存配置及同代缓存，草稿不会冒充已生效的上限。</summary>
     public static string CapacitySummary(MountSnapshot mount)
     {
         static string Gb(long? value)=>value is {} bytes?((decimal)bytes/1_000_000_000m).ToString("0.0",CultureInfo.CurrentCulture)+"GB":"—";
         var automatic=mount.Definition.CapacityAutoDetectEnabled;var value=mount.Capacity?.Value;
-        var total=automatic?Gb(value?.TotalBytes):mount.Definition.MaximumCapacityBytes is {} maximum?Gb(maximum):"不限";
+        var total=automatic?Gb(value?.TotalBytes):mount.Definition.MaximumCapacityBytes is {} maximum?Gb(maximum):global::HybridMount.Services.Localization.UiText.Text("Text_F203D577D142");
         var available=!automatic&&mount.Definition.MaximumCapacityBytes is null?"—":Gb(value?.AvailableBytes);
-        return $"可用{available}/总{total}，基于{(automatic?"服务器信息":"用户输入")}"+
-            (mount.Capacity?.IsRefreshing==true?"\n正在抓取容量信息…":"")+(mount.Capacity?.Error is {} error?"\n"+error:"");
+        return global::HybridMount.Services.Localization.UiText.Text("Text_1A9F134D31F9",available,total,(automatic?global::HybridMount.Services.Localization.UiText.Text("Text_3189296AE210"):global::HybridMount.Services.Localization.UiText.Text("Text_718CA0358795")),(mount.Capacity?.IsRefreshing==true?global::HybridMount.Services.Localization.UiText.Text("Text_67D79EEC4C8E"):""),(mount.Capacity?.Error is {} error?"\n"+error:""));
     }
     /// <summary>RFC6578标题已有模式信息；保留其他实际模式、最近成功与错误，不能隐藏降级。</summary>
     public static string DetectionSummary(MountSnapshot mount)
     {
-        if(!mount.Definition.RemoteAutoDetectEnabled)return "已关闭";
-        var status=mount.Detection;var mode=status?.Mode??"尚未检测";
-        return (mount.Definition.Source?.Kind==FileSourceKind.WebDav&&mode=="RFC 6578 增量检测"?"":mode+"；")+
-            "最近成功："+(status?.LastSuccessUtc?.ToLocalTime().ToString("g")??"尚无")+(status?.Error is {} error?"；"+error:"");
+        if(!mount.Definition.RemoteAutoDetectEnabled)return global::HybridMount.Services.Localization.UiText.Text("Text_6744B4C6A9AA");
+        var status=mount.Detection;var mode=status?.Mode??global::HybridMount.Services.Localization.UiText.Text("Text_4D2966C43800");
+        return global::HybridMount.Services.Localization.UiText.Text("Text_D076BD51ADFE",(mount.Definition.Source?.Kind==FileSourceKind.WebDav&&mode=="RFC 6578 增量检测"?"":mode+"；"),(status?.LastSuccessUtc?.ToLocalTime().ToString("g")??global::HybridMount.Services.Localization.UiText.Text("Text_0BA9585C89B8")),(status?.Error is {} error?"；"+error:""));
     }
 }

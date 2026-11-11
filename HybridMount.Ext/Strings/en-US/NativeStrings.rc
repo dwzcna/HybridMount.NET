@@ -1,0 +1,13 @@
+#pragma code_page(65001)
+LANGUAGE 0x09,0x01
+STRINGTABLE
+BEGIN
+    1001 "HybridMount.NET"
+    1002 "Free up space"
+    1003 "Always keep on this device"
+    1004 "View sync issues"
+    1005 "Show this file or folder's sync issues in the application; does not upload automatically."
+    1006 "Manage this mount's offline cache; local edits are protected."
+    1007 "Sync issues"
+    1008 "Upload exclusion"
+END

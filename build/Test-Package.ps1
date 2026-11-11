@@ -38,6 +38,12 @@ try {
         $resource=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @uri='"+$resourceRoot+$name+"']/*[local-name()='Candidate' and @type='EmbeddedData']")
         if($resource.Count -ne 1){throw "包内编译资源缺失或重复：$name"}
     }
+    foreach($language in @('zh-CN','en-US','zh-HK')){
+        $name="$language/HybridMount.Ext.dll.mui";if(-not $entries.ContainsKey($name)){throw "缺少原生语言资源：$language"}
+        [IO.Directory]::CreateDirectory((Join-Path $resourceWork $language))|Out-Null
+        [IO.File]::WriteAllBytes((Join-Path $resourceWork $name),(Read-Bytes $name))
+    }
+    & (Join-Path $PSScriptRoot 'Test-Localization.ps1') -PriPath $priFile -MuiRoot $resourceWork -Platform $Platform
     # 主入口保持既有虚拟化；隐藏维护入口必须独立使用经隔离验证的win32App／mediumIL组合。
     $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")
     $main=@($apps|Where-Object {$_.Id -eq 'App'})

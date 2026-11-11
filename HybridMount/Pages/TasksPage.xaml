@@ -1,4 +1,4 @@
-<Page xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.TasksPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:mounts="using:HybridMount.Models.Mounting">
+<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.TasksPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:mounts="using:HybridMount.Models.Mounting">
     <Page.Resources>
         <ResourceDictionary>
             <!-- 同色底仅8%不透明度；高对比度使用系统选择颜色，不叠加彩色底。 -->
@@ -47,7 +47,7 @@
         <DataTemplate x:Key="JobResultTemplate" x:DataType="mounts:MountItemResult">
             <StackPanel Padding="8" Spacing="4">
                 <TextBlock Text="{x:Bind Path}" TextWrapping="Wrap"/>
-                <TextBlock Text="{x:Bind Status}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock loc:Ui.Source="{x:Bind}" loc:Ui.Path="DisplayStatus" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 <TextBlock Text="{x:Bind Message}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(Message),Mode=OneTime}"/>
             </StackPanel>
         </DataTemplate>
@@ -61,49 +61,49 @@
             <VisualStateManager.VisualStateGroups><VisualStateGroup>
                 <VisualState><VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="760"/></VisualState.StateTriggers><VisualState.Setters><Setter Target="TaskFilters.(Grid.Row)" Value="0"/><Setter Target="TaskFilters.(Grid.Column)" Value="1"/><Setter Target="TaskFilters.Margin" Value="16,0,0,0"/></VisualState.Setters></VisualState>
             </VisualStateGroup></VisualStateManager.VisualStateGroups>
-            <TextBlock Text="任务" Style="{ThemeResource TitleTextBlockStyle}"/>
+            <TextBlock loc:Ui.TextKey="Text_5253040DB864" Style="{ThemeResource TitleTextBlockStyle}"/>
             <StackPanel x:Name="TaskFilters" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <ToggleButton Content="同步问题" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" ToolTipService.ToolTip="查看独立保存的未解决同步问题" AccessKey="I"/>
-                <ToggleButton Content="冲突" IsChecked="{x:Bind ViewModel.ConflictsOnly,Mode=TwoWay}" AccessKey="F"/>
-                <Button Content="全部挂载" Click="ClearIssueFilter" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
+                <ToggleButton loc:Ui.ContentKey="Text_73213BCEB8A1" IsChecked="{x:Bind ViewModel.IssuesOnly,Mode=TwoWay}" loc:Ui.ToolTipKey="Text_E7E1C13CAFC0" AccessKey="I"/>
+                <ToggleButton loc:Ui.ContentKey="Text_45FB95610363" IsChecked="{x:Bind ViewModel.ConflictsOnly,Mode=TwoWay}" AccessKey="F"/>
+                <Button loc:Ui.ContentKey="Text_E3C64D1D126F" Click="ClearIssueFilter" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
             </StackPanel>
             <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
         </Grid>
-        <CommandBar Grid.Row="1" Margin="0,16,0,0" HorizontalContentAlignment="Left" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent" AutomationProperties.Name="任务操作">
-            <AppBarButton Label="取消选中任务" Icon="Cancel" AccessKey="C" Click="CancelJob"/>
-            <AppBarButton Label="处理冲突" Icon="Help" AccessKey="X" Click="ResolveConflict"/>
-            <AppBarButton Label="查看结果" Icon="View" AccessKey="V" Click="ShowResults"/>
-            <AppBarButton Label="重试选中" Icon="Refresh" AccessKey="R" Click="RetryUpload"/>
-            <AppBarButton Label="重新核对" Icon="Sync" AccessKey="K" Click="RecheckRename"/>
-            <AppBarButton Label="另存副本" Icon="SaveLocal" AccessKey="S" Click="SaveUploadCopy"/>
-            <AppBarButton Label="打开所在位置" Icon="OpenFile" AccessKey="O" Click="OpenLocation"/>
-            <AppBarButton Label="清理任务历史" Icon="Delete" AccessKey="H">
+        <CommandBar Grid.Row="1" Margin="0,16,0,0" HorizontalContentAlignment="Left" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent" loc:Ui.AutomationNameKey="Text_21A07234FEB3">
+            <AppBarButton loc:Ui.LabelKey="Text_037626EE90B0" Icon="Cancel" AccessKey="C" Click="CancelJob"/>
+            <AppBarButton loc:Ui.LabelKey="Text_1A65AC5B8FC1" Icon="Help" AccessKey="X" Click="ResolveConflict"/>
+            <AppBarButton loc:Ui.LabelKey="Text_D06BC6EFDD8C" Icon="View" AccessKey="V" Click="ShowResults"/>
+            <AppBarButton loc:Ui.LabelKey="Text_B043D167A20C" Icon="Refresh" AccessKey="R" Click="RetryUpload"/>
+            <AppBarButton loc:Ui.LabelKey="Text_710B1958F2AB" Icon="Sync" AccessKey="K" Click="RecheckRename"/>
+            <AppBarButton loc:Ui.LabelKey="Text_8CE158B4E774" Icon="SaveLocal" AccessKey="S" Click="SaveUploadCopy"/>
+            <AppBarButton loc:Ui.LabelKey="Text_59389C2718F4" Icon="OpenFile" AccessKey="O" Click="OpenLocation"/>
+            <AppBarButton loc:Ui.LabelKey="Text_5D48FFBF5714" Icon="Delete" AccessKey="H">
                 <AppBarButton.Flyout><MenuFlyout>
-                    <MenuFlyoutItem Text="清除已完成" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" ToolTipService.ToolTip="清除成功完成的任务历史，保留其他任务及同步数据。"/>
-                    <MenuFlyoutItem Text="清除失败" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" ToolTipService.ToolTip="清除失败及部分失败的任务历史，不删除文件或恢复数据。"/>
-                    <MenuFlyoutItem Text="清除所有" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" ToolTipService.ToolTip="清除所有已结束任务；保留进行中、等待、冲突和结果待核对，不删除文件或恢复数据。"/>
+                    <MenuFlyoutItem loc:Ui.TextKey="Text_349C4B7EB1F3" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" loc:Ui.ToolTipKey="Text_FC2942B518E1"/>
+                    <MenuFlyoutItem loc:Ui.TextKey="Text_2952F4853185" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" loc:Ui.ToolTipKey="Text_8A8B89ACE6E7"/>
+                    <MenuFlyoutItem loc:Ui.TextKey="Text_3C507E43EF88" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" loc:Ui.ToolTipKey="Text_B7CB05D81A06"/>
                 </MenuFlyout></AppBarButton.Flyout>
             </AppBarButton>
         </CommandBar>
-        <ListView x:Name="JobList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" AutomationProperties.Name="挂载任务">
+        <ListView x:Name="JobList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" loc:Ui.AutomationNameKey="Text_1E087C26D53F">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="mounts:MountOperationSnapshot">
-                    <Grid Padding="8" RowSpacing="4" ColumnSpacing="16" ToolTipService.ToolTip="{x:Bind IssueDetails}">
+                    <Grid Padding="8" RowSpacing="4" ColumnSpacing="16" loc:Ui.Source="{x:Bind}" loc:Ui.ToolTipPath="IssueDetails">
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
-                            <Run Text="{x:Bind MountName}"/><Run Text="  "/><Run Text="{x:Bind CardOperation}"/>
+                            <Run loc:Ui.Source="{x:Bind}" loc:Ui.Path="MountName"/><Run Text="  "/><Run loc:Ui.Source="{x:Bind}" loc:Ui.Path="CardOperation"/>
                         </TextBlock>
-                        <TextBlock Grid.Column="1" Text="{x:Bind CardSchedule}" HorizontalAlignment="Right" ToolTipService.ToolTip="{x:Bind ProgressDetail}"/>
+                        <TextBlock Grid.Column="1" loc:Ui.Source="{x:Bind}" loc:Ui.Path="CardSchedule" HorizontalAlignment="Right" loc:Ui.ToolTipPath="ProgressDetail"/>
                         <TextBlock Grid.Row="1" Text="{x:Bind CardPath}" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind CardPath}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind CardState}" HorizontalAlignment="Right"/>
-                        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{x:Bind Id}" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsTextSelectionEnabled="True" TextWrapping="Wrap" AutomationProperties.Name="任务 ID" ToolTipService.ToolTip="任务 ID，可选中复制以便查询或反馈。"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" loc:Ui.Source="{x:Bind}" loc:Ui.Path="CardState" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{x:Bind Id}" HorizontalAlignment="Right" FontFamily="Consolas" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" IsTextSelectionEnabled="True" TextWrapping="Wrap" loc:Ui.AutomationNameKey="Text_68C60746F1D0" loc:Ui.ToolTipKey="Text_8CE3B0ABB728"/>
                         <ProgressBar Grid.Row="3" Grid.ColumnSpan="2" Minimum="0" Maximum="100" Value="{x:Bind ProgressPercent}"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
-        <TextBlock Grid.Row="2" Text="当前筛选下没有任务。" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Operations.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
+        <TextBlock Grid.Row="2" loc:Ui.TextKey="Text_40F1B3E4A48A" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Operations.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
         <InfoBar Grid.Row="3" Margin="0,16,0,0" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
     </Grid>
 </Page>

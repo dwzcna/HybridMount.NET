@@ -11,6 +11,7 @@ namespace HybridMount.Views;
 /// <summary>主窗口连接标题栏、侧栏与 Frame，负责外观和页面导航状态。</summary>
 public sealed partial class MainWindow : Window
 {
+    private IDisposable? _localization;private LanguageWindowObserver? _languageWindow;
     private readonly NavigationService _navigation;
     public MainWindowViewModel ViewModel {get;}
     private AppearanceBackdrop? _appliedBackdrop;
@@ -22,7 +23,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         ViewModel=new(App.Current.Navigation,App.Current.UiDispatcher,App.Current.IssueNotifications,App.Current.TaskFocus,error=>App.Current.Logger.QueueException("主窗口","Warning","窗口状态更新失败",error));
-        InitializeComponent();
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(RootGrid,()=>Bindings.Update());
         _navigation=App.Current.Navigation;
         _navigation.RegisterFrame(ContentFrame,error=>App.Current.Logger.Queue("导航","Error","页面导航失败："+error.GetType().Name));
         ViewModel.Navigated+=SynchronizeSelection;ViewModel.NoticesChanged+=RefreshUploadIssueNotifications;
@@ -40,7 +41,7 @@ public sealed partial class MainWindow : Window
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
         App.Current.Preferences.LayoutChanged+=ApplyDensity;ObserveThemeSettings();ApplyDensity();
         ApplyAppearance();
-        ViewModel.Navigate(ApplicationPage.Home);RefreshUploadIssueNotifications();
+        ViewModel.Navigate(ApplicationPage.Home);RefreshUploadIssueNotifications();_languageWindow=new(this,App.Current.Languages);
     }
     /// <summary>成功导航后更新侧栏和标题栏；程序性选中不会触发 ItemInvoked。</summary>
     private void SynchronizeSelection(ApplicationPage page)
@@ -126,10 +127,11 @@ public sealed partial class MainWindow : Window
         if(App.Current.IsExiting)return;IssueNotifications.Children.Clear();
         foreach(var notice in ViewModel.IssueNotices)
         {
-            var button=new Button{Content="查看同步问题"};button.Click+=(_,_)=>ViewModel.OpenIssues(notice.MountId);
-            var summary=notice.Count>0?$"{notice.Count} 个上传问题需要处理":"";
+            var button=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_7ED1A2EB244B")));button.Click+=(_,_)=>ViewModel.OpenIssues(notice.MountId);
+            var summary=notice.Count>0?global::HybridMount.Services.Localization.UiText.Text("Text_DC25DC95ACCE",notice.Count):"";
             var message=notice.Message is {} warning?(summary.Length>0?summary+"\n":"")+warning:summary;
             var bar=new InfoBar{Title=notice.MountName,Message=message,Severity=InfoBarSeverity.Warning,IsOpen=true,IsClosable=true,ActionButton=notice.Count>0?button:null};
+            global::HybridMount.Helpers.UI.Ui.Bind(bar,"Message",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw((notice.Count>0?global::HybridMount.Services.Localization.UiText.Text("Text_DC25DC95ACCE",notice.Count):"")+(notice.Message is {} detail?(notice.Count>0?"\n":"")+global::HybridMount.Services.Localization.UiText.Legacy(detail):"")));
             bar.Closed+=(_,_)=>ViewModel.DismissIssues(notice.MountId);IssueNotifications.Children.Add(bar);
         }
     }
@@ -137,7 +139,7 @@ public sealed partial class MainWindow : Window
     public void StopPages()=>_navigation.StopPages();
     public async Task ReleaseResourcesAsync()
     {
-        if(_released)return;_released=true;App.Current.Preferences.LayoutChanged-=ApplyDensity;
+        if(_released)return;_released=true;_localization?.Dispose();_localization=null;_languageWindow?.Dispose();_languageWindow=null;App.Current.Preferences.LayoutChanged-=ApplyDensity;
         if(_themeSettings is {} settings)
         {
             _themeSettings=null;

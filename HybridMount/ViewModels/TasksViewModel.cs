@@ -44,27 +44,29 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(!CanClear(mode))return;
         _clearingHistory=true;NotifyClearState();
-        var label=mode==TaskHistoryClearMode.Completed?"已完成":mode==TaskHistoryClearMode.Failed?"失败及部分失败":"已结束";
+        var label=mode==TaskHistoryClearMode.Completed?global::HybridMount.Services.Localization.UiText.Text("Text_F28461BB49C8"):mode==TaskHistoryClearMode.Failed?global::HybridMount.Services.Localization.UiText.Text("Text_CC88E5B26428"):global::HybridMount.Services.Localization.UiText.Text("Text_D79B1D0E5C61");
         try
         {
             var count=await _queue.ClearOperationHistoryAsync(mode);
-            if(!_disposed)Status=count==0?$"没有可清除的{label}历史；进行中或待恢复的任务已保留。":$"已清除 {count} 条{label}任务历史；进行中和待处理任务保留。";
+            if(!_disposed)Status=count==0?global::HybridMount.Services.Localization.UiText.Text("Text_DF9CE89B8A1A",label):global::HybridMount.Services.Localization.UiText.Text("Text_98B1705744A3",count,label);
         }
-        catch(OperationCanceledException)when(_queue.IsStopping){if(!_disposed)Status="程序正在退出，已停止清理。";}
-        catch(Exception error){if(!_disposed)PublishStatus("清除失败："+error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务历史","清除任务历史失败",error);}
+        catch(OperationCanceledException)when(_queue.IsStopping){if(!_disposed)Status=global::HybridMount.Services.Localization.UiText.Text("Text_93D305FC0E03");}
+        catch(Exception error){if(!_disposed)PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_055D4F94325D",error.Message),PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务历史","清除任务历史失败",error);}
         finally{_clearingHistory=false;if(!_disposed){Refresh();NotifyClearState();}}
     }
     /// <summary>当前操作提示。</summary>
+    /// <summary>服务原文只作为原文展示，避免与自有提示模板同文时被翻译。</summary>
+    public void ReportError(string text){if(!_disposed&&StatusMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Raw(text),PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));}
     public string Status {get=>StatusMessage.Text;set=>PublishStatus(value);}
     private void PublishStatus(string text,PageMessageSeverity severity=PageMessageSeverity.Information){if(!_disposed&&StatusMessage.Show(text,severity))OnPropertyChanged(nameof(Status));}
     public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value)){if(value){_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));}Refresh();}}}
     public bool ConflictsOnly{get=>_conflictsOnly;set{if(!_disposed&&SetProperty(ref _conflictsOnly,value)){if(value){_issuesOnly=false;OnPropertyChanged(nameof(IssuesOnly));}Refresh();}}}
-    public string IssueViewTitle=>_filterMount is {} id?"同步问题 · "+(_queue.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??"挂载"):"同步问题";
+    public string IssueViewTitle=>_filterMount is {} id?global::HybridMount.Services.Localization.UiText.Text("Text_2459713C2EC0",(_queue.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??global::HybridMount.Services.Localization.UiText.Text("Text_6FC9C71CB14F"))):global::HybridMount.Services.Localization.UiText.Text("Text_73213BCEB8A1");
     public bool HasIssueFilter=>_filterMount is not null||_filterPaths.Count>0;
     public void ClearIssueFilter(){_filterMount=null;_filterPaths=[];Refresh();}
     public string? SelectedLocation()
     {
-        if(_disposed||_queue.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择同步问题。";return null;}
+        if(_disposed||_queue.IsStopping||Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_8EF667892EFE");return null;}
         try{return _queue.SyncIssueLocalPath(selected.Id);}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return null;}
     }
     private void FocusChanged()
@@ -80,57 +82,57 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
     public MountOperationSnapshot? Selected=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
     public string CopyPath {get=>_copyPath;set{if(!_disposed)SetProperty(ref _copyPath,value);}}
-    public string CopyContentNotice=>"已有上传快照时，副本使用该快照，后续本地编辑不会改变副本。没有快照时，将使用上传准备时的当前本地内容，而不是冲突时的内容。";
+    public string CopyContentNotice=>global::HybridMount.Services.Localization.UiText.Text("Text_1501CBC59F3C");
     public void CancelSelected()
     {
         if(_disposed||_queue.IsStopping)return;
-        if(Selected is not {} selected){Status="请先选择任务。";return;}
-        try{Status=_queue.Cancel(selected.Id)?selected.Operation=="excludedRename"?"已请求停止收尾；已完成的云端改名或目标复制会保留。":"已请求取消；已完成的步骤保留，已删除内容不会恢复。":"任务已结束或不存在。";}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        if(Selected is not {} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_A1480CEA066A");return;}
+        try{Status=_queue.Cancel(selected.Id)?selected.Operation=="excludedRename"?global::HybridMount.Services.Localization.UiText.Text("Text_1D73995960A9"):global::HybridMount.Services.Localization.UiText.Text("Text_B868FAF07C8A"):global::HybridMount.Services.Localization.UiText.Text("Text_B0B8AFEBEAD6");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public void RetrySelected()
     {
         if(_disposed||_queue.IsStopping)return;
-        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请先选择上传、远端更新或排除改名收尾任务。";return;}
-        try{Status=_queue.RetryUpload(selected.Id)?"已提交重试；如挂载未连接，请先在挂载页连接。":"当前任务不能重试。";}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_44C6E3CF9291");return;}
+        try{Status=_queue.RetryUpload(selected.Id)?global::HybridMount.Services.Localization.UiText.Text("Text_F8FFEB435E02"):global::HybridMount.Services.Localization.UiText.Text("Text_EA215D28117F");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     /// <summary>只读核对改名收尾，不授权再次删除或重新上传。</summary>
     public void RecheckSelected()
     {
         if(_disposed||_queue.IsStopping)return;
-        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status="请选择上传、远端更新或改名排除收尾任务。";return;}
-        try{Status=_queue.RecheckOperation(selected.Id)?"已请求只读核对；不会因此授权覆盖或重新发送。":"当前任务正在执行或已经结束。";}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_320256ADF69A");return;}
+        try{Status=_queue.RecheckOperation(selected.Id)?global::HybridMount.Services.Localization.UiText.Text("Text_CB337BBDEC92"):global::HybridMount.Services.Localization.UiText.Text("Text_335625D8BF94");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public bool BeginCopy()
     {
         if(_disposed||_queue.IsStopping||_dialogBusy)return false;
-        if(Selected is not {Operation:"upload"} selected){Status="请先选择上传任务。";return false;}
+        if(Selected is not {Operation:"upload"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_BD7D468AF466");return false;}
         _dialogBusy=true;_dialogJob=selected.Id;
-        var original=selected.ItemPath??"副本";var extension=Path.GetExtension(original);CopyPath=original[..(original.Length-extension.Length)]+" (副本)"+extension;return true;
+        var original=selected.ItemPath??global::HybridMount.Services.Localization.UiText.Text("Text_BFE958DEA679");var extension=Path.GetExtension(original);CopyPath=global::HybridMount.Services.Localization.UiText.Text("Text_50A225C4305F",original[..(original.Length-extension.Length)],extension);return true;
     }
     /// <summary>捕获的原任务只可提交一次；选择切换不改变副本的来源，应用服务仍校验远端目标。</summary>
     public void SubmitCopy()
     {
         if(_disposed||_queue.IsStopping||!_dialogBusy||_dialogJob is not {} id)return;
         _dialogJob=null;
-        try{SelectedJobId=_queue.UploadAsCopy(id,CopyPath.Trim());Status="副本任务已提交；目标已存在时会拒绝覆盖。";}
+        try{SelectedJobId=_queue.UploadAsCopy(id,CopyPath.Trim());Status=global::HybridMount.Services.Localization.UiText.Text("Text_7265AF89876F");}
         catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public MountOperationSnapshot? BeginResults()
     {
         if(_disposed||_queue.IsStopping||_dialogBusy)return null;
-        if(Selected is not {} selected){Status="请先选择任务。";return null;}
+        if(Selected is not {} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_A1480CEA066A");return null;}
         try{var result=IssuesOnly?selected:_queue.GetOperation(selected.Id)??selected;_dialogBusy=true;return result;}
         catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return null;}
     }
     /// <summary>关闭比较只取消本次准备，不取消原冲突；已开始的受保护写入由应用完成安全收尾。</summary>
     public void EndDialog(){_comparisonCancel?.Cancel();_comparisonCancel?.Dispose();_comparisonCancel=null;_comparison=null;_dialogBusy=false;_dialogJob=null;if(!_disposed)NotifyConflict();}
-    public string ConflictTitle=>"处理冲突 · "+(_comparison?.Path??"文件");
-    public string ConflictLocalText=>_comparison?.LocalText??"尚未核对";
-    public string ConflictRemoteText=>_comparison?.RemoteText??"尚未核对";
+    public string ConflictTitle=>global::HybridMount.Services.Localization.UiText.Text("Text_ABEA4B3A3DF2",(_comparison?.Path??global::HybridMount.Services.Localization.UiText.Text("Text_39932F24FE11")));
+    public string ConflictLocalText=>_comparison?.LocalText??global::HybridMount.Services.Localization.UiText.Text("Text_7410DAE3F11E");
+    public string ConflictRemoteText=>_comparison?.RemoteText??global::HybridMount.Services.Localization.UiText.Text("Text_7410DAE3F11E");
     public string ConflictBaselineText=>_comparison?.BaselineText??"";
-    public string ConflictLocalRestriction=>_comparison?.LocalRestriction??"请先重新核对。";
-    public string ConflictRemoteRestriction=>_comparison?.RemoteRestriction??"请先重新核对。";
-    public string ConflictRecoveryText=>_comparison?.RecoveryPath is {Length:>0} path?"保留的本地恢复备份："+path:"";
+    public string ConflictLocalRestriction=>_comparison?.LocalRestriction??global::HybridMount.Services.Localization.UiText.Text("Text_46F09994B42F");
+    public string ConflictRemoteRestriction=>_comparison?.RemoteRestriction??global::HybridMount.Services.Localization.UiText.Text("Text_46F09994B42F");
+    public string ConflictRecoveryText=>_comparison?.RecoveryPath is {Length:>0} path?global::HybridMount.Services.Localization.UiText.Text("Text_484C52248816",path):"";
     public string ConflictStatus=>_conflictStatus;
     public bool CanResolveWithLocal=>!_disposed&&!_conflictBusy&&_comparison?.CanUseLocal==true;
     public bool CanResolveWithRemote=>!_disposed&&!_conflictBusy&&_comparison?.CanUseRemote==true;
@@ -140,16 +142,16 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public async Task<bool> BeginConflictAsync()
     {
         if(_disposed||_queue.IsStopping||_dialogBusy||_conflictBusy)return false;
-        if(Selected?.Operation=="excludedRename"){Status="此任务请使用重新核对、重试或取消收尾；目标已存在时不会自动覆盖。";return false;}
-        if(Selected is not{Operation:"upload" or "remoteUpdate"} selected){Status="请先选择文件冲突。";return false;}
+        if(Selected?.Operation=="excludedRename"){Status=global::HybridMount.Services.Localization.UiText.Text("Text_B659FC3F6B67");return false;}
+        if(Selected is not{Operation:"upload" or "remoteUpdate"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_B5852AAAA8E8");return false;}
         var owner=new CancellationTokenSource();_dialogBusy=true;_dialogJob=selected.Id;_comparisonCancel=owner;await RefreshConflictAsync();return !_disposed&&_dialogBusy&&_dialogJob==selected.Id&&_comparisonCancel==owner;
     }
     public async Task RefreshConflictAsync()
     {
         if(_disposed||_conflictBusy||!_dialogBusy||_dialogJob is not {} id||_comparisonCancel is null)return;
-        var owner=_comparisonCancel;_conflictBusy=true;_comparison=null;_conflictStatus="正在只读核对两端信息…";NotifyConflict();
-        try{var compared=await _queue.CompareConflictAsync(id,owner.Token);if(!_disposed&&_dialogJob==id&&_comparisonCancel==owner){_comparison=compared;_conflictStatus="核对时间："+compared.ObservedUtc.ToLocalTime().ToString("G");}}
-        catch(OperationCanceledException){if(!_disposed&&_comparisonCancel==owner)_conflictStatus="核对已停止。";}
+        var owner=_comparisonCancel;_conflictBusy=true;_comparison=null;_conflictStatus=global::HybridMount.Services.Localization.UiText.Text("Text_0BAA8611E301");NotifyConflict();
+        try{var compared=await _queue.CompareConflictAsync(id,owner.Token);if(!_disposed&&_dialogJob==id&&_comparisonCancel==owner){_comparison=compared;_conflictStatus=global::HybridMount.Services.Localization.UiText.Text("Text_6DB506073EE6",compared.ObservedUtc.ToLocalTime().ToString("G"));}}
+        catch(OperationCanceledException){if(!_disposed&&_comparisonCancel==owner)_conflictStatus=global::HybridMount.Services.Localization.UiText.Text("Text_19094B4131D7");}
         catch(Exception error){if(!_disposed&&_comparisonCancel==owner)_conflictStatus=error.Message;_queue.ReportDiagnosticException("冲突处理","任务页面冲突操作未完成",error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
         finally{_conflictBusy=false;if(!_disposed)NotifyConflict();}
     }
@@ -157,9 +159,9 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public async Task<bool> ResolveConflictAsync(bool useLocal)
     {
         if(!(useLocal?CanResolveWithLocal:CanResolveWithRemote)||_comparison is not {} compared||_comparisonCancel is null)return false;
-        _conflictBusy=true;_conflictStatus=useLocal?"正在等待当前任务完成，随后冻结本地内容并提交条件上传…":"正在等待当前任务完成，随后备份本地、下载并核验远端内容…";NotifyConflict();
+        _conflictBusy=true;_conflictStatus=useLocal?global::HybridMount.Services.Localization.UiText.Text("Text_3692B75B6E6E"):global::HybridMount.Services.Localization.UiText.Text("Text_B0F181CAFC5A");NotifyConflict();
         try{var result=await _queue.ResolveConflictAsync(compared,useLocal,_comparisonCancel.Token);if(!_disposed){Status=result;_conflictStatus=result;}return true;}
-        catch(OperationCanceledException){if(!_disposed)_conflictStatus="处理已停止；已保存的备份和恢复阶段保留。";return false;}
+        catch(OperationCanceledException){if(!_disposed)_conflictStatus=global::HybridMount.Services.Localization.UiText.Text("Text_40BB5C6B64B7");return false;}
         catch(Exception error){if(!_disposed)_conflictStatus=error.Message;_queue.ReportDiagnosticException("冲突处理","任务页面冲突操作未完成",error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);return false;}
         finally{_comparison=null;_conflictBusy=false;if(!_disposed){Refresh();NotifyConflict();}}
     }
@@ -176,7 +178,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         if(_disposed)return;
         try { var source=_issuesOnly||_conflictsOnly?(_conflictsOnly?_queue.Conflicts:_queue.SyncIssues).Where(x=>(_filterMount is null||x.MountId==_filterMount)&&(_filterPaths.Count==0||_filterPaths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):_queue.Operations;
             var now=System.Diagnostics.Stopwatch.GetTimestamp();var snapshots=OperationDisplayOrder.Sort(source.Select(value=>_rates.Apply(value,now))).ToArray();_rates.Retain(snapshots.Select(value=>value.Id).ToHashSet(StringComparer.Ordinal));OnPropertyChanged(nameof(IssueViewTitle));OnPropertyChanged(nameof(HasIssueFilter));Refreshing?.Invoke();SnapshotCollections.Reconcile(Operations,snapshots,operation=>operation.Id);NotifyClearState();Refreshed?.Invoke(); }
-        catch(Exception error) { if(StatusMessage.Update(error.Message,PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
+        catch(Exception error) { if(StatusMessage.Update(global::HybridMount.Services.Localization.ResourceMessage.Raw(error.Message),PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error); }
     }
     /// <summary>解除快照订阅；不取消任何后台工作。</summary>
     public void Dispose() { EndDialog();_disposed=true;StatusMessage.Dispose();_queue.Changed-=Changed;if(_focus is not null)_focus.Changed-=FocusChanged; }

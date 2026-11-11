@@ -1,4 +1,4 @@
-<ContentDialog xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.Mounting.WebDAVConfigurationContentDialog"
+<ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.Mounting.WebDAVConfigurationContentDialog"
                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views" xmlns:vm="using:HybridMount.ViewModels">
     <Grid MaxHeight="640" MinWidth="360" MaxWidth="520">
@@ -6,71 +6,71 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="16">
                 <UserControl x:Name="ConnectionFields"><StackPanel Spacing="12">
-                    <TextBlock Text="连接配置" FontWeight="SemiBold"/>
-                    <TextBox x:Name="NameField" Header="名称"/>
+                    <TextBlock loc:Ui.TextKey="Text_E38AB48681DD" FontWeight="SemiBold"/>
+                    <TextBox x:Name="NameField" loc:Ui.HeaderKey="Text_D44E9B3D3B31"/>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="PathField" Header="本地 NTFS 空目录" IsReadOnly="True"/>
-                        <Button x:Name="ChooseButton" Grid.Column="1" Content="选择目录" VerticalAlignment="Bottom" Click="ChooseFolder"/>
+                        <TextBox x:Name="PathField" loc:Ui.HeaderKey="Text_4BB83F1A69F9" IsReadOnly="True"/>
+                        <Button x:Name="ChooseButton" Grid.Column="1" loc:Ui.ContentKey="Text_E5FE24CA742F" VerticalAlignment="Bottom" Click="ChooseFolder"/>
                     </Grid>
-                    <TextBox x:Name="EndpointField" Header="服务器地址"/>
+                    <TextBox x:Name="EndpointField" loc:Ui.HeaderKey="Text_D3716CC5A2F5"/>
                     <StackPanel x:Name="HttpsFields" Spacing="12" Visibility="Collapsed">
-                        <TextBlock Text="群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。" TextWrapping="Wrap"/>
-                        <TextBox x:Name="CertificatePinField" Header="HTTPS 证书 SHA-256 指纹（可选）" PlaceholderText="留空使用系统证书验证"/>
-                        <TextBlock Text="自签名证书需先通过可信渠道核对指纹后填写，仅信任当前挂载；证书更新后需重新核验。不要填写未经核对的指纹。" TextWrapping="Wrap"/>
+                        <TextBlock loc:Ui.TextKey="Text_D44119F948EA" TextWrapping="Wrap"/>
+                        <TextBox x:Name="CertificatePinField" loc:Ui.HeaderKey="Text_B1110A3FAB2E" loc:Ui.PlaceholderTextKey="Text_FC8B9CB4FC5F"/>
+                        <TextBlock loc:Ui.TextKey="Text_FB99EDB2DA85" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Spacing="12">
-                                    <TextBox x:Name="UserField" Header="账号"/>
-                                    <PasswordBox x:Name="PasswordField" Header="密码或第三方应用密码"/>
+                                    <TextBox x:Name="UserField" loc:Ui.HeaderKey="Text_311BB313FDEC"/>
+                                    <PasswordBox x:Name="PasswordField" loc:Ui.HeaderKey="Text_8073A15C1F2C"/>
                                 </StackPanel>
-                    <CheckBox x:Name="HttpField" Content="允许明文 HTTP（仅可信测试环境）"/>
-                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" Title="明文 HTTP" Message="当前地址会以明文传输凭据和内容，仅在可信测试网络使用。" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}"/>
-                    <controls:SettingRow Header="随程序启动连接"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" AutomationProperties.Name="随程序启动连接"/></controls:SettingRow>
+                    <CheckBox x:Name="HttpField" loc:Ui.ContentKey="Text_10D3BF1F23A3"/>
+                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" loc:Ui.TitleKey="Text_CB4488E8DBC2" loc:Ui.MessageKey="Text_3769CB3E7C40" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}"/>
+                    <controls:SettingRow loc:Ui.HeaderKey="Text_499B2ECC88CD"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" loc:Ui.AutomationNameKey="Text_499B2ECC88CD"/></controls:SettingRow>
                 </StackPanel></UserControl>
-                <Expander Header="排除文件（高级）" HorizontalAlignment="Stretch"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
-                    <TextBlock Text="排除文件" FontWeight="SemiBold"/>
+                <Expander loc:Ui.HeaderKey="Text_09C5BAC0EC82" HorizontalAlignment="Stretch"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
+                    <TextBlock loc:Ui.TextKey="Text_F0986AB1A2C4" FontWeight="SemiBold"/>
                     <ListView x:Name="ExclusionList" SelectionMode="None" MaxHeight="220" HorizontalContentAlignment="Stretch">
                         <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/></Style></ListView.ItemContainerStyle>
                         <ListView.ItemTemplate><DataTemplate x:DataType="vm:FileExclusionRuleDraft">
                             <Grid ColumnSpacing="8" Padding="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" AutomationProperties.Name="匹配方式"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
-                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" PlaceholderText="文件名文本" AutomationProperties.Name="匹配文本"/>
-                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" ToolTipService.ToolTip="删除规则" AutomationProperties.Name="删除规则"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
+                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" loc:Ui.AutomationNameKey="Text_E1F0F1CB1AB4"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
+                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" loc:Ui.PlaceholderTextKey="Text_71668ADD2876" loc:Ui.AutomationNameKey="Text_05FC5419DE3F"/>
+                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" loc:Ui.ToolTipKey="Text_C02FDCF208B3" loc:Ui.AutomationNameKey="Text_C02FDCF208B3"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
                             </Grid>
                         </DataTemplate></ListView.ItemTemplate>
                     </ListView>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="添加规则" Click="AddExclusionRule"/>
-                        <Button Content="添加默认规则" Click="AddDefaultExclusionRules"/>
-                        <Button x:Name="SaveExclusionsButton" Content="保存排除规则" Click="SaveExclusions"/>
+                        <Button loc:Ui.ContentKey="Text_C9F9E18B0623" Click="AddExclusionRule"/>
+                        <Button loc:Ui.ContentKey="Text_AF0AD96CB324" Click="AddDefaultExclusionRules"/>
+                        <Button x:Name="SaveExclusionsButton" loc:Ui.ContentKey="Text_6E5DDDF098FC" Click="SaveExclusions"/>
                     </StackPanel>
                 </StackPanel></UserControl></Expander>
-                <Expander Header="同步、容量与预览（高级）" HorizontalAlignment="Stretch"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
-                    <TextBlock Text="容量上限" FontWeight="SemiBold"/>
-                    <controls:SettingRow Header="自动从服务器信息替代" Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityModeChanged" AutomationProperties.Name="自动从服务器信息替代"/></controls:SettingRow>
+                <Expander loc:Ui.HeaderKey="Text_9A0F126A843B" HorizontalAlignment="Stretch"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
+                    <TextBlock loc:Ui.TextKey="Text_3276C0F65EE8" FontWeight="SemiBold"/>
+                    <controls:SettingRow loc:Ui.HeaderKey="Text_19BCEEEF8DE1" Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityModeChanged" loc:Ui.AutomationNameKey="Text_19BCEEEF8DE1"/></controls:SettingRow>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="MaximumField" Header="手动最大容量（留空不限）" TextChanged="CapacityTextChanged"/>
-                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" Header="单位" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
+                        <TextBox x:Name="MaximumField" loc:Ui.HeaderKey="Text_27467832B606" TextChanged="CapacityTextChanged"/>
+                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" loc:Ui.HeaderKey="Text_80B19D68B149" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
                     </Grid>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock Text="保存容量设置" TextWrapping="Wrap" TextAlignment="Center"/></Button>
-                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock Text="从服务器抓取容量信息" TextWrapping="Wrap" TextAlignment="Center"/></Button>
+                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock loc:Ui.TextKey="Text_6B814AEC0BC3" TextWrapping="Wrap" TextAlignment="Center"/></Button>
+                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock loc:Ui.TextKey="Text_B6FD03C2DB1D" TextWrapping="Wrap" TextAlignment="Center"/></Button>
                     </Grid>
                     <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(CapacityDescription.Text),Mode=OneWay}"/>
-                    <TextBlock Text="同步与预览" FontWeight="SemiBold"/>
-                    <controls:SettingRow Header="缩略图（实验性）" Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="ThumbnailChanged" AutomationProperties.Name="缩略图（实验性）"/></controls:SettingRow>
+                    <TextBlock loc:Ui.TextKey="Text_601740321114" FontWeight="SemiBold"/>
+                    <controls:SettingRow loc:Ui.HeaderKey="Text_2556F45FAF22" Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="ThumbnailChanged" loc:Ui.AutomationNameKey="Text_2556F45FAF22"/></controls:SettingRow>
                     <TextBlock x:Name="ThumbnailDescription" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ThumbnailDescription.Text),Mode=OneWay}"/>
-                    <controls:SettingRow Header="远端自动检测(RFC 6578)"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" AutomationProperties.Name="远端自动检测(RFC 6578)"/></controls:SettingRow>
-                    <NumberBox x:Name="IncrementalField" Header="增量检测间隔（秒）" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
-                    <NumberBox x:Name="FullField" Header="完整对账间隔（秒）" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
-                    <Button x:Name="SaveIntervalsButton" Content="保存检测间隔" Click="SaveIntervals"/>
+                    <controls:SettingRow loc:Ui.HeaderKey="Text_5B751D3A80A6"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" loc:Ui.AutomationNameKey="Text_5B751D3A80A6"/></controls:SettingRow>
+                    <NumberBox x:Name="IncrementalField" loc:Ui.HeaderKey="Text_3CF3EBC61173" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
+                    <NumberBox x:Name="FullField" loc:Ui.HeaderKey="Text_750F712B33B8" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
+                    <Button x:Name="SaveIntervalsButton" loc:Ui.ContentKey="Text_B8826D711144" Click="SaveIntervals"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(DetectionDescription.Text),Mode=OneWay}"/>
                 </StackPanel></UserControl></Expander>
             </StackPanel>
         </ScrollViewer>
         <ScrollViewer Grid.Row="1" Margin="0,12,0,0" Visibility="{x:Bind helpers:TextVisibility.ForOpenFeedback(ProbeBar.IsOpen,ErrorBar.IsOpen,OperationBar.IsOpen),Mode=OneWay}" MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
-                <InfoBar x:Name="ProbeBar" Visibility="{x:Bind ProbeBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Informational" Title="只读连接测试"/>
-                <InfoBar x:Name="ErrorBar" Visibility="{x:Bind ErrorBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Error" Title="未能完成操作"/>
+                <InfoBar x:Name="ProbeBar" Visibility="{x:Bind ProbeBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Informational" loc:Ui.TitleKey="Text_17D7F8B86E5F"/>
+                <InfoBar x:Name="ErrorBar" Visibility="{x:Bind ErrorBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Error" loc:Ui.TitleKey="Text_73555A93A314"/>
                 <InfoBar x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
         </ScrollViewer>

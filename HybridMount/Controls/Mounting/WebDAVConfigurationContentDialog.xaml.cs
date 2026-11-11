@@ -8,6 +8,7 @@ namespace HybridMount.Controls.Mounting;
 /// <summary>WebDAV 完整配置对话框；连接、凭据、容量及检测控件在同一 XAML 中，业务由唯一挂载模型拥有。</summary>
 public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
+    private IDisposable? _localization;
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
     private MountDefinition? _existing;
@@ -24,12 +25,12 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     /// <summary>只加载一次连接草稿；后续刷新仅更新已保存设置，不覆盖正在编辑的账号或地址。</summary>
     public WebDAVConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,bool httpsOnly=false)
     {
-        InitializeComponent();_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
         _httpsOnly=httpsOnly||existing?.Source?.PinnedCertificateSha256 is not null;
         try
         {
-            NameField.Text=existing?.Name??(_httpsOnly?"WebDAV(HTTPS) 挂载":"WebDAV 挂载");
-            EndpointField.PlaceholderText=_httpsOnly?"https://nas.example.com:5006/共享文件夹/":"https://dav.example.com/dav/";
+            NameField.Text=existing?.Name??(_httpsOnly?global::HybridMount.Services.Localization.UiText.Text("Text_E0105248342F"):global::HybridMount.Services.Localization.UiText.Text("Text_60A9B09E1708"));
+            EndpointField.PlaceholderText=_httpsOnly?global::HybridMount.Services.Localization.UiText.Text("Text_929769415F7E"):"https://dav.example.com/dav/";
             HttpsFields.Visibility=_httpsOnly?Visibility.Visible:Visibility.Collapsed;
             HttpField.Visibility=_httpsOnly?Visibility.Collapsed:Visibility.Visible;
             if(existing is not null)
@@ -47,7 +48,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             if(existing is null){RemoteAuto.IsOn=true;IncrementalField.Value=60;FullField.Value=300;CapacityUnit.SelectedIndex=0;}
             ExclusionList.ItemsSource=model.ExclusionDraft(existing?.Id,_kind);
             SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
-            Title=(existing is null?"新增 · ":"设置 · ")+(existing?.Name??(_httpsOnly?"WebDAV(HTTPS)":"WebDAV 挂载"));
+            global::HybridMount.Helpers.UI.Ui.Set(this,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_8391DA809DD9",(existing is null?global::HybridMount.Services.Localization.UiText.Text("Text_D80DA62D3B0A"):global::HybridMount.Services.Localization.UiText.Text("Text_5214E0BC5DCE")),(existing?.Name??(_httpsOnly?"WebDAV(HTTPS)":global::HybridMount.Services.Localization.UiText.Text("Text_60A9B09E1708")))));
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
@@ -115,7 +116,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private MountCreationOptions CreationOptions()
     {
         var incremental=IncrementalField.Value;var full=FullField.Value;
-        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException("检测间隔必须为有效的整数秒。");
+        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_BCC223CCC272"));
         return new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,checked((int)incremental),checked((int)full),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB"));
     }
     private async void ChooseFolder(object sender,RoutedEventArgs args)
@@ -133,17 +134,17 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
         args.Cancel=true;if(Stopped)return;
-        if(_testing is {} testing){SecondaryButtonText="取消中…";IsSecondaryButtonEnabled=false;testing.Cancel();return;}
+        if(_testing is {} testing){global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_0ADDD7784578"));IsSecondaryButtonEnabled=false;testing.Cancel();return;}
         if(_submitting||_picking)return;
-        if(!ValidateFields(false))return;using var cancel=new CancellationTokenSource();_testing=cancel;Refresh();SecondaryButtonText="取消测试";
-        ErrorBar.IsOpen=false;ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="正在执行只读探测…";ProbeBar.IsOpen=true;
+        if(!ValidateFields(false))return;using var cancel=new CancellationTokenSource();_testing=cancel;Refresh();global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_49BE72E6045C"));
+        ErrorBar.IsOpen=false;ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");ProbeBar.IsOpen=true;
         try
         {
             var result=await _model.TestConnectionAsync(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),cancel.Token);
             if(!Stopped){ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;}
         }
-        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="连接测试已取消。";}}
-        catch(Exception){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message="连接测试失败，请检查配置、网络和凭据来源。";}}
+        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");}}
+        catch(Exception){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_F96BBA110AEF");}}
         finally{_testing=null;if(!Stopped){SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
     }
     /// <summary>在禁用控件或发起请求之前校验草稿，字段错误保持原输入并聚焦首个错误。</summary>
@@ -153,14 +154,14 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,UiTerms.NameRequired);_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,UiTerms.LocalDirectoryRequired);}
         var validAddress=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme is "https" or "http";
         _fieldFeedback.Check(validAddress,EndpointField,UiTerms.ServerAddressRequired);
-        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,"使用明文 HTTP 需先明确允许；建议改用 HTTPS。");
+        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_179CC0D74764"));
         if(saving&&_existing is null)
         {
-            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,"请输入10至86400范围内的整数秒。");
-            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,"请输入30至604800范围内的整数秒。");
+            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.UiText.Text("Text_059EB2CA3210"));
+            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.UiText.Text("Text_075F86B604DE"));
             if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
         }
-        if(validAddress&&_httpsOnly)_fieldFeedback.Check(address!.Scheme=="https",EndpointField,"WebDAV(HTTPS) 入口仅接受 HTTPS 地址。");
+        if(validAddress&&_httpsOnly)_fieldFeedback.Check(address!.Scheme=="https",EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_20A86779FB0F"));
         if(validAddress)try{_=WebDavFileSource.NormalizeCertificatePin(new(FileSourceKind.WebDav,EndpointField.Text.Trim(),PinnedCertificateSha256:CertificatePinField.Text));}catch(ArgumentException error){_fieldFeedback.Check(false,CertificatePinField,error.Message);}
         return _fieldFeedback.Complete(this);
     }
@@ -183,7 +184,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {
+    {_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         EndpointField.TextChanged-=EndpointChanged;
@@ -193,7 +194,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private FileSourceConfiguration ReadSettings(string endpoint,bool allowHttp)
     {
         if(_httpsOnly&&(!Uri.TryCreate(endpoint,UriKind.Absolute,out var uri)||uri.Scheme!="https"))
-            throw new ArgumentException("WebDAV(HTTPS) 入口仅接受 HTTPS 地址；群晖通常使用 5006 端口。");
+            throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_DA8B86A7782B"));
         return new(FileSourceKind.WebDav,endpoint,AllowHttp:!_httpsOnly&&allowHttp,
             PinnedCertificateSha256:string.IsNullOrWhiteSpace(CertificatePinField.Text)?null:CertificatePinField.Text.Trim());
     }

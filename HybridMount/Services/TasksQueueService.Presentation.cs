@@ -46,7 +46,7 @@ public sealed partial class TasksQueueService
         if(path is not null&&definition is not null&&Path.IsPathRooted(path)&&MountPathGuard.IsUnder(definition.LocalPath,path))path=Path.GetRelativePath(definition.LocalPath,path);
         if(path==".")path="\\";
         snapshot=WithDownloadProgress(snapshot);
-        return snapshot with{MountName=definition?.Name??(snapshot.MountId is null?"挂载":"已移除挂载"),RelativeItemPath=snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
+        return snapshot with{MountName=definition?.Name!,RelativeItemPath=snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
     }
     public MountOperationSnapshot? GetOperation(string id)=>Operations.FirstOrDefault(x=>x.Id==id)??Backend.GetOperation(id);
     public bool Cancel(string id)

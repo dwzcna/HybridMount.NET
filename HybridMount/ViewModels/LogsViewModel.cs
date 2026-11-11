@@ -74,11 +74,10 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
         finally{_clearing=false;NotifyActions();}
         if(!_disposed)await RefreshAsync();
     }
-    public void ReportError(Exception error,bool reopenStatus=true){if(_disposed)return;PublishStatus("日志操作失败："+SafeDiagnostic.ExceptionSummary(error),reopenStatus,PageMessageSeverity.Error);_logger.QueueException("日志","Error","日志页面操作未完成",error);}
+    public void ReportError(Exception error,bool reopenStatus=true){if(_disposed)return;PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_83BD080477A5",SafeDiagnostic.ExceptionSummary(error)),reopenStatus,PageMessageSeverity.Error);_logger.QueueException("日志","Error","日志页面操作未完成",error);}
     /// <summary>兼容复制当前显示行；导出调用异步完整筛选接口。</summary>
     public string ExportText()=>string.Join(Environment.NewLine,Entries.Select(x=>x.DisplayText));
-    private void SetStatus(bool reopen=false)=>PublishStatus((_logger.LastError is {} error?"日志存储异常："+error+"；":"")+$"已显示 {_all.Count} 条；保留最近30天／最多10000条。"+
-        (_hasMore?" 可加载更早记录。":"")+(_hasNew?" 有新日志，请刷新。":"")+(_logger.DroppedCount>0?$" 本会话未保存 {_logger.DroppedCount} 条。":""),reopen,_logger.LastError is not null?PageMessageSeverity.Error:_logger.DroppedCount>0?PageMessageSeverity.Warning:PageMessageSeverity.Information);
+    private void SetStatus(bool reopen=false)=>PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_F14C813F211F",(_logger.LastError is {} error?global::HybridMount.Services.Localization.UiText.Text("Text_0DD2D51DBFDB",error):""),_all.Count,(_hasMore?global::HybridMount.Services.Localization.UiText.Text("Text_85A95E8DF55D"):""),(_hasNew?global::HybridMount.Services.Localization.UiText.Text("Text_1B47C4A7CF48"):""),(_logger.DroppedCount>0?global::HybridMount.Services.Localization.UiText.Text("Text_2DF4D1DB584B",_logger.DroppedCount):"")),reopen,_logger.LastError is not null?PageMessageSeverity.Error:_logger.DroppedCount>0?PageMessageSeverity.Warning:PageMessageSeverity.Information);
     private void Apply(){if(!_disposed)SnapshotCollections.Reconcile(Entries,_all.OrderByDescending(x=>x.Id).ToArray(),x=>x.Id);}
     private void OnEntry(object? sender,DiagnosticEntry entry)
     {

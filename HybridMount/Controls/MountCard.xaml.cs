@@ -8,13 +8,14 @@ namespace HybridMount.Controls;
 /// <summary>卡片控件只适配布局与控件事件；动作包含当前行身份，不读取页面选择或操作服务。</summary>
 public sealed partial class MountCard : UserControl
 {
+    private IDisposable? _localization;
     public static readonly DependencyProperty ItemProperty=DependencyProperty.Register(nameof(Item),typeof(MountListItem),typeof(MountCard),new PropertyMetadata(null,ItemChanged));
     public MountListItem? Item {get=>(MountListItem?)GetValue(ItemProperty);set=>SetValue(ItemProperty,value);}
     public event EventHandler<MountCardActionEventArgs>? ActionRequested;
     private MountListItem? _observed;
     private bool _initialized;
     private Guid? _flyoutMount;
-    public MountCard(){InitializeComponent();_initialized=true;Loaded+=(_,_)=>Observe();Unloaded+=(_,_)=>Detach();}
+    public MountCard(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());_initialized=true;Loaded+=(_,_)=>Observe();Unloaded+=(_,_)=>Detach();}
     private static void ItemChanged(DependencyObject owner,DependencyPropertyChangedEventArgs args)=>((MountCard)owner).Observe();
     private void Observe()
     {

@@ -1,4 +1,4 @@
-<Page xmlns:controls="using:HybridMount.Controls" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.MountsPage"
+<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:controls="using:HybridMount.Controls" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.MountsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:viewmodels="using:HybridMount.ViewModels"
@@ -10,30 +10,30 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Text="挂载" Style="{ThemeResource TitleTextBlockStyle}"/>
+        <TextBlock loc:Ui.TextKey="Text_6FC9C71CB14F" Style="{ThemeResource TitleTextBlockStyle}"/>
         <StackPanel Grid.Row="1" Margin="0,16,0,0" Spacing="12">
             <InfoBar IsOpen="{x:Bind ViewModel.HasRuntimeFailedMounts,Mode=OneWay}" IsClosable="False" Severity="Warning"
-                     Title="原生后台已断开" Message="已保留恢复记录。请先核对未确认结果，再重新连接受影响的挂载。">
+                     loc:Ui.TitleKey="Text_70CCDAD8E77E" loc:Ui.MessageKey="Text_92B13F21F95E">
                 <InfoBar.ActionButton>
-                    <Button Content="重新连接全部" Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}"/>
+                    <Button loc:Ui.ContentKey="Text_335DD2ADA3E2" Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}"/>
                 </InfoBar.ActionButton>
             </InfoBar>
-            <CommandBar HorizontalContentAlignment="Left" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" AutomationProperties.Name="挂载操作">
-                <AppBarButton x:Name="AddButton" Label="新增挂载" Icon="Add" AccessKey="N" AutomationProperties.Name="新增挂载">
+            <CommandBar HorizontalContentAlignment="Left" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" loc:Ui.AutomationNameKey="Text_FAF3E262130E">
+                <AppBarButton x:Name="AddButton" loc:Ui.LabelKey="Text_12E2E50738C5" Icon="Add" AccessKey="N" loc:Ui.AutomationNameKey="Text_12E2E50738C5">
                     <AppBarButton.Flyout><MenuFlyout>
                         <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
                         <MenuFlyoutItem Text="WebDAV(HTTPS)" Click="CreateWebDavHttpsMount"/>
-                        <MenuFlyoutItem Text="S3 对象存储" Click="CreateS3Mount"/>
-                        <MenuFlyoutItem Text="群晖 NAS（Synology）" Click="CreateSynologyMount"/>
+                        <MenuFlyoutItem loc:Ui.TextKey="Text_F62DFC6C48E8" Click="CreateS3Mount"/>
+                        <MenuFlyoutItem loc:Ui.TextKey="Text_A0E1ADC4B7E5" Click="CreateSynologyMount"/>
                     </MenuFlyout></AppBarButton.Flyout>
                 </AppBarButton>
-                <AppBarButton x:Name="ExportButton" Label="导出配置" Icon="Save" AccessKey="E" Click="ExportConfigurations"/>
-                <AppBarButton x:Name="ImportButton" Label="导入配置" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations"/>
-                <AppBarButton x:Name="RecoveryButton" Label="遗留挂载" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts"/>
+                <AppBarButton x:Name="ExportButton" loc:Ui.LabelKey="Text_429EA3AF443D" Icon="Save" AccessKey="E" Click="ExportConfigurations"/>
+                <AppBarButton x:Name="ImportButton" loc:Ui.LabelKey="Text_B48B6518293A" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations"/>
+                <AppBarButton x:Name="RecoveryButton" loc:Ui.LabelKey="Text_0F25BC7459AB" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts"/>
             </CommandBar>
         </StackPanel>
         <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
-                  SelectionMode="Single" AutomationProperties.Name="挂载列表"
+                  SelectionMode="Single" loc:Ui.AutomationNameKey="Text_9D25DF22DEE7"
                   HorizontalContentAlignment="Stretch"
                   ScrollViewer.HorizontalScrollMode="Disabled"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -50,7 +50,7 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
-        <TextBlock Grid.Row="2" Text="尚无挂载。选择“新增挂载”以连接文件源。" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Items.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
+        <TextBlock Grid.Row="2" loc:Ui.TextKey="Text_13F57F838028" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Items.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
         <InfoBar Grid.Row="3" Margin="0,16,0,0" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
     </Grid>
 </Page>

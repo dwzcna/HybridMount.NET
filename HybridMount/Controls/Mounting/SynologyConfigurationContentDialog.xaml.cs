@@ -8,6 +8,7 @@ namespace HybridMount.Controls.Mounting;
 /// <summary>群晖配置表单；UI 只提交应用拥有的异步操作，关闭时释放未交接的登录会话。</summary>
 public sealed partial class SynologyConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
+    private IDisposable? _localization;
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
     private readonly MountDefinition? _existing;
@@ -23,10 +24,10 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
     public SynologyConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null)
     {
-        InitializeComponent();_model=model;_existing=existing;_rootEditable=existing is null;
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());_model=model;_existing=existing;_rootEditable=existing is null;
         try
         {
-            NameField.Text=existing?.Name??"群晖挂载";EndpointField.Text=existing?.Source?.Endpoint??"https://:5001";
+            NameField.Text=existing?.Name??global::HybridMount.Services.Localization.UiText.Text("Text_3058C8B169F6");EndpointField.Text=existing?.Source?.Endpoint??"https://:5001";
             var source=existing?.Source;_pin=source?.PinnedCertificateSha256;HttpField.IsChecked=source?.AllowHttp==true;
             if(existing is not null)
             {
@@ -40,7 +41,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
                 ExistingSettings.Visibility=SaveIntervalsButton.Visibility=Visibility.Visible;
             }
             ExistingSettings.Visibility=Visibility.Visible;ThumbnailToggle.IsEnabled=model.CanConfigureThumbnails;ThumbnailToggle.Visibility=model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;SaveCapacityButton.Visibility=RecheckButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
-            Title=existing is null?"新增 · 群晖 NAS":"设置 · "+existing.Name;
+            global::HybridMount.Helpers.UI.Ui.Set(this,"Title",existing is null?global::HybridMount.Services.Localization.UiText.Text("Text_C2CDF622BB68"):global::HybridMount.Services.Localization.UiText.Text("Text_5181CEC8801A",existing.Name));
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
@@ -69,7 +70,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private string Prefix=>ShareField.SelectedItem is SynologySharedFolder share?share.Path+(SubfolderField.Text.Length==0?"":"/"+SubfolderField.Text):"";
     private FileSourceConfiguration ReadSettings(bool requireShare)
     {
-        if(requireShare&&ShareField.SelectedItem is not SynologySharedFolder)throw new ArgumentException("请先测试连接并选择共享文件夹。");
+        if(requireShare&&ShareField.SelectedItem is not SynologySharedFolder)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
         var options=new FileSourceConfiguration(FileSourceKind.Synology,EndpointField.Text.Trim(),Prefix:Prefix,AllowHttp:HttpField.IsChecked==true,PinnedCertificateSha256:_pin);
         SynologyFileSource.ValidateOptions(options.Prefix.Length==0?options with{Prefix="/__probe__"}:options);return options;
     }
@@ -94,7 +95,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         var context=EndpointField.Text.Trim();if(context==_httpWarningContext)return;_httpWarningContext=context;
         HttpWarning.IsOpen=Uri.TryCreate(context,UriKind.Absolute,out var uri)&&uri.Scheme=="http";
     }
-    private void UpdatePin(){PinText.Text=_pin is null?"证书验证：系统信任证书。":"本挂载固定的证书 SHA-256：\n"+_pin;ClearPinButton.Visibility=_pin is null?Visibility.Collapsed:Visibility.Visible;}
+    private void UpdatePin(){global::HybridMount.Helpers.UI.Ui.Set(PinText,"Text",_pin is null?global::HybridMount.Services.Localization.UiText.Text("Text_F0FA859C1E0D"):global::HybridMount.Services.Localization.UiText.Text("Text_D5551131636F",_pin));ClearPinButton.Visibility=_pin is null?Visibility.Collapsed:Visibility.Visible;}
     private void ClearPin(object sender,RoutedEventArgs args){if(Stopped)return;Invalidate(false);_pin=null;UpdatePin();}
     private async void TrustCertificate(object sender,RoutedEventArgs args)
     {if(Stopped||_testing is not null||_submitting||_certificateCandidate is null)return;_pin=_certificateCandidate;Invalidate(false);UpdatePin();await ProbeAsync();}
@@ -103,13 +104,13 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     {
         if(Stopped)return false;
         using var cancel=new CancellationTokenSource();_testing=cancel;_verified=null;_certificateCandidate=null;CertificateBar.IsOpen=false;Refresh();if(Stopped){_testing=null;return false;}
-        SecondaryButtonText="取消测试";ErrorBar.IsOpen=false;ProbeBar.IsOpen=true;ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="正在执行只读探测…";
+        global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_49BE72E6045C"));ErrorBar.IsOpen=false;ProbeBar.IsOpen=true;ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");
         try
         {
             var settings=ReadSettings(false);var result=await _model.TestSynologyConnectionAsync(settings,ReadCredentials(),OtpField.Password,cancel.Token,_probe?.Session);
             if(Stopped){await result.DisposeAsync();return false;}
             if(_probe is not null)await _probe.DisposeAsync();_probe=result;OtpField.Password="";ProbeBar.Message=result.Message;ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;
-            if(result.CertificateSha256 is {} fingerprint){_certificateCandidate=fingerprint;CertificateBar.Message="请通过 NAS 管理渠道核对以下 SHA-256；不会修改系统或其他挂载的信任设置：\n"+fingerprint;CertificateBar.IsOpen=true;}
+            if(result.CertificateSha256 is {} fingerprint){_certificateCandidate=fingerprint;CertificateBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_7070A69BB3D7",fingerprint);CertificateBar.IsOpen=true;}
             if(result.AuthenticationCode is 403 or 404 or 406){OtpField.Visibility=Visibility.Visible;OtpField.Focus(FocusState.Programmatic);}
             if(result.Credentials is null)return false;
             _deviceToken=result.Credentials.SessionToken;
@@ -120,17 +121,17 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
             if(!result.Success)return false;
             CertificateBar.IsOpen=false;_certificateCandidate=null;
             _verified=settings.Prefix.Length!=0&&settings.Prefix==Prefix?Identity(settings):null;
-            if(result.Shares.Count==0){ShowError("该账号没有可访问的共享文件夹，不能创建挂载。");return false;}
+            if(result.Shares.Count==0){ShowError(global::HybridMount.Services.Localization.UiText.Text("Text_553CA8C4287A"));return false;}
             return true;
         }
-        catch(OperationCanceledException){if(!Stopped)ProbeBar.Message="连接测试已取消。";return false;}
+        catch(OperationCanceledException){if(!Stopped)ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");return false;}
         catch(Exception error){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=error.Message;}return false;}
         finally{_testing=null;if(!Stopped){OtpField.Password="";SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
     }
     private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {args.Cancel=true;if(Stopped)return;if(_testing is {} testing){testing.Cancel();return;}if(!_submitting&&!_picking&&ValidateFields(false))await ProbeAsync();}
     private static int Seconds(double value,int minimum,int maximum)
-    {if(!double.IsFinite(value)||value!=Math.Truncate(value)||value<minimum||value>maximum)throw new ArgumentException("请输入范围内的整数检测间隔。");return checked((int)value);}
+    {if(!double.IsFinite(value)||value!=Math.Truncate(value)||value<minimum||value>maximum)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_64FA7CF5B492"));return checked((int)value);}
     /// <summary>在禁用控件或发起请求之前校验草稿，字段错误保持原输入并聚焦首个错误。</summary>
     private bool ValidateFields(bool saving)
     {
@@ -138,15 +139,15 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,UiTerms.NameRequired);_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,UiTerms.LocalDirectoryRequired);}
         var validAddress=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme is "https" or "http";
         _fieldFeedback.Check(validAddress,EndpointField,UiTerms.ServerAddressRequired);
-        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,"使用明文 HTTP 需先明确允许；建议改用 HTTPS。");
+        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_179CC0D74764"));
         if(saving&&_existing is null)
         {
-            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,"请输入10至86400范围内的整数秒。");
-            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,"请输入30至604800范围内的整数秒。");
+            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.UiText.Text("Text_059EB2CA3210"));
+            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.UiText.Text("Text_075F86B604DE"));
             if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
         }
-        _fieldFeedback.Check(!string.IsNullOrWhiteSpace(UserField.Text),UserField,"请输入群晖账号。");_fieldFeedback.Check(PasswordField.Password.Length>0||_deviceToken.Length>0,PasswordField,"请输入密码。");
-        if(saving)_fieldFeedback.Check(ShareField.SelectedItem is SynologySharedFolder,ShareField,"请先测试连接并选择共享文件夹。");
+        _fieldFeedback.Check(!string.IsNullOrWhiteSpace(UserField.Text),UserField,global::HybridMount.Services.Localization.UiText.Text("Text_406A7EEAF369"));_fieldFeedback.Check(PasswordField.Password.Length>0||_deviceToken.Length>0,PasswordField,global::HybridMount.Services.Localization.UiText.Text("Text_C682F190CBD4"));
+        if(saving)_fieldFeedback.Check(ShareField.SelectedItem is SynologySharedFolder,ShareField,global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
         return _fieldFeedback.Complete(this);
     }
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
@@ -190,7 +191,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {
+    {_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }

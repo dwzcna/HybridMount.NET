@@ -1,0 +1,2000 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Text_0006D696D8E1" xml:space="preserve">
+    <value>新增</value>
+  </data>
+  <data name="Text_01054FF40565" xml:space="preserve">
+    <value>启用 SQS 事件加速</value>
+  </data>
+  <data name="Text_01D3FB1271B4" xml:space="preserve">
+    <value>本地完整内容</value>
+  </data>
+  <data name="Text_02712916DEE9" xml:space="preserve">
+    <value>清除日志</value>
+  </data>
+  <data name="Text_02A8658F6601" xml:space="preserve">
+    <value>登录启动默认关闭。</value>
+  </data>
+  <data name="Text_037626EE90B0" xml:space="preserve">
+    <value>取消选中任务</value>
+  </data>
+  <data name="Text_03790D861CB9" xml:space="preserve">
+    <value>
+
+所列清空项目的全部本地内容（包括本地修改和新建文件）将永久删除，已删除内容不会回滚。保留空根目录及远端内容。</value>
+  </data>
+  <data name="Text_04155C834521" xml:space="preserve">
+    <value>挂载尚未连接。</value>
+  </data>
+  <data name="Text_05531686BE37" xml:space="preserve">
+    <value>清空孤立占位目录</value>
+  </data>
+  <data name="Text_055D4F94325D" xml:space="preserve">
+    <value>清除失败：{0}</value>
+  </data>
+  <data name="Text_059EB2CA3210" xml:space="preserve">
+    <value>请输入10至86400范围内的整数秒。</value>
+  </data>
+  <data name="Text_05FC5419DE3F" xml:space="preserve">
+    <value>匹配文本</value>
+  </data>
+  <data name="Text_068E55CEAFFC" xml:space="preserve">
+    <value>配置操作已取消。已保存的条目保留，可在挂载列表查看。</value>
+  </data>
+  <data name="Text_06F0E237D44A" xml:space="preserve">
+    <value>程序正在退出。</value>
+  </data>
+  <data name="Text_072E597CE266" xml:space="preserve">
+    <value>创建并连接</value>
+  </data>
+  <data name="Text_075F86B604DE" xml:space="preserve">
+    <value>请输入30至604800范围内的整数秒。</value>
+  </data>
+  <data name="Text_0902DFC3DD87" xml:space="preserve">
+    <value>请先测试连接并选择共享文件夹。</value>
+  </data>
+  <data name="Text_096B758B03DC" xml:space="preserve">
+    <value>遗留入口已移除：</value>
+  </data>
+  <data name="Text_09B02099ADDE" xml:space="preserve">
+    <value>下载远端快照</value>
+  </data>
+  <data name="Text_09C5BAC0EC82" xml:space="preserve">
+    <value>排除文件（高级）</value>
+  </data>
+  <data name="Text_09D8C0615F3E" xml:space="preserve">
+    <value>等待容量</value>
+  </data>
+  <data name="Text_0A4AA028D0F8" xml:space="preserve">
+    <value>文件正在读取或下载，请稍后重新核对。</value>
+  </data>
+  <data name="Text_0A71879C4E40" xml:space="preserve">
+    <value>二步验证码（仅本次登录，不保存）</value>
+  </data>
+  <data name="Text_0A98A48EAAAC" xml:space="preserve">
+    <value>测试连接</value>
+  </data>
+  <data name="Text_0ADDD7784578" xml:space="preserve">
+    <value>取消中…</value>
+  </data>
+  <data name="Text_0B0898C3FDB7" xml:space="preserve">
+    <value>远端自动检测（完整目录轮询）</value>
+  </data>
+  <data name="Text_0BA9585C89B8" xml:space="preserve">
+    <value>尚无</value>
+  </data>
+  <data name="Text_0BAA8611E301" xml:space="preserve">
+    <value>正在只读核对两端信息…</value>
+  </data>
+  <data name="Text_0BC1FB72AE1B" xml:space="preserve">
+    <value>错误</value>
+  </data>
+  <data name="Text_0BD7CE0F30C6" xml:space="preserve">
+    <value>生命周期记录</value>
+  </data>
+  <data name="Text_0C350176B3F7" xml:space="preserve">
+    <value>请输入完整的 HTTP 或 HTTPS 服务器地址。</value>
+  </data>
+  <data name="Text_0C70665B6EB6" xml:space="preserve">
+    <value>否</value>
+  </data>
+  <data name="Text_0C9E1C407AF7" xml:space="preserve">
+    <value>扫描本地改动</value>
+  </data>
+  <data name="Text_0D2F94A171FB" xml:space="preserve">
+    <value>处理遗留挂载</value>
+  </data>
+  <data name="Text_0D98F46613AC" xml:space="preserve">
+    <value>结束日期（不限）</value>
+  </data>
+  <data name="Text_0DD2D51DBFDB" xml:space="preserve">
+    <value>日志存储异常：{0}；</value>
+  </data>
+  <data name="Text_0DD665383326" xml:space="preserve">
+    <value>未知挂载操作。</value>
+  </data>
+  <data name="Text_0E0ED94D08B2" xml:space="preserve">
+    <value>请输入挂载名称。</value>
+  </data>
+  <data name="Text_0F25BC7459AB" xml:space="preserve">
+    <value>遗留挂载</value>
+  </data>
+  <data name="Text_0F63185F79E7" xml:space="preserve">
+    <value>旧版源仅支持迁出</value>
+  </data>
+  <data name="Text_10D3BF1F23A3" xml:space="preserve">
+    <value>允许明文 HTTP（仅可信测试环境）</value>
+  </data>
+  <data name="Text_110EBEF0A692" xml:space="preserve">
+    <value>使用本地：冻结当前本地内容，按已确认的远端版本条件上传。使用远端：先在同步根外保存可恢复的本地备份，再用核验后的远端内容替换本地。任一端在确认后变化时会停止处理。</value>
+  </data>
+  <data name="Text_111C061D14C1" xml:space="preserve">
+    <value>收尾失败</value>
+  </data>
+  <data name="Text_12166E73CDEA" xml:space="preserve">
+    <value>SQS 事件加速：关闭，定时完整对账仍保留</value>
+  </data>
+  <data name="Text_121799CED97E" xml:space="preserve">
+    <value>始终保留在设备上</value>
+  </data>
+  <data name="Text_12E2E50738C5" xml:space="preserve">
+    <value>新增挂载</value>
+  </data>
+  <data name="Text_12F2E12B2F72" xml:space="preserve">
+    <value>移除中</value>
+  </data>
+  <data name="Text_134E74105193" xml:space="preserve">
+    <value>
+请继续相同的移除方式。</value>
+  </data>
+  <data name="Text_13E48E89314E" xml:space="preserve">
+    <value>界面密度保存失败，已保留原值。</value>
+  </data>
+  <data name="Text_13F57F838028" xml:space="preserve">
+    <value>尚无挂载。选择“新增挂载”以连接文件源。</value>
+  </data>
+  <data name="Text_14024F291A0B" xml:space="preserve">
+    <value>仅剩 Shell 入口</value>
+  </data>
+  <data name="Text_141CD0B3303A" xml:space="preserve">
+    <value>远端文件已不存在；请另存副本或重新检测。</value>
+  </data>
+  <data name="Text_1501CBC59F3C" xml:space="preserve">
+    <value>已有上传快照时，副本使用该快照，后续本地编辑不会改变副本。没有快照时，将使用上传准备时的当前本地内容，而不是冲突时的内容。</value>
+  </data>
+  <data name="Text_151B8100C978" xml:space="preserve">
+    <value>在应用中定位此文件或目录的同步问题；不会自动上传。</value>
+  </data>
+  <data name="Text_1558E3701CFB" xml:space="preserve">
+    <value>清除本挂载固定指纹</value>
+  </data>
+  <data name="Text_15BA0E43029F" xml:space="preserve">
+    <value>关闭窗口时将退出应用。</value>
+  </data>
+  <data name="Text_179CC0D74764" xml:space="preserve">
+    <value>使用明文 HTTP 需先明确允许；建议改用 HTTPS。</value>
+  </data>
+  <data name="Text_17D7F8B86E5F" xml:space="preserve">
+    <value>只读连接测试</value>
+  </data>
+  <data name="Text_1875132781C1" xml:space="preserve">
+    <value>改名冲突</value>
+  </data>
+  <data name="Text_18807DECF3A4" xml:space="preserve">
+    <value>外观设置保存失败。</value>
+  </data>
+  <data name="Text_19094B4131D7" xml:space="preserve">
+    <value>核对已停止。</value>
+  </data>
+  <data name="Text_1994380A1BB6" xml:space="preserve">
+    <value>上传队列尚未就绪，请重新连接。</value>
+  </data>
+  <data name="Text_19B8BF71F5A4" xml:space="preserve">
+    <value>需要迁出</value>
+  </data>
+  <data name="Text_19BCEEEF8DE1" xml:space="preserve">
+    <value>自动从服务器信息替代</value>
+  </data>
+  <data name="Text_1A65AC5B8FC1" xml:space="preserve">
+    <value>处理冲突</value>
+  </data>
+  <data name="Text_1A9F134D31F9" xml:space="preserve">
+    <value>可用{0}/总{1}，基于{2}{3}{4}</value>
+  </data>
+  <data name="Text_1AD08B30AD67" xml:space="preserve">
+    <value>远端内容变化，但本地已修改、固定或正在使用；已保留旧内容，请处理后刷新。</value>
+  </data>
+  <data name="Text_1AE41157C2AC" xml:space="preserve">
+    <value>原提供程序归属无法核验。临时本地接管并永久删除全部本地内容，随后注销临时根，保留空根目录。</value>
+  </data>
+  <data name="Text_1B47C4A7CF48" xml:space="preserve">
+    <value> 有新日志，请刷新。</value>
+  </data>
+  <data name="Text_1B9B75F51D20" xml:space="preserve">
+    <value>搜索日志</value>
+  </data>
+  <data name="Text_1BD3AAB06B8B" xml:space="preserve">
+    <value>写入结果待核对</value>
+  </data>
+  <data name="Text_1CBD62ABD1B0" xml:space="preserve">
+    <value>队列区域（必须与 S3 一致）</value>
+  </data>
+  <data name="Text_1D73995960A9" xml:space="preserve">
+    <value>已请求停止收尾；已完成的云端改名或目标复制会保留。</value>
+  </data>
+  <data name="Text_1DB537BACF63" xml:space="preserve">
+    <value>已取消，已完成的删除不回滚。</value>
+  </data>
+  <data name="Text_1DF189916CF0" xml:space="preserve">
+    <value>远端版本在确认后变化，请重新核对；未覆盖任何一端。</value>
+  </data>
+  <data name="Text_1E087C26D53F" xml:space="preserve">
+    <value>挂载任务</value>
+  </data>
+  <data name="Text_1F0077159316" xml:space="preserve">
+    <value>跟随 Windows 显示语言；未支持的语言使用简体中文。</value>
+  </data>
+  <data name="Text_1F5ECAC72EEE" xml:space="preserve">
+    <value>按喜好调整外观</value>
+  </data>
+  <data name="Text_1FB57F246534" xml:space="preserve">
+    <value>SQS 只读连接测试</value>
+  </data>
+  <data name="Text_203C08E0D44A" xml:space="preserve">
+    <value>首页</value>
+  </data>
+  <data name="Text_20A86779FB0F" xml:space="preserve">
+    <value>WebDAV(HTTPS) 入口仅接受 HTTPS 地址。</value>
+  </data>
+  <data name="Text_217CFE7DB1E3" xml:space="preserve">
+    <value>跟随系统</value>
+  </data>
+  <data name="Text_219481A6DDE7" xml:space="preserve">
+    <value>上传失败</value>
+  </data>
+  <data name="Text_21A07234FEB3" xml:space="preserve">
+    <value>任务操作</value>
+  </data>
+  <data name="Text_21EB21206182" xml:space="preserve">
+    <value>{0}
+{1}</value>
+  </data>
+  <data name="Text_22096422F1BE" xml:space="preserve">
+    <value>冲突处理未完成：{0}；请重新核对后明确选择，恢复备份保留。</value>
+  </data>
+  <data name="Text_2242EED5CFDF" xml:space="preserve">
+    <value>仅移除当前用户的 Explorer 遗留入口，保留目录和全部文件。</value>
+  </data>
+  <data name="Text_22C72115CBD6" xml:space="preserve">
+    <value>远端容量：手动配置上限 {0}；已用及可用尚未核实。</value>
+  </data>
+  <data name="Text_232959ECE75B" xml:space="preserve">
+    <value>成功 {0} 项，失败 {1} 项，取消 {2} 项，未开始 {3} 项。</value>
+  </data>
+  <data name="Text_234B77A1E2E0" xml:space="preserve">
+    <value>已请求取消，已完成步骤保留。</value>
+  </data>
+  <data name="Text_23EAB219248F" xml:space="preserve">
+    <value>部分占位</value>
+  </data>
+  <data name="Text_23F844F8F167" xml:space="preserve">
+    <value>界面语言读取失败，已保留当前语言。</value>
+  </data>
+  <data name="Text_23FE6EDCB6CD" xml:space="preserve">
+    <value>上传本地更改</value>
+  </data>
+  <data name="Text_243C77994AC6" xml:space="preserve">
+    <value>已被新版本替代</value>
+  </data>
+  <data name="Text_24496C34A422" xml:space="preserve">
+    <value>冲突处理记录已变化，保留备份并停止。</value>
+  </data>
+  <data name="Text_2459713C2EC0" xml:space="preserve">
+    <value>同步问题 · {0}</value>
+  </data>
+  <data name="Text_25243EF821C5" xml:space="preserve">
+    <value>准备期间本地文件变化，请重新核对。</value>
+  </data>
+  <data name="Text_2556F45FAF22" xml:space="preserve">
+    <value>缩略图（实验性）</value>
+  </data>
+  <data name="Text_25BD1A95A318" xml:space="preserve">
+    <value>连接测试已取消。</value>
+  </data>
+  <data name="Text_25E649EB0F1D" xml:space="preserve">
+    <value>检测间隔超出允许范围。</value>
+  </data>
+  <data name="Text_25EAE2E8931B" xml:space="preserve">
+    <value>程序正在停止。</value>
+  </data>
+  <data name="Text_25EF22F6DBBF" xml:space="preserve">
+    <value>正在准备用户选择的冲突处理；本地备份完成后才允许写入。</value>
+  </data>
+  <data name="Text_273A955713B8" xml:space="preserve">
+    <value>移除任务已提交，可在任务页查看进度和逐项结果。</value>
+  </data>
+  <data name="Text_27467832B606" xml:space="preserve">
+    <value>手动最大容量（留空不限）</value>
+  </data>
+  <data name="Text_27E53EA275F9" xml:space="preserve">
+    <value>日志结束日期</value>
+  </data>
+  <data name="Text_2825482F8878" xml:space="preserve">
+    <value>容量设置已保存；上传前将按当前设置检查。</value>
+  </data>
+  <data name="Text_282FD271CAB9" xml:space="preserve">
+    <value>移除遗留入口</value>
+  </data>
+  <data name="Text_28384D7AFD2E" xml:space="preserve">
+    <value>失败</value>
+  </data>
+  <data name="Text_28A7D0B33A09" xml:space="preserve">
+    <value>请选择本地 NTFS 空目录。</value>
+  </data>
+  <data name="Text_28B3B98EB194" xml:space="preserve">
+    <value>启动连接设置已保存。</value>
+  </data>
+  <data name="Text_28B4EC4E0528" xml:space="preserve">
+    <value>文件／目录类型冲突需先另存处理，本版仅直接替换普通文件。</value>
+  </data>
+  <data name="Text_28E0433F19BC" xml:space="preserve">
+    <value>远端改名中</value>
+  </data>
+  <data name="Text_2952F4853185" xml:space="preserve">
+    <value>清除失败</value>
+  </data>
+  <data name="Text_29B576B21307" xml:space="preserve">
+    <value>远端自动检测：{0}；{1}完整 {2} 秒；最近成功：{3}{4}</value>
+  </data>
+  <data name="Text_2A1924653192" xml:space="preserve">
+    <value>界面语言已保存，立即生效。</value>
+  </data>
+  <data name="Text_2B792BDB2027" xml:space="preserve">
+    <value>下载会话已结束。</value>
+  </data>
+  <data name="Text_2CD0F3BE8738" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Text_2D711D125254" xml:space="preserve">
+    <value>清空全部本地内容后离线注销，保留空根目录及远端内容。</value>
+  </data>
+  <data name="Text_2DF4D1DB584B" xml:space="preserve">
+    <value> 本会话未保存 {0} 条。</value>
+  </data>
+  <data name="Text_2E89004EB19C" xml:space="preserve">
+    <value>操作已提交，可在任务页查看逐项结果。</value>
+  </data>
+  <data name="Text_2F1459A632D6" xml:space="preserve">
+    <value>旧版挂载不能更换协议。</value>
+  </data>
+  <data name="Text_2F46A49FD27E" xml:space="preserve">
+    <value>已有实例未响应，请退出旧实例后重试。
+{0}</value>
+  </data>
+  <data name="Text_2FC79E442B86" xml:space="preserve">
+    <value>等待首次确认</value>
+  </data>
+  <data name="Text_302C30CAC1DA" xml:space="preserve">
+    <value>修改登录启动失败，正在核对系统实际状态。</value>
+  </data>
+  <data name="Text_3058C8B169F6" xml:space="preserve">
+    <value>群晖挂载</value>
+  </data>
+  <data name="Text_311BB313FDEC" xml:space="preserve">
+    <value>账号</value>
+  </data>
+  <data name="Text_31850649661F" xml:space="preserve">
+    <value>备份密码（可留空，设置时至少 8 个字符）</value>
+  </data>
+  <data name="Text_3189296AE210" xml:space="preserve">
+    <value>服务器信息</value>
+  </data>
+  <data name="Text_3201F7EDDF10" xml:space="preserve">
+    <value>普通本地文件或未知项，已保留。</value>
+  </data>
+  <data name="Text_320256ADF69A" xml:space="preserve">
+    <value>请选择上传、远端更新或改名排除收尾任务。</value>
+  </data>
+  <data name="Text_323929DEC221" xml:space="preserve">
+    <value>恢复目录包含重解析点，拒绝写入。</value>
+  </data>
+  <data name="Text_3276C0F65EE8" xml:space="preserve">
+    <value>容量上限</value>
+  </data>
+  <data name="Text_33042ADBD1EB" xml:space="preserve">
+    <value>不显示缩略图</value>
+  </data>
+  <data name="Text_335625D8BF94" xml:space="preserve">
+    <value>当前任务正在执行或已经结束。</value>
+  </data>
+  <data name="Text_335DD2ADA3E2" xml:space="preserve">
+    <value>重新连接全部</value>
+  </data>
+  <data name="Text_3370AC7181EF" xml:space="preserve">
+    <value>挂载已被移除。</value>
+  </data>
+  <data name="Text_349616C7D52D" xml:space="preserve">
+    <value>外观设置保存失败，已保留原背景和主题。</value>
+  </data>
+  <data name="Text_349C4B7EB1F3" xml:space="preserve">
+    <value>清除已完成</value>
+  </data>
+  <data name="Text_35065CF67F8C" xml:space="preserve">
+    <value>确认清空并移除</value>
+  </data>
+  <data name="Text_357694508CEF" xml:space="preserve">
+    <value>正在重新核对目录身份…</value>
+  </data>
+  <data name="Text_363FE96AAFE6" xml:space="preserve">
+    <value>孤立占位目录，原提供程序归属无法核验</value>
+  </data>
+  <data name="Text_3687F953CFE8" xml:space="preserve">
+    <value>取消连接</value>
+  </data>
+  <data name="Text_3692B75B6E6E" xml:space="preserve">
+    <value>正在等待当前任务完成，随后冻结本地内容并提交条件上传…</value>
+  </data>
+  <data name="Text_36C0DC4550F0" xml:space="preserve">
+    <value>连接已停止。</value>
+  </data>
+  <data name="Text_3763A936DC75" xml:space="preserve">
+    <value>挂载正在移除或已经移除。</value>
+  </data>
+  <data name="Text_37AA6AD6A36D" xml:space="preserve">
+    <value>打开设置</value>
+  </data>
+  <data name="Text_37CE123BBAD6" xml:space="preserve">
+    <value>请求无效。</value>
+  </data>
+  <data name="Text_383D9FB36307" xml:space="preserve">
+    <value>本地排除收尾</value>
+  </data>
+  <data name="Text_39932F24FE11" xml:space="preserve">
+    <value>文件</value>
+  </data>
+  <data name="Text_399588A8AC78" xml:space="preserve">
+    <value>远端持续变化，初始扫描暂未稳定；连接保留，后台立即继续完整扫描。</value>
+  </data>
+  <data name="Text_399F4609D242" xml:space="preserve">
+    <value>无法访问当前用户启动项。</value>
+  </data>
+  <data name="Text_3A55D996B6AF" xml:space="preserve">
+    <value>程序正在退出，连接已停止。</value>
+  </data>
+  <data name="Text_3AEE8AA1D3BA" xml:space="preserve">
+    <value>旧版模拟源（仅迁出）</value>
+  </data>
+  <data name="Text_3BD1FA6176CA" xml:space="preserve">
+    <value>SMB（预留）</value>
+  </data>
+  <data name="Text_3C507E43EF88" xml:space="preserve">
+    <value>清除所有</value>
+  </data>
+  <data name="Text_3C8354E36FE9" xml:space="preserve">
+    <value>冲突任务不存在。</value>
+  </data>
+  <data name="Text_3CF3EBC61173" xml:space="preserve">
+    <value>增量检测间隔（秒）</value>
+  </data>
+  <data name="Text_3D13868593AE" xml:space="preserve">
+    <value>界面语言</value>
+  </data>
+  <data name="Text_3D1D2F450C37" xml:space="preserve">
+    <value>释放空间</value>
+  </data>
+  <data name="Text_3D52574CE150" xml:space="preserve">
+    <value>未连接</value>
+  </data>
+  <data name="Text_3DFA24360DBD" xml:space="preserve">
+    <value>{0:N0} 字节
+修改于 {1:G}
+{2}
+当前本地内容（可能不同于原上传快照）</value>
+  </data>
+  <data name="Text_3E9FBE03CE66" xml:space="preserve">
+    <value>继续清空并移除</value>
+  </data>
+  <data name="Text_3FD47EDCE45B" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Text_403B055E56F5" xml:space="preserve">
+    <value>上传中</value>
+  </data>
+  <data name="Text_405EE9C5A7CC" xml:space="preserve">
+    <value>缓存上限已保存。</value>
+  </data>
+  <data name="Text_406558F4B52A" xml:space="preserve">
+    <value>远端枚举包含越界、重复、大小写冲突或无效元数据；未应用快照。</value>
+  </data>
+  <data name="Text_406A7EEAF369" xml:space="preserve">
+    <value>请输入群晖账号。</value>
+  </data>
+  <data name="Text_40BB5C6B64B7" xml:space="preserve">
+    <value>处理已停止；已保存的备份和恢复阶段保留。</value>
+  </data>
+  <data name="Text_40F1B3E4A48A" xml:space="preserve">
+    <value>当前筛选下没有任务。</value>
+  </data>
+  <data name="Text_4102A5A7C3CB" xml:space="preserve">
+    <value>本地修改、普通文件、活动项或状态不明，已保留。</value>
+  </data>
+  <data name="Text_428FB8BFEECF" xml:space="preserve">
+    <value>异常</value>
+  </data>
+  <data name="Text_429EA3AF443D" xml:space="preserve">
+    <value>导出配置</value>
+  </data>
+  <data name="Text_42B7F8CC659C" xml:space="preserve">
+    <value>本地扫描完成；新增和修改持续上传，冲突可在任务页查看。</value>
+  </data>
+  <data name="Text_439537652398" xml:space="preserve">
+    <value>解密并预览</value>
+  </data>
+  <data name="Text_4438ABDEDD78" xml:space="preserve">
+    <value>HybridMount 加密配置</value>
+  </data>
+  <data name="Text_4465E830BDF6" xml:space="preserve">
+    <value>界面密度保存失败。</value>
+  </data>
+  <data name="Text_446A6E89ECA0" xml:space="preserve">
+    <value>请选择仍未解决的文件冲突。</value>
+  </data>
+  <data name="Text_44979BA1F128" xml:space="preserve">
+    <value>界面密度</value>
+  </data>
+  <data name="Text_44C6E3CF9291" xml:space="preserve">
+    <value>请先选择上传、远端更新或排除改名收尾任务。</value>
+  </data>
+  <data name="Text_44CA7FFC290A" xml:space="preserve">
+    <value>冲突处理待完成</value>
+  </data>
+  <data name="Text_457866E138AA" xml:space="preserve">
+    <value>S3 挂载</value>
+  </data>
+  <data name="Text_45898B09954D" xml:space="preserve">
+    <value>使用本地覆盖远端</value>
+  </data>
+  <data name="Text_45FB95610363" xml:space="preserve">
+    <value>冲突</value>
+  </data>
+  <data name="Text_462C57FFDF1A" xml:space="preserve">
+    <value>容量来源设置已保存。</value>
+  </data>
+  <data name="Text_4671CBE46DE8" xml:space="preserve">
+    <value>始终保留在此设备上</value>
+  </data>
+  <data name="Text_4673A2306165" xml:space="preserve">
+    <value>下载</value>
+  </data>
+  <data name="Text_46F09994B42F" xml:space="preserve">
+    <value>请先重新核对。</value>
+  </data>
+  <data name="Text_4704B931C397" xml:space="preserve">
+    <value>文件已排除；固定或释放空间前请先解除对应规则。</value>
+  </data>
+  <data name="Text_473A0089F3A0" xml:space="preserve">
+    <value>业务处理</value>
+  </data>
+  <data name="Text_473E68812310" xml:space="preserve">
+    <value>缺少原生挂载会话。</value>
+  </data>
+  <data name="Text_479D45C856A1" xml:space="preserve">
+    <value>缓存软上限（GiB，0 关闭自动回收）</value>
+  </data>
+  <data name="Text_482B9676C943" xml:space="preserve">
+    <value>继续移除收尾</value>
+  </data>
+  <data name="Text_483050200DFF" xml:space="preserve">
+    <value>S3 完整对账</value>
+  </data>
+  <data name="Text_484747613975" xml:space="preserve">
+    <value>配置备份</value>
+  </data>
+  <data name="Text_484C52248816" xml:space="preserve">
+    <value>保留的本地恢复备份：{0}</value>
+  </data>
+  <data name="Text_4956B313D0C3" xml:space="preserve">
+    <value>占位归属不匹配，停止解除。</value>
+  </data>
+  <data name="Text_499B2ECC88CD" xml:space="preserve">
+    <value>随程序启动连接</value>
+  </data>
+  <data name="Text_49BE72E6045C" xml:space="preserve">
+    <value>取消测试</value>
+  </data>
+  <data name="Text_4BB83F1A69F9" xml:space="preserve">
+    <value>本地 NTFS 空目录</value>
+  </data>
+  <data name="Text_4BD0E1A6ED5A" xml:space="preserve">
+    <value>已改名并排除</value>
+  </data>
+  <data name="Text_4C0B929BDBE0" xml:space="preserve">
+    <value>登录 Windows 后启动</value>
+  </data>
+  <data name="Text_4C533F41EF3C" xml:space="preserve">
+    <value>缩略图：关闭</value>
+  </data>
+  <data name="Text_4CA35F63DD99" xml:space="preserve">
+    <value>清空并移除</value>
+  </data>
+  <data name="Text_4D2966C43800" xml:space="preserve">
+    <value>尚未检测</value>
+  </data>
+  <data name="Text_4D8C1C5B4283" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="Text_4DC4E0597723" xml:space="preserve">
+    <value>P{0} · {1}{2}</value>
+  </data>
+  <data name="Text_4DF8B18F18FD" xml:space="preserve">
+    <value>请输入访问密钥。</value>
+  </data>
+  <data name="Text_4EDAD650FAE2" xml:space="preserve">
+    <value>导入结果：已保存 {0}，跳过 {1}，失败 {2}，取消 {3}。已保存的挂载尚未连接。</value>
+  </data>
+  <data name="Text_4FA7EB633C82" xml:space="preserve">
+    <value>日志列表</value>
+  </data>
+  <data name="Text_5026A63B58CD" xml:space="preserve">
+    <value>执行中</value>
+  </data>
+  <data name="Text_509C3DED7832" xml:space="preserve">
+    <value>清空中</value>
+  </data>
+  <data name="Text_50A225C4305F" xml:space="preserve">
+    <value>{0} (副本){1}</value>
+  </data>
+  <data name="Text_5148506BD02C" xml:space="preserve">
+    <value>群晖没有增量变更游标，目录扫描按完整对账间隔执行。</value>
+  </data>
+  <data name="Text_5181CEC8801A" xml:space="preserve">
+    <value>设置 · {0}</value>
+  </data>
+  <data name="Text_5214E0BC5DCE" xml:space="preserve">
+    <value>设置 · </value>
+  </data>
+  <data name="Text_5253040DB864" xml:space="preserve">
+    <value>任务</value>
+  </data>
+  <data name="Text_52778ABC35DC" xml:space="preserve">
+    <value>当前本地</value>
+  </data>
+  <data name="Text_52DAA71EBC31" xml:space="preserve">
+    <value>目录</value>
+  </data>
+  <data name="Text_52E0B9B9F464" xml:space="preserve">
+    <value>操作已提交，可在任务页查看进度和逐项结果。</value>
+  </data>
+  <data name="Text_531B2FBE33FE" xml:space="preserve">
+    <value>下载期间本地文件变化，未替换。</value>
+  </data>
+  <data name="Text_539FEA346ABE" xml:space="preserve">
+    <value>
+正在查询…</value>
+  </data>
+  <data name="Text_54D90665FA1C" xml:space="preserve">
+    <value>改名或映射路径不同的冲突请先另存副本，本版不直接替换。</value>
+  </data>
+  <data name="Text_54D9C129C871" xml:space="preserve">
+    <value>随程序启动连接：{0}；缩略图：{1}{2}</value>
+  </data>
+  <data name="Text_553CA8C4287A" xml:space="preserve">
+    <value>该账号没有可访问的共享文件夹，不能创建挂载。</value>
+  </data>
+  <data name="Text_561D945CB5D1" xml:space="preserve">
+    <value>远端删除已清理。</value>
+  </data>
+  <data name="Text_564385D36F6C" xml:space="preserve">
+    <value> · 下次重试：{0}</value>
+  </data>
+  <data name="Text_579016860831" xml:space="preserve">
+    <value>关闭偏好读取失败，暂按隐藏到托盘处理。</value>
+  </data>
+  <data name="Text_57E4A215300D" xml:space="preserve">
+    <value>完整诊断 · {0}</value>
+  </data>
+  <data name="Text_5825A60ECD90" xml:space="preserve">
+    <value>挂载正在移除。</value>
+  </data>
+  <data name="Text_584FE9F9F916" xml:space="preserve">
+    <value>关闭窗口时将隐藏到托盘。</value>
+  </data>
+  <data name="Text_587ECDB3BA8F" xml:space="preserve">
+    <value>桶名 / Bucket</value>
+  </data>
+  <data name="Text_5917CFAF5C13" xml:space="preserve">
+    <value>当前没有可导出的 WebDAV、S3 或群晖挂载。</value>
+  </data>
+  <data name="Text_59389C2718F4" xml:space="preserve">
+    <value>打开所在位置</value>
+  </data>
+  <data name="Text_59DC88878288" xml:space="preserve">
+    <value>同步根注册丢失且残留云占位，保留恢复信息，禁止直接清空。</value>
+  </data>
+  <data name="Text_5A3D014AC053" xml:space="preserve">
+    <value>原同步版本：{0}{1}</value>
+  </data>
+  <data name="Text_5A5C8318EF64" xml:space="preserve">
+    <value>已选择 {0} 项</value>
+  </data>
+  <data name="Text_5A9DD0F15C3F" xml:space="preserve">
+    <value>无法确定应用路径。</value>
+  </data>
+  <data name="Text_5AD47509C90B" xml:space="preserve">
+    <value>关闭远端自动检测</value>
+  </data>
+  <data name="Text_5B751D3A80A6" xml:space="preserve">
+    <value>远端自动检测(RFC 6578)</value>
+  </data>
+  <data name="Text_5BE0323E8ADC" xml:space="preserve">
+    <value>已连接</value>
+  </data>
+  <data name="Text_5CC09FEC5D5D" xml:space="preserve">
+    <value>地址无效</value>
+  </data>
+  <data name="Text_5CC6147C2C9A" xml:space="preserve">
+    <value>SQS 测试已取消。</value>
+  </data>
+  <data name="Text_5D48FFBF5714" xml:space="preserve">
+    <value>清理任务历史</value>
+  </data>
+  <data name="Text_5D63D587B0B0" xml:space="preserve">
+    <value>紧凑</value>
+  </data>
+  <data name="Text_5F03A03C17D2" xml:space="preserve">
+    <value>；使用目标机器的 SDK 默认凭据链</value>
+  </data>
+  <data name="Text_5FA244294998" xml:space="preserve">
+    <value>上传排除</value>
+  </data>
+  <data name="Text_601740321114" xml:space="preserve">
+    <value>同步与预览</value>
+  </data>
+  <data name="Text_6043ED945D43" xml:space="preserve">
+    <value>本地普通文件</value>
+  </data>
+  <data name="Text_60A9B09E1708" xml:space="preserve">
+    <value>WebDAV 挂载</value>
+  </data>
+  <data name="Text_613A439ECFB6" xml:space="preserve">
+    <value>Explorer提示：{0}
+{1}</value>
+  </data>
+  <data name="Text_616726CC744E" xml:space="preserve">
+    <value>容量核实完成；等待任务将重新检查可用空间。</value>
+  </data>
+  <data name="Text_636BB9497DA5" xml:space="preserve">
+    <value>关闭偏好保存失败，已保留原值。</value>
+  </data>
+  <data name="Text_63B83F7866E8" xml:space="preserve">
+    <value>恢复目录不能位于任何同步根内。</value>
+  </data>
+  <data name="Text_63BD7A43C5C3" xml:space="preserve">
+    <value>完整下载后保留为普通本地目录。</value>
+  </data>
+  <data name="Text_63D90D977348" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="Text_6439A5C466AB" xml:space="preserve">
+    <value>独立访问密钥</value>
+  </data>
+  <data name="Text_64FA7CF5B492" xml:space="preserve">
+    <value>请输入范围内的整数检测间隔。</value>
+  </data>
+  <data name="Text_659875587949" xml:space="preserve">
+    <value>查看日志</value>
+  </data>
+  <data name="Text_65C8EFD51BD1" xml:space="preserve">
+    <value>任务结果见任务页。</value>
+  </data>
+  <data name="Text_65EB2EC28D93" xml:space="preserve">
+    <value>不能混合不同挂载。</value>
+  </data>
+  <data name="Text_66009C547BED" xml:space="preserve">
+    <value>尚未启动</value>
+  </data>
+  <data name="Text_66456857A9CF" xml:space="preserve">
+    <value>清除本机已保存的运行日志？</value>
+  </data>
+  <data name="Text_66CA3F9F3BF4" xml:space="preserve">
+    <value>挂载资源清理未全部完成。</value>
+  </data>
+  <data name="Text_66D6E64FB489" xml:space="preserve">
+    <value>日志操作</value>
+  </data>
+  <data name="Text_66DD1880BBA8" xml:space="preserve">
+    <value>快照已就绪</value>
+  </data>
+  <data name="Text_6744B4C6A9AA" xml:space="preserve">
+    <value>已关闭</value>
+  </data>
+  <data name="Text_67D79EEC4C8E" xml:space="preserve">
+    <value>
+正在抓取容量信息…</value>
+  </data>
+  <data name="Text_68C60746F1D0" xml:space="preserve">
+    <value>任务 ID</value>
+  </data>
+  <data name="Text_694186911AE3" xml:space="preserve">
+    <value>正在连接</value>
+  </data>
+  <data name="Text_69E37BF742A4" xml:space="preserve">
+    <value>请先选择一个挂载。</value>
+  </data>
+  <data name="Text_6A4F3B622778" xml:space="preserve">
+    <value>群晖 NAS：{0}；远端根 {1}</value>
+  </data>
+  <data name="Text_6B814AEC0BC3" xml:space="preserve">
+    <value>保存容量设置</value>
+  </data>
+  <data name="Text_6B9CA6BA6D6B" xml:space="preserve">
+    <value>本地提交</value>
+  </data>
+  <data name="Text_6BA8698BDFD7" xml:space="preserve">
+    <value>清空并注销</value>
+  </data>
+  <data name="Text_6BD268503883" xml:space="preserve">
+    <value>无材质</value>
+  </data>
+  <data name="Text_6BEA77ACEFB3" xml:space="preserve">
+    <value>标准</value>
+  </data>
+  <data name="Text_6C05B4B383AF" xml:space="preserve">
+    <value>已用：{0}</value>
+  </data>
+  <data name="Text_6C17E763C3ED" xml:space="preserve">
+    <value>远端手动检测（完整对账）</value>
+  </data>
+  <data name="Text_6C6F465F7A3D" xml:space="preserve">
+    <value>
+最近成功：{0:g}</value>
+  </data>
+  <data name="Text_6DB506073EE6" xml:space="preserve">
+    <value>核对时间：{0}</value>
+  </data>
+  <data name="Text_6DBB10EA12BB" xml:space="preserve">
+    <value>界面密度读取失败，暂用标准布局。</value>
+  </data>
+  <data name="Text_6E2647317D86" xml:space="preserve">
+    <value>远端容量：未设置容量限制。</value>
+  </data>
+  <data name="Text_6E5DDDF098FC" xml:space="preserve">
+    <value>保存排除规则</value>
+  </data>
+  <data name="Text_6FC9C71CB14F" xml:space="preserve">
+    <value>挂载</value>
+  </data>
+  <data name="Text_6FCCF0CDC9E9" xml:space="preserve">
+    <value>服务器不支持可靠的条件更新，请另存副本。</value>
+  </data>
+  <data name="Text_6FE6313EFE02" xml:space="preserve">
+    <value>处理期间连接、设置或事务变化，保留备份并停止。</value>
+  </data>
+  <data name="Text_70543FF66115" xml:space="preserve">
+    <value>SQS 开关已保存。</value>
+  </data>
+  <data name="Text_7070A69BB3D7" xml:space="preserve">
+    <value>请通过 NAS 管理渠道核对以下 SHA-256；不会修改系统或其他挂载的信任设置：
+{0}</value>
+  </data>
+  <data name="Text_70CCDAD8E77E" xml:space="preserve">
+    <value>原生后台已断开</value>
+  </data>
+  <data name="Text_70D1401819D1" xml:space="preserve">
+    <value>已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。</value>
+  </data>
+  <data name="Text_70D3819407EA" xml:space="preserve">
+    <value>已有挂载不能更换远端根，请新建挂载。</value>
+  </data>
+  <data name="Text_70E7E5F6BC2F" xml:space="preserve">
+    <value>排除规则已保存。{0}</value>
+  </data>
+  <data name="Text_710B1958F2AB" xml:space="preserve">
+    <value>重新核对</value>
+  </data>
+  <data name="Text_71668ADD2876" xml:space="preserve">
+    <value>文件名文本</value>
+  </data>
+  <data name="Text_7179375682A0" xml:space="preserve">
+    <value>请核对服务器证书</value>
+  </data>
+  <data name="Text_718CA0358795" xml:space="preserve">
+    <value>用户输入</value>
+  </data>
+  <data name="Text_725A5CC6FBC4" xml:space="preserve">
+    <value>下载后远端再次变化，请重新核对。</value>
+  </data>
+  <data name="Text_7265AF89876F" xml:space="preserve">
+    <value>副本任务已提交；目标已存在时会拒绝覆盖。</value>
+  </data>
+  <data name="Text_73213BCEB8A1" xml:space="preserve">
+    <value>同步问题</value>
+  </data>
+  <data name="Text_73555A93A314" xml:space="preserve">
+    <value>未能完成操作</value>
+  </data>
+  <data name="Text_73A0558AC622" xml:space="preserve">
+    <value>本地新增和修改持续自动上传</value>
+  </data>
+  <data name="Text_7410DAE3F11E" xml:space="preserve">
+    <value>尚未核对</value>
+  </data>
+  <data name="Text_745490C041CD" xml:space="preserve">
+    <value>{0}
+
+下载并移除：完整下载后保留为普通本地目录。
+
+清空并移除：永久删除目录内全部内容，包括本地修改和新建文件，保留空根目录；不删除文件源内容。</value>
+  </data>
+  <data name="Text_750F712B33B8" xml:space="preserve">
+    <value>完整对账间隔（秒）</value>
+  </data>
+  <data name="Text_7515E4586021" xml:space="preserve">
+    <value>请在 Windows 的启动应用设置中重新允许此应用。</value>
+  </data>
+  <data name="Text_75604CC8C1A4" xml:space="preserve">
+    <value>允许明文 HTTP（5000 端口）</value>
+  </data>
+  <data name="Text_76420433F22D" xml:space="preserve">
+    <value>导出</value>
+  </data>
+  <data name="Text_77326E285D63" xml:space="preserve">
+    <value>使用远端替换本地</value>
+  </data>
+  <data name="Text_776A4AD39EDC" xml:space="preserve">
+    <value>确认处理 {0} 个遗留项目</value>
+  </data>
+  <data name="Text_77C4A50009F0" xml:space="preserve">
+    <value>HybridMount.NET 启动失败：
+{0}
+{1}
+请查看 Logs 中的 lifecycle 启动诊断。</value>
+  </data>
+  <data name="Text_77CE7125B59F" xml:space="preserve">
+    <value>{0:N0} / {1:N0} 项</value>
+  </data>
+  <data name="Text_7900C6A340E6" xml:space="preserve">
+    <value>相关路径仍有上传或结果待核对，请先完成核对。</value>
+  </data>
+  <data name="Text_792BAAFC9179" xml:space="preserve">
+    <value>始终保留</value>
+  </data>
+  <data name="Text_79989E841C63" xml:space="preserve">
+    <value>结果待核对</value>
+  </data>
+  <data name="Text_79B2E33A7EDA" xml:space="preserve">
+    <value>旧版模拟源保留；请选择下载并移除或清空。</value>
+  </data>
+  <data name="Text_7AA8F0383C44" xml:space="preserve">
+    <value>备份挂载配置列表</value>
+  </data>
+  <data name="Text_7B12C2DAAD9B" xml:space="preserve">
+    <value>增量 {0} 秒，</value>
+  </data>
+  <data name="Text_7B80D5D2DE3D" xml:space="preserve">
+    <value>此协议尚未提供配置窗口。</value>
+  </data>
+  <data name="Text_7D0D5850515D" xml:space="preserve">
+    <value>打开目录</value>
+  </data>
+  <data name="Text_7DBAC1C20F23" xml:space="preserve">
+    <value>日志</value>
+  </data>
+  <data name="Text_7DE8A6DFD5E0" xml:space="preserve">
+    <value>当前筛选下没有日志。</value>
+  </data>
+  <data name="Text_7E04EC712169" xml:space="preserve">
+    <value>容量检查</value>
+  </data>
+  <data name="Text_7E214ED64AE3" xml:space="preserve">
+    <value>部分失败</value>
+  </data>
+  <data name="Text_7ED1A2EB244B" xml:space="preserve">
+    <value>查看同步问题</value>
+  </data>
+  <data name="Text_7F8906AE1654" xml:space="preserve">
+    <value>自动识别卷容量（非账号配额）</value>
+  </data>
+  <data name="Text_8073A15C1F2C" xml:space="preserve">
+    <value>密码或第三方应用密码</value>
+  </data>
+  <data name="Text_8076F11E7AB1" xml:space="preserve">
+    <value>远端事件仍待完整核对，请先刷新。</value>
+  </data>
+  <data name="Text_8084D978D651" xml:space="preserve">
+    <value>远端自动检测</value>
+  </data>
+  <data name="Text_80A50A7D7092" xml:space="preserve">
+    <value>远端自动检测：关闭</value>
+  </data>
+  <data name="Text_80A92AD480C0" xml:space="preserve">
+    <value>远端手动检测</value>
+  </data>
+  <data name="Text_80B19D68B149" xml:space="preserve">
+    <value>单位</value>
+  </data>
+  <data name="Text_814FA76101AE" xml:space="preserve">
+    <value>SQS 事件加速：已暂停（远端自动检测关闭）</value>
+  </data>
+  <data name="Text_81D8F892D4FF" xml:space="preserve">
+    <value>本地已清空，注销收尾待完成</value>
+  </data>
+  <data name="Text_81F9B5554532" xml:space="preserve">
+    <value>全部级别</value>
+  </data>
+  <data name="Text_826BE380E194" xml:space="preserve">
+    <value>该配置正在处理其他操作。</value>
+  </data>
+  <data name="Text_8391DA809DD9" xml:space="preserve">
+    <value>{0}{1}</value>
+  </data>
+  <data name="Text_83BD080477A5" xml:space="preserve">
+    <value>日志操作失败：{0}</value>
+  </data>
+  <data name="Text_83F7CCCF2032" xml:space="preserve">
+    <value>连接未完成：{0}；已保存的配置保留，可编辑或重试。</value>
+  </data>
+  <data name="Text_84F8745990CF" xml:space="preserve">
+    <value>阶段：{0}</value>
+  </data>
+  <data name="Text_85A95E8DF55D" xml:space="preserve">
+    <value> 可加载更早记录。</value>
+  </data>
+  <data name="Text_86A63F23A076" xml:space="preserve">
+    <value>外观</value>
+  </data>
+  <data name="Text_86E70C1B4824" xml:space="preserve">
+    <value>立即切换界面语言，保留当前页面和未保存内容。</value>
+  </data>
+  <data name="Text_883B44EB98B9" xml:space="preserve">
+    <value>
+内容处理已经完成，只继续注销和 Explorer 入口收尾。</value>
+  </data>
+  <data name="Text_8851882C5C31" xml:space="preserve">
+    <value>移除未完成，不能改用其他模式或执行缓存任务。</value>
+  </data>
+  <data name="Text_88CF2DC00C34" xml:space="preserve">
+    <value>已中断</value>
+  </data>
+  <data name="Text_8996FEF8E302" xml:space="preserve">
+    <value>注册已丢失且残留云占位，保留现场。</value>
+  </data>
+  <data name="Text_899961D8BE6E" xml:space="preserve">
+    <value>外观设置读取失败，已保留当前有效选择。</value>
+  </data>
+  <data name="Text_89B9CD516C25" xml:space="preserve">
+    <value>核对期间会话、索引或任务变化，请重新核对。</value>
+  </data>
+  <data name="Text_8A035498ED3A" xml:space="preserve">
+    <value>占位身份未通过核验，未提供直接覆盖。</value>
+  </data>
+  <data name="Text_8A4C0201DBCE" xml:space="preserve">
+    <value>缩略图已开启，无法高效读取时显示普通图标。</value>
+  </data>
+  <data name="Text_8A8B89ACE6E7" xml:space="preserve">
+    <value>清除失败及部分失败的任务历史，不删除文件或恢复数据。</value>
+  </data>
+  <data name="Text_8AEC3F53FA0E" xml:space="preserve">
+    <value>远端变更待处理。</value>
+  </data>
+  <data name="Text_8B2EE1B00033" xml:space="preserve">
+    <value>外观设置尚未读取。</value>
+  </data>
+  <data name="Text_8B421796FD67" xml:space="preserve">
+    <value>遗留挂载尚未移除：{0}</value>
+  </data>
+  <data name="Text_8BAA7CFDED0B" xml:space="preserve">
+    <value>目录前缀（可选）</value>
+  </data>
+  <data name="Text_8BFDE51F46F3" xml:space="preserve">
+    <value>已核对本产品遗留同步根</value>
+  </data>
+  <data name="Text_8BFF5A44439A" xml:space="preserve">
+    <value>正在重试 · </value>
+  </data>
+  <data name="Text_8C440D44770E" xml:space="preserve">
+    <value>遗留挂载已清空并注销：</value>
+  </data>
+  <data name="Text_8C874AC291D6" xml:space="preserve">
+    <value>
+恢复备份：{0}</value>
+  </data>
+  <data name="Text_8CE158B4E774" xml:space="preserve">
+    <value>另存副本</value>
+  </data>
+  <data name="Text_8CE3B0ABB728" xml:space="preserve">
+    <value>任务 ID，可选中复制以便查询或反馈。</value>
+  </data>
+  <data name="Text_8D3061703E17" xml:space="preserve">
+    <value>HybridMount.NET 已运行。</value>
+  </data>
+  <data name="Text_8D3E89FEE69D" xml:space="preserve">
+    <value>界面语言保存失败，已保留原语言。</value>
+  </data>
+  <data name="Text_8D99B9A09314" xml:space="preserve">
+    <value>未发现可核对的遗留挂载，可选择旧挂载目录进行核验。</value>
+  </data>
+  <data name="Text_8DA97DDDA990" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="Text_8DC463228929" xml:space="preserve">
+    <value>管理此挂载的离线缓存；本地修改会受到保护。</value>
+  </data>
+  <data name="Text_8DF2FA80A06C" xml:space="preserve">
+    <value>共享文件夹</value>
+  </data>
+  <data name="Text_8EF667892EFE" xml:space="preserve">
+    <value>请先选择同步问题。</value>
+  </data>
+  <data name="Text_8F40E6007E17" xml:space="preserve">
+    <value>未纳入上传</value>
+  </data>
+  <data name="Text_8F90C4B59802" xml:space="preserve">
+    <value>相关目录或本地提交尚未完成，不能绕过其保护。</value>
+  </data>
+  <data name="Text_8FD2EE522D59" xml:space="preserve">
+    <value>首版支持读取、新建及另存副本。覆盖、删除和移动保持冲突保护；仅联机缩略图暂不支持。</value>
+  </data>
+  <data name="Text_8FF8046CE58B" xml:space="preserve">
+    <value>{0:N0} 字节
+修改于 {1:G}
+版本：{2}</value>
+  </data>
+  <data name="Text_9035F546529B" xml:space="preserve">
+    <value>未选择文件。</value>
+  </data>
+  <data name="Text_91793038397C" xml:space="preserve">
+    <value>已停止收尾</value>
+  </data>
+  <data name="Text_91D4BB7F12AD" xml:space="preserve">
+    <value>{0}
+
+目录内全部本地内容（包括修改和新建文件）将被永久删除。保留空根目录及远端数据，已删除内容不会回滚。</value>
+  </data>
+  <data name="Text_92849724B15A" xml:space="preserve">
+    <value>本地元数据读取失败：{0}</value>
+  </data>
+  <data name="Text_929769415F7E" xml:space="preserve">
+    <value>https://nas.example.com:5006/共享文件夹/</value>
+  </data>
+  <data name="Text_9299A5E47BB2" xml:space="preserve">
+    <value>按需挂载已就绪</value>
+  </data>
+  <data name="Text_93D305FC0E03" xml:space="preserve">
+    <value>程序正在退出，已停止清理。</value>
+  </data>
+  <data name="Text_94766C908207" xml:space="preserve">
+    <value>日志开始日期</value>
+  </data>
+  <data name="Text_970F3009DDCD" xml:space="preserve">
+    <value>关闭窗口时隐藏到托盘</value>
+  </data>
+  <data name="Text_9730C3C6F841" xml:space="preserve">
+    <value>断开中…</value>
+  </data>
+  <data name="Text_9779595F3198" xml:space="preserve">
+    <value>开始日期（不限）</value>
+  </data>
+  <data name="Text_97AEFDCEF758" xml:space="preserve">
+    <value>取回本地并核验</value>
+  </data>
+  <data name="Text_97B59261591A" xml:space="preserve">
+    <value>移除过程中不能更换凭据。</value>
+  </data>
+  <data name="Text_97DBD0360022" xml:space="preserve">
+    <value>{0:N0} / {1:N0} 字节</value>
+  </data>
+  <data name="Text_97E29C4B43A8" xml:space="preserve">
+    <value>已按确认的远端版本提交条件上传；远端再次变化时仍会保留冲突。</value>
+  </data>
+  <data name="Text_97E3BE741179" xml:space="preserve">
+    <value>文本日志</value>
+  </data>
+  <data name="Text_9867EF04D433" xml:space="preserve">
+    <value>另存远端副本</value>
+  </data>
+  <data name="Text_987BEBDCFF0D" xml:space="preserve">
+    <value>移除模式已固定，请继续原来的移除任务。</value>
+  </data>
+  <data name="Text_989539954F09" xml:space="preserve">
+    <value>界面语言设置尚未读取。</value>
+  </data>
+  <data name="Text_98B1705744A3" xml:space="preserve">
+    <value>已清除 {0} 条{1}任务历史；进行中和待处理任务保留。</value>
+  </data>
+  <data name="Text_9A0F126A843B" xml:space="preserve">
+    <value>同步、容量与预览（高级）</value>
+  </data>
+  <data name="Text_9A4D7A27AB0E" xml:space="preserve">
+    <value>本次回收 {0:F1} MiB，当前占用约 {1:F1} MiB。</value>
+  </data>
+  <data name="Text_9AAB6315EDD6" xml:space="preserve">
+    <value>挂载正在断开，请完成后重新连接。</value>
+  </data>
+  <data name="Text_9BAE68040509" xml:space="preserve">
+    <value>主导航</value>
+  </data>
+  <data name="Text_9BC703EA466D" xml:space="preserve">
+    <value>核对期间本地文件变化，请重新核对。</value>
+  </data>
+  <data name="Text_9CEA6B88615A" xml:space="preserve">
+    <value>操作已完成。</value>
+  </data>
+  <data name="Text_9D163C698599" xml:space="preserve">
+    <value>选择旧挂载目录</value>
+  </data>
+  <data name="Text_9D25DF22DEE7" xml:space="preserve">
+    <value>挂载列表</value>
+  </data>
+  <data name="Text_9D2CA261281A" xml:space="preserve">
+    <value>稍后</value>
+  </data>
+  <data name="Text_9D933522D6D0" xml:space="preserve">
+    <value>窗口主题</value>
+  </data>
+  <data name="Text_9E07E3C0532D" xml:space="preserve">
+    <value>上传</value>
+  </data>
+  <data name="Text_9E449AB53AA1" xml:space="preserve">
+    <value>远端文件与目录类型变化，保留本地内容，请处理冲突。</value>
+  </data>
+  <data name="Text_9F07D2CE4115" xml:space="preserve">
+    <value>更多操作</value>
+  </data>
+  <data name="Text_9F2D27D64F39" xml:space="preserve">
+    <value>检测调度间隔（秒）</value>
+  </data>
+  <data name="Text_9FA79A28A511" xml:space="preserve">
+    <value>已保留为普通本地文件。</value>
+  </data>
+  <data name="Text_A028D7449DF0" xml:space="preserve">
+    <value>旧版菜单未执行文件操作，请更新扩展后重试。</value>
+  </data>
+  <data name="Text_A0CCE5FC2C74" xml:space="preserve">
+    <value>未知（服务未提供）</value>
+  </data>
+  <data name="Text_A0E1ADC4B7E5" xml:space="preserve">
+    <value>群晖 NAS（Synology）</value>
+  </data>
+  <data name="Text_A145A59AE166" xml:space="preserve">
+    <value>SQS 事件加速设置已保存。</value>
+  </data>
+  <data name="Text_A1480CEA066A" xml:space="preserve">
+    <value>请先选择任务。</value>
+  </data>
+  <data name="Text_A1D2C876E328" xml:space="preserve">
+    <value>此冲突属于旧连接范围，请重新检测当前远端。</value>
+  </data>
+  <data name="Text_A248E9122195" xml:space="preserve">
+    <value>同步问题不存在。</value>
+  </data>
+  <data name="Text_A2A57F95410A" xml:space="preserve">
+    <value>缓存设置读取失败，已停止保存。</value>
+  </data>
+  <data name="Text_A2D97B57CBC7" xml:space="preserve">
+    <value>上次移除尚未完成，请继续相同的移除方式。</value>
+  </data>
+  <data name="Text_A37778F17C5F" xml:space="preserve">
+    <value>已取消</value>
+  </data>
+  <data name="Text_A39C7E51EDF4" xml:space="preserve">
+    <value>移除中的挂载暂不可导出。</value>
+  </data>
+  <data name="Text_A5574109F020" xml:space="preserve">
+    <value>连接</value>
+  </data>
+  <data name="Text_A5D176FA10BC" xml:space="preserve">
+    <value>已定位同步问题。</value>
+  </data>
+  <data name="Text_A5D1DC365EE4" xml:space="preserve">
+    <value>文件匹配上传排除规则，请先调整规则。</value>
+  </data>
+  <data name="Text_A6124727E357" xml:space="preserve">
+    <value>立即检查回收</value>
+  </data>
+  <data name="Text_A621AB606DB2" xml:space="preserve">
+    <value>密码</value>
+  </data>
+  <data name="Text_A64F9905BF4B" xml:space="preserve">
+    <value>挂载尚未连接，请在挂载页连接后重试。</value>
+  </data>
+  <data name="Text_A6B75D068032" xml:space="preserve">
+    <value>深色</value>
+  </data>
+  <data name="Text_A757E4CB2A36" xml:space="preserve">
+    <value>登录启动已被系统策略禁用。</value>
+  </data>
+  <data name="Text_A7E6A95D7992" xml:space="preserve">
+    <value>NFS（预留）</value>
+  </data>
+  <data name="Text_A7F3DFA29171" xml:space="preserve">
+    <value>上次本地替换中断；先使用远端完成恢复，原始本地备份仍保留。</value>
+  </data>
+  <data name="Text_A898478BE181" xml:space="preserve">
+    <value>连接中</value>
+  </data>
+  <data name="Text_A8B7A4480407" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="Text_A8D6892987C4" xml:space="preserve">
+    <value>文件尚未完整水合，停止移除。</value>
+  </data>
+  <data name="Text_A8E0CCE27860" xml:space="preserve">
+    <value>原同步根注册已丢失；保留数据，不能自动重新注册。</value>
+  </data>
+  <data name="Text_AA0819DFC4D8" xml:space="preserve">
+    <value>浅色</value>
+  </data>
+  <data name="Text_AAD1862AC6A6" xml:space="preserve">
+    <value>RFC 6578 增量检测</value>
+  </data>
+  <data name="Text_AB76E294EE5F" xml:space="preserve">
+    <value>已注册当前用户登录启动（开发运行）。</value>
+  </data>
+  <data name="Text_ABEA4B3A3DF2" xml:space="preserve">
+    <value>处理冲突 · {0}</value>
+  </data>
+  <data name="Text_AC3FFDC297B7" xml:space="preserve">
+    <value>S3：{0}；桶 {1}；前缀 {2}</value>
+  </data>
+  <data name="Text_AC75AD85ABB5" xml:space="preserve">
+    <value>登录 Windows 后静默进入托盘。</value>
+  </data>
+  <data name="Text_AD4671D5C48F" xml:space="preserve">
+    <value>提交本地状态</value>
+  </data>
+  <data name="Text_ADAB5F3BF6C5" xml:space="preserve">
+    <value> → 远端：{0}</value>
+  </data>
+  <data name="Text_AEAA2A51C8AA" xml:space="preserve">
+    <value>打开远端自动检测</value>
+  </data>
+  <data name="Text_AEB65D05782D" xml:space="preserve">
+    <value>本地目录</value>
+  </data>
+  <data name="Text_AEE887434131" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="Text_AEECD5977CD6" xml:space="preserve">
+    <value>登录启动已由系统策略启用。</value>
+  </data>
+  <data name="Text_AEFE72DC1317" xml:space="preserve">
+    <value>正在加载日志</value>
+  </data>
+  <data name="Text_AF0AD96CB324" xml:space="preserve">
+    <value>添加默认规则</value>
+  </data>
+  <data name="Text_AF2B8C4537C1" xml:space="preserve">
+    <value>总空间：{0}</value>
+  </data>
+  <data name="Text_B00893BB99C2" xml:space="preserve">
+    <value>当前没有诊断信息。</value>
+  </data>
+  <data name="Text_B019211CE0BB" xml:space="preserve">
+    <value>缩略图已关闭，后台预览已停止。</value>
+  </data>
+  <data name="Text_B01C8E8EEF92" xml:space="preserve">
+    <value>不能切换已开始的移除模式。</value>
+  </data>
+  <data name="Text_B043D167A20C" xml:space="preserve">
+    <value>重试选中</value>
+  </data>
+  <data name="Text_B0B8AFEBEAD6" xml:space="preserve">
+    <value>任务已结束或不存在。</value>
+  </data>
+  <data name="Text_B0F181CAFC5A" xml:space="preserve">
+    <value>正在等待当前任务完成，随后备份本地、下载并核验远端内容…</value>
+  </data>
+  <data name="Text_B1110A3FAB2E" xml:space="preserve">
+    <value>HTTPS 证书 SHA-256 指纹（可选）</value>
+  </data>
+  <data name="Text_B1C5E73E1471" xml:space="preserve">
+    <value>字节</value>
+  </data>
+  <data name="Text_B364AFEE9249" xml:space="preserve">
+    <value>连接已取消。</value>
+  </data>
+  <data name="Text_B3E7068FC529" xml:space="preserve">
+    <value>备份密码可留空；设置时至少需要 8 个字符。</value>
+  </data>
+  <data name="Text_B48B6518293A" xml:space="preserve">
+    <value>导入配置</value>
+  </data>
+  <data name="Text_B4E683C69C1F" xml:space="preserve">
+    <value>
+上次阶段：{0}
+恢复备份：{1}</value>
+  </data>
+  <data name="Text_B5141D3D19E9" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="Text_B571C7266A40" xml:space="preserve">
+    <value>留空时无密码保护，任何获得备份的人均可读取其中的凭据。</value>
+  </data>
+  <data name="Text_B583ABBE6D7C" xml:space="preserve">
+    <value>手动最大容量（GB，留空不限）</value>
+  </data>
+  <data name="Text_B5852AAAA8E8" xml:space="preserve">
+    <value>请先选择文件冲突。</value>
+  </data>
+  <data name="Text_B589C733AEEF" xml:space="preserve">
+    <value>{0}：{1}{2}</value>
+  </data>
+  <data name="Text_B64BD4615124" xml:space="preserve">
+    <value>SQS 事件加速设置</value>
+  </data>
+  <data name="Text_B659FC3F6B67" xml:space="preserve">
+    <value>此任务请使用重新核对、重试或取消收尾；目标已存在时不会自动覆盖。</value>
+  </data>
+  <data name="Text_B6C615F9C968" xml:space="preserve">
+    <value>已取消文件选择。</value>
+  </data>
+  <data name="Text_B6FD03C2DB1D" xml:space="preserve">
+    <value>从服务器抓取容量信息</value>
+  </data>
+  <data name="Text_B7CB05D81A06" xml:space="preserve">
+    <value>清除所有已结束任务；保留进行中、等待、冲突和结果待核对，不删除文件或恢复数据。</value>
+  </data>
+  <data name="Text_B813E88ECA5E" xml:space="preserve">
+    <value>本地文件在确认后变化，未覆盖。</value>
+  </data>
+  <data name="Text_B85162F2AE16" xml:space="preserve">
+    <value>保存检测设置</value>
+  </data>
+  <data name="Text_B868FAF07C8A" xml:space="preserve">
+    <value>已请求取消；已完成的步骤保留，已删除内容不会恢复。</value>
+  </data>
+  <data name="Text_B8826D711144" xml:space="preserve">
+    <value>保存检测间隔</value>
+  </data>
+  <data name="Text_B89C8EECD2BB" xml:space="preserve">
+    <value>本地文件尚未完整下载；为保留全部本地内容，请先打开或下载后再处理。</value>
+  </data>
+  <data name="Text_B8B974267CBE" xml:space="preserve">
+    <value>明文连接不安全</value>
+  </data>
+  <data name="Text_B8D23E667305" xml:space="preserve">
+    <value>正在断开</value>
+  </data>
+  <data name="Text_B924A642457C" xml:space="preserve">
+    <value>请输入服务实际使用的签名区域。</value>
+  </data>
+  <data name="Text_BA1127DA3666" xml:space="preserve">
+    <value>请输入访问密钥 ID，或选择 SDK 默认凭据链。</value>
+  </data>
+  <data name="Text_BB3E2F88EEC4" xml:space="preserve">
+    <value>文件已匹配排除规则，未上传。</value>
+  </data>
+  <data name="Text_BC2FA28989C5" xml:space="preserve">
+    <value>导入选中项</value>
+  </data>
+  <data name="Text_BCB9E6D7CDB7" xml:space="preserve">
+    <value>外观设置已保存，立即生效。</value>
+  </data>
+  <data name="Text_BCC223CCC272" xml:space="preserve">
+    <value>检测间隔必须为有效的整数秒。</value>
+  </data>
+  <data name="Text_BCE2377283C2" xml:space="preserve">
+    <value>清除</value>
+  </data>
+  <data name="Text_BD0859D1C3CC" xml:space="preserve">
+    <value>挂载操作失败：{0}</value>
+  </data>
+  <data name="Text_BD426C35BB57" xml:space="preserve">
+    <value>当前远端</value>
+  </data>
+  <data name="Text_BD7D468AF466" xml:space="preserve">
+    <value>请先选择上传任务。</value>
+  </data>
+  <data name="Text_BDC65C424B91" xml:space="preserve">
+    <value>已加密导出 {0} 个挂载配置。</value>
+  </data>
+  <data name="Text_BE146CE5330F" xml:space="preserve">
+    <value>全选可处理项</value>
+  </data>
+  <data name="Text_BEC5D197229C" xml:space="preserve">
+    <value>仍有未解除的云文件，保留配置和注册以供恢复。</value>
+  </data>
+  <data name="Text_BFE958DEA679" xml:space="preserve">
+    <value>副本</value>
+  </data>
+  <data name="Text_BFF03461DF20" xml:space="preserve">
+    <value>再次输入备份密码</value>
+  </data>
+  <data name="Text_C02FDCF208B3" xml:space="preserve">
+    <value>删除规则</value>
+  </data>
+  <data name="Text_C05166172020" xml:space="preserve">
+    <value>确认处理</value>
+  </data>
+  <data name="Text_C059B61C6A28" xml:space="preserve">
+    <value>重试连接</value>
+  </data>
+  <data name="Text_C25FEEEB96C6" xml:space="preserve">
+    <value>临时会话令牌（可选）</value>
+  </data>
+  <data name="Text_C2CDF622BB68" xml:space="preserve">
+    <value>新增 · 群晖 NAS</value>
+  </data>
+  <data name="Text_C32110B1817C" xml:space="preserve">
+    <value>
+
+{0}{1}</value>
+  </data>
+  <data name="Text_C3266E411EA3" xml:space="preserve">
+    <value>加载更早</value>
+  </data>
+  <data name="Text_C3BAF245356F" xml:space="preserve">
+    <value>已由后续改名接管</value>
+  </data>
+  <data name="Text_C5BE73B72FD5" xml:space="preserve">
+    <value>正在读取队列属性…</value>
+  </data>
+  <data name="Text_C60745B652A6" xml:space="preserve">
+    <value>签名区域 / Region</value>
+  </data>
+  <data name="Text_C682F190CBD4" xml:space="preserve">
+    <value>请输入密码。</value>
+  </data>
+  <data name="Text_C6A4C773ADDA" xml:space="preserve">
+    <value>任务、索引或远端事件变化，请重新核对。</value>
+  </data>
+  <data name="Text_C6A6D7108D1C" xml:space="preserve">
+    <value>缩略图：开启（实验性）；依文件与服务读取能力生成，可能显示普通图标。</value>
+  </data>
+  <data name="Text_C6C39053F9D2" xml:space="preserve">
+    <value>需要恢复</value>
+  </data>
+  <data name="Text_C6F3C8B82C24" xml:space="preserve">
+    <value>已排除</value>
+  </data>
+  <data name="Text_C837C2341C3B" xml:space="preserve">
+    <value>远端版本已应用。</value>
+  </data>
+  <data name="Text_C852D93398AD" xml:space="preserve">
+    <value>请输入桶名。</value>
+  </data>
+  <data name="Text_C866EBEF00E6" xml:space="preserve">
+    <value>路径寻址 / Path-Style</value>
+  </data>
+  <data name="Text_C8BCDC5DAC6A" xml:space="preserve">
+    <value>{0} 个同步问题；点击查看，右键打开完整诊断</value>
+  </data>
+  <data name="Text_C8FDC145DC3D" xml:space="preserve">
+    <value>上传队列已变化，请重新连接后核对。</value>
+  </data>
+  <data name="Text_C9F9E18B0623" xml:space="preserve">
+    <value>添加规则</value>
+  </data>
+  <data name="Text_CAFDD55E0A9F" xml:space="preserve">
+    <value>{0}
+
+移除挂载：保留本地文件，不连接远端。
+
+清空并移除：永久删除根目录内全部本地内容，保留空根目录及远端数据。</value>
+  </data>
+  <data name="Text_CB337BBDEC92" xml:space="preserve">
+    <value>已请求只读核对；不会因此授权覆盖或重新发送。</value>
+  </data>
+  <data name="Text_CB4488E8DBC2" xml:space="preserve">
+    <value>明文 HTTP</value>
+  </data>
+  <data name="Text_CBC7E4431D75" xml:space="preserve">
+    <value>挂载不存在。</value>
+  </data>
+  <data name="Text_CC0C4EB91412" xml:space="preserve">
+    <value>读取登录启动状态失败。</value>
+  </data>
+  <data name="Text_CC194E99AC16" xml:space="preserve">
+    <value>管理挂载</value>
+  </data>
+  <data name="Text_CC88E5B26428" xml:space="preserve">
+    <value>失败及部分失败</value>
+  </data>
+  <data name="Text_CE0744E60649" xml:space="preserve">
+    <value>版本 {0}</value>
+  </data>
+  <data name="Text_CE08D74C24D3" xml:space="preserve">
+    <value>保存连接并重连</value>
+  </data>
+  <data name="Text_CE17926FC19C" xml:space="preserve">
+    <value>注册丢失但存在物化索引，保留配置待恢复。</value>
+  </data>
+  <data name="Text_CE34A9E7C067" xml:space="preserve">
+    <value>远端元数据读取失败：{0}</value>
+  </data>
+  <data name="Text_CF0551621FC4" xml:space="preserve">
+    <value>已使用已核验的远端内容替换本地。原本地内容备份：{0}</value>
+  </data>
+  <data name="Text_CF6F4B5AB212" xml:space="preserve">
+    <value>请输入有效缓存上限。</value>
+  </data>
+  <data name="Text_CF9FBC15EBC3" xml:space="preserve">
+    <value>请先连接挂载，再核对冲突。</value>
+  </data>
+  <data name="Text_D06BC6EFDD8C" xml:space="preserve">
+    <value>查看结果</value>
+  </data>
+  <data name="Text_D076BD51ADFE" xml:space="preserve">
+    <value>{0}最近成功：{1}{2}</value>
+  </data>
+  <data name="Text_D2ACA8610E97" xml:space="preserve">
+    <value>界面密度已保存，立即生效。</value>
+  </data>
+  <data name="Text_D2E33E1E22E6" xml:space="preserve">
+    <value>下载并移除</value>
+  </data>
+  <data name="Text_D3716CC5A2F5" xml:space="preserve">
+    <value>服务器地址</value>
+  </data>
+  <data name="Text_D433988AA349" xml:space="preserve">
+    <value>待应用</value>
+  </data>
+  <data name="Text_D44119F948EA" xml:space="preserve">
+    <value>群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。</value>
+  </data>
+  <data name="Text_D44E9B3D3B31" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="Text_D5551131636F" xml:space="preserve">
+    <value>本挂载固定的证书 SHA-256：
+{0}</value>
+  </data>
+  <data name="Text_D6056A236CAB" xml:space="preserve">
+    <value>挂载连接或设置变化，请重新核对。</value>
+  </data>
+  <data name="Text_D6F766F2ADF5" xml:space="preserve">
+    <value>排队中</value>
+  </data>
+  <data name="Text_D719D6371AD6" xml:space="preserve">
+    <value>等待文件可用</value>
+  </data>
+  <data name="Text_D76876D823BF" xml:space="preserve">
+    <value>测试 SQS 连接（只读）</value>
+  </data>
+  <data name="Text_D79B1D0E5C61" xml:space="preserve">
+    <value>已结束</value>
+  </data>
+  <data name="Text_D80DA62D3B0A" xml:space="preserve">
+    <value>新增 · </value>
+  </data>
+  <data name="Text_D8510A0D488B" xml:space="preserve">
+    <value>先测试连接以加载共享文件夹；电脑无需安装 File Station，NAS 需启用 File Station 服务。</value>
+  </data>
+  <data name="Text_D8BEB94D8189" xml:space="preserve">
+    <value>远端自动检测已打开。</value>
+  </data>
+  <data name="Text_D9060E83E41F" xml:space="preserve">
+    <value>无（本地新增）</value>
+  </data>
+  <data name="Text_DA8B86A7782B" xml:space="preserve">
+    <value>WebDAV(HTTPS) 入口仅接受 HTTPS 地址；群晖通常使用 5006 端口。</value>
+  </data>
+  <data name="Text_DB1CDAA04D01" xml:space="preserve">
+    <value>请选择要导出的挂载。</value>
+  </data>
+  <data name="Text_DBADF79FCEE4" xml:space="preserve">
+    <value>窗口背景</value>
+  </data>
+  <data name="Text_DBBD93A69189" xml:space="preserve">
+    <value>远端容量：自动识别，尚未查询。</value>
+  </data>
+  <data name="Text_DBDA804F16C7" xml:space="preserve">
+    <value>正在执行只读探测…</value>
+  </data>
+  <data name="Text_DC0C60E5B1ED" xml:space="preserve">
+    <value>登录启动已关闭。</value>
+  </data>
+  <data name="Text_DC25DC95ACCE" xml:space="preserve">
+    <value>{0} 个上传问题需要处理</value>
+  </data>
+  <data name="Text_DC8BF8258D87" xml:space="preserve">
+    <value>处理期间相关路径出现新任务，请重新核对。</value>
+  </data>
+  <data name="Text_DC8CC2915933" xml:space="preserve">
+    <value>改名排除收尾</value>
+  </data>
+  <data name="Text_DCA2D1E7505B" xml:space="preserve">
+    <value>保存上限</value>
+  </data>
+  <data name="Text_DCB22E1AF650" xml:space="preserve">
+    <value>启动与托盘</value>
+  </data>
+  <data name="Text_DCE215127749" xml:space="preserve">
+    <value>请继续已选择的移除方式；不会自动重放删除操作。</value>
+  </data>
+  <data name="Text_DD44CB00BAD0" xml:space="preserve">
+    <value>子文件夹（可选，相对共享文件夹）</value>
+  </data>
+  <data name="Text_DDA61DA868D8" xml:space="preserve">
+    <value>Session Token（临时凭据，可选）</value>
+  </data>
+  <data name="Text_DE0DA0AE8DA4" xml:space="preserve">
+    <value>日志级别</value>
+  </data>
+  <data name="Text_DE0FBF01AACB" xml:space="preserve">
+    <value>显示缩略图（实验性）</value>
+  </data>
+  <data name="Text_DE1A9ED63D75" xml:space="preserve">
+    <value>处理所选</value>
+  </data>
+  <data name="Text_DF3D58C7D84B" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="Text_DF9CE89B8A1A" xml:space="preserve">
+    <value>没有可清除的{0}历史；进行中或待恢复的任务已保留。</value>
+  </data>
+  <data name="Text_DFBC15C21F05" xml:space="preserve">
+    <value>恢复记录读取失败：{0}</value>
+  </data>
+  <data name="Text_E0105248342F" xml:space="preserve">
+    <value>WebDAV(HTTPS) 挂载</value>
+  </data>
+  <data name="Text_E01311A466BF" xml:space="preserve">
+    <value>远端新文件相对路径</value>
+  </data>
+  <data name="Text_E131031441CF" xml:space="preserve">
+    <value>例如：文档/项目</value>
+  </data>
+  <data name="Text_E1F0F1CB1AB4" xml:space="preserve">
+    <value>匹配方式</value>
+  </data>
+  <data name="Text_E2012BC95CE4" xml:space="preserve">
+    <value>队列凭据来源</value>
+  </data>
+  <data name="Text_E2039AFABE4C" xml:space="preserve">
+    <value>从快照水合</value>
+  </data>
+  <data name="Text_E2119A607C0A" xml:space="preserve">
+    <value>移除未完成</value>
+  </data>
+  <data name="Text_E2B1ACC016C0" xml:space="preserve">
+    <value>继续下载并移除</value>
+  </data>
+  <data name="Text_E38AB48681DD" xml:space="preserve">
+    <value>连接配置</value>
+  </data>
+  <data name="Text_E3C64D1D126F" xml:space="preserve">
+    <value>全部挂载</value>
+  </data>
+  <data name="Text_E410A42CC339" xml:space="preserve">
+    <value>移除挂载（保留本地文件）</value>
+  </data>
+  <data name="Text_E4170809495B" xml:space="preserve">
+    <value>打开 Windows 启动设置</value>
+  </data>
+  <data name="Text_E443ECCB0E9F" xml:space="preserve">
+    <value>外观设置读取失败。</value>
+  </data>
+  <data name="Text_E558E337DB75" xml:space="preserve">
+    <value>远端容量：{0}
+可用 {1} · 已用 {2} · 总量 {3}{4}{5}{6}</value>
+  </data>
+  <data name="Text_E5FE24CA742F" xml:space="preserve">
+    <value>选择目录</value>
+  </data>
+  <data name="Text_E68F1C0ED374" xml:space="preserve">
+    <value>等待原上传结果</value>
+  </data>
+  <data name="Text_E6A7881C23A2" xml:space="preserve">
+    <value>程序正在退出，不再接收新任务。</value>
+  </data>
+  <data name="Text_E7028601E7DA" xml:space="preserve">
+    <value>信息</value>
+  </data>
+  <data name="Text_E76A52C1441D" xml:space="preserve">
+    <value>应用远端更改</value>
+  </data>
+  <data name="Text_E798BD8AAE7D" xml:space="preserve">
+    <value>等待远端改名</value>
+  </data>
+  <data name="Text_E79E19D19A9D" xml:space="preserve">
+    <value>使用 AWS SDK 默认凭据链</value>
+  </data>
+  <data name="Text_E7E1C13CAFC0" xml:space="preserve">
+    <value>查看独立保存的未解决同步问题</value>
+  </data>
+  <data name="Text_E8213DCA8072" xml:space="preserve">
+    <value>版本或类型冲突</value>
+  </data>
+  <data name="Text_E8E08B0F61DD" xml:space="preserve">
+    <value>正在取消…</value>
+  </data>
+  <data name="Text_E97206223328" xml:space="preserve">
+    <value>快照超过首版百万条安全限制，请缩小远端根。</value>
+  </data>
+  <data name="Text_E987FAE4AEA4" xml:space="preserve">
+    <value>已连接 {0}。</value>
+  </data>
+  <data name="Text_EA202573A4B5" xml:space="preserve">
+    <value>挂载正在连接，请等待当前连接完成。</value>
+  </data>
+  <data name="Text_EA215D28117F" xml:space="preserve">
+    <value>当前任务不能重试。</value>
+  </data>
+  <data name="Text_EC23F70A2031" xml:space="preserve">
+    <value>语言资源缺失，已回退至简体中文。</value>
+  </data>
+  <data name="Text_ECC76CD5FB74" xml:space="preserve">
+    <value>远端冲突状态已变化，请重新选择。</value>
+  </data>
+  <data name="Text_ED068529662D" xml:space="preserve">
+    <value>离线缓存</value>
+  </data>
+  <data name="Text_ED1373DA607C" xml:space="preserve">
+    <value>保存 SQS 设置</value>
+  </data>
+  <data name="Text_EDCD0FE3A86E" xml:space="preserve">
+    <value>已核对指纹，仅此挂载信任并重试</value>
+  </data>
+  <data name="Text_EE9EBE523D42" xml:space="preserve">
+    <value>连接中…</value>
+  </data>
+  <data name="Text_EEADEE679ABB" xml:space="preserve">
+    <value>菜单目标不属于本产品挂载。</value>
+  </data>
+  <data name="Text_F007E1890A6A" xml:space="preserve">
+    <value>两次输入的备份密码不一致。</value>
+  </data>
+  <data name="Text_F02C2A9F730E" xml:space="preserve">
+    <value>远端已删除且本地尚不完整，保留配置与现有内容。</value>
+  </data>
+  <data name="Text_F075BC371E5A" xml:space="preserve">
+    <value>远端自动检测已关闭。</value>
+  </data>
+  <data name="Text_F0986AB1A2C4" xml:space="preserve">
+    <value>排除文件</value>
+  </data>
+  <data name="Text_F0FA859C1E0D" xml:space="preserve">
+    <value>证书验证：系统信任证书。</value>
+  </data>
+  <data name="Text_F14C813F211F" xml:space="preserve">
+    <value>{0}已显示 {1} 条；保留最近30天／最多10000条。{2}{3}{4}</value>
+  </data>
+  <data name="Text_F1B417B318B5" xml:space="preserve">
+    <value>完整诊断</value>
+  </data>
+  <data name="Text_F1E7BEC171AE" xml:space="preserve">
+    <value>未知版本</value>
+  </data>
+  <data name="Text_F203D577D142" xml:space="preserve">
+    <value>不限</value>
+  </data>
+  <data name="Text_F28461BB49C8" xml:space="preserve">
+    <value>已完成</value>
+  </data>
+  <data name="Text_F33AC04EECE6" xml:space="preserve">
+    <value>断开</value>
+  </data>
+  <data name="Text_F3D810080ECB" xml:space="preserve">
+    <value>改名结果待核对</value>
+  </data>
+  <data name="Text_F3F84AE474C2" xml:space="preserve">
+    <value>关闭偏好保存失败。</value>
+  </data>
+  <data name="Text_F4D4BAE588C4" xml:space="preserve">
+    <value>取消全选</value>
+  </data>
+  <data name="Text_F4DAD8B3E4CF" xml:space="preserve">
+    <value>任务 ID：{0}
+挂载：{1}
+{2}
+{3}
+{4}
+{5}
+{6}
+{7}
+{8}
+</value>
+  </data>
+  <data name="Text_F5651904C35C" xml:space="preserve">
+    <value>更多挂载操作</value>
+  </data>
+  <data name="Text_F57E977ECDE7" xml:space="preserve">
+    <value>SQS：{0}；最近事件：{1}；待核对提示 {2}{3}</value>
+  </data>
+  <data name="Text_F59D50DAFB2E" xml:space="preserve">
+    <value>内容清空未完成。</value>
+  </data>
+  <data name="Text_F62DFC6C48E8" xml:space="preserve">
+    <value>S3 对象存储</value>
+  </data>
+  <data name="Text_F66DF4636FF4" xml:space="preserve">
+    <value>上传副本</value>
+  </data>
+  <data name="Text_F66E4F942756" xml:space="preserve">
+    <value>平均 {0} · </value>
+  </data>
+  <data name="Text_F6B3FF7C362A" xml:space="preserve">
+    <value>重新核实容量</value>
+  </data>
+  <data name="Text_F71FF9567A7C" xml:space="preserve">
+    <value>已请求显示窗口。</value>
+  </data>
+  <data name="Text_F745D52559D6" xml:space="preserve">
+    <value>DSM 服务器地址</value>
+  </data>
+  <data name="Text_F797B44CFD54" xml:space="preserve">
+    <value>修改设置</value>
+  </data>
+  <data name="Text_F8AE324708BF" xml:space="preserve">
+    <value>连接停止时清理失败，请查看生命周期阶段。</value>
+  </data>
+  <data name="Text_F8FFEB435E02" xml:space="preserve">
+    <value>已提交重试；如挂载未连接，请先在挂载页连接。</value>
+  </data>
+  <data name="Text_F96BBA110AEF" xml:space="preserve">
+    <value>连接测试失败，请检查配置、网络和凭据来源。</value>
+  </data>
+  <data name="Text_FA89C102F166" xml:space="preserve">
+    <value>独立访问密钥 ID</value>
+  </data>
+  <data name="Text_FAB66225B551" xml:space="preserve">
+    <value>查看运行记录</value>
+  </data>
+  <data name="Text_FAF3E262130E" xml:space="preserve">
+    <value>挂载操作</value>
+  </data>
+  <data name="Text_FB1B4EE3098C" xml:space="preserve">
+    <value>本地：{0}；云端目标：{1}</value>
+  </data>
+  <data name="Text_FB644ADE7E17" xml:space="preserve">
+    <value>切换占位版本</value>
+  </data>
+  <data name="Text_FB99EDB2DA85" xml:space="preserve">
+    <value>自签名证书需先通过可信渠道核对指纹后填写，仅信任当前挂载；证书更新后需重新核验。不要填写未经核对的指纹。</value>
+  </data>
+  <data name="Text_FC2942B518E1" xml:space="preserve">
+    <value>清除成功完成的任务历史，保留其他任务及同步数据。</value>
+  </data>
+  <data name="Text_FC2DB52DAAA9" xml:space="preserve">
+    <value>检查中</value>
+  </data>
+  <data name="Text_FC8B9CB4FC5F" xml:space="preserve">
+    <value>留空使用系统证书验证</value>
+  </data>
+  <data name="Text_FDEB8FA90307" xml:space="preserve">
+    <value>处理所选（{0}）</value>
+  </data>
+  <data name="Text_FEE3C5717BB4" xml:space="preserve">
+    <value>移除挂载</value>
+  </data>
+  <data name="Text_FEE60AE594C1" xml:space="preserve">
+    <value>条目</value>
+  </data>
+  <data name="Text_FF6DF7520EEE" xml:space="preserve">
+    <value>检测设置已保存。</value>
+  </data>
+  <data name="Text_46B3DC4ED4A4" xml:space="preserve">
+    <value>请选择受支持的界面语言。</value>
+  </data>
+  <data name="Text_7EC44126D7B8" xml:space="preserve">
+    <value>远端文件本地视图管理</value>
+  </data>
+  <data name="Text_3769CB3E7C40" xml:space="preserve">
+    <value>当前地址会以明文传输凭据和内容，仅在可信测试网络使用。</value>
+  </data>
+  <data name="Text_63116F299742" xml:space="preserve">
+    <value>HTTP 会以明文传输账号、密码和文件内容。仅在可信网络中明确允许后使用；建议使用 HTTPS（5001）。</value>
+  </data>
+  <data name="Text_92B13F21F95E" xml:space="preserve">
+    <value>已保留恢复记录。请先核对未确认结果，再重新连接受影响的挂载。</value>
+  </data>
+  <data name="Text_C2942442A231" xml:space="preserve">
+    <value>已移除挂载</value>
+  </data>
+  <data name="Text_91A1D31663B9" xml:space="preserve"><value>显示主窗口</value></data>
+  <data name="Text_EC4D1F9F82B1" xml:space="preserve"><value>退出 HybridMount.NET</value></data>
+</root>

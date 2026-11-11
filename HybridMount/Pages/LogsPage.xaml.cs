@@ -12,11 +12,12 @@ namespace HybridMount.Pages;
 /// <summary>最近日志的筛选、复制、导出和确认清除入口。</summary>
 public sealed partial class LogsPage : Page, IDisposable
 {
+    private IDisposable? _localization;
     /// <summary>仅该页面拥有日志展示订阅。</summary>
     public LogsViewModel ViewModel { get; } = new(App.Current.Logger,App.Current.UiDispatcher);
     /// <summary>页面出现时重新读取 SQLite 快照。</summary>
     private readonly PageScrollBookmark _viewport=new();
-    public LogsPage(){try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    public LogsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(LogList);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(LogList);base.OnNavigatedFrom(args);}
     private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(LogList);await ViewModel.RefreshAsync(reopenStatus:false);}
@@ -42,7 +43,7 @@ public sealed partial class LogsPage : Page, IDisposable
         {
             var query=ViewModel.CaptureExportQuery();
             var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-{DateTime.Now:yyyyMMdd-HHmmss}" };
-            picker.FileTypeChoices.Add("文本日志", new List<string> { ".txt" });
+            picker.FileTypeChoices.Add(global::HybridMount.Services.Localization.UiText.Text("Text_97E3BE741179"), new List<string> { ".txt" });
             WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
             var file = await picker.PickSaveFileAsync();
             if(file is not null&&!App.Current.IsExiting)
@@ -56,12 +57,12 @@ public sealed partial class LogsPage : Page, IDisposable
         if(!ViewModel.TryBeginDialog())return;
         try
         {
-            var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "清除日志", Content = "清除本机已保存的运行日志？", PrimaryButtonText = "清除", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close };
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary) await ViewModel.ClearAsync();
+            var dialog = global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog { XamlRoot = XamlRoot,DefaultButton = ContentDialogButton.Close },("Title",global::HybridMount.Services.Localization.UiText.Message("Text_02712916DEE9")),("Content",global::HybridMount.Services.Localization.UiText.Message("Text_66456857A9CF")),("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_BCE2377283C2")),("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
+            if (await global::HybridMount.Helpers.UI.Ui.ShowAsync(dialog) == ContentDialogResult.Primary) await ViewModel.ClearAsync();
         }
         catch (Exception error) { ViewModel.ReportError(error); }
         finally {ViewModel.EndDialog();}
     }
     /// <summary>真正退出时解除日志订阅。</summary>
-    public void Dispose(){Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
+    public void Dispose(){_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
 }

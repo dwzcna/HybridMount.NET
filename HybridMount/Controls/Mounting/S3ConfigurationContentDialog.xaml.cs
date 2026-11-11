@@ -8,6 +8,7 @@ namespace HybridMount.Controls.Mounting;
 /// <summary>S3 完整配置对话框；连接、凭据、容量及检测控件在同一 XAML 中，业务由唯一挂载模型拥有。</summary>
 public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
+    private IDisposable? _localization;
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
     private MountDefinition? _existing;
@@ -24,10 +25,10 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     /// <summary>只加载一次连接草稿；后续刷新仅更新已保存设置，不覆盖正在编辑的账号或地址。</summary>
     public S3ConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null)
     {
-        InitializeComponent();_model=model;_kind=FileSourceKind.S3;_existing=existing;
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());_model=model;_kind=FileSourceKind.S3;_existing=existing;
         try
         {
-            NameField.Text=existing?.Name??(_kind==FileSourceKind.S3?"S3 挂载":"WebDAV 挂载");
+            NameField.Text=existing?.Name??(_kind==FileSourceKind.S3?global::HybridMount.Services.Localization.UiText.Text("Text_457866E138AA"):global::HybridMount.Services.Localization.UiText.Text("Text_60A9B09E1708"));
             EndpointField.PlaceholderText=_kind==FileSourceKind.S3?"https://s3.example.com":"https://dav.example.com/dav/";
             if(existing is not null)
             {
@@ -44,7 +45,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             EndpointField.TextChanged+=EndpointChanged;
             ExclusionList.ItemsSource=model.ExclusionDraft(existing?.Id,_kind);
             SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
-            Title=(existing is null?"新增":"设置 · ")+(existing?.Name??(_kind==FileSourceKind.S3?"S3 挂载":"WebDAV 挂载"));
+            global::HybridMount.Helpers.UI.Ui.Set(this,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_8391DA809DD9",(existing is null?global::HybridMount.Services.Localization.UiText.Text("Text_0006D696D8E1"):global::HybridMount.Services.Localization.UiText.Text("Text_5214E0BC5DCE")),(existing?.Name??(_kind==FileSourceKind.S3?global::HybridMount.Services.Localization.UiText.Text("Text_457866E138AA"):global::HybridMount.Services.Localization.UiText.Text("Text_60A9B09E1708")))));
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
@@ -115,7 +116,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     private MountCreationOptions CreationOptions()
     {
         var incremental=IncrementalField.Value;var full=FullField.Value;
-        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException("检测间隔必须为有效的整数秒。");
+        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_BCC223CCC272"));
         return new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,checked((int)incremental),checked((int)full),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB"),SqsOptions(),SqsKeys());
     }
     private async void SqsEnabledChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetSqsEnabledAsync(mount.Id,SqsEnabled.IsOn));}
@@ -134,17 +135,17 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
         args.Cancel=true;if(Stopped)return;
-        if(_testing is {} testing){SecondaryButtonText="取消中…";IsSecondaryButtonEnabled=false;testing.Cancel();return;}
+        if(_testing is {} testing){global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_0ADDD7784578"));IsSecondaryButtonEnabled=false;testing.Cancel();return;}
         if(_submitting||_picking||_sqsProbe is not null||_sqsSaving)return;
-        if(!ValidateFields(false))return;using var cancel=new CancellationTokenSource();_testing=cancel;Refresh();SecondaryButtonText="取消测试";
-        ErrorBar.IsOpen=false;ProbeBar.Title="只读连接测试";ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="正在执行只读探测…";ProbeBar.IsOpen=true;
+        if(!ValidateFields(false))return;using var cancel=new CancellationTokenSource();_testing=cancel;Refresh();global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_49BE72E6045C"));
+        ErrorBar.IsOpen=false;global::HybridMount.Helpers.UI.Ui.Set(ProbeBar,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_17D7F8B86E5F"));ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");ProbeBar.IsOpen=true;
         try
         {
             var result=await _model.TestConnectionAsync(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),cancel.Token);
             if(!Stopped){ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;}
         }
-        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message="连接测试已取消。";}}
-        catch(Exception){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message="连接测试失败，请检查配置、网络和凭据来源。";}}
+        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");}}
+        catch(Exception){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_F96BBA110AEF");}}
         finally{_testing=null;if(!Stopped){SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
     }
     /// <summary>在禁用控件或发起请求之前校验草稿，字段错误保持原输入并聚焦首个错误。</summary>
@@ -154,15 +155,15 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,UiTerms.NameRequired);_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,UiTerms.LocalDirectoryRequired);}
         var validAddress=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme is "https" or "http";
         _fieldFeedback.Check(validAddress,EndpointField,UiTerms.ServerAddressRequired);
-        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,"使用明文 HTTP 需先明确允许；建议改用 HTTPS。");
+        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_179CC0D74764"));
         if(saving&&_existing is null)
         {
-            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,"请输入10至86400范围内的整数秒。");
-            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,"请输入30至604800范围内的整数秒。");
+            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.UiText.Text("Text_059EB2CA3210"));
+            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.UiText.Text("Text_075F86B604DE"));
             if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
         }
-        _fieldFeedback.Check(!string.IsNullOrWhiteSpace(BucketField.Text),BucketField,"请输入桶名。");_fieldFeedback.Check(!string.IsNullOrWhiteSpace(RegionField.Text),RegionField,"请输入服务实际使用的签名区域。");
-        if(DefaultCredentialsField.IsChecked!=true){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(AccessKeyField.Text),AccessKeyField,"请输入访问密钥 ID，或选择 SDK 默认凭据链。");_fieldFeedback.Check(SecretKeyField.Password.Length>0,SecretKeyField,"请输入访问密钥。");}
+        _fieldFeedback.Check(!string.IsNullOrWhiteSpace(BucketField.Text),BucketField,global::HybridMount.Services.Localization.UiText.Text("Text_C852D93398AD"));_fieldFeedback.Check(!string.IsNullOrWhiteSpace(RegionField.Text),RegionField,global::HybridMount.Services.Localization.UiText.Text("Text_B924A642457C"));
+        if(DefaultCredentialsField.IsChecked!=true){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(AccessKeyField.Text),AccessKeyField,global::HybridMount.Services.Localization.UiText.Text("Text_BA1127DA3666"));_fieldFeedback.Check(SecretKeyField.Password.Length>0,SecretKeyField,global::HybridMount.Services.Localization.UiText.Text("Text_4DF8B18F18FD"));}
         return _fieldFeedback.Complete(this);
     }
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
@@ -184,7 +185,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();_sqsProbe?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {
+    {_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         EndpointField.TextChanged-=EndpointChanged;
@@ -215,13 +216,13 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     private async void TestSqs(object sender,RoutedEventArgs args)
     {
         if(Stopped||_existing is null)return;
-        if(_sqsProbe is {} running){running.Cancel();SqsTestButton.Content="取消中…";SqsTestButton.IsEnabled=false;return;}
+        if(_sqsProbe is {} running){running.Cancel();SqsTestButton.Content=global::HybridMount.Services.Localization.UiText.Text("Text_0ADDD7784578");SqsTestButton.IsEnabled=false;return;}
         if(_submitting||_picking||_testing is not null||_sqsSaving)return;
-        using var cancel=new CancellationTokenSource();_sqsProbe=cancel;Refresh();SqsTestButton.Content="取消测试";ProbeBar.Title="SQS 只读连接测试";ProbeBar.Message="正在读取队列属性…";ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.IsOpen=true;
+        using var cancel=new CancellationTokenSource();_sqsProbe=cancel;Refresh();SqsTestButton.Content=global::HybridMount.Services.Localization.UiText.Text("Text_49BE72E6045C");global::HybridMount.Helpers.UI.Ui.Set(ProbeBar,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_1FB57F246534"));ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_C5BE73B72FD5");ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.IsOpen=true;
         try{var result=await _model.TestSqsConnectionAsync(_existing.Id,SqsOptions(),SqsKeys(),cancel.Token);if(!Stopped){ProbeBar.Message=result.Message;ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;}}
-        catch(OperationCanceledException){if(!Stopped){ProbeBar.Message="SQS 测试已取消。";ProbeBar.Severity=InfoBarSeverity.Informational;}}
+        catch(OperationCanceledException){if(!Stopped){ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_5CC6147C2C9A");ProbeBar.Severity=InfoBarSeverity.Informational;}}
         catch(Exception error){if(!Stopped){ProbeBar.Message=error.Message;ProbeBar.Severity=InfoBarSeverity.Error;}}
-        finally{_sqsProbe=null;if(!Stopped){SqsTestButton.Content="测试 SQS 连接（只读）";Refresh();}}
+        finally{_sqsProbe=null;if(!Stopped){SqsTestButton.Content=global::HybridMount.Services.Localization.UiText.Text("Text_D76876D823BF");Refresh();}}
     }
     private async void SaveSqs(object sender,RoutedEventArgs args)
     {

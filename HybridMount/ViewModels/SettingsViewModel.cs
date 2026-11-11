@@ -7,12 +7,13 @@ namespace HybridMount.ViewModels;
 public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDisposable
 {
     private readonly AppearanceSettingsService _settings;
+    private readonly global::HybridMount.Services.Localization.UiLanguageService _languages;private readonly IDisposable _languageSubscription;private bool _savingLanguage;
     private readonly IStartupService? _startup;
     private readonly ApplicationPreferencesService? _preferences;
     private readonly MountManager? _mounts;
     private readonly LoggerService? _logger;
     private bool _busy,_saving,_disposed,_notifyingSelections,_trimming,_cacheLoaded,_savingCache,_savingClose,_notifyingStartup,_savingDensity;
-    private StartupState _startupState=new(false,true,"登录启动默认关闭。");
+    private StartupState _startupState=new(false,true,global::HybridMount.Services.Localization.UiText.Text("Text_02A8658F6601"));
     /// <summary>三个卡片各自保留关闭状态，不互相覆盖消息。</summary>
     public PageStatusMessage StatusMessage {get;}=new();
     public PageStatusMessage AppearanceMessage {get;}=new();
@@ -22,14 +23,24 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     private double _cacheLimitGiB,_savedCacheLimitGiB;
     private Task _startupWork=Task.CompletedTask,_cacheWork=Task.CompletedTask;
     /// <summary>生产页面注入应用服务；仅传外观服务时可隔离验证外观，不接触系统启动或注册表。</summary>
-    public SettingsViewModel(AppearanceSettingsService appearance,IStartupService? startup=null,ApplicationPreferencesService? preferences=null,MountManager? mounts=null,LoggerService? logger=null)
+    public SettingsViewModel(AppearanceSettingsService appearance,IStartupService? startup=null,ApplicationPreferencesService? preferences=null,MountManager? mounts=null,LoggerService? logger=null,global::HybridMount.Services.Localization.UiLanguageService? languages=null)
     {
+        _languages=languages??global::HybridMount.Services.Localization.UiText.Current;_languageSubscription=global::HybridMount.Services.Localization.UiText.Observe(this,static model=>model.RefreshLanguage());
         _settings=appearance;_startup=startup;_preferences=preferences;_mounts=mounts;_logger=logger;
         AppearanceMessage.Update(appearance.ErrorStatus??preferences?.LayoutErrorStatus??"",PageMessageSeverity.Error);StatusMessage.Update(preferences?.ErrorStatus??"",PageMessageSeverity.Error);if(preferences is not null)preferences.LayoutChanged+=DensityChanged;
         try{if(mounts is not null){_savedCacheLimitGiB=_cacheLimitGiB=mounts.CacheLimitBytes/(double)(1024L*1024*1024);_cacheLoaded=true;}}
-        catch(Exception error){CacheMessage.Update("缓存设置读取失败，已停止保存。",PageMessageSeverity.Error);_logger?.Queue("缓存","Warning",error.GetType().Name);}
+        catch(Exception error){CacheMessage.Update(global::HybridMount.Services.Localization.UiText.Text("Text_A2A57F95410A"),PageMessageSeverity.Error);_logger?.Queue("缓存","Warning",error.GetType().Name);}
+        if(_languages.Error is {} languageError)AppearanceMessage.Update(languageError,PageMessageSeverity.Error);
         appearance.Changed+=SettingsChanged;
     }
+    /// <summary>语言保存成功后立即更新；失败仅回滚选择，保留原语言和其他卡片状态。</summary>
+    public bool CanEditLanguage=>!_disposed&&!_savingLanguage&&_languages.IsLoaded;
+    public string LanguageSelection
+    {
+        get=>_languages.Current.Choice;
+        set{if(_disposed||_savingLanguage||value==LanguageSelection||!CanEditLanguage)return;_savingLanguage=true;try{var saved=_languages.TrySave(value,out var error);var message=saved?global::HybridMount.Services.Localization.UiText.Message("Text_2A1924653192"):error!;if(AppearanceMessage.Show(message,saved?PageMessageSeverity.Success:PageMessageSeverity.Error))OnPropertyChanged(nameof(AppearanceStatus));}finally{_savingLanguage=false;OnPropertyChanged(nameof(LanguageSelection));OnPropertyChanged(nameof(CanEditLanguage));}}
+    }
+    private void RefreshLanguage(){if(_disposed)return;OnPropertyChanged(nameof(LanguageSelection));OnPropertyChanged(nameof(CanEditLanguage));OnPropertyChanged(nameof(StartupDetail));OnPropertyChanged(nameof(AppearanceStatus));OnPropertyChanged(nameof(Status));OnPropertyChanged(nameof(CacheStatus));}
     public bool CanEditDensity=>!_disposed&&_preferences is not null&&!_savingDensity;
     public string DensitySelection
     {
@@ -37,14 +48,14 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         set
         {
             if(!CanEditDensity||value==DensitySelection||value is not("Compact" or "Comfortable"))return;_savingDensity=true;
-            try{var success=_preferences!.TrySetCompactLayout(value=="Compact",out var error);Publish(AppearanceMessage,success?"界面密度已保存，立即生效。":error??"界面密度保存失败。",nameof(AppearanceStatus),severity:success?PageMessageSeverity.Success:PageMessageSeverity.Error);}
+            try{var success=_preferences!.TrySetCompactLayout(value=="Compact",out var error);Publish(AppearanceMessage,success?global::HybridMount.Services.Localization.UiText.Text("Text_D2ACA8610E97"):error??global::HybridMount.Services.Localization.UiText.Text("Text_4465E830BDF6"),nameof(AppearanceStatus),severity:success?PageMessageSeverity.Success:PageMessageSeverity.Error);}
             finally{_savingDensity=false;OnPropertyChanged(nameof(DensitySelection));OnPropertyChanged(nameof(CanEditDensity));}
         }
     }
     private void DensityChanged(){if(!_disposed&&!_savingDensity)OnPropertyChanged(nameof(DensitySelection));}
     public string VersionText=>"HybridMount.NET "+typeof(SettingsViewModel).Assembly.GetName().Version;
     public bool CanEditStartup=>!_disposed&&!_busy&&_startup is not null&&_startupState.CanToggle;
-    public string StartupDetail=>_startupState.Detail;
+    public string StartupDetail=>global::HybridMount.Services.Localization.UiText.Legacy(_startupState.Detail);
     public string Status {get=>StatusMessage.Text;private set=>Publish(StatusMessage,value,nameof(Status));}
     public bool CloseToTraySelection
     {
@@ -53,7 +64,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         {
             if(_disposed||_savingClose||_preferences is null||value==CloseToTraySelection)return;
             _savingClose=true;
-            try{var success=_preferences.TrySetCloseToTray(value,out var error);Publish(StatusMessage,success?value?"关闭窗口时将隐藏到托盘。":"关闭窗口时将退出应用。":error??"关闭偏好保存失败。",nameof(Status),severity:success?PageMessageSeverity.Success:PageMessageSeverity.Error);if(error is not null)_logger?.Queue("设置","Warning","关闭行为偏好保存失败，原设置保持。");OnPropertyChanged();}
+            try{var success=_preferences.TrySetCloseToTray(value,out var error);Publish(StatusMessage,success?value?global::HybridMount.Services.Localization.UiText.Text("Text_584FE9F9F916"):global::HybridMount.Services.Localization.UiText.Text("Text_15BA0E43029F"):error??global::HybridMount.Services.Localization.UiText.Text("Text_F3F84AE474C2"),nameof(Status),severity:success?PageMessageSeverity.Success:PageMessageSeverity.Error);if(error is not null)_logger?.Queue("设置","Warning","关闭行为偏好保存失败，原设置保持。");OnPropertyChanged();}
             finally{_savingClose=false;}
         }
     }
@@ -76,7 +87,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         catch(Exception error)
         {
             if(_disposed)return;
-            Publish(StatusMessage,enabled is null?"读取登录启动状态失败。":"修改登录启动失败，正在核对系统实际状态。",nameof(Status),enabled is not null,PageMessageSeverity.Error);_logger?.Queue("启动","Error",error.GetType().Name);
+            Publish(StatusMessage,enabled is null?global::HybridMount.Services.Localization.UiText.Text("Text_CC0C4EB91412"):global::HybridMount.Services.Localization.UiText.Text("Text_302C30CAC1DA"),nameof(Status),enabled is not null,PageMessageSeverity.Error);_logger?.Queue("启动","Error",error.GetType().Name);
             if(enabled is not null)try{var actual=await _startup!.GetAsync();if(!_disposed)_startupState=actual;}catch(Exception query){if(!_disposed)_logger?.Queue("启动","Warning",query.GetType().Name);}
         }
         finally{_busy=false;if(!_disposed)NotifyStartup();}
@@ -96,8 +107,8 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         if(!CanEditCache||_savingCache)return;_savingCache=true;
         try
         {
-            if(!double.IsFinite(CacheLimitGiB)||CacheLimitGiB<0)throw new ArgumentException("请输入有效缓存上限。");
-            _mounts!.CacheLimitBytes=checked((long)(CacheLimitGiB*1024*1024*1024));_savedCacheLimitGiB=CacheLimitGiB;Publish(CacheMessage,"缓存上限已保存。",nameof(CacheStatus),severity:PageMessageSeverity.Success);
+            if(!double.IsFinite(CacheLimitGiB)||CacheLimitGiB<0)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_CF6F4B5AB212"));
+            _mounts!.CacheLimitBytes=checked((long)(CacheLimitGiB*1024*1024*1024));_savedCacheLimitGiB=CacheLimitGiB;Publish(CacheMessage,global::HybridMount.Services.Localization.UiText.Text("Text_405EE9C5A7CC"),nameof(CacheStatus),severity:PageMessageSeverity.Success);
         }
         catch(Exception error){CacheLimitGiB=_savedCacheLimitGiB;Publish(CacheMessage,error.Message,nameof(CacheStatus),severity:PageMessageSeverity.Error);_logger?.QueueException("缓存","Warning","缓存操作失败",error);}
         finally{_savingCache=false;}
@@ -109,7 +120,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
     private async Task TrimCoreAsync()
     {
-        try{var result=await Task.Run(async()=>{var freed=await _mounts!.EnforceCacheLimitAsync().ConfigureAwait(false);return (Freed:freed,Usage:_mounts.CacheUsageBytes);});if(!_disposed)CacheStatus=$"本次回收 {result.Freed/(1024d*1024):F1} MiB，当前占用约 {result.Usage/(1024d*1024):F1} MiB。";}
+        try{var result=await Task.Run(async()=>{var freed=await _mounts!.EnforceCacheLimitAsync().ConfigureAwait(false);return (Freed:freed,Usage:_mounts.CacheUsageBytes);});if(!_disposed)CacheStatus=global::HybridMount.Services.Localization.UiText.Text("Text_9A4D7A27AB0E",result.Freed/(1024d*1024),result.Usage/(1024d*1024));}
         catch(Exception error){if(!_disposed)Publish(CacheMessage,error.Message,nameof(CacheStatus),severity:PageMessageSeverity.Error);_logger?.QueueException("缓存","Warning","缓存操作失败",error);}
         finally{_trimming=false;if(!_disposed)OnPropertyChanged(nameof(CanEditCache));}
     }
@@ -145,7 +156,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         try
         {
             OnPropertyChanged(nameof(CanEditAppearance));
-            var success=_settings.TrySave(candidate,out var error);Publish(AppearanceMessage,success?"外观设置已保存，立即生效。":error??"外观设置保存失败。",nameof(AppearanceStatus),severity:success?PageMessageSeverity.Success:PageMessageSeverity.Error);if(error is not null)_logger?.Queue("外观","Warning","外观设置保存失败，原设置保持。");
+            var success=_settings.TrySave(candidate,out var error);Publish(AppearanceMessage,success?global::HybridMount.Services.Localization.UiText.Text("Text_BCB9E6D7CDB7"):error??global::HybridMount.Services.Localization.UiText.Text("Text_18807DECF3A4"),nameof(AppearanceStatus),severity:success?PageMessageSeverity.Success:PageMessageSeverity.Error);if(error is not null)_logger?.Queue("外观","Warning","外观设置保存失败，原设置保持。");
         }
         finally { _saving = false; NotifySelections(); }
     }
@@ -154,7 +165,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     {
         if (_disposed || _saving || _notifyingSelections) return;
         _saving = true;
-        try { if (!_settings.Reload()) Publish(AppearanceMessage,_settings.ErrorStatus ?? "外观设置读取失败。",nameof(AppearanceStatus),false,PageMessageSeverity.Error); }
+        try { if (!_settings.Reload()) Publish(AppearanceMessage,_settings.ErrorStatus ?? global::HybridMount.Services.Localization.UiText.Text("Text_E443ECCB0E9F"),nameof(AppearanceStatus),false,PageMessageSeverity.Error); }
         finally { _saving = false; NotifySelections(); }
     }
     private void SettingsChanged(object? sender, EventArgs args)
@@ -175,6 +186,6 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
 
     /// <summary>真正退出先停止页面通知；系统已发出的操作安全完成后再释放日志等服务。</summary>
-    public void Dispose(){if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();_settings.Changed-=SettingsChanged;if(_preferences is not null)_preferences.LayoutChanged-=DensityChanged;}
+    public void Dispose(){_languageSubscription.Dispose();if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();_settings.Changed-=SettingsChanged;if(_preferences is not null)_preferences.LayoutChanged-=DensityChanged;}
     public async ValueTask DisposeAsync(){Dispose();await Task.WhenAll(_startupWork,_cacheWork);}
 }

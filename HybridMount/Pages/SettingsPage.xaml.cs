@@ -8,9 +8,10 @@ namespace HybridMount.Pages;
 /// <summary>设置页仅适配控件和系统设置链接，所有偏好／草稿与忙碌状态由唯一 ViewModel 提供。</summary>
 public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
 {
+    private IDisposable? _localization;
     public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.Mounts,App.Current.Logger);
     private readonly PageScrollBookmark _viewport=new();
-    public SettingsPage(){try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    public SettingsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(SettingsScroll);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(SettingsScroll);base.OnNavigatedFrom(args);}
     private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(SettingsScroll);ViewModel.ReloadAppearance();await ViewModel.RefreshStartupAsync();}
@@ -21,6 +22,6 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
         try{await global::Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"));}
         catch(Exception error){App.Current.Logger.Log("启动","打开系统设置失败；"+HybridMount.Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error),InfoBarSeverity.Error);}
     }
-    public void Dispose(){Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
+    public void Dispose(){_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
     public async ValueTask DisposeAsync(){Dispose();await ViewModel.DisposeAsync();}
 }

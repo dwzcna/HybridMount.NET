@@ -1,3 +1,4 @@
+#include "NativeLanguage.h"
 #include "RuntimeOperations.h"
 #include "CallbackMailbox.h"
 #include "OrphanedDirectoryRecovery.h"
@@ -57,7 +58,7 @@ winrt::Windows::Storage::Provider::StorageProviderSyncRootInfo Descriptor(const 
     info.Id(id);info.Path(folder);info.DisplayNameResource(Text(data,"name"));info.IconResource(ModuleDirectory()+L"\\HybridMount.exe,0");info.HydrationPolicy(StorageProviderHydrationPolicy::Partial);info.PopulationPolicy(StorageProviderPopulationPolicy::AlwaysFull);info.HydrationPolicyModifier(StorageProviderHydrationPolicyModifier::None);
     info.InSyncPolicy(StorageProviderInSyncPolicy::FileLastWriteTime|StorageProviderInSyncPolicy::DirectoryLastWriteTime|StorageProviderInSyncPolicy::FileCreationTime|StorageProviderInSyncPolicy::DirectoryCreationTime);info.AllowPinning(true);info.HardlinkPolicy(StorageProviderHardlinkPolicy::None);info.Version(Text(data,"version"));info.ShowSiblingsAsGroup(false);
     auto marker=Json{{"Product",Utf8(ProductScope())},{"Schema",1},{"MountId",data.at("mountId")},{"Owner",Utf8(CurrentSid())}}.dump();std::vector<BYTE> bytes(marker.begin(),marker.end());info.Context(winrt::Windows::Security::Cryptography::CryptographicBuffer::CreateFromByteArray(bytes));
-    for(auto pair:{std::pair{1,L"同步问题"},std::pair{2,L"上传排除"}}){StorageProviderItemPropertyDefinition property;property.Id(pair.first);property.DisplayNameResource(pair.second);info.StorageProviderItemPropertyDefinitions().Append(property);}
+    for(auto pair:{std::pair{1,hm::language::Get(hm::language::Text::SyncIssues)},std::pair{2,hm::language::Get(hm::language::Text::UploadExcluded)}}){StorageProviderItemPropertyDefinition property;property.Id(pair.first);property.DisplayNameResource(pair.second);info.StorageProviderItemPropertyDefinitions().Append(property);}
     return info;
 }
 /// <summary>所有本进程根枚举与修改串行，避免WinRT迭代器在其他挂载注销时失效。</summary>
@@ -72,7 +73,7 @@ Json EnsureDefinition(const Json& data){
     using namespace winrt::Windows::Storage::Provider;GuardRoot(data);auto id=data.at("propertyId").get<int>();Require(id==1||id==2);StorageProviderSyncRootInfo info{nullptr};
     for(auto current:RootSnapshot())if(current.Id==RootId(data)){Require(SamePath(current.Path,FullPath(Text(data,"rootPath"))),E_ACCESSDENIED);info=current.Info;break;}
     if(!info)info=Descriptor(data);for(auto property:info.StorageProviderItemPropertyDefinitions())if(property.Id()==id)return Json::object();
-    StorageProviderItemPropertyDefinition property;property.Id(id);property.DisplayNameResource(id==1?L"同步问题":L"上传排除");info.StorageProviderItemPropertyDefinitions().Append(property);GuardRoot(data);StorageProviderSyncRootManager::Register(info);GuardRoot(data);return Json::object();
+    StorageProviderItemPropertyDefinition property;property.Id(id);property.DisplayNameResource(id==1?hm::language::Get(hm::language::Text::SyncIssues):hm::language::Get(hm::language::Text::UploadExcluded));info.StorageProviderItemPropertyDefinitions().Append(property);GuardRoot(data);StorageProviderSyncRootManager::Register(info);GuardRoot(data);return Json::object();
 }
 /// <summary>只刷新已核验自有根的图标；沿用系统返回的整个描述符，失败记录诊断而不伪造新策略。</summary>
 Json RefreshRootIcon(const Json& data,winrt::Windows::Storage::Provider::StorageProviderSyncRootInfo info){

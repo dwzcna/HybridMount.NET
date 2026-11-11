@@ -23,10 +23,12 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public PageStatusMessage StatusMessage {get;}=new();
     public sealed record CapacityDraft(bool Automatic,string Text,string Unit);
     public sealed record DetectionDraft(bool Enabled,double Incremental,double Full);
+    /// <summary>服务原文只作为原文展示，避免与自有提示模板同文时被翻译。</summary>
+    public void ReportError(string text){if(!_disposed&&StatusMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Raw(text),PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));}
     public string Status {get=>StatusMessage.Text;set{if(!_disposed&&StatusMessage.Show(value))OnPropertyChanged();}}
     public Guid? SelectedMountId {get=>_selected;set{if(!_disposed&&SetProperty(ref _selected,value)){OnPropertyChanged(nameof(Selected));NotifyStateChanged();}}}
     public MountSnapshot? Selected=>Mounts.FirstOrDefault(x=>x.Definition.Id==_selected);
-    public MountSnapshot RequireSelected()=>Selected??throw new InvalidOperationException("请先选择一个挂载。");
+    public MountSnapshot RequireSelected()=>Selected??throw new InvalidOperationException(global::HybridMount.Services.Localization.UiText.Text("Text_69E37BF742A4"));
     public bool DialogBusy=>_dialogBusy||_runtimeReconnecting;
     public bool HasRuntimeFailedMounts=>_manager.HasRuntimeFailedMounts;
     public bool CanReconnectRuntimeFailed=>!IsStopping&&!DialogBusy&&_busyMounts.Count==0&&_cancelingConnections.Count==0&&HasRuntimeFailedMounts;
@@ -58,7 +60,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public async Task<OrphanedMountResult> ClearRecoveryRootAsync(OrphanedMountCandidate root,CancellationToken token,Action<string>? progress=null)
     {
         var result=await _manager.ClearOrphanedMountAsync(root,token,progress);if(IsStopping)return result;
-        Status=result.Completed?(root.ShellOnly?"遗留入口已移除：":"遗留挂载已清空并注销：")+root.LocalPath:"遗留挂载尚未移除："+string.Join("；",result.Errors);
+        Status=result.Completed?global::HybridMount.Services.Localization.UiText.Text("Text_8391DA809DD9",(root.ShellOnly?global::HybridMount.Services.Localization.UiText.Text("Text_096B758B03DC"):global::HybridMount.Services.Localization.UiText.Text("Text_8C440D44770E")),root.LocalPath):global::HybridMount.Services.Localization.UiText.Text("Text_8B421796FD67",string.Join("；",result.Errors));
         if(result.Completed){RecoveryRoots.Remove(root);SelectedRecoveryRoot=null;}return result;
     }
     /// <summary>固定多选交给应用；页面释放后不再更新消息或候选，成功项才从列表移除。</summary>
@@ -84,7 +86,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     {
         if(_disposed)return;
         try{var snapshots=_manager.DisplayMounts;if(_manager.DisplaySnapshotError is {} error&&StatusMessage.Update(error,PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));Refreshing?.Invoke();SnapshotCollections.Reconcile(Mounts,snapshots,x=>x.Definition.Id);RefreshItems(snapshots);OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(HasRuntimeFailedMounts));NotifyReconnectState();Refreshed?.Invoke();}
-        catch(Exception error){if(StatusMessage.Update(error.Message,PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
+        catch(Exception error){if(StatusMessage.Update(global::HybridMount.Services.Localization.ResourceMessage.Raw(error.Message),PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));_manager.ReportDiagnosticException("挂载页面","挂载快照读取失败",error);}
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
     {
@@ -122,9 +124,9 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     /// <summary>新建或保存连接，应用拥有网络工作；持久化成功但连接失败时返回可重试的配置，校验失败仍抛出。</summary>
     public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id,string name,string path,bool autoConnect,FileSourceConfiguration settings,SourceCredentials credentials,IReadOnlyList<FileExclusionRule>? exclusions=null,MountCreationOptions? initial=null)
     {
-        if(IsStopping)throw new OperationCanceledException("程序正在停止。",new CancellationToken(true));
+        if(IsStopping)throw new OperationCanceledException(global::HybridMount.Services.Localization.UiText.Text("Text_25EAE2E8931B"),new CancellationToken(true));
         var busyId=id??Guid.Empty;
-        if(!_busyMounts.Add(busyId))throw new InvalidOperationException("该配置正在处理其他操作。");
+        if(!_busyMounts.Add(busyId))throw new InvalidOperationException(global::HybridMount.Services.Localization.UiText.Text("Text_826BE380E194"));
         NotifyStateChanged();var before=_manager.TaskDefinitions.Keys.ToHashSet();
         try
         {
@@ -132,7 +134,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
             if(id is {} existing){await _manager.UpdateCredentialsAsync(existing,credentials,settings:settings);saved=_manager.TaskDefinitions[existing];}
             else saved=await _manager.AddAsync(name,path,autoConnect,source:settings,credentials:credentials,exclusions:exclusions,initial:initial);
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
-            return new(saved,$"已连接 {saved.Name}。");
+            return new(saved,global::HybridMount.Services.Localization.UiText.Text("Text_E987FAE4AEA4",saved.Name));
         }
         catch(OperationCanceledException)when(_manager.IsStopping){throw;}
         catch(Exception error)
@@ -140,7 +142,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
             var saved=_manager.TaskDefinitions.Values.FirstOrDefault(x=>id is {} existing?x.Id==existing:!before.Contains(x.Id)&&x.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase));
             if(saved is null||error is ArgumentException or NotSupportedException)throw;
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
-            Report(error);return new(saved,$"连接未完成：{error.Message}；已保存的配置保留，可编辑或重试。",PageMessageSeverity.Error);
+            Report(error);return new(saved,global::HybridMount.Services.Localization.UiText.Text("Text_83F7CCCF2032",error.Message),PageMessageSeverity.Error);
         }
         finally{_busyMounts.Remove(busyId);if(!_disposed){Refresh();NotifyStateChanged();}}
     }
@@ -153,7 +155,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         if(IsStopping||_runtimeReconnecting||!_busyMounts.Add(id))return;NotifyStateChanged();
         try{await work();}
         catch(OperationCanceledException)when(_manager.IsStopping) { }
-        catch(MountManager.ConnectionStoppedException){Status="连接已停止。";}
+        catch(MountManager.ConnectionStoppedException){Status=global::HybridMount.Services.Localization.UiText.Text("Text_36C0DC4550F0");}
         catch(Exception error){Report(error);}
         finally{_busyMounts.Remove(id);if(!_disposed){Refresh();NotifyStateChanged();}}
     }
@@ -164,7 +166,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         if(IsStopping||DialogBusy)return;_dialogBusy=true;NotifyStateChanged();
         try{await work();}
         catch(OperationCanceledException)when(_manager.IsStopping) { }
-        catch(MountManager.ConnectionStoppedException){Status="连接已停止。";}
+        catch(MountManager.ConnectionStoppedException){Status=global::HybridMount.Services.Localization.UiText.Text("Text_36C0DC4550F0");}
         catch(Exception error){Report(error);}
         finally{_dialogBusy=false;if(!_disposed){Refresh();NotifyStateChanged();}}
     }
@@ -179,8 +181,8 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         {
             try
             {
-                if(!double.IsFinite(draft.Incremental)||!double.IsFinite(draft.Full)||draft.Incremental!=Math.Truncate(draft.Incremental)||draft.Full!=Math.Truncate(draft.Full))throw new ArgumentException("检测间隔必须为有效的整数秒。");
-                await _manager.SetRemoteDetectionAsync(id,draft.Enabled,checked((int)draft.Incremental),checked((int)draft.Full));PublishStatus("检测设置已保存。",PageMessageSeverity.Success);
+                if(!double.IsFinite(draft.Incremental)||!double.IsFinite(draft.Full)||draft.Incremental!=Math.Truncate(draft.Incremental)||draft.Full!=Math.Truncate(draft.Full))throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_BCC223CCC272"));
+                await _manager.SetRemoteDetectionAsync(id,draft.Enabled,checked((int)draft.Incremental),checked((int)draft.Full));PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_FF6DF7520EEE"),PageMessageSeverity.Success);
             }
             finally{_drafts.Remove(id);}
         });
@@ -191,27 +193,27 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         var definition=mount.Definition;
         await _manager.SetRemoteDetectionAsync(id,enabled,definition.RemoteIncrementalSeconds,definition.RemoteFullSeconds);
         if(_drafts.TryGetValue(id,out var draft))_drafts[id]=draft with{Enabled=enabled};
-        PublishStatus(enabled?"远端自动检测已打开。":"远端自动检测已关闭。",PageMessageSeverity.Success);
+        PublishStatus(enabled?global::HybridMount.Services.Localization.UiText.Text("Text_D8BEB94D8189"):global::HybridMount.Services.Localization.UiText.Text("Text_F075BC371E5A"),PageMessageSeverity.Success);
     });
     /// <summary>启动开关即时保存；RunMount统一报告故障并刷新正式快照，表单用正式值回滚。</summary>
-    public Task SetAutoConnectAsync(Guid id,bool enabled)=>RunForMountAsync(id,async _=>{await _manager.SetAutoConnectAsync(id,enabled);PublishStatus("启动连接设置已保存。",PageMessageSeverity.Success);});
+    public Task SetAutoConnectAsync(Guid id,bool enabled)=>RunForMountAsync(id,async _=>{await _manager.SetAutoConnectAsync(id,enabled);PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_28B3B98EB194"),PageMessageSeverity.Success);});
     /// <summary>仅切换容量来源，保留已保存上限和未提交的文本草稿，不把其他字段一起保存。</summary>
     public Task SetCapacityAutomaticAsync(Guid id,bool enabled)=>RunForMountAsync(id,async mount=>
     {
         await _manager.SetCapacityAsync(id,enabled,mount.Definition.MaximumCapacityBytes);
         if(_capacityDrafts.TryGetValue(id,out var draft))_capacityDrafts[id]=draft with{Automatic=enabled};
-        PublishStatus("容量来源设置已保存。",PageMessageSeverity.Success);
+        PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_462C57FFDF1A"),PageMessageSeverity.Success);
     });
     /// <summary>读取指定行当前完整诊断；不联网、不保存，也不依赖当前页面选择。</summary>
     /// <summary>完整诊断由应用后台只读生成，旧简要入口保持兼容。</summary>
     public Task<string> DiagnosticAsync(Guid id)=>_manager.ReadDiagnosticsAsync(id);
-    public string Diagnostic(Guid id)=>FindMount(id)?.Detail is {Length:>0} detail?detail:"当前没有诊断信息。";
+    public string Diagnostic(Guid id)=>FindMount(id)?.Detail is {Length:>0} detail?detail:global::HybridMount.Services.Localization.UiText.Text("Text_B00893BB99C2");
     public Task SetSelectedThumbnailAsync(bool enabled)=>SelectedMountId is {} id?SetThumbnailAsync(id,enabled):Task.CompletedTask;
     public Task SetThumbnailAsync(Guid mountId,bool enabled)
     {
         if(FindMount(mountId) is not {} selected||IsBusy(mountId))return Task.CompletedTask;
         var id=selected.Definition.Id;_thumbnailDrafts[id]=enabled;
-        return RunMountAsync(id,async()=>{try{await _manager.SetThumbnailsEnabledAsync(id,enabled);PublishStatus(enabled?"缩略图已开启，无法高效读取时显示普通图标。":"缩略图已关闭，后台预览已停止。",PageMessageSeverity.Success);}finally{_thumbnailDrafts.Remove(id);}});
+        return RunMountAsync(id,async()=>{try{await _manager.SetThumbnailsEnabledAsync(id,enabled);PublishStatus(enabled?global::HybridMount.Services.Localization.UiText.Text("Text_8A4C0201DBCE"):global::HybridMount.Services.Localization.UiText.Text("Text_B019211CE0BB"),PageMessageSeverity.Success);}finally{_thumbnailDrafts.Remove(id);}});
     }
     /// <summary>SQS 折叠区只读取当前用户的独立凭据，不解析默认凭据链。</summary>
     public SourceCredentials ReadSqsCredentials(Guid id)=>_manager.GetSqsCredentials(id);
@@ -219,10 +221,10 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         =>_manager.TestSqsConnectionAsync(id,options,credentials,token);
     /// <summary>只保存SQS启用值，队列参数及凭据仍由独立保存按钮提交；无有效已保存队列时启用失败并回滚。</summary>
     public Task SetSqsEnabledAsync(Guid id,bool enabled)=>RunForMountAsync(id,async mount=>
-    {await _manager.SetSqsConfigurationAsync(id,(mount.Definition.Sqs??new()) with{Enabled=enabled});PublishStatus("SQS 开关已保存。",PageMessageSeverity.Success);});
+    {await _manager.SetSqsConfigurationAsync(id,(mount.Definition.Sqs??new()) with{Enabled=enabled});PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_70543FF66115"),PageMessageSeverity.Success);});
     /// <summary>按固定挂载身份保存队列设置，失败保留原配置，应用拥有订阅停止和重启。</summary>
     public Task SaveSqsConfigurationAsync(Guid id,SqsConfiguration options,SourceCredentials credentials)=>RunForMountAsync(id,async _=>
-    {await _manager.SetSqsConfigurationAsync(id,options,credentials);PublishStatus("SQS 事件加速设置已保存。",PageMessageSeverity.Success);});
+    {await _manager.SetSqsConfigurationAsync(id,options,credentials);PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_A145A59AE166"),PageMessageSeverity.Success);});
     /// <summary>字节值以十进制 GB 无损呈现；草稿按挂载隔离，列表刷新和选择切换不写回。</summary>
     public CapacityDraft CapacitySettingsDraft(MountDefinition definition)=>_capacityDrafts.GetValueOrDefault(definition.Id)??new(definition.CapacityAutoDetectEnabled,
         definition.MaximumCapacityBytes is {} bytes?((decimal)bytes/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"","GB");
@@ -234,7 +236,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         var id=selected.Definition.Id;var draft=CapacitySettingsDraft(selected.Definition);
         return RunMountAsync(id,async()=>
         {
-            try{var bytes=CapacityRules.ParseMaximum(draft.Text,draft.Unit);await _manager.SetCapacityAsync(id,draft.Automatic,bytes);PublishStatus("容量设置已保存；上传前将按当前设置检查。",PageMessageSeverity.Success);}
+            try{var bytes=CapacityRules.ParseMaximum(draft.Text,draft.Unit);await _manager.SetCapacityAsync(id,draft.Automatic,bytes);PublishStatus(global::HybridMount.Services.Localization.UiText.Text("Text_2825482F8878"),PageMessageSeverity.Success);}
             finally{_capacityDrafts.Remove(id);}
         });
     }
@@ -242,7 +244,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public Task RecheckCapacityAsync(Guid id)=>RunForMountAsync(id,async mount=>
     {
         await _manager.RefreshCapacityAsync(mount.Definition.Id,true);
-        var error=_manager.DisplayMounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error;PublishStatus(error??"容量核实完成；等待任务将重新检查可用空间。",error is null?PageMessageSeverity.Success:PageMessageSeverity.Warning);
+        var error=_manager.DisplayMounts.FirstOrDefault(x=>x.Definition.Id==mount.Definition.Id)?.Capacity?.Error;PublishStatus(error??global::HybridMount.Services.Localization.UiText.Text("Text_616726CC744E"),error is null?PageMessageSeverity.Success:PageMessageSeverity.Warning);
     });
     public async Task ReadCapacityAsync(Guid? id)
     {
@@ -259,18 +261,18 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     {
         if(IsStopping||FindMount(mountId) is not {} selected||!_cancelingConnections.Add(mountId))return;
         var id=selected.Definition.Id;NotifyStateChanged();
-        try{await _manager.DisconnectAsync(id);Status="连接已取消。";}
+        try{await _manager.DisconnectAsync(id);Status=global::HybridMount.Services.Localization.UiText.Text("Text_B364AFEE9249");}
         catch(OperationCanceledException)when(_manager.IsStopping) { }
         catch(Exception error){Report(error);}
         finally{_cancelingConnections.Remove(id);if(!_disposed){Refresh();NotifyStateChanged();}}
     }
     public Task ScanChangesAsync()=>SelectedMountId is {} id?ScanChangesAsync(id):Task.CompletedTask;
-    public Task ScanChangesAsync(Guid id)=>RunForMountAsync(id,async mount=>{await _manager.ScanUploadChangesAsync(mount.Definition.Id);Status="本地扫描完成；新增和修改持续上传，冲突可在任务页查看。";});
+    public Task ScanChangesAsync(Guid id)=>RunForMountAsync(id,async mount=>{await _manager.ScanUploadChangesAsync(mount.Definition.Id);Status=global::HybridMount.Services.Localization.UiText.Text("Text_42B7F8CC659C");});
     public void QueueSelected(string operation){if(SelectedMountId is {} id)QueueMount(id,operation);}
     public void QueueMount(Guid mountId,string operation)
     {
         if(IsStopping||FindMount(mountId) is not {} selected||IsBusy(mountId))return;
-        try{_manager.Queue(selected.Definition.Id,operation);Status="操作已提交，可在任务页查看进度和逐项结果。";}
+        try{_manager.Queue(selected.Definition.Id,operation);Status=global::HybridMount.Services.Localization.UiText.Text("Text_52E0B9B9F464");}
         catch(Exception error){Report(error);}
     }
     /// <summary>行按钮捕获挂载ID，连接中的取消不受连接任务自身忙碌标志阻挡。</summary>
@@ -284,7 +286,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     public void QueueRemoval(Guid id,bool clear)
     {
         if(IsStopping)return;
-        try{_manager.Queue(id,clear?"clearAndRemove":"remove");Status="移除任务已提交，可在任务页查看进度和逐项结果。";}
+        try{_manager.Queue(id,clear?"clearAndRemove":"remove");Status=global::HybridMount.Services.Localization.UiText.Text("Text_273A955713B8");}
         catch(Exception error){Report(error);}
     }
     public void Dispose(){if(_disposed)return;_disposed=true;StatusMessage.Dispose();_manager.Changed-=Changed;_exclusionDrafts.Clear();}

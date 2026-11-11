@@ -11,8 +11,8 @@ public sealed class FormFieldFeedback:IDisposable
     public void Begin(){++_generation;for(var i=_undo.Count-1;i>=0;i--)_undo[i]();_undo.Clear();_first=null;}
     public void Check(bool valid,Control field,string message)
     {
-        if(valid||_disposed)return;_first??=field;var previous=AutomationProperties.GetHelpText(field);AutomationProperties.SetHelpText(field,message);_undo.Add(()=>AutomationProperties.SetHelpText(field,previous));
-        var text=new TextBlock{Text=message,TextWrapping=TextWrapping.Wrap,Style=(Style)Application.Current.Resources["FieldErrorTextStyle"]};AutomationProperties.SetLiveSetting(text,AutomationLiveSetting.Polite);
+        if(valid||_disposed)return;_first??=field;var previous=AutomationProperties.GetHelpText(field);Ui.Set(field,"HelpText",message);_undo.Add(()=>AutomationProperties.SetHelpText(field,previous));
+        var text=new TextBlock{Text=message,TextWrapping=TextWrapping.Wrap,Style=(Style)Application.Current.Resources["FieldErrorTextStyle"]};Ui.Watch(text,"Text");AutomationProperties.SetLiveSetting(text,AutomationLiveSetting.Polite);
         switch(field)
         {
             case TextBox box:var oldText=box.Description;box.Description=text;_undo.Add(()=>box.Description=oldText);break;

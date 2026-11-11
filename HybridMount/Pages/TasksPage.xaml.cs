@@ -11,6 +11,7 @@ namespace HybridMount.Pages;
 /// <summary>独立任务页；后台任务由应用托管，页面仅保留选择及展示结果。</summary>
 public sealed partial class TasksPage : Page, IDisposable
 {
+    private IDisposable? _localization;
     /// <summary>UI 线程上的任务快照集合。</summary>
     public TasksViewModel ViewModel { get; }=new(App.Current.TasksQueue,App.Current.UiDispatcher,App.Current.TaskFocus);
     private bool _restoring,_disposed;
@@ -18,7 +19,7 @@ public sealed partial class TasksPage : Page, IDisposable
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
     public TasksPage()
     {
-        try{InitializeComponent();NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
+        try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
         JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is MountOperationSnapshot job)ViewModel.SelectedJobId=job.Id;};
         ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;Loaded+=PageLoaded;
     }
@@ -48,14 +49,14 @@ public sealed partial class TasksPage : Page, IDisposable
             else if(Directory.Exists(path))options.ItemsToSelect.Add(await global::Windows.Storage.StorageFolder.GetFolderFromPathAsync(path));
             if(!_disposed&&!App.Current.IsExiting)await global::Windows.System.Launcher.LaunchFolderAsync(storage,options);
         }
-        catch(Exception error){if(!_disposed)ViewModel.Status=error.Message;}
+        catch(Exception error){if(!_disposed)ViewModel.ReportError(error.Message);}
     }
     /// <summary>比较及取舍由对应ViewModel持有，页面只显示模态操作界面。</summary>
     private async void ResolveConflict(object sender,RoutedEventArgs args)
     {
         var owned=false;
         try{owned=await ViewModel.BeginConflictAsync();if(!owned)return;await new ConflictResolutionContentDialog(ViewModel){XamlRoot=XamlRoot}.ShowAsync();}
-        catch(Exception error){if(!_disposed)ViewModel.Status=error.Message;}
+        catch(Exception error){if(!_disposed)ViewModel.ReportError(error.Message);}
         finally{if(owned)ViewModel.EndDialog();}
     }
     private void CancelJob(object sender,RoutedEventArgs args)=>ViewModel.CancelSelected();
@@ -66,14 +67,14 @@ public sealed partial class TasksPage : Page, IDisposable
         if(!ViewModel.BeginCopy())return;
         try
         {
-            var field=new TextBox{Header="远端新文件相对路径",Text=ViewModel.CopyPath,MinWidth=400};
+            var field=global::HybridMount.Helpers.UI.Ui.Configure(new TextBox{Text=ViewModel.CopyPath,MinWidth=400},("Header",global::HybridMount.Services.Localization.UiText.Message("Text_E01311A466BF")));
             field.TextChanged+=(_,_)=>ViewModel.CopyPath=field.Text;
             var content=new StackPanel{Spacing=12,MaxWidth=520};content.Children.Add(new TextBlock{Text=ViewModel.CopyContentNotice,TextWrapping=TextWrapping.Wrap});content.Children.Add(field);
-            var dialog=new ContentDialog{XamlRoot=XamlRoot,Title="另存远端副本",Content=content,PrimaryButtonText="上传副本",CloseButtonText="取消",DefaultButton=ContentDialogButton.Close};
-            if(await dialog.ShowAsync()!=ContentDialogResult.Primary)return;
+            var dialog=global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=content,DefaultButton=ContentDialogButton.Close},("Title",global::HybridMount.Services.Localization.UiText.Message("Text_9867EF04D433")),("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_F66DF4636FF4")),("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
+            if(await global::HybridMount.Helpers.UI.Ui.ShowAsync(dialog)!=ContentDialogResult.Primary)return;
             ViewModel.SubmitCopy();RestoreSelection();
         }
-        catch(Exception error){ViewModel.Status=error.Message;}
+        catch(Exception error){ViewModel.ReportError(error.Message);}
         finally{ViewModel.EndDialog();}
     }
     /// <summary>仅清理已完成历史，实际操作和异常处理由 ViewModel 及应用所有者执行。</summary>
@@ -87,13 +88,13 @@ public sealed partial class TasksPage : Page, IDisposable
         {
             var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,MinWidth=400,SelectionMode=ListViewSelectionMode.None};
             var details=new StackPanel{Spacing=12,MinWidth=360,MaxWidth=580};
-            details.Children.Add(new TextBlock{Text=job.IssueDetails,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true});
+            details.Children.Add(global::HybridMount.Helpers.UI.Ui.Bind(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.IssueDetails)));
             if(!ViewModel.IssuesOnly&&!ViewModel.ConflictsOnly)details.Children.Add(list);
-            await new ContentDialog{XamlRoot=XamlRoot,Title=job.DisplayOperation+"："+job.DisplayState,Content=new ScrollViewer{MaxHeight=460,Content=details},CloseButtonText="关闭"}.ShowAsync();
+            await global::HybridMount.Helpers.UI.Ui.Bind(global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=460,Content=details}},("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_3FD47EDCE45B"))),"Title",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation+"："+job.DisplayState)).ShowAsync();
         }
-        catch(Exception error) { ViewModel.Status=error.Message; }
+        catch(Exception error) { ViewModel.ReportError(error.Message); }
         finally { ViewModel.EndDialog(); }
     }
     /// <summary>窗口释放时解除订阅；页面离开导航时仍保留缓存。</summary>
-    public void Dispose() { if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
+    public void Dispose() {_localization?.Dispose();_localization=null; if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.Dispose(); }
 }

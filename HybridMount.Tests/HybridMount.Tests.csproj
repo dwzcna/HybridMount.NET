@@ -18,6 +18,7 @@
     <Content Include="..\HybridMount\Assets\SyncIssue.ico" Link="Assets\SyncIssue.ico" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
   <ItemGroup><Content Include="..\HybridMount\Assets\SyncExcluded.png" Link="Assets\SyncExcluded.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="..\HybridMount\Assets\SyncIssue.png" Link="Assets\SyncIssue.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+  <ItemGroup><Compile Include="..\HybridMount\Services\Localization\ResourceMessage.cs" Link="Production\Localization\ResourceMessage.cs"/><Compile Include="..\HybridMount\Services\Localization\UiLanguageService.cs" Link="Production\Localization\UiLanguageService.cs"/><Compile Include="..\HybridMount\Services\Localization\UiText.cs" Link="Production\Localization\UiText.cs"/><EmbeddedResource Include="..\HybridMount\Resources\UiCatalog.json" LogicalName="HybridMount.Resources.UiCatalog.json"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\ViewModels\PageStatusMessage.cs" Link="Production\ViewModels\PageStatusMessage.cs"/>
     <Compile Include="..\HybridMount\Commons\IAppearancePreferenceStore.cs" Link="Production\Commons\IAppearancePreferenceStore.cs"/>

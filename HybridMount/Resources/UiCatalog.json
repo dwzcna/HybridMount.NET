@@ -1,0 +1,2643 @@
+{
+  "Text_0006D696D8E1": {
+    "Source": "新增",
+    "LocalizableArguments": []
+  },
+  "Text_01054FF40565": {
+    "Source": "启用 SQS 事件加速",
+    "LocalizableArguments": []
+  },
+  "Text_01D3FB1271B4": {
+    "Source": "本地完整内容",
+    "LocalizableArguments": []
+  },
+  "Text_02712916DEE9": {
+    "Source": "清除日志",
+    "LocalizableArguments": []
+  },
+  "Text_02A8658F6601": {
+    "Source": "登录启动默认关闭。",
+    "LocalizableArguments": []
+  },
+  "Text_037626EE90B0": {
+    "Source": "取消选中任务",
+    "LocalizableArguments": []
+  },
+  "Text_03790D861CB9": {
+    "Source": "\n\n所列清空项目的全部本地内容（包括本地修改和新建文件）将永久删除，已删除内容不会回滚。保留空根目录及远端内容。",
+    "LocalizableArguments": []
+  },
+  "Text_04155C834521": {
+    "Source": "挂载尚未连接。",
+    "LocalizableArguments": []
+  },
+  "Text_05531686BE37": {
+    "Source": "清空孤立占位目录",
+    "LocalizableArguments": []
+  },
+  "Text_055D4F94325D": {
+    "Source": "清除失败：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_059EB2CA3210": {
+    "Source": "请输入10至86400范围内的整数秒。",
+    "LocalizableArguments": []
+  },
+  "Text_05FC5419DE3F": {
+    "Source": "匹配文本",
+    "LocalizableArguments": []
+  },
+  "Text_068E55CEAFFC": {
+    "Source": "配置操作已取消。已保存的条目保留，可在挂载列表查看。",
+    "LocalizableArguments": []
+  },
+  "Text_06F0E237D44A": {
+    "Source": "程序正在退出。",
+    "LocalizableArguments": []
+  },
+  "Text_072E597CE266": {
+    "Source": "创建并连接",
+    "LocalizableArguments": []
+  },
+  "Text_075F86B604DE": {
+    "Source": "请输入30至604800范围内的整数秒。",
+    "LocalizableArguments": []
+  },
+  "Text_0902DFC3DD87": {
+    "Source": "请先测试连接并选择共享文件夹。",
+    "LocalizableArguments": []
+  },
+  "Text_096B758B03DC": {
+    "Source": "遗留入口已移除：",
+    "LocalizableArguments": []
+  },
+  "Text_09B02099ADDE": {
+    "Source": "下载远端快照",
+    "LocalizableArguments": []
+  },
+  "Text_09C5BAC0EC82": {
+    "Source": "排除文件（高级）",
+    "LocalizableArguments": []
+  },
+  "Text_09D8C0615F3E": {
+    "Source": "等待容量",
+    "LocalizableArguments": []
+  },
+  "Text_0A4AA028D0F8": {
+    "Source": "文件正在读取或下载，请稍后重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_0A71879C4E40": {
+    "Source": "二步验证码（仅本次登录，不保存）",
+    "LocalizableArguments": []
+  },
+  "Text_0A98A48EAAAC": {
+    "Source": "测试连接",
+    "LocalizableArguments": []
+  },
+  "Text_0ADDD7784578": {
+    "Source": "取消中…",
+    "LocalizableArguments": []
+  },
+  "Text_0B0898C3FDB7": {
+    "Source": "远端自动检测（完整目录轮询）",
+    "LocalizableArguments": []
+  },
+  "Text_0BA9585C89B8": {
+    "Source": "尚无",
+    "LocalizableArguments": []
+  },
+  "Text_0BAA8611E301": {
+    "Source": "正在只读核对两端信息…",
+    "LocalizableArguments": []
+  },
+  "Text_0BC1FB72AE1B": {
+    "Source": "错误",
+    "LocalizableArguments": []
+  },
+  "Text_0BD7CE0F30C6": {
+    "Source": "生命周期记录",
+    "LocalizableArguments": []
+  },
+  "Text_0C350176B3F7": {
+    "Source": "请输入完整的 HTTP 或 HTTPS 服务器地址。",
+    "LocalizableArguments": []
+  },
+  "Text_0C70665B6EB6": {
+    "Source": "否",
+    "LocalizableArguments": []
+  },
+  "Text_0C9E1C407AF7": {
+    "Source": "扫描本地改动",
+    "LocalizableArguments": []
+  },
+  "Text_0D2F94A171FB": {
+    "Source": "处理遗留挂载",
+    "LocalizableArguments": []
+  },
+  "Text_0D98F46613AC": {
+    "Source": "结束日期（不限）",
+    "LocalizableArguments": []
+  },
+  "Text_0DD2D51DBFDB": {
+    "Source": "日志存储异常：{0}；",
+    "LocalizableArguments": []
+  },
+  "Text_0DD665383326": {
+    "Source": "未知挂载操作。",
+    "LocalizableArguments": []
+  },
+  "Text_0E0ED94D08B2": {
+    "Source": "请输入挂载名称。",
+    "LocalizableArguments": []
+  },
+  "Text_0F25BC7459AB": {
+    "Source": "遗留挂载",
+    "LocalizableArguments": []
+  },
+  "Text_0F63185F79E7": {
+    "Source": "旧版源仅支持迁出",
+    "LocalizableArguments": []
+  },
+  "Text_10D3BF1F23A3": {
+    "Source": "允许明文 HTTP（仅可信测试环境）",
+    "LocalizableArguments": []
+  },
+  "Text_110EBEF0A692": {
+    "Source": "使用本地：冻结当前本地内容，按已确认的远端版本条件上传。使用远端：先在同步根外保存可恢复的本地备份，再用核验后的远端内容替换本地。任一端在确认后变化时会停止处理。",
+    "LocalizableArguments": []
+  },
+  "Text_111C061D14C1": {
+    "Source": "收尾失败",
+    "LocalizableArguments": []
+  },
+  "Text_12166E73CDEA": {
+    "Source": "SQS 事件加速：关闭，定时完整对账仍保留",
+    "LocalizableArguments": []
+  },
+  "Text_121799CED97E": {
+    "Source": "始终保留在设备上",
+    "LocalizableArguments": []
+  },
+  "Text_12E2E50738C5": {
+    "Source": "新增挂载",
+    "LocalizableArguments": []
+  },
+  "Text_12F2E12B2F72": {
+    "Source": "移除中",
+    "LocalizableArguments": []
+  },
+  "Text_134E74105193": {
+    "Source": "\n请继续相同的移除方式。",
+    "LocalizableArguments": []
+  },
+  "Text_13E48E89314E": {
+    "Source": "界面密度保存失败，已保留原值。",
+    "LocalizableArguments": []
+  },
+  "Text_13F57F838028": {
+    "Source": "尚无挂载。选择“新增挂载”以连接文件源。",
+    "LocalizableArguments": []
+  },
+  "Text_14024F291A0B": {
+    "Source": "仅剩 Shell 入口",
+    "LocalizableArguments": []
+  },
+  "Text_141CD0B3303A": {
+    "Source": "远端文件已不存在；请另存副本或重新检测。",
+    "LocalizableArguments": []
+  },
+  "Text_1501CBC59F3C": {
+    "Source": "已有上传快照时，副本使用该快照，后续本地编辑不会改变副本。没有快照时，将使用上传准备时的当前本地内容，而不是冲突时的内容。",
+    "LocalizableArguments": []
+  },
+  "Text_151B8100C978": {
+    "Source": "在应用中定位此文件或目录的同步问题；不会自动上传。",
+    "LocalizableArguments": []
+  },
+  "Text_1558E3701CFB": {
+    "Source": "清除本挂载固定指纹",
+    "LocalizableArguments": []
+  },
+  "Text_15BA0E43029F": {
+    "Source": "关闭窗口时将退出应用。",
+    "LocalizableArguments": []
+  },
+  "Text_179CC0D74764": {
+    "Source": "使用明文 HTTP 需先明确允许；建议改用 HTTPS。",
+    "LocalizableArguments": []
+  },
+  "Text_17D7F8B86E5F": {
+    "Source": "只读连接测试",
+    "LocalizableArguments": []
+  },
+  "Text_1875132781C1": {
+    "Source": "改名冲突",
+    "LocalizableArguments": []
+  },
+  "Text_18807DECF3A4": {
+    "Source": "外观设置保存失败。",
+    "LocalizableArguments": []
+  },
+  "Text_19094B4131D7": {
+    "Source": "核对已停止。",
+    "LocalizableArguments": []
+  },
+  "Text_1994380A1BB6": {
+    "Source": "上传队列尚未就绪，请重新连接。",
+    "LocalizableArguments": []
+  },
+  "Text_19B8BF71F5A4": {
+    "Source": "需要迁出",
+    "LocalizableArguments": []
+  },
+  "Text_19BCEEEF8DE1": {
+    "Source": "自动从服务器信息替代",
+    "LocalizableArguments": []
+  },
+  "Text_1A65AC5B8FC1": {
+    "Source": "处理冲突",
+    "LocalizableArguments": []
+  },
+  "Text_1A9F134D31F9": {
+    "Source": "可用{0}/总{1}，基于{2}{3}{4}",
+    "LocalizableArguments": [
+      2,
+      3
+    ]
+  },
+  "Text_1AD08B30AD67": {
+    "Source": "远端内容变化，但本地已修改、固定或正在使用；已保留旧内容，请处理后刷新。",
+    "LocalizableArguments": []
+  },
+  "Text_1AE41157C2AC": {
+    "Source": "原提供程序归属无法核验。临时本地接管并永久删除全部本地内容，随后注销临时根，保留空根目录。",
+    "LocalizableArguments": []
+  },
+  "Text_1B47C4A7CF48": {
+    "Source": " 有新日志，请刷新。",
+    "LocalizableArguments": []
+  },
+  "Text_1B9B75F51D20": {
+    "Source": "搜索日志",
+    "LocalizableArguments": []
+  },
+  "Text_1BD3AAB06B8B": {
+    "Source": "写入结果待核对",
+    "LocalizableArguments": []
+  },
+  "Text_1CBD62ABD1B0": {
+    "Source": "队列区域（必须与 S3 一致）",
+    "LocalizableArguments": []
+  },
+  "Text_1D73995960A9": {
+    "Source": "已请求停止收尾；已完成的云端改名或目标复制会保留。",
+    "LocalizableArguments": []
+  },
+  "Text_1DB537BACF63": {
+    "Source": "已取消，已完成的删除不回滚。",
+    "LocalizableArguments": []
+  },
+  "Text_1DF189916CF0": {
+    "Source": "远端版本在确认后变化，请重新核对；未覆盖任何一端。",
+    "LocalizableArguments": []
+  },
+  "Text_1E087C26D53F": {
+    "Source": "挂载任务",
+    "LocalizableArguments": []
+  },
+  "Text_1F0077159316": {
+    "Source": "跟随 Windows 显示语言；未支持的语言使用简体中文。",
+    "LocalizableArguments": []
+  },
+  "Text_1F5ECAC72EEE": {
+    "Source": "按喜好调整外观",
+    "LocalizableArguments": []
+  },
+  "Text_1FB57F246534": {
+    "Source": "SQS 只读连接测试",
+    "LocalizableArguments": []
+  },
+  "Text_203C08E0D44A": {
+    "Source": "首页",
+    "LocalizableArguments": []
+  },
+  "Text_20A86779FB0F": {
+    "Source": "WebDAV(HTTPS) 入口仅接受 HTTPS 地址。",
+    "LocalizableArguments": []
+  },
+  "Text_217CFE7DB1E3": {
+    "Source": "跟随系统",
+    "LocalizableArguments": []
+  },
+  "Text_219481A6DDE7": {
+    "Source": "上传失败",
+    "LocalizableArguments": []
+  },
+  "Text_21A07234FEB3": {
+    "Source": "任务操作",
+    "LocalizableArguments": []
+  },
+  "Text_21EB21206182": {
+    "Source": "{0}\n{1}",
+    "LocalizableArguments": [
+      1
+    ]
+  },
+  "Text_22096422F1BE": {
+    "Source": "冲突处理未完成：{0}；请重新核对后明确选择，恢复备份保留。",
+    "LocalizableArguments": []
+  },
+  "Text_2242EED5CFDF": {
+    "Source": "仅移除当前用户的 Explorer 遗留入口，保留目录和全部文件。",
+    "LocalizableArguments": []
+  },
+  "Text_22C72115CBD6": {
+    "Source": "远端容量：手动配置上限 {0}；已用及可用尚未核实。",
+    "LocalizableArguments": []
+  },
+  "Text_232959ECE75B": {
+    "Source": "成功 {0} 项，失败 {1} 项，取消 {2} 项，未开始 {3} 项。",
+    "LocalizableArguments": []
+  },
+  "Text_234B77A1E2E0": {
+    "Source": "已请求取消，已完成步骤保留。",
+    "LocalizableArguments": []
+  },
+  "Text_23EAB219248F": {
+    "Source": "部分占位",
+    "LocalizableArguments": []
+  },
+  "Text_23F844F8F167": {
+    "Source": "界面语言读取失败，已保留当前语言。",
+    "LocalizableArguments": []
+  },
+  "Text_23FE6EDCB6CD": {
+    "Source": "上传本地更改",
+    "LocalizableArguments": []
+  },
+  "Text_243C77994AC6": {
+    "Source": "已被新版本替代",
+    "LocalizableArguments": []
+  },
+  "Text_24496C34A422": {
+    "Source": "冲突处理记录已变化，保留备份并停止。",
+    "LocalizableArguments": []
+  },
+  "Text_2459713C2EC0": {
+    "Source": "同步问题 · {0}",
+    "LocalizableArguments": [
+      0
+    ]
+  },
+  "Text_25243EF821C5": {
+    "Source": "准备期间本地文件变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_2556F45FAF22": {
+    "Source": "缩略图（实验性）",
+    "LocalizableArguments": []
+  },
+  "Text_25BD1A95A318": {
+    "Source": "连接测试已取消。",
+    "LocalizableArguments": []
+  },
+  "Text_25E649EB0F1D": {
+    "Source": "检测间隔超出允许范围。",
+    "LocalizableArguments": []
+  },
+  "Text_25EAE2E8931B": {
+    "Source": "程序正在停止。",
+    "LocalizableArguments": []
+  },
+  "Text_25EF22F6DBBF": {
+    "Source": "正在准备用户选择的冲突处理；本地备份完成后才允许写入。",
+    "LocalizableArguments": []
+  },
+  "Text_273A955713B8": {
+    "Source": "移除任务已提交，可在任务页查看进度和逐项结果。",
+    "LocalizableArguments": []
+  },
+  "Text_27467832B606": {
+    "Source": "手动最大容量（留空不限）",
+    "LocalizableArguments": []
+  },
+  "Text_27E53EA275F9": {
+    "Source": "日志结束日期",
+    "LocalizableArguments": []
+  },
+  "Text_2825482F8878": {
+    "Source": "容量设置已保存；上传前将按当前设置检查。",
+    "LocalizableArguments": []
+  },
+  "Text_282FD271CAB9": {
+    "Source": "移除遗留入口",
+    "LocalizableArguments": []
+  },
+  "Text_28384D7AFD2E": {
+    "Source": "失败",
+    "LocalizableArguments": []
+  },
+  "Text_28A7D0B33A09": {
+    "Source": "请选择本地 NTFS 空目录。",
+    "LocalizableArguments": []
+  },
+  "Text_28B3B98EB194": {
+    "Source": "启动连接设置已保存。",
+    "LocalizableArguments": []
+  },
+  "Text_28B4EC4E0528": {
+    "Source": "文件／目录类型冲突需先另存处理，本版仅直接替换普通文件。",
+    "LocalizableArguments": []
+  },
+  "Text_28E0433F19BC": {
+    "Source": "远端改名中",
+    "LocalizableArguments": []
+  },
+  "Text_2952F4853185": {
+    "Source": "清除失败",
+    "LocalizableArguments": []
+  },
+  "Text_29B576B21307": {
+    "Source": "远端自动检测：{0}；{1}完整 {2} 秒；最近成功：{3}{4}",
+    "LocalizableArguments": [
+      1
+    ]
+  },
+  "Text_2A1924653192": {
+    "Source": "界面语言已保存，立即生效。",
+    "LocalizableArguments": []
+  },
+  "Text_2B792BDB2027": {
+    "Source": "下载会话已结束。",
+    "LocalizableArguments": []
+  },
+  "Text_2CD0F3BE8738": {
+    "Source": "取消",
+    "LocalizableArguments": []
+  },
+  "Text_2D711D125254": {
+    "Source": "清空全部本地内容后离线注销，保留空根目录及远端内容。",
+    "LocalizableArguments": []
+  },
+  "Text_2DF4D1DB584B": {
+    "Source": " 本会话未保存 {0} 条。",
+    "LocalizableArguments": []
+  },
+  "Text_2E89004EB19C": {
+    "Source": "操作已提交，可在任务页查看逐项结果。",
+    "LocalizableArguments": []
+  },
+  "Text_2F1459A632D6": {
+    "Source": "旧版挂载不能更换协议。",
+    "LocalizableArguments": []
+  },
+  "Text_2F46A49FD27E": {
+    "Source": "已有实例未响应，请退出旧实例后重试。\n{0}",
+    "LocalizableArguments": []
+  },
+  "Text_2FC79E442B86": {
+    "Source": "等待首次确认",
+    "LocalizableArguments": []
+  },
+  "Text_302C30CAC1DA": {
+    "Source": "修改登录启动失败，正在核对系统实际状态。",
+    "LocalizableArguments": []
+  },
+  "Text_3058C8B169F6": {
+    "Source": "群晖挂载",
+    "LocalizableArguments": []
+  },
+  "Text_311BB313FDEC": {
+    "Source": "账号",
+    "LocalizableArguments": []
+  },
+  "Text_31850649661F": {
+    "Source": "备份密码（可留空，设置时至少 8 个字符）",
+    "LocalizableArguments": []
+  },
+  "Text_3189296AE210": {
+    "Source": "服务器信息",
+    "LocalizableArguments": []
+  },
+  "Text_3201F7EDDF10": {
+    "Source": "普通本地文件或未知项，已保留。",
+    "LocalizableArguments": []
+  },
+  "Text_320256ADF69A": {
+    "Source": "请选择上传、远端更新或改名排除收尾任务。",
+    "LocalizableArguments": []
+  },
+  "Text_323929DEC221": {
+    "Source": "恢复目录包含重解析点，拒绝写入。",
+    "LocalizableArguments": []
+  },
+  "Text_3276C0F65EE8": {
+    "Source": "容量上限",
+    "LocalizableArguments": []
+  },
+  "Text_33042ADBD1EB": {
+    "Source": "不显示缩略图",
+    "LocalizableArguments": []
+  },
+  "Text_335625D8BF94": {
+    "Source": "当前任务正在执行或已经结束。",
+    "LocalizableArguments": []
+  },
+  "Text_335DD2ADA3E2": {
+    "Source": "重新连接全部",
+    "LocalizableArguments": []
+  },
+  "Text_3370AC7181EF": {
+    "Source": "挂载已被移除。",
+    "LocalizableArguments": []
+  },
+  "Text_349616C7D52D": {
+    "Source": "外观设置保存失败，已保留原背景和主题。",
+    "LocalizableArguments": []
+  },
+  "Text_349C4B7EB1F3": {
+    "Source": "清除已完成",
+    "LocalizableArguments": []
+  },
+  "Text_35065CF67F8C": {
+    "Source": "确认清空并移除",
+    "LocalizableArguments": []
+  },
+  "Text_357694508CEF": {
+    "Source": "正在重新核对目录身份…",
+    "LocalizableArguments": []
+  },
+  "Text_363FE96AAFE6": {
+    "Source": "孤立占位目录，原提供程序归属无法核验",
+    "LocalizableArguments": []
+  },
+  "Text_3687F953CFE8": {
+    "Source": "取消连接",
+    "LocalizableArguments": []
+  },
+  "Text_3692B75B6E6E": {
+    "Source": "正在等待当前任务完成，随后冻结本地内容并提交条件上传…",
+    "LocalizableArguments": []
+  },
+  "Text_36C0DC4550F0": {
+    "Source": "连接已停止。",
+    "LocalizableArguments": []
+  },
+  "Text_3763A936DC75": {
+    "Source": "挂载正在移除或已经移除。",
+    "LocalizableArguments": []
+  },
+  "Text_3769CB3E7C40": {
+    "Source": "当前地址会以明文传输凭据和内容，仅在可信测试网络使用。",
+    "LocalizableArguments": []
+  },
+  "Text_37AA6AD6A36D": {
+    "Source": "打开设置",
+    "LocalizableArguments": []
+  },
+  "Text_37CE123BBAD6": {
+    "Source": "请求无效。",
+    "LocalizableArguments": []
+  },
+  "Text_383D9FB36307": {
+    "Source": "本地排除收尾",
+    "LocalizableArguments": []
+  },
+  "Text_39932F24FE11": {
+    "Source": "文件",
+    "LocalizableArguments": []
+  },
+  "Text_399588A8AC78": {
+    "Source": "远端持续变化，初始扫描暂未稳定；连接保留，后台立即继续完整扫描。",
+    "LocalizableArguments": []
+  },
+  "Text_399F4609D242": {
+    "Source": "无法访问当前用户启动项。",
+    "LocalizableArguments": []
+  },
+  "Text_3A55D996B6AF": {
+    "Source": "程序正在退出，连接已停止。",
+    "LocalizableArguments": []
+  },
+  "Text_3AEE8AA1D3BA": {
+    "Source": "旧版模拟源（仅迁出）",
+    "LocalizableArguments": []
+  },
+  "Text_3BD1FA6176CA": {
+    "Source": "SMB（预留）",
+    "LocalizableArguments": []
+  },
+  "Text_3C507E43EF88": {
+    "Source": "清除所有",
+    "LocalizableArguments": []
+  },
+  "Text_3C8354E36FE9": {
+    "Source": "冲突任务不存在。",
+    "LocalizableArguments": []
+  },
+  "Text_3CF3EBC61173": {
+    "Source": "增量检测间隔（秒）",
+    "LocalizableArguments": []
+  },
+  "Text_3D13868593AE": {
+    "Source": "界面语言",
+    "LocalizableArguments": []
+  },
+  "Text_3D1D2F450C37": {
+    "Source": "释放空间",
+    "LocalizableArguments": []
+  },
+  "Text_3D52574CE150": {
+    "Source": "未连接",
+    "LocalizableArguments": []
+  },
+  "Text_3DFA24360DBD": {
+    "Source": "{0:N0} 字节\n修改于 {1:G}\n{2}\n当前本地内容（可能不同于原上传快照）",
+    "LocalizableArguments": [
+      2
+    ]
+  },
+  "Text_3E9FBE03CE66": {
+    "Source": "继续清空并移除",
+    "LocalizableArguments": []
+  },
+  "Text_3FD47EDCE45B": {
+    "Source": "关闭",
+    "LocalizableArguments": []
+  },
+  "Text_403B055E56F5": {
+    "Source": "上传中",
+    "LocalizableArguments": []
+  },
+  "Text_405EE9C5A7CC": {
+    "Source": "缓存上限已保存。",
+    "LocalizableArguments": []
+  },
+  "Text_406558F4B52A": {
+    "Source": "远端枚举包含越界、重复、大小写冲突或无效元数据；未应用快照。",
+    "LocalizableArguments": []
+  },
+  "Text_406A7EEAF369": {
+    "Source": "请输入群晖账号。",
+    "LocalizableArguments": []
+  },
+  "Text_40BB5C6B64B7": {
+    "Source": "处理已停止；已保存的备份和恢复阶段保留。",
+    "LocalizableArguments": []
+  },
+  "Text_40F1B3E4A48A": {
+    "Source": "当前筛选下没有任务。",
+    "LocalizableArguments": []
+  },
+  "Text_4102A5A7C3CB": {
+    "Source": "本地修改、普通文件、活动项或状态不明，已保留。",
+    "LocalizableArguments": []
+  },
+  "Text_428FB8BFEECF": {
+    "Source": "异常",
+    "LocalizableArguments": []
+  },
+  "Text_429EA3AF443D": {
+    "Source": "导出配置",
+    "LocalizableArguments": []
+  },
+  "Text_42B7F8CC659C": {
+    "Source": "本地扫描完成；新增和修改持续上传，冲突可在任务页查看。",
+    "LocalizableArguments": []
+  },
+  "Text_439537652398": {
+    "Source": "解密并预览",
+    "LocalizableArguments": []
+  },
+  "Text_4438ABDEDD78": {
+    "Source": "HybridMount 加密配置",
+    "LocalizableArguments": []
+  },
+  "Text_4465E830BDF6": {
+    "Source": "界面密度保存失败。",
+    "LocalizableArguments": []
+  },
+  "Text_446A6E89ECA0": {
+    "Source": "请选择仍未解决的文件冲突。",
+    "LocalizableArguments": []
+  },
+  "Text_44979BA1F128": {
+    "Source": "界面密度",
+    "LocalizableArguments": []
+  },
+  "Text_44C6E3CF9291": {
+    "Source": "请先选择上传、远端更新或排除改名收尾任务。",
+    "LocalizableArguments": []
+  },
+  "Text_44CA7FFC290A": {
+    "Source": "冲突处理待完成",
+    "LocalizableArguments": []
+  },
+  "Text_457866E138AA": {
+    "Source": "S3 挂载",
+    "LocalizableArguments": []
+  },
+  "Text_45898B09954D": {
+    "Source": "使用本地覆盖远端",
+    "LocalizableArguments": []
+  },
+  "Text_45FB95610363": {
+    "Source": "冲突",
+    "LocalizableArguments": []
+  },
+  "Text_462C57FFDF1A": {
+    "Source": "容量来源设置已保存。",
+    "LocalizableArguments": []
+  },
+  "Text_4671CBE46DE8": {
+    "Source": "始终保留在此设备上",
+    "LocalizableArguments": []
+  },
+  "Text_4673A2306165": {
+    "Source": "下载",
+    "LocalizableArguments": []
+  },
+  "Text_46F09994B42F": {
+    "Source": "请先重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_4704B931C397": {
+    "Source": "文件已排除；固定或释放空间前请先解除对应规则。",
+    "LocalizableArguments": []
+  },
+  "Text_473A0089F3A0": {
+    "Source": "业务处理",
+    "LocalizableArguments": []
+  },
+  "Text_473E68812310": {
+    "Source": "缺少原生挂载会话。",
+    "LocalizableArguments": []
+  },
+  "Text_479D45C856A1": {
+    "Source": "缓存软上限（GiB，0 关闭自动回收）",
+    "LocalizableArguments": []
+  },
+  "Text_482B9676C943": {
+    "Source": "继续移除收尾",
+    "LocalizableArguments": []
+  },
+  "Text_483050200DFF": {
+    "Source": "S3 完整对账",
+    "LocalizableArguments": []
+  },
+  "Text_484747613975": {
+    "Source": "配置备份",
+    "LocalizableArguments": []
+  },
+  "Text_484C52248816": {
+    "Source": "保留的本地恢复备份：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_4956B313D0C3": {
+    "Source": "占位归属不匹配，停止解除。",
+    "LocalizableArguments": []
+  },
+  "Text_499B2ECC88CD": {
+    "Source": "随程序启动连接",
+    "LocalizableArguments": []
+  },
+  "Text_49BE72E6045C": {
+    "Source": "取消测试",
+    "LocalizableArguments": []
+  },
+  "Text_4BB83F1A69F9": {
+    "Source": "本地 NTFS 空目录",
+    "LocalizableArguments": []
+  },
+  "Text_4BD0E1A6ED5A": {
+    "Source": "已改名并排除",
+    "LocalizableArguments": []
+  },
+  "Text_4C0B929BDBE0": {
+    "Source": "登录 Windows 后启动",
+    "LocalizableArguments": []
+  },
+  "Text_4C533F41EF3C": {
+    "Source": "缩略图：关闭",
+    "LocalizableArguments": []
+  },
+  "Text_4CA35F63DD99": {
+    "Source": "清空并移除",
+    "LocalizableArguments": []
+  },
+  "Text_4D2966C43800": {
+    "Source": "尚未检测",
+    "LocalizableArguments": []
+  },
+  "Text_4D8C1C5B4283": {
+    "Source": "未知",
+    "LocalizableArguments": []
+  },
+  "Text_4DC4E0597723": {
+    "Source": "P{0} · {1}{2}",
+    "LocalizableArguments": [
+      2
+    ]
+  },
+  "Text_4DF8B18F18FD": {
+    "Source": "请输入访问密钥。",
+    "LocalizableArguments": []
+  },
+  "Text_4EDAD650FAE2": {
+    "Source": "导入结果：已保存 {0}，跳过 {1}，失败 {2}，取消 {3}。已保存的挂载尚未连接。",
+    "LocalizableArguments": []
+  },
+  "Text_4FA7EB633C82": {
+    "Source": "日志列表",
+    "LocalizableArguments": []
+  },
+  "Text_5026A63B58CD": {
+    "Source": "执行中",
+    "LocalizableArguments": []
+  },
+  "Text_509C3DED7832": {
+    "Source": "清空中",
+    "LocalizableArguments": []
+  },
+  "Text_50A225C4305F": {
+    "Source": "{0} (副本){1}",
+    "LocalizableArguments": []
+  },
+  "Text_5148506BD02C": {
+    "Source": "群晖没有增量变更游标，目录扫描按完整对账间隔执行。",
+    "LocalizableArguments": []
+  },
+  "Text_5181CEC8801A": {
+    "Source": "设置 · {0}",
+    "LocalizableArguments": []
+  },
+  "Text_5214E0BC5DCE": {
+    "Source": "设置 · ",
+    "LocalizableArguments": []
+  },
+  "Text_5253040DB864": {
+    "Source": "任务",
+    "LocalizableArguments": []
+  },
+  "Text_52778ABC35DC": {
+    "Source": "当前本地",
+    "LocalizableArguments": []
+  },
+  "Text_52DAA71EBC31": {
+    "Source": "目录",
+    "LocalizableArguments": []
+  },
+  "Text_52E0B9B9F464": {
+    "Source": "操作已提交，可在任务页查看进度和逐项结果。",
+    "LocalizableArguments": []
+  },
+  "Text_531B2FBE33FE": {
+    "Source": "下载期间本地文件变化，未替换。",
+    "LocalizableArguments": []
+  },
+  "Text_539FEA346ABE": {
+    "Source": "\n正在查询…",
+    "LocalizableArguments": []
+  },
+  "Text_54D90665FA1C": {
+    "Source": "改名或映射路径不同的冲突请先另存副本，本版不直接替换。",
+    "LocalizableArguments": []
+  },
+  "Text_54D9C129C871": {
+    "Source": "随程序启动连接：{0}；缩略图：{1}{2}",
+    "LocalizableArguments": [
+      0,
+      1,
+      2
+    ]
+  },
+  "Text_553CA8C4287A": {
+    "Source": "该账号没有可访问的共享文件夹，不能创建挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_561D945CB5D1": {
+    "Source": "远端删除已清理。",
+    "LocalizableArguments": []
+  },
+  "Text_564385D36F6C": {
+    "Source": " · 下次重试：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_579016860831": {
+    "Source": "关闭偏好读取失败，暂按隐藏到托盘处理。",
+    "LocalizableArguments": []
+  },
+  "Text_57E4A215300D": {
+    "Source": "完整诊断 · {0}",
+    "LocalizableArguments": []
+  },
+  "Text_5825A60ECD90": {
+    "Source": "挂载正在移除。",
+    "LocalizableArguments": []
+  },
+  "Text_584FE9F9F916": {
+    "Source": "关闭窗口时将隐藏到托盘。",
+    "LocalizableArguments": []
+  },
+  "Text_587ECDB3BA8F": {
+    "Source": "桶名 / Bucket",
+    "LocalizableArguments": []
+  },
+  "Text_5917CFAF5C13": {
+    "Source": "当前没有可导出的 WebDAV、S3 或群晖挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_59389C2718F4": {
+    "Source": "打开所在位置",
+    "LocalizableArguments": []
+  },
+  "Text_59DC88878288": {
+    "Source": "同步根注册丢失且残留云占位，保留恢复信息，禁止直接清空。",
+    "LocalizableArguments": []
+  },
+  "Text_5A3D014AC053": {
+    "Source": "原同步版本：{0}{1}",
+    "LocalizableArguments": [
+      0,
+      1
+    ]
+  },
+  "Text_5A5C8318EF64": {
+    "Source": "已选择 {0} 项",
+    "LocalizableArguments": []
+  },
+  "Text_5A9DD0F15C3F": {
+    "Source": "无法确定应用路径。",
+    "LocalizableArguments": []
+  },
+  "Text_5AD47509C90B": {
+    "Source": "关闭远端自动检测",
+    "LocalizableArguments": []
+  },
+  "Text_5B751D3A80A6": {
+    "Source": "远端自动检测(RFC 6578)",
+    "LocalizableArguments": []
+  },
+  "Text_5BE0323E8ADC": {
+    "Source": "已连接",
+    "LocalizableArguments": []
+  },
+  "Text_5CC09FEC5D5D": {
+    "Source": "地址无效",
+    "LocalizableArguments": []
+  },
+  "Text_5CC6147C2C9A": {
+    "Source": "SQS 测试已取消。",
+    "LocalizableArguments": []
+  },
+  "Text_5D48FFBF5714": {
+    "Source": "清理任务历史",
+    "LocalizableArguments": []
+  },
+  "Text_5D63D587B0B0": {
+    "Source": "紧凑",
+    "LocalizableArguments": []
+  },
+  "Text_5F03A03C17D2": {
+    "Source": "；使用目标机器的 SDK 默认凭据链",
+    "LocalizableArguments": []
+  },
+  "Text_5FA244294998": {
+    "Source": "上传排除",
+    "LocalizableArguments": []
+  },
+  "Text_601740321114": {
+    "Source": "同步与预览",
+    "LocalizableArguments": []
+  },
+  "Text_6043ED945D43": {
+    "Source": "本地普通文件",
+    "LocalizableArguments": []
+  },
+  "Text_60A9B09E1708": {
+    "Source": "WebDAV 挂载",
+    "LocalizableArguments": []
+  },
+  "Text_613A439ECFB6": {
+    "Source": "Explorer提示：{0}\n{1}",
+    "LocalizableArguments": []
+  },
+  "Text_616726CC744E": {
+    "Source": "容量核实完成；等待任务将重新检查可用空间。",
+    "LocalizableArguments": []
+  },
+  "Text_63116F299742": {
+    "Source": "HTTP 会以明文传输账号、密码和文件内容。仅在可信网络中明确允许后使用；建议使用 HTTPS（5001）。",
+    "LocalizableArguments": []
+  },
+  "Text_636BB9497DA5": {
+    "Source": "关闭偏好保存失败，已保留原值。",
+    "LocalizableArguments": []
+  },
+  "Text_63B83F7866E8": {
+    "Source": "恢复目录不能位于任何同步根内。",
+    "LocalizableArguments": []
+  },
+  "Text_63BD7A43C5C3": {
+    "Source": "完整下载后保留为普通本地目录。",
+    "LocalizableArguments": []
+  },
+  "Text_63D90D977348": {
+    "Source": "复制",
+    "LocalizableArguments": []
+  },
+  "Text_6439A5C466AB": {
+    "Source": "独立访问密钥",
+    "LocalizableArguments": []
+  },
+  "Text_64FA7CF5B492": {
+    "Source": "请输入范围内的整数检测间隔。",
+    "LocalizableArguments": []
+  },
+  "Text_659875587949": {
+    "Source": "查看日志",
+    "LocalizableArguments": []
+  },
+  "Text_65C8EFD51BD1": {
+    "Source": "任务结果见任务页。",
+    "LocalizableArguments": []
+  },
+  "Text_65EB2EC28D93": {
+    "Source": "不能混合不同挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_66009C547BED": {
+    "Source": "尚未启动",
+    "LocalizableArguments": []
+  },
+  "Text_66456857A9CF": {
+    "Source": "清除本机已保存的运行日志？",
+    "LocalizableArguments": []
+  },
+  "Text_66CA3F9F3BF4": {
+    "Source": "挂载资源清理未全部完成。",
+    "LocalizableArguments": []
+  },
+  "Text_66D6E64FB489": {
+    "Source": "日志操作",
+    "LocalizableArguments": []
+  },
+  "Text_66DD1880BBA8": {
+    "Source": "快照已就绪",
+    "LocalizableArguments": []
+  },
+  "Text_6744B4C6A9AA": {
+    "Source": "已关闭",
+    "LocalizableArguments": []
+  },
+  "Text_67D79EEC4C8E": {
+    "Source": "\n正在抓取容量信息…",
+    "LocalizableArguments": []
+  },
+  "Text_68C60746F1D0": {
+    "Source": "任务 ID",
+    "LocalizableArguments": []
+  },
+  "Text_694186911AE3": {
+    "Source": "正在连接",
+    "LocalizableArguments": []
+  },
+  "Text_69E37BF742A4": {
+    "Source": "请先选择一个挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_6A4F3B622778": {
+    "Source": "群晖 NAS：{0}；远端根 {1}",
+    "LocalizableArguments": []
+  },
+  "Text_6B814AEC0BC3": {
+    "Source": "保存容量设置",
+    "LocalizableArguments": []
+  },
+  "Text_6B9CA6BA6D6B": {
+    "Source": "本地提交",
+    "LocalizableArguments": []
+  },
+  "Text_6BA8698BDFD7": {
+    "Source": "清空并注销",
+    "LocalizableArguments": []
+  },
+  "Text_6BD268503883": {
+    "Source": "无材质",
+    "LocalizableArguments": []
+  },
+  "Text_6BEA77ACEFB3": {
+    "Source": "标准",
+    "LocalizableArguments": []
+  },
+  "Text_6C05B4B383AF": {
+    "Source": "已用：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_6C17E763C3ED": {
+    "Source": "远端手动检测（完整对账）",
+    "LocalizableArguments": []
+  },
+  "Text_6C6F465F7A3D": {
+    "Source": "\n最近成功：{0:g}",
+    "LocalizableArguments": []
+  },
+  "Text_6DB506073EE6": {
+    "Source": "核对时间：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_6DBB10EA12BB": {
+    "Source": "界面密度读取失败，暂用标准布局。",
+    "LocalizableArguments": []
+  },
+  "Text_6E2647317D86": {
+    "Source": "远端容量：未设置容量限制。",
+    "LocalizableArguments": []
+  },
+  "Text_6E5DDDF098FC": {
+    "Source": "保存排除规则",
+    "LocalizableArguments": []
+  },
+  "Text_6FC9C71CB14F": {
+    "Source": "挂载",
+    "LocalizableArguments": []
+  },
+  "Text_6FCCF0CDC9E9": {
+    "Source": "服务器不支持可靠的条件更新，请另存副本。",
+    "LocalizableArguments": []
+  },
+  "Text_6FE6313EFE02": {
+    "Source": "处理期间连接、设置或事务变化，保留备份并停止。",
+    "LocalizableArguments": []
+  },
+  "Text_70543FF66115": {
+    "Source": "SQS 开关已保存。",
+    "LocalizableArguments": []
+  },
+  "Text_7070A69BB3D7": {
+    "Source": "请通过 NAS 管理渠道核对以下 SHA-256；不会修改系统或其他挂载的信任设置：\n{0}",
+    "LocalizableArguments": []
+  },
+  "Text_70CCDAD8E77E": {
+    "Source": "原生后台已断开",
+    "LocalizableArguments": []
+  },
+  "Text_70D1401819D1": {
+    "Source": "已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。",
+    "LocalizableArguments": []
+  },
+  "Text_70D3819407EA": {
+    "Source": "已有挂载不能更换远端根，请新建挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_70E7E5F6BC2F": {
+    "Source": "排除规则已保存。{0}",
+    "LocalizableArguments": []
+  },
+  "Text_710B1958F2AB": {
+    "Source": "重新核对",
+    "LocalizableArguments": []
+  },
+  "Text_71668ADD2876": {
+    "Source": "文件名文本",
+    "LocalizableArguments": []
+  },
+  "Text_7179375682A0": {
+    "Source": "请核对服务器证书",
+    "LocalizableArguments": []
+  },
+  "Text_718CA0358795": {
+    "Source": "用户输入",
+    "LocalizableArguments": []
+  },
+  "Text_725A5CC6FBC4": {
+    "Source": "下载后远端再次变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_7265AF89876F": {
+    "Source": "副本任务已提交；目标已存在时会拒绝覆盖。",
+    "LocalizableArguments": []
+  },
+  "Text_73213BCEB8A1": {
+    "Source": "同步问题",
+    "LocalizableArguments": []
+  },
+  "Text_73555A93A314": {
+    "Source": "未能完成操作",
+    "LocalizableArguments": []
+  },
+  "Text_73A0558AC622": {
+    "Source": "本地新增和修改持续自动上传",
+    "LocalizableArguments": []
+  },
+  "Text_7410DAE3F11E": {
+    "Source": "尚未核对",
+    "LocalizableArguments": []
+  },
+  "Text_745490C041CD": {
+    "Source": "{0}\n\n下载并移除：完整下载后保留为普通本地目录。\n\n清空并移除：永久删除目录内全部内容，包括本地修改和新建文件，保留空根目录；不删除文件源内容。",
+    "LocalizableArguments": []
+  },
+  "Text_750F712B33B8": {
+    "Source": "完整对账间隔（秒）",
+    "LocalizableArguments": []
+  },
+  "Text_7515E4586021": {
+    "Source": "请在 Windows 的启动应用设置中重新允许此应用。",
+    "LocalizableArguments": []
+  },
+  "Text_75604CC8C1A4": {
+    "Source": "允许明文 HTTP（5000 端口）",
+    "LocalizableArguments": []
+  },
+  "Text_76420433F22D": {
+    "Source": "导出",
+    "LocalizableArguments": []
+  },
+  "Text_77326E285D63": {
+    "Source": "使用远端替换本地",
+    "LocalizableArguments": []
+  },
+  "Text_776A4AD39EDC": {
+    "Source": "确认处理 {0} 个遗留项目",
+    "LocalizableArguments": []
+  },
+  "Text_77C4A50009F0": {
+    "Source": "HybridMount.NET 启动失败：\n{0}\n{1}\n请查看 Logs 中的 lifecycle 启动诊断。",
+    "LocalizableArguments": []
+  },
+  "Text_77CE7125B59F": {
+    "Source": "{0:N0} / {1:N0} 项",
+    "LocalizableArguments": []
+  },
+  "Text_7900C6A340E6": {
+    "Source": "相关路径仍有上传或结果待核对，请先完成核对。",
+    "LocalizableArguments": []
+  },
+  "Text_792BAAFC9179": {
+    "Source": "始终保留",
+    "LocalizableArguments": []
+  },
+  "Text_79989E841C63": {
+    "Source": "结果待核对",
+    "LocalizableArguments": []
+  },
+  "Text_79B2E33A7EDA": {
+    "Source": "旧版模拟源保留；请选择下载并移除或清空。",
+    "LocalizableArguments": []
+  },
+  "Text_7AA8F0383C44": {
+    "Source": "备份挂载配置列表",
+    "LocalizableArguments": []
+  },
+  "Text_7B12C2DAAD9B": {
+    "Source": "增量 {0} 秒，",
+    "LocalizableArguments": []
+  },
+  "Text_7B80D5D2DE3D": {
+    "Source": "此协议尚未提供配置窗口。",
+    "LocalizableArguments": []
+  },
+  "Text_7D0D5850515D": {
+    "Source": "打开目录",
+    "LocalizableArguments": []
+  },
+  "Text_7DBAC1C20F23": {
+    "Source": "日志",
+    "LocalizableArguments": []
+  },
+  "Text_7DE8A6DFD5E0": {
+    "Source": "当前筛选下没有日志。",
+    "LocalizableArguments": []
+  },
+  "Text_7E04EC712169": {
+    "Source": "容量检查",
+    "LocalizableArguments": []
+  },
+  "Text_7E214ED64AE3": {
+    "Source": "部分失败",
+    "LocalizableArguments": []
+  },
+  "Text_7ED1A2EB244B": {
+    "Source": "查看同步问题",
+    "LocalizableArguments": []
+  },
+  "Text_7F8906AE1654": {
+    "Source": "自动识别卷容量（非账号配额）",
+    "LocalizableArguments": []
+  },
+  "Text_8073A15C1F2C": {
+    "Source": "密码或第三方应用密码",
+    "LocalizableArguments": []
+  },
+  "Text_8076F11E7AB1": {
+    "Source": "远端事件仍待完整核对，请先刷新。",
+    "LocalizableArguments": []
+  },
+  "Text_8084D978D651": {
+    "Source": "远端自动检测",
+    "LocalizableArguments": []
+  },
+  "Text_80A50A7D7092": {
+    "Source": "远端自动检测：关闭",
+    "LocalizableArguments": []
+  },
+  "Text_80A92AD480C0": {
+    "Source": "远端手动检测",
+    "LocalizableArguments": []
+  },
+  "Text_80B19D68B149": {
+    "Source": "单位",
+    "LocalizableArguments": []
+  },
+  "Text_814FA76101AE": {
+    "Source": "SQS 事件加速：已暂停（远端自动检测关闭）",
+    "LocalizableArguments": []
+  },
+  "Text_81D8F892D4FF": {
+    "Source": "本地已清空，注销收尾待完成",
+    "LocalizableArguments": []
+  },
+  "Text_81F9B5554532": {
+    "Source": "全部级别",
+    "LocalizableArguments": []
+  },
+  "Text_826BE380E194": {
+    "Source": "该配置正在处理其他操作。",
+    "LocalizableArguments": []
+  },
+  "Text_8391DA809DD9": {
+    "Source": "{0}{1}",
+    "LocalizableArguments": [
+      0,
+      1
+    ]
+  },
+  "Text_83BD080477A5": {
+    "Source": "日志操作失败：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_83F7CCCF2032": {
+    "Source": "连接未完成：{0}；已保存的配置保留，可编辑或重试。",
+    "LocalizableArguments": []
+  },
+  "Text_84F8745990CF": {
+    "Source": "阶段：{0}",
+    "LocalizableArguments": [
+      0
+    ]
+  },
+  "Text_85A95E8DF55D": {
+    "Source": " 可加载更早记录。",
+    "LocalizableArguments": []
+  },
+  "Text_86A63F23A076": {
+    "Source": "外观",
+    "LocalizableArguments": []
+  },
+  "Text_86E70C1B4824": {
+    "Source": "立即切换界面语言，保留当前页面和未保存内容。",
+    "LocalizableArguments": []
+  },
+  "Text_883B44EB98B9": {
+    "Source": "\n内容处理已经完成，只继续注销和 Explorer 入口收尾。",
+    "LocalizableArguments": []
+  },
+  "Text_8851882C5C31": {
+    "Source": "移除未完成，不能改用其他模式或执行缓存任务。",
+    "LocalizableArguments": []
+  },
+  "Text_88CF2DC00C34": {
+    "Source": "已中断",
+    "LocalizableArguments": []
+  },
+  "Text_8996FEF8E302": {
+    "Source": "注册已丢失且残留云占位，保留现场。",
+    "LocalizableArguments": []
+  },
+  "Text_899961D8BE6E": {
+    "Source": "外观设置读取失败，已保留当前有效选择。",
+    "LocalizableArguments": []
+  },
+  "Text_89B9CD516C25": {
+    "Source": "核对期间会话、索引或任务变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_8A035498ED3A": {
+    "Source": "占位身份未通过核验，未提供直接覆盖。",
+    "LocalizableArguments": []
+  },
+  "Text_8A4C0201DBCE": {
+    "Source": "缩略图已开启，无法高效读取时显示普通图标。",
+    "LocalizableArguments": []
+  },
+  "Text_8A8B89ACE6E7": {
+    "Source": "清除失败及部分失败的任务历史，不删除文件或恢复数据。",
+    "LocalizableArguments": []
+  },
+  "Text_8AEC3F53FA0E": {
+    "Source": "远端变更待处理。",
+    "LocalizableArguments": []
+  },
+  "Text_8B2EE1B00033": {
+    "Source": "外观设置尚未读取。",
+    "LocalizableArguments": []
+  },
+  "Text_8B421796FD67": {
+    "Source": "遗留挂载尚未移除：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_8BAA7CFDED0B": {
+    "Source": "目录前缀（可选）",
+    "LocalizableArguments": []
+  },
+  "Text_8BFDE51F46F3": {
+    "Source": "已核对本产品遗留同步根",
+    "LocalizableArguments": []
+  },
+  "Text_8BFF5A44439A": {
+    "Source": "正在重试 · ",
+    "LocalizableArguments": []
+  },
+  "Text_8C440D44770E": {
+    "Source": "遗留挂载已清空并注销：",
+    "LocalizableArguments": []
+  },
+  "Text_8C874AC291D6": {
+    "Source": "\n恢复备份：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_8CE158B4E774": {
+    "Source": "另存副本",
+    "LocalizableArguments": []
+  },
+  "Text_8CE3B0ABB728": {
+    "Source": "任务 ID，可选中复制以便查询或反馈。",
+    "LocalizableArguments": []
+  },
+  "Text_8D3061703E17": {
+    "Source": "HybridMount.NET 已运行。",
+    "LocalizableArguments": []
+  },
+  "Text_8D3E89FEE69D": {
+    "Source": "界面语言保存失败，已保留原语言。",
+    "LocalizableArguments": []
+  },
+  "Text_8D99B9A09314": {
+    "Source": "未发现可核对的遗留挂载，可选择旧挂载目录进行核验。",
+    "LocalizableArguments": []
+  },
+  "Text_8DA97DDDA990": {
+    "Source": "开启",
+    "LocalizableArguments": []
+  },
+  "Text_8DC463228929": {
+    "Source": "管理此挂载的离线缓存；本地修改会受到保护。",
+    "LocalizableArguments": []
+  },
+  "Text_8DF2FA80A06C": {
+    "Source": "共享文件夹",
+    "LocalizableArguments": []
+  },
+  "Text_8EF667892EFE": {
+    "Source": "请先选择同步问题。",
+    "LocalizableArguments": []
+  },
+  "Text_8F40E6007E17": {
+    "Source": "未纳入上传",
+    "LocalizableArguments": []
+  },
+  "Text_8F90C4B59802": {
+    "Source": "相关目录或本地提交尚未完成，不能绕过其保护。",
+    "LocalizableArguments": []
+  },
+  "Text_8FD2EE522D59": {
+    "Source": "首版支持读取、新建及另存副本。覆盖、删除和移动保持冲突保护；仅联机缩略图暂不支持。",
+    "LocalizableArguments": []
+  },
+  "Text_8FF8046CE58B": {
+    "Source": "{0:N0} 字节\n修改于 {1:G}\n版本：{2}",
+    "LocalizableArguments": []
+  },
+  "Text_9035F546529B": {
+    "Source": "未选择文件。",
+    "LocalizableArguments": []
+  },
+  "Text_91793038397C": {
+    "Source": "已停止收尾",
+    "LocalizableArguments": []
+  },
+  "Text_91D4BB7F12AD": {
+    "Source": "{0}\n\n目录内全部本地内容（包括修改和新建文件）将被永久删除。保留空根目录及远端数据，已删除内容不会回滚。",
+    "LocalizableArguments": []
+  },
+  "Text_92849724B15A": {
+    "Source": "本地元数据读取失败：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_929769415F7E": {
+    "Source": "https://nas.example.com:5006/共享文件夹/",
+    "LocalizableArguments": []
+  },
+  "Text_9299A5E47BB2": {
+    "Source": "按需挂载已就绪",
+    "LocalizableArguments": []
+  },
+  "Text_92B13F21F95E": {
+    "Source": "已保留恢复记录。请先核对未确认结果，再重新连接受影响的挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_93D305FC0E03": {
+    "Source": "程序正在退出，已停止清理。",
+    "LocalizableArguments": []
+  },
+  "Text_94766C908207": {
+    "Source": "日志开始日期",
+    "LocalizableArguments": []
+  },
+  "Text_970F3009DDCD": {
+    "Source": "关闭窗口时隐藏到托盘",
+    "LocalizableArguments": []
+  },
+  "Text_9730C3C6F841": {
+    "Source": "断开中…",
+    "LocalizableArguments": []
+  },
+  "Text_9779595F3198": {
+    "Source": "开始日期（不限）",
+    "LocalizableArguments": []
+  },
+  "Text_97AEFDCEF758": {
+    "Source": "取回本地并核验",
+    "LocalizableArguments": []
+  },
+  "Text_97B59261591A": {
+    "Source": "移除过程中不能更换凭据。",
+    "LocalizableArguments": []
+  },
+  "Text_97DBD0360022": {
+    "Source": "{0:N0} / {1:N0} 字节",
+    "LocalizableArguments": []
+  },
+  "Text_97E29C4B43A8": {
+    "Source": "已按确认的远端版本提交条件上传；远端再次变化时仍会保留冲突。",
+    "LocalizableArguments": []
+  },
+  "Text_97E3BE741179": {
+    "Source": "文本日志",
+    "LocalizableArguments": []
+  },
+  "Text_9867EF04D433": {
+    "Source": "另存远端副本",
+    "LocalizableArguments": []
+  },
+  "Text_987BEBDCFF0D": {
+    "Source": "移除模式已固定，请继续原来的移除任务。",
+    "LocalizableArguments": []
+  },
+  "Text_989539954F09": {
+    "Source": "界面语言设置尚未读取。",
+    "LocalizableArguments": []
+  },
+  "Text_98B1705744A3": {
+    "Source": "已清除 {0} 条{1}任务历史；进行中和待处理任务保留。",
+    "LocalizableArguments": [
+      1
+    ]
+  },
+  "Text_9A0F126A843B": {
+    "Source": "同步、容量与预览（高级）",
+    "LocalizableArguments": []
+  },
+  "Text_9A4D7A27AB0E": {
+    "Source": "本次回收 {0:F1} MiB，当前占用约 {1:F1} MiB。",
+    "LocalizableArguments": []
+  },
+  "Text_9AAB6315EDD6": {
+    "Source": "挂载正在断开，请完成后重新连接。",
+    "LocalizableArguments": []
+  },
+  "Text_9BAE68040509": {
+    "Source": "主导航",
+    "LocalizableArguments": []
+  },
+  "Text_9BC703EA466D": {
+    "Source": "核对期间本地文件变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_9CEA6B88615A": {
+    "Source": "操作已完成。",
+    "LocalizableArguments": []
+  },
+  "Text_9D163C698599": {
+    "Source": "选择旧挂载目录",
+    "LocalizableArguments": []
+  },
+  "Text_9D25DF22DEE7": {
+    "Source": "挂载列表",
+    "LocalizableArguments": []
+  },
+  "Text_9D2CA261281A": {
+    "Source": "稍后",
+    "LocalizableArguments": []
+  },
+  "Text_9D933522D6D0": {
+    "Source": "窗口主题",
+    "LocalizableArguments": []
+  },
+  "Text_9E07E3C0532D": {
+    "Source": "上传",
+    "LocalizableArguments": []
+  },
+  "Text_9E449AB53AA1": {
+    "Source": "远端文件与目录类型变化，保留本地内容，请处理冲突。",
+    "LocalizableArguments": []
+  },
+  "Text_9F07D2CE4115": {
+    "Source": "更多操作",
+    "LocalizableArguments": []
+  },
+  "Text_9F2D27D64F39": {
+    "Source": "检测调度间隔（秒）",
+    "LocalizableArguments": []
+  },
+  "Text_9FA79A28A511": {
+    "Source": "已保留为普通本地文件。",
+    "LocalizableArguments": []
+  },
+  "Text_A028D7449DF0": {
+    "Source": "旧版菜单未执行文件操作，请更新扩展后重试。",
+    "LocalizableArguments": []
+  },
+  "Text_A0CCE5FC2C74": {
+    "Source": "未知（服务未提供）",
+    "LocalizableArguments": []
+  },
+  "Text_A0E1ADC4B7E5": {
+    "Source": "群晖 NAS（Synology）",
+    "LocalizableArguments": []
+  },
+  "Text_A145A59AE166": {
+    "Source": "SQS 事件加速设置已保存。",
+    "LocalizableArguments": []
+  },
+  "Text_A1480CEA066A": {
+    "Source": "请先选择任务。",
+    "LocalizableArguments": []
+  },
+  "Text_A1D2C876E328": {
+    "Source": "此冲突属于旧连接范围，请重新检测当前远端。",
+    "LocalizableArguments": []
+  },
+  "Text_A248E9122195": {
+    "Source": "同步问题不存在。",
+    "LocalizableArguments": []
+  },
+  "Text_A2A57F95410A": {
+    "Source": "缓存设置读取失败，已停止保存。",
+    "LocalizableArguments": []
+  },
+  "Text_A2D97B57CBC7": {
+    "Source": "上次移除尚未完成，请继续相同的移除方式。",
+    "LocalizableArguments": []
+  },
+  "Text_A37778F17C5F": {
+    "Source": "已取消",
+    "LocalizableArguments": []
+  },
+  "Text_A39C7E51EDF4": {
+    "Source": "移除中的挂载暂不可导出。",
+    "LocalizableArguments": []
+  },
+  "Text_A5574109F020": {
+    "Source": "连接",
+    "LocalizableArguments": []
+  },
+  "Text_A5D176FA10BC": {
+    "Source": "已定位同步问题。",
+    "LocalizableArguments": []
+  },
+  "Text_A5D1DC365EE4": {
+    "Source": "文件匹配上传排除规则，请先调整规则。",
+    "LocalizableArguments": []
+  },
+  "Text_A6124727E357": {
+    "Source": "立即检查回收",
+    "LocalizableArguments": []
+  },
+  "Text_A621AB606DB2": {
+    "Source": "密码",
+    "LocalizableArguments": []
+  },
+  "Text_A64F9905BF4B": {
+    "Source": "挂载尚未连接，请在挂载页连接后重试。",
+    "LocalizableArguments": []
+  },
+  "Text_A6B75D068032": {
+    "Source": "深色",
+    "LocalizableArguments": []
+  },
+  "Text_A757E4CB2A36": {
+    "Source": "登录启动已被系统策略禁用。",
+    "LocalizableArguments": []
+  },
+  "Text_A7E6A95D7992": {
+    "Source": "NFS（预留）",
+    "LocalizableArguments": []
+  },
+  "Text_A7F3DFA29171": {
+    "Source": "上次本地替换中断；先使用远端完成恢复，原始本地备份仍保留。",
+    "LocalizableArguments": []
+  },
+  "Text_A898478BE181": {
+    "Source": "连接中",
+    "LocalizableArguments": []
+  },
+  "Text_A8B7A4480407": {
+    "Source": "警告",
+    "LocalizableArguments": []
+  },
+  "Text_A8D6892987C4": {
+    "Source": "文件尚未完整水合，停止移除。",
+    "LocalizableArguments": []
+  },
+  "Text_A8E0CCE27860": {
+    "Source": "原同步根注册已丢失；保留数据，不能自动重新注册。",
+    "LocalizableArguments": []
+  },
+  "Text_AA0819DFC4D8": {
+    "Source": "浅色",
+    "LocalizableArguments": []
+  },
+  "Text_AB76E294EE5F": {
+    "Source": "已注册当前用户登录启动（开发运行）。",
+    "LocalizableArguments": []
+  },
+  "Text_ABEA4B3A3DF2": {
+    "Source": "处理冲突 · {0}",
+    "LocalizableArguments": [
+      0
+    ]
+  },
+  "Text_AC3FFDC297B7": {
+    "Source": "S3：{0}；桶 {1}；前缀 {2}",
+    "LocalizableArguments": []
+  },
+  "Text_AC75AD85ABB5": {
+    "Source": "登录 Windows 后静默进入托盘。",
+    "LocalizableArguments": []
+  },
+  "Text_AD4671D5C48F": {
+    "Source": "提交本地状态",
+    "LocalizableArguments": []
+  },
+  "Text_ADAB5F3BF6C5": {
+    "Source": " → 远端：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_AEAA2A51C8AA": {
+    "Source": "打开远端自动检测",
+    "LocalizableArguments": []
+  },
+  "Text_AEB65D05782D": {
+    "Source": "本地目录",
+    "LocalizableArguments": []
+  },
+  "Text_AEE887434131": {
+    "Source": "刷新",
+    "LocalizableArguments": []
+  },
+  "Text_AEECD5977CD6": {
+    "Source": "登录启动已由系统策略启用。",
+    "LocalizableArguments": []
+  },
+  "Text_AEFE72DC1317": {
+    "Source": "正在加载日志",
+    "LocalizableArguments": []
+  },
+  "Text_AF0AD96CB324": {
+    "Source": "添加默认规则",
+    "LocalizableArguments": []
+  },
+  "Text_AF2B8C4537C1": {
+    "Source": "总空间：{0}",
+    "LocalizableArguments": [
+      0
+    ]
+  },
+  "Text_B00893BB99C2": {
+    "Source": "当前没有诊断信息。",
+    "LocalizableArguments": []
+  },
+  "Text_B019211CE0BB": {
+    "Source": "缩略图已关闭，后台预览已停止。",
+    "LocalizableArguments": []
+  },
+  "Text_B01C8E8EEF92": {
+    "Source": "不能切换已开始的移除模式。",
+    "LocalizableArguments": []
+  },
+  "Text_B043D167A20C": {
+    "Source": "重试选中",
+    "LocalizableArguments": []
+  },
+  "Text_B0B8AFEBEAD6": {
+    "Source": "任务已结束或不存在。",
+    "LocalizableArguments": []
+  },
+  "Text_B0F181CAFC5A": {
+    "Source": "正在等待当前任务完成，随后备份本地、下载并核验远端内容…",
+    "LocalizableArguments": []
+  },
+  "Text_B1110A3FAB2E": {
+    "Source": "HTTPS 证书 SHA-256 指纹（可选）",
+    "LocalizableArguments": []
+  },
+  "Text_B1C5E73E1471": {
+    "Source": "字节",
+    "LocalizableArguments": []
+  },
+  "Text_B364AFEE9249": {
+    "Source": "连接已取消。",
+    "LocalizableArguments": []
+  },
+  "Text_B3E7068FC529": {
+    "Source": "备份密码可留空；设置时至少需要 8 个字符。",
+    "LocalizableArguments": []
+  },
+  "Text_B48B6518293A": {
+    "Source": "导入配置",
+    "LocalizableArguments": []
+  },
+  "Text_B4E683C69C1F": {
+    "Source": "\n上次阶段：{0}\n恢复备份：{1}",
+    "LocalizableArguments": []
+  },
+  "Text_B5141D3D19E9": {
+    "Source": "是",
+    "LocalizableArguments": []
+  },
+  "Text_B571C7266A40": {
+    "Source": "留空时无密码保护，任何获得备份的人均可读取其中的凭据。",
+    "LocalizableArguments": []
+  },
+  "Text_B583ABBE6D7C": {
+    "Source": "手动最大容量（GB，留空不限）",
+    "LocalizableArguments": []
+  },
+  "Text_B5852AAAA8E8": {
+    "Source": "请先选择文件冲突。",
+    "LocalizableArguments": []
+  },
+  "Text_B589C733AEEF": {
+    "Source": "{0}：{1}{2}",
+    "LocalizableArguments": [
+      0,
+      2
+    ]
+  },
+  "Text_B64BD4615124": {
+    "Source": "SQS 事件加速设置",
+    "LocalizableArguments": []
+  },
+  "Text_B659FC3F6B67": {
+    "Source": "此任务请使用重新核对、重试或取消收尾；目标已存在时不会自动覆盖。",
+    "LocalizableArguments": []
+  },
+  "Text_B6C615F9C968": {
+    "Source": "已取消文件选择。",
+    "LocalizableArguments": []
+  },
+  "Text_B6FD03C2DB1D": {
+    "Source": "从服务器抓取容量信息",
+    "LocalizableArguments": []
+  },
+  "Text_B7CB05D81A06": {
+    "Source": "清除所有已结束任务；保留进行中、等待、冲突和结果待核对，不删除文件或恢复数据。",
+    "LocalizableArguments": []
+  },
+  "Text_B813E88ECA5E": {
+    "Source": "本地文件在确认后变化，未覆盖。",
+    "LocalizableArguments": []
+  },
+  "Text_B85162F2AE16": {
+    "Source": "保存检测设置",
+    "LocalizableArguments": []
+  },
+  "Text_B868FAF07C8A": {
+    "Source": "已请求取消；已完成的步骤保留，已删除内容不会恢复。",
+    "LocalizableArguments": []
+  },
+  "Text_B8826D711144": {
+    "Source": "保存检测间隔",
+    "LocalizableArguments": []
+  },
+  "Text_B89C8EECD2BB": {
+    "Source": "本地文件尚未完整下载；为保留全部本地内容，请先打开或下载后再处理。",
+    "LocalizableArguments": []
+  },
+  "Text_B8B974267CBE": {
+    "Source": "明文连接不安全",
+    "LocalizableArguments": []
+  },
+  "Text_B8D23E667305": {
+    "Source": "正在断开",
+    "LocalizableArguments": []
+  },
+  "Text_B924A642457C": {
+    "Source": "请输入服务实际使用的签名区域。",
+    "LocalizableArguments": []
+  },
+  "Text_BA1127DA3666": {
+    "Source": "请输入访问密钥 ID，或选择 SDK 默认凭据链。",
+    "LocalizableArguments": []
+  },
+  "Text_BB3E2F88EEC4": {
+    "Source": "文件已匹配排除规则，未上传。",
+    "LocalizableArguments": []
+  },
+  "Text_BC2FA28989C5": {
+    "Source": "导入选中项",
+    "LocalizableArguments": []
+  },
+  "Text_BCB9E6D7CDB7": {
+    "Source": "外观设置已保存，立即生效。",
+    "LocalizableArguments": []
+  },
+  "Text_BCC223CCC272": {
+    "Source": "检测间隔必须为有效的整数秒。",
+    "LocalizableArguments": []
+  },
+  "Text_BCE2377283C2": {
+    "Source": "清除",
+    "LocalizableArguments": []
+  },
+  "Text_BD0859D1C3CC": {
+    "Source": "挂载操作失败：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_BD426C35BB57": {
+    "Source": "当前远端",
+    "LocalizableArguments": []
+  },
+  "Text_BD7D468AF466": {
+    "Source": "请先选择上传任务。",
+    "LocalizableArguments": []
+  },
+  "Text_BDC65C424B91": {
+    "Source": "已加密导出 {0} 个挂载配置。",
+    "LocalizableArguments": []
+  },
+  "Text_BE146CE5330F": {
+    "Source": "全选可处理项",
+    "LocalizableArguments": []
+  },
+  "Text_BEC5D197229C": {
+    "Source": "仍有未解除的云文件，保留配置和注册以供恢复。",
+    "LocalizableArguments": []
+  },
+  "Text_BFE958DEA679": {
+    "Source": "副本",
+    "LocalizableArguments": []
+  },
+  "Text_BFF03461DF20": {
+    "Source": "再次输入备份密码",
+    "LocalizableArguments": []
+  },
+  "Text_C02FDCF208B3": {
+    "Source": "删除规则",
+    "LocalizableArguments": []
+  },
+  "Text_C05166172020": {
+    "Source": "确认处理",
+    "LocalizableArguments": []
+  },
+  "Text_C059B61C6A28": {
+    "Source": "重试连接",
+    "LocalizableArguments": []
+  },
+  "Text_C25FEEEB96C6": {
+    "Source": "临时会话令牌（可选）",
+    "LocalizableArguments": []
+  },
+  "Text_C2CDF622BB68": {
+    "Source": "新增 · 群晖 NAS",
+    "LocalizableArguments": []
+  },
+  "Text_C32110B1817C": {
+    "Source": "\n\n{0}{1}",
+    "LocalizableArguments": [
+      1
+    ]
+  },
+  "Text_C3266E411EA3": {
+    "Source": "加载更早",
+    "LocalizableArguments": []
+  },
+  "Text_C3BAF245356F": {
+    "Source": "已由后续改名接管",
+    "LocalizableArguments": []
+  },
+  "Text_C5BE73B72FD5": {
+    "Source": "正在读取队列属性…",
+    "LocalizableArguments": []
+  },
+  "Text_C60745B652A6": {
+    "Source": "签名区域 / Region",
+    "LocalizableArguments": []
+  },
+  "Text_C682F190CBD4": {
+    "Source": "请输入密码。",
+    "LocalizableArguments": []
+  },
+  "Text_C6A4C773ADDA": {
+    "Source": "任务、索引或远端事件变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_C6A6D7108D1C": {
+    "Source": "缩略图：开启（实验性）；依文件与服务读取能力生成，可能显示普通图标。",
+    "LocalizableArguments": []
+  },
+  "Text_C6C39053F9D2": {
+    "Source": "需要恢复",
+    "LocalizableArguments": []
+  },
+  "Text_C6F3C8B82C24": {
+    "Source": "已排除",
+    "LocalizableArguments": []
+  },
+  "Text_C837C2341C3B": {
+    "Source": "远端版本已应用。",
+    "LocalizableArguments": []
+  },
+  "Text_C852D93398AD": {
+    "Source": "请输入桶名。",
+    "LocalizableArguments": []
+  },
+  "Text_C866EBEF00E6": {
+    "Source": "路径寻址 / Path-Style",
+    "LocalizableArguments": []
+  },
+  "Text_C8BCDC5DAC6A": {
+    "Source": "{0} 个同步问题；点击查看，右键打开完整诊断",
+    "LocalizableArguments": []
+  },
+  "Text_C8FDC145DC3D": {
+    "Source": "上传队列已变化，请重新连接后核对。",
+    "LocalizableArguments": []
+  },
+  "Text_C9F9E18B0623": {
+    "Source": "添加规则",
+    "LocalizableArguments": []
+  },
+  "Text_CAFDD55E0A9F": {
+    "Source": "{0}\n\n移除挂载：保留本地文件，不连接远端。\n\n清空并移除：永久删除根目录内全部本地内容，保留空根目录及远端数据。",
+    "LocalizableArguments": []
+  },
+  "Text_CB337BBDEC92": {
+    "Source": "已请求只读核对；不会因此授权覆盖或重新发送。",
+    "LocalizableArguments": []
+  },
+  "Text_CB4488E8DBC2": {
+    "Source": "明文 HTTP",
+    "LocalizableArguments": []
+  },
+  "Text_CBC7E4431D75": {
+    "Source": "挂载不存在。",
+    "LocalizableArguments": []
+  },
+  "Text_CC0C4EB91412": {
+    "Source": "读取登录启动状态失败。",
+    "LocalizableArguments": []
+  },
+  "Text_CC194E99AC16": {
+    "Source": "管理挂载",
+    "LocalizableArguments": []
+  },
+  "Text_CC88E5B26428": {
+    "Source": "失败及部分失败",
+    "LocalizableArguments": []
+  },
+  "Text_CE0744E60649": {
+    "Source": "版本 {0}",
+    "LocalizableArguments": []
+  },
+  "Text_CE08D74C24D3": {
+    "Source": "保存连接并重连",
+    "LocalizableArguments": []
+  },
+  "Text_CE17926FC19C": {
+    "Source": "注册丢失但存在物化索引，保留配置待恢复。",
+    "LocalizableArguments": []
+  },
+  "Text_CE34A9E7C067": {
+    "Source": "远端元数据读取失败：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_CF0551621FC4": {
+    "Source": "已使用已核验的远端内容替换本地。原本地内容备份：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_CF6F4B5AB212": {
+    "Source": "请输入有效缓存上限。",
+    "LocalizableArguments": []
+  },
+  "Text_CF9FBC15EBC3": {
+    "Source": "请先连接挂载，再核对冲突。",
+    "LocalizableArguments": []
+  },
+  "Text_D06BC6EFDD8C": {
+    "Source": "查看结果",
+    "LocalizableArguments": []
+  },
+  "Text_D076BD51ADFE": {
+    "Source": "{0}最近成功：{1}{2}",
+    "LocalizableArguments": [
+      0,
+      1
+    ]
+  },
+  "Text_D2ACA8610E97": {
+    "Source": "界面密度已保存，立即生效。",
+    "LocalizableArguments": []
+  },
+  "Text_D2E33E1E22E6": {
+    "Source": "下载并移除",
+    "LocalizableArguments": []
+  },
+  "Text_D3716CC5A2F5": {
+    "Source": "服务器地址",
+    "LocalizableArguments": []
+  },
+  "Text_D433988AA349": {
+    "Source": "待应用",
+    "LocalizableArguments": []
+  },
+  "Text_D44119F948EA": {
+    "Source": "群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。",
+    "LocalizableArguments": []
+  },
+  "Text_D44E9B3D3B31": {
+    "Source": "名称",
+    "LocalizableArguments": []
+  },
+  "Text_D5551131636F": {
+    "Source": "本挂载固定的证书 SHA-256：\n{0}",
+    "LocalizableArguments": []
+  },
+  "Text_D6056A236CAB": {
+    "Source": "挂载连接或设置变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_D6F766F2ADF5": {
+    "Source": "排队中",
+    "LocalizableArguments": []
+  },
+  "Text_D719D6371AD6": {
+    "Source": "等待文件可用",
+    "LocalizableArguments": []
+  },
+  "Text_D76876D823BF": {
+    "Source": "测试 SQS 连接（只读）",
+    "LocalizableArguments": []
+  },
+  "Text_D79B1D0E5C61": {
+    "Source": "已结束",
+    "LocalizableArguments": []
+  },
+  "Text_D80DA62D3B0A": {
+    "Source": "新增 · ",
+    "LocalizableArguments": []
+  },
+  "Text_D8510A0D488B": {
+    "Source": "先测试连接以加载共享文件夹；电脑无需安装 File Station，NAS 需启用 File Station 服务。",
+    "LocalizableArguments": []
+  },
+  "Text_D8BEB94D8189": {
+    "Source": "远端自动检测已打开。",
+    "LocalizableArguments": []
+  },
+  "Text_D9060E83E41F": {
+    "Source": "无（本地新增）",
+    "LocalizableArguments": []
+  },
+  "Text_DA8B86A7782B": {
+    "Source": "WebDAV(HTTPS) 入口仅接受 HTTPS 地址；群晖通常使用 5006 端口。",
+    "LocalizableArguments": []
+  },
+  "Text_DB1CDAA04D01": {
+    "Source": "请选择要导出的挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_DBADF79FCEE4": {
+    "Source": "窗口背景",
+    "LocalizableArguments": []
+  },
+  "Text_DBBD93A69189": {
+    "Source": "远端容量：自动识别，尚未查询。",
+    "LocalizableArguments": []
+  },
+  "Text_DBDA804F16C7": {
+    "Source": "正在执行只读探测…",
+    "LocalizableArguments": []
+  },
+  "Text_DC0C60E5B1ED": {
+    "Source": "登录启动已关闭。",
+    "LocalizableArguments": []
+  },
+  "Text_DC25DC95ACCE": {
+    "Source": "{0} 个上传问题需要处理",
+    "LocalizableArguments": []
+  },
+  "Text_DC8BF8258D87": {
+    "Source": "处理期间相关路径出现新任务，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "Text_DC8CC2915933": {
+    "Source": "改名排除收尾",
+    "LocalizableArguments": []
+  },
+  "Text_DCA2D1E7505B": {
+    "Source": "保存上限",
+    "LocalizableArguments": []
+  },
+  "Text_DCB22E1AF650": {
+    "Source": "启动与托盘",
+    "LocalizableArguments": []
+  },
+  "Text_DCE215127749": {
+    "Source": "请继续已选择的移除方式；不会自动重放删除操作。",
+    "LocalizableArguments": []
+  },
+  "Text_DD44CB00BAD0": {
+    "Source": "子文件夹（可选，相对共享文件夹）",
+    "LocalizableArguments": []
+  },
+  "Text_DDA61DA868D8": {
+    "Source": "Session Token（临时凭据，可选）",
+    "LocalizableArguments": []
+  },
+  "Text_DE0DA0AE8DA4": {
+    "Source": "日志级别",
+    "LocalizableArguments": []
+  },
+  "Text_DE0FBF01AACB": {
+    "Source": "显示缩略图（实验性）",
+    "LocalizableArguments": []
+  },
+  "Text_DE1A9ED63D75": {
+    "Source": "处理所选",
+    "LocalizableArguments": []
+  },
+  "Text_DF3D58C7D84B": {
+    "Source": "设置",
+    "LocalizableArguments": []
+  },
+  "Text_DF9CE89B8A1A": {
+    "Source": "没有可清除的{0}历史；进行中或待恢复的任务已保留。",
+    "LocalizableArguments": [
+      0
+    ]
+  },
+  "Text_DFBC15C21F05": {
+    "Source": "恢复记录读取失败：{0}",
+    "LocalizableArguments": []
+  },
+  "Text_E0105248342F": {
+    "Source": "WebDAV(HTTPS) 挂载",
+    "LocalizableArguments": []
+  },
+  "Text_E01311A466BF": {
+    "Source": "远端新文件相对路径",
+    "LocalizableArguments": []
+  },
+  "Text_E131031441CF": {
+    "Source": "例如：文档/项目",
+    "LocalizableArguments": []
+  },
+  "Text_E1F0F1CB1AB4": {
+    "Source": "匹配方式",
+    "LocalizableArguments": []
+  },
+  "Text_E2012BC95CE4": {
+    "Source": "队列凭据来源",
+    "LocalizableArguments": []
+  },
+  "Text_E2039AFABE4C": {
+    "Source": "从快照水合",
+    "LocalizableArguments": []
+  },
+  "Text_E2119A607C0A": {
+    "Source": "移除未完成",
+    "LocalizableArguments": []
+  },
+  "Text_E2B1ACC016C0": {
+    "Source": "继续下载并移除",
+    "LocalizableArguments": []
+  },
+  "Text_E38AB48681DD": {
+    "Source": "连接配置",
+    "LocalizableArguments": []
+  },
+  "Text_E3C64D1D126F": {
+    "Source": "全部挂载",
+    "LocalizableArguments": []
+  },
+  "Text_E410A42CC339": {
+    "Source": "移除挂载（保留本地文件）",
+    "LocalizableArguments": []
+  },
+  "Text_E4170809495B": {
+    "Source": "打开 Windows 启动设置",
+    "LocalizableArguments": []
+  },
+  "Text_E443ECCB0E9F": {
+    "Source": "外观设置读取失败。",
+    "LocalizableArguments": []
+  },
+  "Text_E558E337DB75": {
+    "Source": "远端容量：{0}\n可用 {1} · 已用 {2} · 总量 {3}{4}{5}{6}",
+    "LocalizableArguments": [
+      4,
+      5
+    ]
+  },
+  "Text_E5FE24CA742F": {
+    "Source": "选择目录",
+    "LocalizableArguments": []
+  },
+  "Text_E68F1C0ED374": {
+    "Source": "等待原上传结果",
+    "LocalizableArguments": []
+  },
+  "Text_E6A7881C23A2": {
+    "Source": "程序正在退出，不再接收新任务。",
+    "LocalizableArguments": []
+  },
+  "Text_E7028601E7DA": {
+    "Source": "信息",
+    "LocalizableArguments": []
+  },
+  "Text_E76A52C1441D": {
+    "Source": "应用远端更改",
+    "LocalizableArguments": []
+  },
+  "Text_E798BD8AAE7D": {
+    "Source": "等待远端改名",
+    "LocalizableArguments": []
+  },
+  "Text_E79E19D19A9D": {
+    "Source": "使用 AWS SDK 默认凭据链",
+    "LocalizableArguments": []
+  },
+  "Text_E7E1C13CAFC0": {
+    "Source": "查看独立保存的未解决同步问题",
+    "LocalizableArguments": []
+  },
+  "Text_E8213DCA8072": {
+    "Source": "版本或类型冲突",
+    "LocalizableArguments": []
+  },
+  "Text_E8E08B0F61DD": {
+    "Source": "正在取消…",
+    "LocalizableArguments": []
+  },
+  "Text_E97206223328": {
+    "Source": "快照超过首版百万条安全限制，请缩小远端根。",
+    "LocalizableArguments": []
+  },
+  "Text_E987FAE4AEA4": {
+    "Source": "已连接 {0}。",
+    "LocalizableArguments": []
+  },
+  "Text_EA202573A4B5": {
+    "Source": "挂载正在连接，请等待当前连接完成。",
+    "LocalizableArguments": []
+  },
+  "Text_EA215D28117F": {
+    "Source": "当前任务不能重试。",
+    "LocalizableArguments": []
+  },
+  "Text_EC23F70A2031": {
+    "Source": "语言资源缺失，已回退至简体中文。",
+    "LocalizableArguments": []
+  },
+  "Text_ECC76CD5FB74": {
+    "Source": "远端冲突状态已变化，请重新选择。",
+    "LocalizableArguments": []
+  },
+  "Text_ED068529662D": {
+    "Source": "离线缓存",
+    "LocalizableArguments": []
+  },
+  "Text_ED1373DA607C": {
+    "Source": "保存 SQS 设置",
+    "LocalizableArguments": []
+  },
+  "Text_EDCD0FE3A86E": {
+    "Source": "已核对指纹，仅此挂载信任并重试",
+    "LocalizableArguments": []
+  },
+  "Text_EE9EBE523D42": {
+    "Source": "连接中…",
+    "LocalizableArguments": []
+  },
+  "Text_EEADEE679ABB": {
+    "Source": "菜单目标不属于本产品挂载。",
+    "LocalizableArguments": []
+  },
+  "Text_F007E1890A6A": {
+    "Source": "两次输入的备份密码不一致。",
+    "LocalizableArguments": []
+  },
+  "Text_F02C2A9F730E": {
+    "Source": "远端已删除且本地尚不完整，保留配置与现有内容。",
+    "LocalizableArguments": []
+  },
+  "Text_F075BC371E5A": {
+    "Source": "远端自动检测已关闭。",
+    "LocalizableArguments": []
+  },
+  "Text_F0986AB1A2C4": {
+    "Source": "排除文件",
+    "LocalizableArguments": []
+  },
+  "Text_F0FA859C1E0D": {
+    "Source": "证书验证：系统信任证书。",
+    "LocalizableArguments": []
+  },
+  "Text_F14C813F211F": {
+    "Source": "{0}已显示 {1} 条；保留最近30天／最多10000条。{2}{3}{4}",
+    "LocalizableArguments": [
+      0,
+      2,
+      3,
+      4
+    ]
+  },
+  "Text_F1B417B318B5": {
+    "Source": "完整诊断",
+    "LocalizableArguments": []
+  },
+  "Text_F1E7BEC171AE": {
+    "Source": "未知版本",
+    "LocalizableArguments": []
+  },
+  "Text_F203D577D142": {
+    "Source": "不限",
+    "LocalizableArguments": []
+  },
+  "Text_F28461BB49C8": {
+    "Source": "已完成",
+    "LocalizableArguments": []
+  },
+  "Text_F33AC04EECE6": {
+    "Source": "断开",
+    "LocalizableArguments": []
+  },
+  "Text_F3D810080ECB": {
+    "Source": "改名结果待核对",
+    "LocalizableArguments": []
+  },
+  "Text_F3F84AE474C2": {
+    "Source": "关闭偏好保存失败。",
+    "LocalizableArguments": []
+  },
+  "Text_F4D4BAE588C4": {
+    "Source": "取消全选",
+    "LocalizableArguments": []
+  },
+  "Text_F4DAD8B3E4CF": {
+    "Source": "任务 ID：{0}\n挂载：{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n{8}\n",
+    "LocalizableArguments": []
+  },
+  "Text_F5651904C35C": {
+    "Source": "更多挂载操作",
+    "LocalizableArguments": []
+  },
+  "Text_F57E977ECDE7": {
+    "Source": "SQS：{0}；最近事件：{1}；待核对提示 {2}{3}",
+    "LocalizableArguments": []
+  },
+  "Text_F59D50DAFB2E": {
+    "Source": "内容清空未完成。",
+    "LocalizableArguments": []
+  },
+  "Text_F62DFC6C48E8": {
+    "Source": "S3 对象存储",
+    "LocalizableArguments": []
+  },
+  "Text_F66DF4636FF4": {
+    "Source": "上传副本",
+    "LocalizableArguments": []
+  },
+  "Text_F66E4F942756": {
+    "Source": "平均 {0} · ",
+    "LocalizableArguments": []
+  },
+  "Text_F6B3FF7C362A": {
+    "Source": "重新核实容量",
+    "LocalizableArguments": []
+  },
+  "Text_F71FF9567A7C": {
+    "Source": "已请求显示窗口。",
+    "LocalizableArguments": []
+  },
+  "Text_F745D52559D6": {
+    "Source": "DSM 服务器地址",
+    "LocalizableArguments": []
+  },
+  "Text_F797B44CFD54": {
+    "Source": "修改设置",
+    "LocalizableArguments": []
+  },
+  "Text_F8AE324708BF": {
+    "Source": "连接停止时清理失败，请查看生命周期阶段。",
+    "LocalizableArguments": []
+  },
+  "Text_F8FFEB435E02": {
+    "Source": "已提交重试；如挂载未连接，请先在挂载页连接。",
+    "LocalizableArguments": []
+  },
+  "Text_F96BBA110AEF": {
+    "Source": "连接测试失败，请检查配置、网络和凭据来源。",
+    "LocalizableArguments": []
+  },
+  "Text_FA89C102F166": {
+    "Source": "独立访问密钥 ID",
+    "LocalizableArguments": []
+  },
+  "Text_FAB66225B551": {
+    "Source": "查看运行记录",
+    "LocalizableArguments": []
+  },
+  "Text_FAF3E262130E": {
+    "Source": "挂载操作",
+    "LocalizableArguments": []
+  },
+  "Text_FB1B4EE3098C": {
+    "Source": "本地：{0}；云端目标：{1}",
+    "LocalizableArguments": []
+  },
+  "Text_FB644ADE7E17": {
+    "Source": "切换占位版本",
+    "LocalizableArguments": []
+  },
+  "Text_FB99EDB2DA85": {
+    "Source": "自签名证书需先通过可信渠道核对指纹后填写，仅信任当前挂载；证书更新后需重新核验。不要填写未经核对的指纹。",
+    "LocalizableArguments": []
+  },
+  "Text_FC2942B518E1": {
+    "Source": "清除成功完成的任务历史，保留其他任务及同步数据。",
+    "LocalizableArguments": []
+  },
+  "Text_FC2DB52DAAA9": {
+    "Source": "检查中",
+    "LocalizableArguments": []
+  },
+  "Text_FC8B9CB4FC5F": {
+    "Source": "留空使用系统证书验证",
+    "LocalizableArguments": []
+  },
+  "Text_FDEB8FA90307": {
+    "Source": "处理所选（{0}）",
+    "LocalizableArguments": []
+  },
+  "Text_FEE3C5717BB4": {
+    "Source": "移除挂载",
+    "LocalizableArguments": []
+  },
+  "Text_FEE60AE594C1": {
+    "Source": "条目",
+    "LocalizableArguments": []
+  },
+  "Text_FF6DF7520EEE": {
+    "Source": "检测设置已保存。",
+    "LocalizableArguments": []
+  },
+  "Text_AAD1862AC6A6": {
+    "Source": "RFC 6578 增量检测",
+    "LocalizableArguments": []
+  },
+  "Text_46B3DC4ED4A4": {
+    "Source": "请选择受支持的界面语言。",
+    "LocalizableArguments": []
+  },
+  "Text_7EC44126D7B8": {
+    "Source": "远端文件本地视图管理",
+    "LocalizableArguments": []
+  },
+  "Text_C2942442A231": {
+    "Source": "已移除挂载",
+    "LocalizableArguments": []
+  },
+  "Text_91A1D31663B9": {
+    "Source": "显示主窗口",
+    "LocalizableArguments": []
+  },
+  "Text_EC4D1F9F82B1": {
+    "Source": "退出 HybridMount.NET",
+    "LocalizableArguments": []
+  }
+}

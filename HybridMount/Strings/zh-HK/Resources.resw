@@ -1,0 +1,2000 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Text_0006D696D8E1" xml:space="preserve">
+    <value>新增</value>
+  </data>
+  <data name="Text_01054FF40565" xml:space="preserve">
+    <value>啟用 SQS 事件加速</value>
+  </data>
+  <data name="Text_01D3FB1271B4" xml:space="preserve">
+    <value>完整本機內容</value>
+  </data>
+  <data name="Text_02712916DEE9" xml:space="preserve">
+    <value>清除記錄</value>
+  </data>
+  <data name="Text_02A8658F6601" xml:space="preserve">
+    <value>預設不會在登入時啟動。</value>
+  </data>
+  <data name="Text_037626EE90B0" xml:space="preserve">
+    <value>取消所選工作</value>
+  </data>
+  <data name="Text_03790D861CB9" xml:space="preserve">
+    <value>
+
+所列清空項目的所有本機內容（包括本機修改及新建檔案）將永久刪除，已刪除的內容無法還原。保留空白根目錄及遠端內容。</value>
+  </data>
+  <data name="Text_04155C834521" xml:space="preserve">
+    <value>掛載尚未連線。</value>
+  </data>
+  <data name="Text_05531686BE37" xml:space="preserve">
+    <value>清空孤立預留位置資料夾</value>
+  </data>
+  <data name="Text_055D4F94325D" xml:space="preserve">
+    <value>清除失敗：{0}</value>
+  </data>
+  <data name="Text_059EB2CA3210" xml:space="preserve">
+    <value>請輸入 10 至 86400 之間的整數秒。</value>
+  </data>
+  <data name="Text_05FC5419DE3F" xml:space="preserve">
+    <value>比對文字</value>
+  </data>
+  <data name="Text_068E55CEAFFC" xml:space="preserve">
+    <value>設定操作已取消。已儲存的項目會保留，可在掛載清單查看。</value>
+  </data>
+  <data name="Text_06F0E237D44A" xml:space="preserve">
+    <value>應用程式正在結束。</value>
+  </data>
+  <data name="Text_072E597CE266" xml:space="preserve">
+    <value>建立並連線</value>
+  </data>
+  <data name="Text_075F86B604DE" xml:space="preserve">
+    <value>請輸入 30 至 604800 之間的整數秒。</value>
+  </data>
+  <data name="Text_0902DFC3DD87" xml:space="preserve">
+    <value>請先測試連線並選取共用資料夾。</value>
+  </data>
+  <data name="Text_096B758B03DC" xml:space="preserve">
+    <value>遺留入口已移除：</value>
+  </data>
+  <data name="Text_09B02099ADDE" xml:space="preserve">
+    <value>下載遠端快照</value>
+  </data>
+  <data name="Text_09C5BAC0EC82" xml:space="preserve">
+    <value>排除檔案（進階）</value>
+  </data>
+  <data name="Text_09D8C0615F3E" xml:space="preserve">
+    <value>等候容量</value>
+  </data>
+  <data name="Text_0A4AA028D0F8" xml:space="preserve">
+    <value>正在讀取或下載檔案，請稍後重新核對。</value>
+  </data>
+  <data name="Text_0A71879C4E40" xml:space="preserve">
+    <value>兩步驟驗證碼（只供本次登入使用，不會儲存）</value>
+  </data>
+  <data name="Text_0A98A48EAAAC" xml:space="preserve">
+    <value>測試連線</value>
+  </data>
+  <data name="Text_0ADDD7784578" xml:space="preserve">
+    <value>正在取消…</value>
+  </data>
+  <data name="Text_0B0898C3FDB7" xml:space="preserve">
+    <value>自動偵測遠端變更（輪詢完整資料夾）</value>
+  </data>
+  <data name="Text_0BA9585C89B8" xml:space="preserve">
+    <value>尚無</value>
+  </data>
+  <data name="Text_0BAA8611E301" xml:space="preserve">
+    <value>正在以唯讀方式核對兩端資料…</value>
+  </data>
+  <data name="Text_0BC1FB72AE1B" xml:space="preserve">
+    <value>錯誤</value>
+  </data>
+  <data name="Text_0BD7CE0F30C6" xml:space="preserve">
+    <value>生命週期記錄</value>
+  </data>
+  <data name="Text_0C350176B3F7" xml:space="preserve">
+    <value>請輸入完整的 HTTP 或 HTTPS 伺服器位址。</value>
+  </data>
+  <data name="Text_0C70665B6EB6" xml:space="preserve">
+    <value>否</value>
+  </data>
+  <data name="Text_0C9E1C407AF7" xml:space="preserve">
+    <value>掃描本機變更</value>
+  </data>
+  <data name="Text_0D2F94A171FB" xml:space="preserve">
+    <value>處理遺留掛載</value>
+  </data>
+  <data name="Text_0D98F46613AC" xml:space="preserve">
+    <value>結束日期（不限）</value>
+  </data>
+  <data name="Text_0DD2D51DBFDB" xml:space="preserve">
+    <value>記錄儲存異常：{0}；</value>
+  </data>
+  <data name="Text_0DD665383326" xml:space="preserve">
+    <value>未知的掛載操作。</value>
+  </data>
+  <data name="Text_0E0ED94D08B2" xml:space="preserve">
+    <value>請輸入掛載名稱。</value>
+  </data>
+  <data name="Text_0F25BC7459AB" xml:space="preserve">
+    <value>遺留掛載</value>
+  </data>
+  <data name="Text_0F63185F79E7" xml:space="preserve">
+    <value>舊版來源只支援遷出</value>
+  </data>
+  <data name="Text_10D3BF1F23A3" xml:space="preserve">
+    <value>允許未加密 HTTP（只限可信任的測試環境）</value>
+  </data>
+  <data name="Text_110EBEF0A692" xml:space="preserve">
+    <value>使用本機版本：凍結目前的本機內容，依已確認的遠端版本條件上載。使用遠端版本：先在同步根目錄以外儲存可還原的本機備份，再以核驗後的遠端內容取代本機內容。確認後若任何一端變更，處理便會停止。</value>
+  </data>
+  <data name="Text_111C061D14C1" xml:space="preserve">
+    <value>清理失敗</value>
+  </data>
+  <data name="Text_12166E73CDEA" xml:space="preserve">
+    <value>SQS 事件加速：已關閉，仍會定時完整核對</value>
+  </data>
+  <data name="Text_121799CED97E" xml:space="preserve">
+    <value>一律保留在裝置上</value>
+  </data>
+  <data name="Text_12E2E50738C5" xml:space="preserve">
+    <value>新增掛載</value>
+  </data>
+  <data name="Text_12F2E12B2F72" xml:space="preserve">
+    <value>正在移除</value>
+  </data>
+  <data name="Text_134E74105193" xml:space="preserve">
+    <value>
+請沿用相同的移除方式。</value>
+  </data>
+  <data name="Text_13E48E89314E" xml:space="preserve">
+    <value>無法儲存介面密度，已保留原來的值。</value>
+  </data>
+  <data name="Text_13F57F838028" xml:space="preserve">
+    <value>尚無掛載。請選取「新增掛載」以連線至檔案來源。</value>
+  </data>
+  <data name="Text_14024F291A0B" xml:space="preserve">
+    <value>只剩 Shell 入口</value>
+  </data>
+  <data name="Text_141CD0B3303A" xml:space="preserve">
+    <value>遠端檔案已不存在，請另存複本或重新偵測。</value>
+  </data>
+  <data name="Text_1501CBC59F3C" xml:space="preserve">
+    <value>如已有上載快照，複本會使用該快照，之後的本機編輯不會改變複本。如沒有快照，會使用準備上載時的本機內容，而非發生衝突時的內容。</value>
+  </data>
+  <data name="Text_151B8100C978" xml:space="preserve">
+    <value>在應用程式中顯示此檔案或資料夾的同步問題，不會自動上載。</value>
+  </data>
+  <data name="Text_1558E3701CFB" xml:space="preserve">
+    <value>清除此掛載的固定憑證指紋</value>
+  </data>
+  <data name="Text_15BA0E43029F" xml:space="preserve">
+    <value>關閉視窗時會結束應用程式。</value>
+  </data>
+  <data name="Text_179CC0D74764" xml:space="preserve">
+    <value>必須先明確允許才可使用未加密 HTTP，建議改用 HTTPS。</value>
+  </data>
+  <data name="Text_17D7F8B86E5F" xml:space="preserve">
+    <value>唯讀連線測試</value>
+  </data>
+  <data name="Text_1875132781C1" xml:space="preserve">
+    <value>重新命名衝突</value>
+  </data>
+  <data name="Text_18807DECF3A4" xml:space="preserve">
+    <value>無法儲存外觀設定。</value>
+  </data>
+  <data name="Text_19094B4131D7" xml:space="preserve">
+    <value>核對已停止。</value>
+  </data>
+  <data name="Text_1994380A1BB6" xml:space="preserve">
+    <value>上載佇列尚未就緒，請重新連線。</value>
+  </data>
+  <data name="Text_19B8BF71F5A4" xml:space="preserve">
+    <value>需要遷出</value>
+  </data>
+  <data name="Text_19BCEEEF8DE1" xml:space="preserve">
+    <value>自動採用伺服器容量資料</value>
+  </data>
+  <data name="Text_1A65AC5B8FC1" xml:space="preserve">
+    <value>處理衝突</value>
+  </data>
+  <data name="Text_1A9F134D31F9" xml:space="preserve">
+    <value>可用 {0}／總計 {1}，根據{2}{3}{4}</value>
+  </data>
+  <data name="Text_1AD08B30AD67" xml:space="preserve">
+    <value>遠端內容已變更，但本機內容已修改、固定或正在使用。已保留舊內容，請處理後重新整理。</value>
+  </data>
+  <data name="Text_1AE41157C2AC" xml:space="preserve">
+    <value>無法核驗原提供者的歸屬。將暫時由本機提供者接管並永久刪除所有本機內容，再取消註冊臨時根目錄，保留空白根目錄。</value>
+  </data>
+  <data name="Text_1B47C4A7CF48" xml:space="preserve">
+    <value> 有新記錄，請重新整理。</value>
+  </data>
+  <data name="Text_1B9B75F51D20" xml:space="preserve">
+    <value>搜尋記錄</value>
+  </data>
+  <data name="Text_1BD3AAB06B8B" xml:space="preserve">
+    <value>寫入結果有待核對</value>
+  </data>
+  <data name="Text_1CBD62ABD1B0" xml:space="preserve">
+    <value>佇列區域（必須與 S3 相同）</value>
+  </data>
+  <data name="Text_1D73995960A9" xml:space="preserve">
+    <value>已要求停止清理，已完成的雲端重新命名或目標複製會保留。</value>
+  </data>
+  <data name="Text_1DB537BACF63" xml:space="preserve">
+    <value>已取消，已完成的刪除無法還原。</value>
+  </data>
+  <data name="Text_1DF189916CF0" xml:space="preserve">
+    <value>確認後遠端版本已變更，請重新核對。尚未覆寫任何一端。</value>
+  </data>
+  <data name="Text_1E087C26D53F" xml:space="preserve">
+    <value>掛載工作</value>
+  </data>
+  <data name="Text_1F0077159316" xml:space="preserve">
+    <value>跟隨 Windows 顯示語言；不支援的語言會使用簡體中文。</value>
+  </data>
+  <data name="Text_1F5ECAC72EEE" xml:space="preserve">
+    <value>按喜好調整外觀</value>
+  </data>
+  <data name="Text_1FB57F246534" xml:space="preserve">
+    <value>SQS 唯讀連線測試</value>
+  </data>
+  <data name="Text_203C08E0D44A" xml:space="preserve">
+    <value>首頁</value>
+  </data>
+  <data name="Text_20A86779FB0F" xml:space="preserve">
+    <value>WebDAV（HTTPS）入口只接受 HTTPS 位址。</value>
+  </data>
+  <data name="Text_217CFE7DB1E3" xml:space="preserve">
+    <value>跟隨系統</value>
+  </data>
+  <data name="Text_219481A6DDE7" xml:space="preserve">
+    <value>上載失敗</value>
+  </data>
+  <data name="Text_21A07234FEB3" xml:space="preserve">
+    <value>工作操作</value>
+  </data>
+  <data name="Text_21EB21206182" xml:space="preserve">
+    <value>{0}
+{1}</value>
+  </data>
+  <data name="Text_22096422F1BE" xml:space="preserve">
+    <value>衝突處理未完成：{0}。請重新核對後明確選擇，還原備份會保留。</value>
+  </data>
+  <data name="Text_2242EED5CFDF" xml:space="preserve">
+    <value>只移除目前使用者的 Explorer 遺留入口，保留資料夾及所有檔案。</value>
+  </data>
+  <data name="Text_22C72115CBD6" xml:space="preserve">
+    <value>遠端容量：手動設定上限 {0}，已用及可用空間尚未核實。</value>
+  </data>
+  <data name="Text_232959ECE75B" xml:space="preserve">
+    <value>成功 {0} 項，失敗 {1} 項，取消 {2} 項，未開始 {3} 項。</value>
+  </data>
+  <data name="Text_234B77A1E2E0" xml:space="preserve">
+    <value>已要求取消，已完成的步驟會保留。</value>
+  </data>
+  <data name="Text_23EAB219248F" xml:space="preserve">
+    <value>部分預留位置檔案</value>
+  </data>
+  <data name="Text_23F844F8F167" xml:space="preserve">
+    <value>無法讀取介面語言，已保留目前語言。</value>
+  </data>
+  <data name="Text_23FE6EDCB6CD" xml:space="preserve">
+    <value>上載本機變更</value>
+  </data>
+  <data name="Text_243C77994AC6" xml:space="preserve">
+    <value>已由較新版本取代</value>
+  </data>
+  <data name="Text_24496C34A422" xml:space="preserve">
+    <value>衝突處理記錄已變更，已保留備份並停止處理。</value>
+  </data>
+  <data name="Text_2459713C2EC0" xml:space="preserve">
+    <value>同步問題 · {0}</value>
+  </data>
+  <data name="Text_25243EF821C5" xml:space="preserve">
+    <value>準備期間本機檔案已變更，請重新核對。</value>
+  </data>
+  <data name="Text_2556F45FAF22" xml:space="preserve">
+    <value>縮圖（實驗功能）</value>
+  </data>
+  <data name="Text_25BD1A95A318" xml:space="preserve">
+    <value>連線測試已取消。</value>
+  </data>
+  <data name="Text_25E649EB0F1D" xml:space="preserve">
+    <value>偵測間隔超出允許範圍。</value>
+  </data>
+  <data name="Text_25EAE2E8931B" xml:space="preserve">
+    <value>應用程式正在停止。</value>
+  </data>
+  <data name="Text_25EF22F6DBBF" xml:space="preserve">
+    <value>正在準備所選的衝突處理方式，本機備份完成後才可寫入。</value>
+  </data>
+  <data name="Text_273A955713B8" xml:space="preserve">
+    <value>移除工作已提交，可在工作頁查看進度及逐項結果。</value>
+  </data>
+  <data name="Text_27467832B606" xml:space="preserve">
+    <value>手動容量上限（留空為不限）</value>
+  </data>
+  <data name="Text_27E53EA275F9" xml:space="preserve">
+    <value>記錄結束日期</value>
+  </data>
+  <data name="Text_2825482F8878" xml:space="preserve">
+    <value>容量設定已儲存，上載前會依目前設定檢查。</value>
+  </data>
+  <data name="Text_282FD271CAB9" xml:space="preserve">
+    <value>移除遺留入口</value>
+  </data>
+  <data name="Text_28384D7AFD2E" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="Text_28A7D0B33A09" xml:space="preserve">
+    <value>請選取空白的本機 NTFS 資料夾。</value>
+  </data>
+  <data name="Text_28B3B98EB194" xml:space="preserve">
+    <value>啟動時連線的設定已儲存。</value>
+  </data>
+  <data name="Text_28B4EC4E0528" xml:space="preserve">
+    <value>檔案／資料夾類型衝突須先另存處理，本版本只會直接取代一般檔案。</value>
+  </data>
+  <data name="Text_28E0433F19BC" xml:space="preserve">
+    <value>正在遠端重新命名</value>
+  </data>
+  <data name="Text_2952F4853185" xml:space="preserve">
+    <value>清除失敗工作</value>
+  </data>
+  <data name="Text_29B576B21307" xml:space="preserve">
+    <value>自動偵測遠端變更：{0}；{1}每 {2} 秒完整掃描；上次成功：{3}{4}</value>
+  </data>
+  <data name="Text_2A1924653192" xml:space="preserve">
+    <value>介面語言已儲存並即時套用。</value>
+  </data>
+  <data name="Text_2B792BDB2027" xml:space="preserve">
+    <value>下載工作階段已結束。</value>
+  </data>
+  <data name="Text_2CD0F3BE8738" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="Text_2D711D125254" xml:space="preserve">
+    <value>清空所有本機內容後離線取消註冊，保留空白根目錄及遠端內容。</value>
+  </data>
+  <data name="Text_2DF4D1DB584B" xml:space="preserve">
+    <value> 本次工作階段有 {0} 筆未儲存。</value>
+  </data>
+  <data name="Text_2E89004EB19C" xml:space="preserve">
+    <value>操作已提交，可在工作頁查看逐項結果。</value>
+  </data>
+  <data name="Text_2F1459A632D6" xml:space="preserve">
+    <value>舊版掛載無法更換通訊協定。</value>
+  </data>
+  <data name="Text_2F46A49FD27E" xml:space="preserve">
+    <value>現有執行個體未有回應，請結束舊執行個體後重試。
+{0}</value>
+  </data>
+  <data name="Text_2FC79E442B86" xml:space="preserve">
+    <value>等候首次確認</value>
+  </data>
+  <data name="Text_302C30CAC1DA" xml:space="preserve">
+    <value>無法更改登入時啟動設定，正在核對 Windows 的實際狀態。</value>
+  </data>
+  <data name="Text_3058C8B169F6" xml:space="preserve">
+    <value>群暉掛載</value>
+  </data>
+  <data name="Text_311BB313FDEC" xml:space="preserve">
+    <value>帳戶</value>
+  </data>
+  <data name="Text_31850649661F" xml:space="preserve">
+    <value>備份密碼（可留空，如設定則至少 8 個字元）</value>
+  </data>
+  <data name="Text_3189296AE210" xml:space="preserve">
+    <value>伺服器資料</value>
+  </data>
+  <data name="Text_3201F7EDDF10" xml:space="preserve">
+    <value>一般本機檔案或未知項目，已保留。</value>
+  </data>
+  <data name="Text_320256ADF69A" xml:space="preserve">
+    <value>請選取上載、遠端更新或排除重新命名清理工作。</value>
+  </data>
+  <data name="Text_323929DEC221" xml:space="preserve">
+    <value>還原資料夾包含重新剖析點，已拒絕寫入。</value>
+  </data>
+  <data name="Text_3276C0F65EE8" xml:space="preserve">
+    <value>容量上限</value>
+  </data>
+  <data name="Text_33042ADBD1EB" xml:space="preserve">
+    <value>不顯示縮圖</value>
+  </data>
+  <data name="Text_335625D8BF94" xml:space="preserve">
+    <value>目前工作正在執行或已結束。</value>
+  </data>
+  <data name="Text_335DD2ADA3E2" xml:space="preserve">
+    <value>全部重新連線</value>
+  </data>
+  <data name="Text_3370AC7181EF" xml:space="preserve">
+    <value>掛載已移除。</value>
+  </data>
+  <data name="Text_349616C7D52D" xml:space="preserve">
+    <value>無法儲存外觀設定，已保留原來的背景及主題。</value>
+  </data>
+  <data name="Text_349C4B7EB1F3" xml:space="preserve">
+    <value>清除已完成工作</value>
+  </data>
+  <data name="Text_35065CF67F8C" xml:space="preserve">
+    <value>確認清空並移除</value>
+  </data>
+  <data name="Text_357694508CEF" xml:space="preserve">
+    <value>正在重新核對資料夾身分…</value>
+  </data>
+  <data name="Text_363FE96AAFE6" xml:space="preserve">
+    <value>孤立預留位置資料夾，無法核驗原提供者的歸屬</value>
+  </data>
+  <data name="Text_3687F953CFE8" xml:space="preserve">
+    <value>取消連線</value>
+  </data>
+  <data name="Text_3692B75B6E6E" xml:space="preserve">
+    <value>正在等候目前工作完成，然後凍結本機內容並提交條件上載…</value>
+  </data>
+  <data name="Text_36C0DC4550F0" xml:space="preserve">
+    <value>連線已停止。</value>
+  </data>
+  <data name="Text_3763A936DC75" xml:space="preserve">
+    <value>掛載正在移除或已移除。</value>
+  </data>
+  <data name="Text_37AA6AD6A36D" xml:space="preserve">
+    <value>開啟設定</value>
+  </data>
+  <data name="Text_37CE123BBAD6" xml:space="preserve">
+    <value>要求無效。</value>
+  </data>
+  <data name="Text_383D9FB36307" xml:space="preserve">
+    <value>完成本機排除處理</value>
+  </data>
+  <data name="Text_39932F24FE11" xml:space="preserve">
+    <value>檔案</value>
+  </data>
+  <data name="Text_399588A8AC78" xml:space="preserve">
+    <value>遠端持續變更，初始掃描尚未穩定。連線會保留，背景會立即繼續完整掃描。</value>
+  </data>
+  <data name="Text_399F4609D242" xml:space="preserve">
+    <value>無法存取目前使用者的啟動項目。</value>
+  </data>
+  <data name="Text_3A55D996B6AF" xml:space="preserve">
+    <value>應用程式正在結束，連線已停止。</value>
+  </data>
+  <data name="Text_3AEE8AA1D3BA" xml:space="preserve">
+    <value>舊版模擬來源（只供遷出）</value>
+  </data>
+  <data name="Text_3BD1FA6176CA" xml:space="preserve">
+    <value>SMB（預留）</value>
+  </data>
+  <data name="Text_3C507E43EF88" xml:space="preserve">
+    <value>清除所有已結束工作</value>
+  </data>
+  <data name="Text_3C8354E36FE9" xml:space="preserve">
+    <value>衝突工作不存在。</value>
+  </data>
+  <data name="Text_3CF3EBC61173" xml:space="preserve">
+    <value>增量偵測間隔（秒）</value>
+  </data>
+  <data name="Text_3D13868593AE" xml:space="preserve">
+    <value>介面語言</value>
+  </data>
+  <data name="Text_3D1D2F450C37" xml:space="preserve">
+    <value>釋放空間</value>
+  </data>
+  <data name="Text_3D52574CE150" xml:space="preserve">
+    <value>未連線</value>
+  </data>
+  <data name="Text_3DFA24360DBD" xml:space="preserve">
+    <value>{0:N0} 位元組
+修改於 {1:G}
+{2}
+目前的本機內容（可能有別於原上載快照）</value>
+  </data>
+  <data name="Text_3E9FBE03CE66" xml:space="preserve">
+    <value>繼續清空並移除</value>
+  </data>
+  <data name="Text_3FD47EDCE45B" xml:space="preserve">
+    <value>關閉</value>
+  </data>
+  <data name="Text_403B055E56F5" xml:space="preserve">
+    <value>正在上載</value>
+  </data>
+  <data name="Text_405EE9C5A7CC" xml:space="preserve">
+    <value>快取上限已儲存。</value>
+  </data>
+  <data name="Text_406558F4B52A" xml:space="preserve">
+    <value>遠端清單包含超出範圍、重複、大小寫衝突或無效的中繼資料，尚未套用快照。</value>
+  </data>
+  <data name="Text_406A7EEAF369" xml:space="preserve">
+    <value>請輸入群暉帳戶。</value>
+  </data>
+  <data name="Text_40BB5C6B64B7" xml:space="preserve">
+    <value>處理已停止，已儲存的備份及還原階段會保留。</value>
+  </data>
+  <data name="Text_40F1B3E4A48A" xml:space="preserve">
+    <value>目前篩選條件下沒有工作。</value>
+  </data>
+  <data name="Text_4102A5A7C3CB" xml:space="preserve">
+    <value>本機修改、一般檔案、使用中的項目或不明狀態均已保留。</value>
+  </data>
+  <data name="Text_428FB8BFEECF" xml:space="preserve">
+    <value>異常</value>
+  </data>
+  <data name="Text_429EA3AF443D" xml:space="preserve">
+    <value>匯出設定</value>
+  </data>
+  <data name="Text_42B7F8CC659C" xml:space="preserve">
+    <value>本機掃描已完成，新增及修改的檔案會持續上載，可在工作頁查看衝突。</value>
+  </data>
+  <data name="Text_439537652398" xml:space="preserve">
+    <value>解密並預覽</value>
+  </data>
+  <data name="Text_4438ABDEDD78" xml:space="preserve">
+    <value>HybridMount 加密設定</value>
+  </data>
+  <data name="Text_4465E830BDF6" xml:space="preserve">
+    <value>無法儲存介面密度。</value>
+  </data>
+  <data name="Text_446A6E89ECA0" xml:space="preserve">
+    <value>請選取尚未解決的檔案衝突。</value>
+  </data>
+  <data name="Text_44979BA1F128" xml:space="preserve">
+    <value>介面密度</value>
+  </data>
+  <data name="Text_44C6E3CF9291" xml:space="preserve">
+    <value>請先選取上載、遠端更新或排除重新命名清理工作。</value>
+  </data>
+  <data name="Text_44CA7FFC290A" xml:space="preserve">
+    <value>衝突處理尚待完成</value>
+  </data>
+  <data name="Text_457866E138AA" xml:space="preserve">
+    <value>S3 掛載</value>
+  </data>
+  <data name="Text_45898B09954D" xml:space="preserve">
+    <value>使用本機版本覆寫遠端</value>
+  </data>
+  <data name="Text_45FB95610363" xml:space="preserve">
+    <value>衝突</value>
+  </data>
+  <data name="Text_462C57FFDF1A" xml:space="preserve">
+    <value>容量來源設定已儲存。</value>
+  </data>
+  <data name="Text_4671CBE46DE8" xml:space="preserve">
+    <value>一律保留在此裝置上</value>
+  </data>
+  <data name="Text_4673A2306165" xml:space="preserve">
+    <value>下載</value>
+  </data>
+  <data name="Text_46F09994B42F" xml:space="preserve">
+    <value>請先重新核對。</value>
+  </data>
+  <data name="Text_4704B931C397" xml:space="preserve">
+    <value>此檔案已排除，請先移除對應規則，才可固定檔案或釋放空間。</value>
+  </data>
+  <data name="Text_473A0089F3A0" xml:space="preserve">
+    <value>處理中</value>
+  </data>
+  <data name="Text_473E68812310" xml:space="preserve">
+    <value>缺少原生掛載工作階段。</value>
+  </data>
+  <data name="Text_479D45C856A1" xml:space="preserve">
+    <value>快取彈性上限（GiB，0 表示關閉自動回收）</value>
+  </data>
+  <data name="Text_482B9676C943" xml:space="preserve">
+    <value>繼續完成移除清理</value>
+  </data>
+  <data name="Text_483050200DFF" xml:space="preserve">
+    <value>S3 完整核對</value>
+  </data>
+  <data name="Text_484747613975" xml:space="preserve">
+    <value>設定備份</value>
+  </data>
+  <data name="Text_484C52248816" xml:space="preserve">
+    <value>保留的本機還原備份：{0}</value>
+  </data>
+  <data name="Text_4956B313D0C3" xml:space="preserve">
+    <value>預留位置檔案的歸屬不符，已停止解除。</value>
+  </data>
+  <data name="Text_499B2ECC88CD" xml:space="preserve">
+    <value>隨應用程式啟動連線</value>
+  </data>
+  <data name="Text_49BE72E6045C" xml:space="preserve">
+    <value>取消測試</value>
+  </data>
+  <data name="Text_4BB83F1A69F9" xml:space="preserve">
+    <value>空白本機 NTFS 資料夾</value>
+  </data>
+  <data name="Text_4BD0E1A6ED5A" xml:space="preserve">
+    <value>已重新命名並排除</value>
+  </data>
+  <data name="Text_4C0B929BDBE0" xml:space="preserve">
+    <value>登入 Windows 後啟動</value>
+  </data>
+  <data name="Text_4C533F41EF3C" xml:space="preserve">
+    <value>縮圖：關閉</value>
+  </data>
+  <data name="Text_4CA35F63DD99" xml:space="preserve">
+    <value>清空並移除</value>
+  </data>
+  <data name="Text_4D2966C43800" xml:space="preserve">
+    <value>尚未偵測</value>
+  </data>
+  <data name="Text_4D8C1C5B4283" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="Text_4DC4E0597723" xml:space="preserve">
+    <value>P{0} · {1}{2}</value>
+  </data>
+  <data name="Text_4DF8B18F18FD" xml:space="preserve">
+    <value>請輸入存取金鑰。</value>
+  </data>
+  <data name="Text_4EDAD650FAE2" xml:space="preserve">
+    <value>匯入結果：已儲存 {0}，略過 {1}，失敗 {2}，取消 {3}。已儲存的掛載尚未連線。</value>
+  </data>
+  <data name="Text_4FA7EB633C82" xml:space="preserve">
+    <value>記錄清單</value>
+  </data>
+  <data name="Text_5026A63B58CD" xml:space="preserve">
+    <value>正在執行</value>
+  </data>
+  <data name="Text_509C3DED7832" xml:space="preserve">
+    <value>正在清空</value>
+  </data>
+  <data name="Text_50A225C4305F" xml:space="preserve">
+    <value>{0}（複本）{1}</value>
+  </data>
+  <data name="Text_5148506BD02C" xml:space="preserve">
+    <value>群暉沒有增量變更游標，資料夾會按完整核對間隔掃描。</value>
+  </data>
+  <data name="Text_5181CEC8801A" xml:space="preserve">
+    <value>設定 · {0}</value>
+  </data>
+  <data name="Text_5214E0BC5DCE" xml:space="preserve">
+    <value>設定 · </value>
+  </data>
+  <data name="Text_5253040DB864" xml:space="preserve">
+    <value>工作</value>
+  </data>
+  <data name="Text_52778ABC35DC" xml:space="preserve">
+    <value>目前本機版本</value>
+  </data>
+  <data name="Text_52DAA71EBC31" xml:space="preserve">
+    <value>資料夾</value>
+  </data>
+  <data name="Text_52E0B9B9F464" xml:space="preserve">
+    <value>操作已提交，可在工作頁查看進度及逐項結果。</value>
+  </data>
+  <data name="Text_531B2FBE33FE" xml:space="preserve">
+    <value>下載期間本機檔案已變更，尚未取代。</value>
+  </data>
+  <data name="Text_539FEA346ABE" xml:space="preserve">
+    <value>
+正在查詢…</value>
+  </data>
+  <data name="Text_54D90665FA1C" xml:space="preserve">
+    <value>涉及重新命名或不同對應路徑的衝突，請先另存複本，本版本不會直接取代。</value>
+  </data>
+  <data name="Text_54D9C129C871" xml:space="preserve">
+    <value>隨應用程式啟動連線：{0}；縮圖：{1}{2}</value>
+  </data>
+  <data name="Text_553CA8C4287A" xml:space="preserve">
+    <value>此帳戶沒有可存取的共用資料夾，無法建立掛載。</value>
+  </data>
+  <data name="Text_561D945CB5D1" xml:space="preserve">
+    <value>遠端刪除已完成清理。</value>
+  </data>
+  <data name="Text_564385D36F6C" xml:space="preserve">
+    <value> · 下次重試：{0}</value>
+  </data>
+  <data name="Text_579016860831" xml:space="preserve">
+    <value>無法讀取關閉視窗的偏好，暫時按隱藏至通知區域處理。</value>
+  </data>
+  <data name="Text_57E4A215300D" xml:space="preserve">
+    <value>完整診斷 · {0}</value>
+  </data>
+  <data name="Text_5825A60ECD90" xml:space="preserve">
+    <value>正在移除掛載。</value>
+  </data>
+  <data name="Text_584FE9F9F916" xml:space="preserve">
+    <value>關閉視窗時會隱藏至通知區域。</value>
+  </data>
+  <data name="Text_587ECDB3BA8F" xml:space="preserve">
+    <value>貯體名稱／Bucket</value>
+  </data>
+  <data name="Text_5917CFAF5C13" xml:space="preserve">
+    <value>目前沒有可匯出的 WebDAV、S3 或群暉掛載。</value>
+  </data>
+  <data name="Text_59389C2718F4" xml:space="preserve">
+    <value>開啟檔案位置</value>
+  </data>
+  <data name="Text_59DC88878288" xml:space="preserve">
+    <value>同步根目錄的註冊已遺失，但仍有雲端預留位置檔案。已保留還原資料，禁止直接清空。</value>
+  </data>
+  <data name="Text_5A3D014AC053" xml:space="preserve">
+    <value>原同步版本：{0}{1}</value>
+  </data>
+  <data name="Text_5A5C8318EF64" xml:space="preserve">
+    <value>已選取 {0} 項</value>
+  </data>
+  <data name="Text_5A9DD0F15C3F" xml:space="preserve">
+    <value>無法確定應用程式路徑。</value>
+  </data>
+  <data name="Text_5AD47509C90B" xml:space="preserve">
+    <value>關閉遠端自動偵測</value>
+  </data>
+  <data name="Text_5B751D3A80A6" xml:space="preserve">
+    <value>遠端自動偵測（RFC 6578）</value>
+  </data>
+  <data name="Text_5BE0323E8ADC" xml:space="preserve">
+    <value>已連線</value>
+  </data>
+  <data name="Text_5CC09FEC5D5D" xml:space="preserve">
+    <value>位址無效</value>
+  </data>
+  <data name="Text_5CC6147C2C9A" xml:space="preserve">
+    <value>SQS 測試已取消。</value>
+  </data>
+  <data name="Text_5D48FFBF5714" xml:space="preserve">
+    <value>清理工作歷程記錄</value>
+  </data>
+  <data name="Text_5D63D587B0B0" xml:space="preserve">
+    <value>精簡</value>
+  </data>
+  <data name="Text_5F03A03C17D2" xml:space="preserve">
+    <value>；使用目標電腦的 SDK 預設認證鏈</value>
+  </data>
+  <data name="Text_5FA244294998" xml:space="preserve">
+    <value>上載排除</value>
+  </data>
+  <data name="Text_601740321114" xml:space="preserve">
+    <value>同步及預覽</value>
+  </data>
+  <data name="Text_6043ED945D43" xml:space="preserve">
+    <value>一般本機檔案</value>
+  </data>
+  <data name="Text_60A9B09E1708" xml:space="preserve">
+    <value>WebDAV 掛載</value>
+  </data>
+  <data name="Text_613A439ECFB6" xml:space="preserve">
+    <value>Explorer 提示：{0}
+{1}</value>
+  </data>
+  <data name="Text_616726CC744E" xml:space="preserve">
+    <value>容量已核實，等候中的工作會重新檢查可用空間。</value>
+  </data>
+  <data name="Text_636BB9497DA5" xml:space="preserve">
+    <value>無法儲存關閉視窗的偏好，已保留原來的值。</value>
+  </data>
+  <data name="Text_63B83F7866E8" xml:space="preserve">
+    <value>還原資料夾不可位於任何同步根目錄內。</value>
+  </data>
+  <data name="Text_63BD7A43C5C3" xml:space="preserve">
+    <value>完整下載後保留為一般本機資料夾。</value>
+  </data>
+  <data name="Text_63D90D977348" xml:space="preserve">
+    <value>複製</value>
+  </data>
+  <data name="Text_6439A5C466AB" xml:space="preserve">
+    <value>獨立存取金鑰</value>
+  </data>
+  <data name="Text_64FA7CF5B492" xml:space="preserve">
+    <value>請輸入允許範圍內的整數偵測間隔。</value>
+  </data>
+  <data name="Text_659875587949" xml:space="preserve">
+    <value>查看記錄</value>
+  </data>
+  <data name="Text_65C8EFD51BD1" xml:space="preserve">
+    <value>工作結果請見工作頁。</value>
+  </data>
+  <data name="Text_65EB2EC28D93" xml:space="preserve">
+    <value>無法混合不同掛載的項目。</value>
+  </data>
+  <data name="Text_66009C547BED" xml:space="preserve">
+    <value>尚未啟動</value>
+  </data>
+  <data name="Text_66456857A9CF" xml:space="preserve">
+    <value>清除此電腦已儲存的執行記錄？</value>
+  </data>
+  <data name="Text_66CA3F9F3BF4" xml:space="preserve">
+    <value>部分掛載資源尚未完成清理。</value>
+  </data>
+  <data name="Text_66D6E64FB489" xml:space="preserve">
+    <value>記錄操作</value>
+  </data>
+  <data name="Text_66DD1880BBA8" xml:space="preserve">
+    <value>快照已就緒</value>
+  </data>
+  <data name="Text_6744B4C6A9AA" xml:space="preserve">
+    <value>已關閉</value>
+  </data>
+  <data name="Text_67D79EEC4C8E" xml:space="preserve">
+    <value>
+正在擷取容量資料…</value>
+  </data>
+  <data name="Text_68C60746F1D0" xml:space="preserve">
+    <value>工作 ID</value>
+  </data>
+  <data name="Text_694186911AE3" xml:space="preserve">
+    <value>正在連線</value>
+  </data>
+  <data name="Text_69E37BF742A4" xml:space="preserve">
+    <value>請先選取掛載。</value>
+  </data>
+  <data name="Text_6A4F3B622778" xml:space="preserve">
+    <value>群暉 NAS：{0}；遠端根目錄 {1}</value>
+  </data>
+  <data name="Text_6B814AEC0BC3" xml:space="preserve">
+    <value>儲存容量設定</value>
+  </data>
+  <data name="Text_6B9CA6BA6D6B" xml:space="preserve">
+    <value>提交本機狀態</value>
+  </data>
+  <data name="Text_6BA8698BDFD7" xml:space="preserve">
+    <value>清空並取消註冊</value>
+  </data>
+  <data name="Text_6BD268503883" xml:space="preserve">
+    <value>無材質效果</value>
+  </data>
+  <data name="Text_6BEA77ACEFB3" xml:space="preserve">
+    <value>標準</value>
+  </data>
+  <data name="Text_6C05B4B383AF" xml:space="preserve">
+    <value>已用：{0}</value>
+  </data>
+  <data name="Text_6C17E763C3ED" xml:space="preserve">
+    <value>手動偵測遠端變更（完整核對）</value>
+  </data>
+  <data name="Text_6C6F465F7A3D" xml:space="preserve">
+    <value>
+上次成功：{0:g}</value>
+  </data>
+  <data name="Text_6DB506073EE6" xml:space="preserve">
+    <value>核對時間：{0}</value>
+  </data>
+  <data name="Text_6DBB10EA12BB" xml:space="preserve">
+    <value>無法讀取介面密度，暫時使用標準版面。</value>
+  </data>
+  <data name="Text_6E2647317D86" xml:space="preserve">
+    <value>遠端容量：尚未設定容量限制。</value>
+  </data>
+  <data name="Text_6E5DDDF098FC" xml:space="preserve">
+    <value>儲存排除規則</value>
+  </data>
+  <data name="Text_6FC9C71CB14F" xml:space="preserve">
+    <value>掛載</value>
+  </data>
+  <data name="Text_6FCCF0CDC9E9" xml:space="preserve">
+    <value>伺服器不支援可靠的條件更新，請另存複本。</value>
+  </data>
+  <data name="Text_6FE6313EFE02" xml:space="preserve">
+    <value>處理期間連線、設定或交易已變更，已保留備份並停止處理。</value>
+  </data>
+  <data name="Text_70543FF66115" xml:space="preserve">
+    <value>SQS 開關設定已儲存。</value>
+  </data>
+  <data name="Text_7070A69BB3D7" xml:space="preserve">
+    <value>請透過可信任的 NAS 管理途徑核對以下 SHA-256，這不會更改系統或其他掛載的信任設定：
+{0}</value>
+  </data>
+  <data name="Text_70CCDAD8E77E" xml:space="preserve">
+    <value>原生後端已中斷連線</value>
+  </data>
+  <data name="Text_70D1401819D1" xml:space="preserve">
+    <value>相關工作已停止，還原記錄已保留。請先核對未確認的結果，再重新連線。</value>
+  </data>
+  <data name="Text_70D3819407EA" xml:space="preserve">
+    <value>現有掛載無法更換遠端根目錄，請建立新掛載。</value>
+  </data>
+  <data name="Text_70E7E5F6BC2F" xml:space="preserve">
+    <value>排除規則已儲存。{0}</value>
+  </data>
+  <data name="Text_710B1958F2AB" xml:space="preserve">
+    <value>重新核對</value>
+  </data>
+  <data name="Text_71668ADD2876" xml:space="preserve">
+    <value>檔案名稱文字</value>
+  </data>
+  <data name="Text_7179375682A0" xml:space="preserve">
+    <value>請核對伺服器憑證</value>
+  </data>
+  <data name="Text_718CA0358795" xml:space="preserve">
+    <value>使用者輸入</value>
+  </data>
+  <data name="Text_725A5CC6FBC4" xml:space="preserve">
+    <value>下載後遠端再次變更，請重新核對。</value>
+  </data>
+  <data name="Text_7265AF89876F" xml:space="preserve">
+    <value>複本工作已提交，如目標已存在則會拒絕覆寫。</value>
+  </data>
+  <data name="Text_73213BCEB8A1" xml:space="preserve">
+    <value>同步問題</value>
+  </data>
+  <data name="Text_73555A93A314" xml:space="preserve">
+    <value>無法完成操作</value>
+  </data>
+  <data name="Text_73A0558AC622" xml:space="preserve">
+    <value>本機新增及修改的檔案會持續自動上載</value>
+  </data>
+  <data name="Text_7410DAE3F11E" xml:space="preserve">
+    <value>尚未核對</value>
+  </data>
+  <data name="Text_745490C041CD" xml:space="preserve">
+    <value>{0}
+
+下載並移除：完整下載後保留為一般本機資料夾。
+
+清空並移除：永久刪除資料夾內所有內容，包括本機修改及新建檔案，保留空白根目錄；不會刪除來源內容。</value>
+  </data>
+  <data name="Text_750F712B33B8" xml:space="preserve">
+    <value>完整核對間隔（秒）</value>
+  </data>
+  <data name="Text_7515E4586021" xml:space="preserve">
+    <value>請在 Windows 的啟動應用程式設定中重新允許此應用程式。</value>
+  </data>
+  <data name="Text_75604CC8C1A4" xml:space="preserve">
+    <value>允許未加密 HTTP（連接埠 5000）</value>
+  </data>
+  <data name="Text_76420433F22D" xml:space="preserve">
+    <value>匯出</value>
+  </data>
+  <data name="Text_77326E285D63" xml:space="preserve">
+    <value>使用遠端版本取代本機內容</value>
+  </data>
+  <data name="Text_776A4AD39EDC" xml:space="preserve">
+    <value>確認處理 {0} 個遺留項目</value>
+  </data>
+  <data name="Text_77C4A50009F0" xml:space="preserve">
+    <value>HybridMount.NET 啟動失敗：
+{0}
+{1}
+請查看 Logs 內的 lifecycle 啟動診斷。</value>
+  </data>
+  <data name="Text_77CE7125B59F" xml:space="preserve">
+    <value>{0:N0}／{1:N0} 項</value>
+  </data>
+  <data name="Text_7900C6A340E6" xml:space="preserve">
+    <value>相關路徑仍有上載或結果有待核對，請先完成核對。</value>
+  </data>
+  <data name="Text_792BAAFC9179" xml:space="preserve">
+    <value>一律保留</value>
+  </data>
+  <data name="Text_79989E841C63" xml:space="preserve">
+    <value>結果有待核對</value>
+  </data>
+  <data name="Text_79B2E33A7EDA" xml:space="preserve">
+    <value>舊版模擬來源已保留，請選擇下載並移除或清空。</value>
+  </data>
+  <data name="Text_7AA8F0383C44" xml:space="preserve">
+    <value>掛載設定備份清單</value>
+  </data>
+  <data name="Text_7B12C2DAAD9B" xml:space="preserve">
+    <value>每 {0} 秒增量掃描，</value>
+  </data>
+  <data name="Text_7B80D5D2DE3D" xml:space="preserve">
+    <value>此通訊協定尚未提供設定視窗。</value>
+  </data>
+  <data name="Text_7D0D5850515D" xml:space="preserve">
+    <value>開啟資料夾</value>
+  </data>
+  <data name="Text_7DBAC1C20F23" xml:space="preserve">
+    <value>記錄</value>
+  </data>
+  <data name="Text_7DE8A6DFD5E0" xml:space="preserve">
+    <value>目前篩選條件下沒有記錄。</value>
+  </data>
+  <data name="Text_7E04EC712169" xml:space="preserve">
+    <value>容量檢查</value>
+  </data>
+  <data name="Text_7E214ED64AE3" xml:space="preserve">
+    <value>部分失敗</value>
+  </data>
+  <data name="Text_7ED1A2EB244B" xml:space="preserve">
+    <value>查看同步問題</value>
+  </data>
+  <data name="Text_7F8906AE1654" xml:space="preserve">
+    <value>自動辨識磁碟區容量（非帳戶配額）</value>
+  </data>
+  <data name="Text_8073A15C1F2C" xml:space="preserve">
+    <value>密碼或第三方應用程式密碼</value>
+  </data>
+  <data name="Text_8076F11E7AB1" xml:space="preserve">
+    <value>遠端事件仍待完整核對，請先重新整理。</value>
+  </data>
+  <data name="Text_8084D978D651" xml:space="preserve">
+    <value>遠端自動偵測</value>
+  </data>
+  <data name="Text_80A50A7D7092" xml:space="preserve">
+    <value>遠端自動偵測：關閉</value>
+  </data>
+  <data name="Text_80A92AD480C0" xml:space="preserve">
+    <value>遠端手動偵測</value>
+  </data>
+  <data name="Text_80B19D68B149" xml:space="preserve">
+    <value>單位</value>
+  </data>
+  <data name="Text_814FA76101AE" xml:space="preserve">
+    <value>SQS 事件加速：已暫停（遠端自動偵測已關閉）</value>
+  </data>
+  <data name="Text_81D8F892D4FF" xml:space="preserve">
+    <value>本機內容已清空，取消註冊的清理尚待完成</value>
+  </data>
+  <data name="Text_81F9B5554532" xml:space="preserve">
+    <value>所有層級</value>
+  </data>
+  <data name="Text_826BE380E194" xml:space="preserve">
+    <value>此設定正在處理其他操作。</value>
+  </data>
+  <data name="Text_8391DA809DD9" xml:space="preserve">
+    <value>{0}{1}</value>
+  </data>
+  <data name="Text_83BD080477A5" xml:space="preserve">
+    <value>記錄操作失敗：{0}</value>
+  </data>
+  <data name="Text_83F7CCCF2032" xml:space="preserve">
+    <value>連線未完成：{0}。已儲存的設定會保留，可編輯或重試。</value>
+  </data>
+  <data name="Text_84F8745990CF" xml:space="preserve">
+    <value>階段：{0}</value>
+  </data>
+  <data name="Text_85A95E8DF55D" xml:space="preserve">
+    <value> 可載入較早的記錄。</value>
+  </data>
+  <data name="Text_86A63F23A076" xml:space="preserve">
+    <value>外觀</value>
+  </data>
+  <data name="Text_86E70C1B4824" xml:space="preserve">
+    <value>即時切換介面語言，保留目前頁面及未儲存的內容。</value>
+  </data>
+  <data name="Text_883B44EB98B9" xml:space="preserve">
+    <value>
+內容處理已完成，只會繼續取消註冊及清理 Explorer 入口。</value>
+  </data>
+  <data name="Text_8851882C5C31" xml:space="preserve">
+    <value>移除尚未完成，不可更換移除模式或執行快取工作。</value>
+  </data>
+  <data name="Text_88CF2DC00C34" xml:space="preserve">
+    <value>已中斷</value>
+  </data>
+  <data name="Text_8996FEF8E302" xml:space="preserve">
+    <value>註冊已遺失且仍有雲端預留位置檔案，已保留現有資料。</value>
+  </data>
+  <data name="Text_899961D8BE6E" xml:space="preserve">
+    <value>無法讀取外觀設定，已保留目前有效的選項。</value>
+  </data>
+  <data name="Text_89B9CD516C25" xml:space="preserve">
+    <value>核對期間工作階段、索引或工作已變更，請重新核對。</value>
+  </data>
+  <data name="Text_8A035498ED3A" xml:space="preserve">
+    <value>預留位置檔案的身分核驗失敗，無法直接覆寫。</value>
+  </data>
+  <data name="Text_8A4C0201DBCE" xml:space="preserve">
+    <value>縮圖已開啟，無法有效讀取內容時會顯示一般圖示。</value>
+  </data>
+  <data name="Text_8A8B89ACE6E7" xml:space="preserve">
+    <value>清除失敗及部分失敗的工作歷程記錄，不會刪除檔案或還原資料。</value>
+  </data>
+  <data name="Text_8AEC3F53FA0E" xml:space="preserve">
+    <value>遠端變更有待處理。</value>
+  </data>
+  <data name="Text_8B2EE1B00033" xml:space="preserve">
+    <value>尚未讀取外觀設定。</value>
+  </data>
+  <data name="Text_8B421796FD67" xml:space="preserve">
+    <value>遺留掛載尚未移除：{0}</value>
+  </data>
+  <data name="Text_8BAA7CFDED0B" xml:space="preserve">
+    <value>資料夾前綴（選填）</value>
+  </data>
+  <data name="Text_8BFDE51F46F3" xml:space="preserve">
+    <value>已核對屬於本產品的遺留同步根目錄</value>
+  </data>
+  <data name="Text_8BFF5A44439A" xml:space="preserve">
+    <value>正在重試 · </value>
+  </data>
+  <data name="Text_8C440D44770E" xml:space="preserve">
+    <value>遺留掛載已清空並取消註冊：</value>
+  </data>
+  <data name="Text_8C874AC291D6" xml:space="preserve">
+    <value>
+還原備份：{0}</value>
+  </data>
+  <data name="Text_8CE158B4E774" xml:space="preserve">
+    <value>另存複本</value>
+  </data>
+  <data name="Text_8CE3B0ABB728" xml:space="preserve">
+    <value>工作 ID，可選取並複製，以便查詢或提供意見。</value>
+  </data>
+  <data name="Text_8D3061703E17" xml:space="preserve">
+    <value>HybridMount.NET 已在執行。</value>
+  </data>
+  <data name="Text_8D3E89FEE69D" xml:space="preserve">
+    <value>無法儲存介面語言，已保留原來的語言。</value>
+  </data>
+  <data name="Text_8D99B9A09314" xml:space="preserve">
+    <value>找不到可核對的遺留掛載，可選取舊掛載資料夾進行核驗。</value>
+  </data>
+  <data name="Text_8DA97DDDA990" xml:space="preserve">
+    <value>開啟</value>
+  </data>
+  <data name="Text_8DC463228929" xml:space="preserve">
+    <value>管理此掛載的離線快取，本機修改會受到保護。</value>
+  </data>
+  <data name="Text_8DF2FA80A06C" xml:space="preserve">
+    <value>共用資料夾</value>
+  </data>
+  <data name="Text_8EF667892EFE" xml:space="preserve">
+    <value>請先選取同步問題。</value>
+  </data>
+  <data name="Text_8F40E6007E17" xml:space="preserve">
+    <value>未納入上載</value>
+  </data>
+  <data name="Text_8F90C4B59802" xml:space="preserve">
+    <value>相關資料夾操作或本機提交尚未完成，不可略過其保護。</value>
+  </data>
+  <data name="Text_8FD2EE522D59" xml:space="preserve">
+    <value>本版本支援讀取、建立及另存複本。覆寫、刪除及移動仍受衝突保護；暫不支援僅供線上使用的縮圖。</value>
+  </data>
+  <data name="Text_8FF8046CE58B" xml:space="preserve">
+    <value>{0:N0} 位元組
+修改於 {1:G}
+版本：{2}</value>
+  </data>
+  <data name="Text_9035F546529B" xml:space="preserve">
+    <value>尚未選取檔案。</value>
+  </data>
+  <data name="Text_91793038397C" xml:space="preserve">
+    <value>清理已停止</value>
+  </data>
+  <data name="Text_91D4BB7F12AD" xml:space="preserve">
+    <value>{0}
+
+資料夾內所有本機內容（包括已修改及新建的檔案）將永久刪除。保留空白根目錄及遠端資料，已完成的刪除無法還原。</value>
+  </data>
+  <data name="Text_92849724B15A" xml:space="preserve">
+    <value>無法讀取本機中繼資料：{0}</value>
+  </data>
+  <data name="Text_929769415F7E" xml:space="preserve">
+    <value>https://nas.example.com:5006/共用資料夾/</value>
+  </data>
+  <data name="Text_9299A5E47BB2" xml:space="preserve">
+    <value>隨選掛載已就緒</value>
+  </data>
+  <data name="Text_93D305FC0E03" xml:space="preserve">
+    <value>應用程式正在結束，清理已停止。</value>
+  </data>
+  <data name="Text_94766C908207" xml:space="preserve">
+    <value>記錄開始日期</value>
+  </data>
+  <data name="Text_970F3009DDCD" xml:space="preserve">
+    <value>關閉視窗時隱藏至通知區域</value>
+  </data>
+  <data name="Text_9730C3C6F841" xml:space="preserve">
+    <value>正在中斷連線…</value>
+  </data>
+  <data name="Text_9779595F3198" xml:space="preserve">
+    <value>開始日期（不限）</value>
+  </data>
+  <data name="Text_97AEFDCEF758" xml:space="preserve">
+    <value>下載至本機並核驗</value>
+  </data>
+  <data name="Text_97B59261591A" xml:space="preserve">
+    <value>移除期間無法更換認證。</value>
+  </data>
+  <data name="Text_97DBD0360022" xml:space="preserve">
+    <value>{0:N0}／{1:N0} 位元組</value>
+  </data>
+  <data name="Text_97E29C4B43A8" xml:space="preserve">
+    <value>已依確認的遠端版本提交條件上載，遠端再次變更時仍會保留衝突。</value>
+  </data>
+  <data name="Text_97E3BE741179" xml:space="preserve">
+    <value>文字記錄</value>
+  </data>
+  <data name="Text_9867EF04D433" xml:space="preserve">
+    <value>另存遠端複本</value>
+  </data>
+  <data name="Text_987BEBDCFF0D" xml:space="preserve">
+    <value>移除模式已固定，請繼續原來的移除工作。</value>
+  </data>
+  <data name="Text_989539954F09" xml:space="preserve">
+    <value>尚未讀取介面語言設定。</value>
+  </data>
+  <data name="Text_98B1705744A3" xml:space="preserve">
+    <value>已清除 {0} 筆{1}工作歷程記錄，執行中及有待處理的工作會保留。</value>
+  </data>
+  <data name="Text_9A0F126A843B" xml:space="preserve">
+    <value>同步、容量及預覽（進階）</value>
+  </data>
+  <data name="Text_9A4D7A27AB0E" xml:space="preserve">
+    <value>本次已回收 {0:F1} MiB，目前約佔用 {1:F1} MiB。</value>
+  </data>
+  <data name="Text_9AAB6315EDD6" xml:space="preserve">
+    <value>掛載正在中斷連線，請完成後重新連線。</value>
+  </data>
+  <data name="Text_9BAE68040509" xml:space="preserve">
+    <value>主導覽</value>
+  </data>
+  <data name="Text_9BC703EA466D" xml:space="preserve">
+    <value>核對期間本機檔案已變更，請重新核對。</value>
+  </data>
+  <data name="Text_9CEA6B88615A" xml:space="preserve">
+    <value>操作已完成。</value>
+  </data>
+  <data name="Text_9D163C698599" xml:space="preserve">
+    <value>選取舊掛載資料夾</value>
+  </data>
+  <data name="Text_9D25DF22DEE7" xml:space="preserve">
+    <value>掛載清單</value>
+  </data>
+  <data name="Text_9D2CA261281A" xml:space="preserve">
+    <value>稍後</value>
+  </data>
+  <data name="Text_9D933522D6D0" xml:space="preserve">
+    <value>視窗主題</value>
+  </data>
+  <data name="Text_9E07E3C0532D" xml:space="preserve">
+    <value>上載</value>
+  </data>
+  <data name="Text_9E449AB53AA1" xml:space="preserve">
+    <value>遠端檔案／資料夾類型已變更，本機內容已保留，請處理衝突。</value>
+  </data>
+  <data name="Text_9F07D2CE4115" xml:space="preserve">
+    <value>更多操作</value>
+  </data>
+  <data name="Text_9F2D27D64F39" xml:space="preserve">
+    <value>偵測排程間隔（秒）</value>
+  </data>
+  <data name="Text_9FA79A28A511" xml:space="preserve">
+    <value>已保留為一般本機檔案。</value>
+  </data>
+  <data name="Text_A028D7449DF0" xml:space="preserve">
+    <value>舊版選單尚未執行任何檔案操作，請更新擴充功能後重試。</value>
+  </data>
+  <data name="Text_A0CCE5FC2C74" xml:space="preserve">
+    <value>未知（服務未提供）</value>
+  </data>
+  <data name="Text_A0E1ADC4B7E5" xml:space="preserve">
+    <value>群暉 NAS（Synology）</value>
+  </data>
+  <data name="Text_A145A59AE166" xml:space="preserve">
+    <value>SQS 事件加速設定已儲存。</value>
+  </data>
+  <data name="Text_A1480CEA066A" xml:space="preserve">
+    <value>請先選取工作。</value>
+  </data>
+  <data name="Text_A1D2C876E328" xml:space="preserve">
+    <value>此衝突屬於舊連線範圍，請重新偵測目前的遠端狀態。</value>
+  </data>
+  <data name="Text_A248E9122195" xml:space="preserve">
+    <value>同步問題不存在。</value>
+  </data>
+  <data name="Text_A2A57F95410A" xml:space="preserve">
+    <value>無法讀取快取設定，已停止儲存。</value>
+  </data>
+  <data name="Text_A2D97B57CBC7" xml:space="preserve">
+    <value>上次移除尚未完成，請沿用相同的移除方式。</value>
+  </data>
+  <data name="Text_A37778F17C5F" xml:space="preserve">
+    <value>已取消</value>
+  </data>
+  <data name="Text_A39C7E51EDF4" xml:space="preserve">
+    <value>正在移除的掛載暫時無法匯出。</value>
+  </data>
+  <data name="Text_A5574109F020" xml:space="preserve">
+    <value>連線</value>
+  </data>
+  <data name="Text_A5D176FA10BC" xml:space="preserve">
+    <value>已定位同步問題。</value>
+  </data>
+  <data name="Text_A5D1DC365EE4" xml:space="preserve">
+    <value>檔案符合上載排除規則，請先調整規則。</value>
+  </data>
+  <data name="Text_A6124727E357" xml:space="preserve">
+    <value>立即檢查回收</value>
+  </data>
+  <data name="Text_A621AB606DB2" xml:space="preserve">
+    <value>密碼</value>
+  </data>
+  <data name="Text_A64F9905BF4B" xml:space="preserve">
+    <value>掛載尚未連線，請在掛載頁連線後重試。</value>
+  </data>
+  <data name="Text_A6B75D068032" xml:space="preserve">
+    <value>深色</value>
+  </data>
+  <data name="Text_A757E4CB2A36" xml:space="preserve">
+    <value>系統原則已停用登入時啟動。</value>
+  </data>
+  <data name="Text_A7E6A95D7992" xml:space="preserve">
+    <value>NFS（預留）</value>
+  </data>
+  <data name="Text_A7F3DFA29171" xml:space="preserve">
+    <value>上次取代本機內容時中斷，請先使用遠端版本完成還原，原始本機備份仍會保留。</value>
+  </data>
+  <data name="Text_A898478BE181" xml:space="preserve">
+    <value>連線中</value>
+  </data>
+  <data name="Text_A8B7A4480407" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="Text_A8D6892987C4" xml:space="preserve">
+    <value>檔案尚未完整填入內容，已停止移除。</value>
+  </data>
+  <data name="Text_A8E0CCE27860" xml:space="preserve">
+    <value>原同步根目錄的註冊已遺失，資料已保留，不可自動重新註冊。</value>
+  </data>
+  <data name="Text_AA0819DFC4D8" xml:space="preserve">
+    <value>淺色</value>
+  </data>
+  <data name="Text_AAD1862AC6A6" xml:space="preserve">
+    <value>RFC 6578 增量偵測</value>
+  </data>
+  <data name="Text_AB76E294EE5F" xml:space="preserve">
+    <value>已註冊目前使用者的登入啟動項目（開發執行）。</value>
+  </data>
+  <data name="Text_ABEA4B3A3DF2" xml:space="preserve">
+    <value>處理衝突 · {0}</value>
+  </data>
+  <data name="Text_AC3FFDC297B7" xml:space="preserve">
+    <value>S3：{0}；貯體 {1}；前綴 {2}</value>
+  </data>
+  <data name="Text_AC75AD85ABB5" xml:space="preserve">
+    <value>登入 Windows 後靜默啟動至通知區域。</value>
+  </data>
+  <data name="Text_AD4671D5C48F" xml:space="preserve">
+    <value>提交本機同步狀態</value>
+  </data>
+  <data name="Text_ADAB5F3BF6C5" xml:space="preserve">
+    <value> → 遠端：{0}</value>
+  </data>
+  <data name="Text_AEAA2A51C8AA" xml:space="preserve">
+    <value>開啟遠端自動偵測</value>
+  </data>
+  <data name="Text_AEB65D05782D" xml:space="preserve">
+    <value>本機資料夾</value>
+  </data>
+  <data name="Text_AEE887434131" xml:space="preserve">
+    <value>重新整理</value>
+  </data>
+  <data name="Text_AEECD5977CD6" xml:space="preserve">
+    <value>系統原則已啟用登入時啟動。</value>
+  </data>
+  <data name="Text_AEFE72DC1317" xml:space="preserve">
+    <value>正在載入記錄</value>
+  </data>
+  <data name="Text_AF0AD96CB324" xml:space="preserve">
+    <value>加入預設規則</value>
+  </data>
+  <data name="Text_AF2B8C4537C1" xml:space="preserve">
+    <value>總空間：{0}</value>
+  </data>
+  <data name="Text_B00893BB99C2" xml:space="preserve">
+    <value>目前沒有診斷資料。</value>
+  </data>
+  <data name="Text_B019211CE0BB" xml:space="preserve">
+    <value>縮圖已關閉，背景預覽已停止。</value>
+  </data>
+  <data name="Text_B01C8E8EEF92" xml:space="preserve">
+    <value>移除開始後無法更換模式。</value>
+  </data>
+  <data name="Text_B043D167A20C" xml:space="preserve">
+    <value>重試所選工作</value>
+  </data>
+  <data name="Text_B0B8AFEBEAD6" xml:space="preserve">
+    <value>工作已結束或不存在。</value>
+  </data>
+  <data name="Text_B0F181CAFC5A" xml:space="preserve">
+    <value>正在等候目前工作完成，然後備份本機內容、下載並核驗遠端內容…</value>
+  </data>
+  <data name="Text_B1110A3FAB2E" xml:space="preserve">
+    <value>HTTPS 憑證 SHA-256 指紋（選填）</value>
+  </data>
+  <data name="Text_B1C5E73E1471" xml:space="preserve">
+    <value>位元組</value>
+  </data>
+  <data name="Text_B364AFEE9249" xml:space="preserve">
+    <value>連線已取消。</value>
+  </data>
+  <data name="Text_B3E7068FC529" xml:space="preserve">
+    <value>備份密碼可留空，如設定則須至少 8 個字元。</value>
+  </data>
+  <data name="Text_B48B6518293A" xml:space="preserve">
+    <value>匯入設定</value>
+  </data>
+  <data name="Text_B4E683C69C1F" xml:space="preserve">
+    <value>
+上次階段：{0}
+還原備份：{1}</value>
+  </data>
+  <data name="Text_B5141D3D19E9" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="Text_B571C7266A40" xml:space="preserve">
+    <value>留空即不設密碼保護，任何取得備份的人均可讀取當中的認證。</value>
+  </data>
+  <data name="Text_B583ABBE6D7C" xml:space="preserve">
+    <value>手動容量上限（GB，留空為不限）</value>
+  </data>
+  <data name="Text_B5852AAAA8E8" xml:space="preserve">
+    <value>請先選取檔案衝突。</value>
+  </data>
+  <data name="Text_B589C733AEEF" xml:space="preserve">
+    <value>{0}：{1}{2}</value>
+  </data>
+  <data name="Text_B64BD4615124" xml:space="preserve">
+    <value>SQS 事件加速設定</value>
+  </data>
+  <data name="Text_B659FC3F6B67" xml:space="preserve">
+    <value>此工作請使用重新核對、重試或取消清理。如目標已存在，不會自動覆寫。</value>
+  </data>
+  <data name="Text_B6C615F9C968" xml:space="preserve">
+    <value>檔案選取已取消。</value>
+  </data>
+  <data name="Text_B6FD03C2DB1D" xml:space="preserve">
+    <value>從伺服器擷取容量資料</value>
+  </data>
+  <data name="Text_B7CB05D81A06" xml:space="preserve">
+    <value>清除所有已結束的工作，保留執行中、等候中、有衝突及結果待核對的工作，不會刪除檔案或還原資料。</value>
+  </data>
+  <data name="Text_B813E88ECA5E" xml:space="preserve">
+    <value>確認後本機檔案已變更，尚未覆寫。</value>
+  </data>
+  <data name="Text_B85162F2AE16" xml:space="preserve">
+    <value>儲存偵測設定</value>
+  </data>
+  <data name="Text_B868FAF07C8A" xml:space="preserve">
+    <value>已要求取消，已完成的步驟會保留，已刪除的內容不會還原。</value>
+  </data>
+  <data name="Text_B8826D711144" xml:space="preserve">
+    <value>儲存偵測間隔</value>
+  </data>
+  <data name="Text_B89C8EECD2BB" xml:space="preserve">
+    <value>本機檔案尚未完整下載。為保留所有本機內容，請先開啟或下載檔案，再繼續處理。</value>
+  </data>
+  <data name="Text_B8B974267CBE" xml:space="preserve">
+    <value>未加密連線並不安全</value>
+  </data>
+  <data name="Text_B8D23E667305" xml:space="preserve">
+    <value>正在中斷連線</value>
+  </data>
+  <data name="Text_B924A642457C" xml:space="preserve">
+    <value>請輸入服務實際使用的簽署區域。</value>
+  </data>
+  <data name="Text_BA1127DA3666" xml:space="preserve">
+    <value>請輸入存取金鑰 ID，或選取 SDK 預設認證鏈。</value>
+  </data>
+  <data name="Text_BB3E2F88EEC4" xml:space="preserve">
+    <value>檔案符合排除規則，尚未上載。</value>
+  </data>
+  <data name="Text_BC2FA28989C5" xml:space="preserve">
+    <value>匯入所選項目</value>
+  </data>
+  <data name="Text_BCB9E6D7CDB7" xml:space="preserve">
+    <value>外觀設定已儲存並即時套用。</value>
+  </data>
+  <data name="Text_BCC223CCC272" xml:space="preserve">
+    <value>偵測間隔必須是有效的整數秒。</value>
+  </data>
+  <data name="Text_BCE2377283C2" xml:space="preserve">
+    <value>清除</value>
+  </data>
+  <data name="Text_BD0859D1C3CC" xml:space="preserve">
+    <value>掛載操作失敗：{0}</value>
+  </data>
+  <data name="Text_BD426C35BB57" xml:space="preserve">
+    <value>目前遠端版本</value>
+  </data>
+  <data name="Text_BD7D468AF466" xml:space="preserve">
+    <value>請先選取上載工作。</value>
+  </data>
+  <data name="Text_BDC65C424B91" xml:space="preserve">
+    <value>已加密匯出 {0} 個掛載設定。</value>
+  </data>
+  <data name="Text_BE146CE5330F" xml:space="preserve">
+    <value>全選可處理項目</value>
+  </data>
+  <data name="Text_BEC5D197229C" xml:space="preserve">
+    <value>仍有雲端檔案尚未解除預留位置狀態，已保留設定及註冊以便還原。</value>
+  </data>
+  <data name="Text_BFE958DEA679" xml:space="preserve">
+    <value>複本</value>
+  </data>
+  <data name="Text_BFF03461DF20" xml:space="preserve">
+    <value>再次輸入備份密碼</value>
+  </data>
+  <data name="Text_C02FDCF208B3" xml:space="preserve">
+    <value>刪除規則</value>
+  </data>
+  <data name="Text_C05166172020" xml:space="preserve">
+    <value>確認處理</value>
+  </data>
+  <data name="Text_C059B61C6A28" xml:space="preserve">
+    <value>重試連線</value>
+  </data>
+  <data name="Text_C25FEEEB96C6" xml:space="preserve">
+    <value>臨時工作階段權杖（選填）</value>
+  </data>
+  <data name="Text_C2CDF622BB68" xml:space="preserve">
+    <value>新增 · 群暉 NAS</value>
+  </data>
+  <data name="Text_C32110B1817C" xml:space="preserve">
+    <value>
+
+{0}{1}</value>
+  </data>
+  <data name="Text_C3266E411EA3" xml:space="preserve">
+    <value>載入較早記錄</value>
+  </data>
+  <data name="Text_C3BAF245356F" xml:space="preserve">
+    <value>已由後續重新命名接管</value>
+  </data>
+  <data name="Text_C5BE73B72FD5" xml:space="preserve">
+    <value>正在讀取佇列屬性…</value>
+  </data>
+  <data name="Text_C60745B652A6" xml:space="preserve">
+    <value>簽署區域／Region</value>
+  </data>
+  <data name="Text_C682F190CBD4" xml:space="preserve">
+    <value>請輸入密碼。</value>
+  </data>
+  <data name="Text_C6A4C773ADDA" xml:space="preserve">
+    <value>工作、索引或遠端事件已變更，請重新核對。</value>
+  </data>
+  <data name="Text_C6A6D7108D1C" xml:space="preserve">
+    <value>縮圖：開啟（實驗功能），視乎檔案及服務的讀取能力產生，可能顯示一般圖示。</value>
+  </data>
+  <data name="Text_C6C39053F9D2" xml:space="preserve">
+    <value>需要還原</value>
+  </data>
+  <data name="Text_C6F3C8B82C24" xml:space="preserve">
+    <value>已排除</value>
+  </data>
+  <data name="Text_C837C2341C3B" xml:space="preserve">
+    <value>遠端版本已套用。</value>
+  </data>
+  <data name="Text_C852D93398AD" xml:space="preserve">
+    <value>請輸入貯體名稱。</value>
+  </data>
+  <data name="Text_C866EBEF00E6" xml:space="preserve">
+    <value>路徑式定址／Path-Style</value>
+  </data>
+  <data name="Text_C8BCDC5DAC6A" xml:space="preserve">
+    <value>{0} 個同步問題；按一下查看，按右鍵開啟完整診斷</value>
+  </data>
+  <data name="Text_C8FDC145DC3D" xml:space="preserve">
+    <value>上載佇列已變更，請重新連線後核對。</value>
+  </data>
+  <data name="Text_C9F9E18B0623" xml:space="preserve">
+    <value>加入規則</value>
+  </data>
+  <data name="Text_CAFDD55E0A9F" xml:space="preserve">
+    <value>{0}
+
+移除掛載：保留本機檔案，不會連線至遠端。
+
+清空並移除：永久刪除根目錄內所有本機內容，保留空白根目錄及遠端資料。</value>
+  </data>
+  <data name="Text_CB337BBDEC92" xml:space="preserve">
+    <value>已要求以唯讀方式核對，這不會授權覆寫或重新傳送。</value>
+  </data>
+  <data name="Text_CB4488E8DBC2" xml:space="preserve">
+    <value>未加密 HTTP</value>
+  </data>
+  <data name="Text_CBC7E4431D75" xml:space="preserve">
+    <value>掛載不存在。</value>
+  </data>
+  <data name="Text_CC0C4EB91412" xml:space="preserve">
+    <value>無法讀取登入時啟動狀態。</value>
+  </data>
+  <data name="Text_CC194E99AC16" xml:space="preserve">
+    <value>管理掛載</value>
+  </data>
+  <data name="Text_CC88E5B26428" xml:space="preserve">
+    <value>失敗及部分失敗</value>
+  </data>
+  <data name="Text_CE0744E60649" xml:space="preserve">
+    <value>版本 {0}</value>
+  </data>
+  <data name="Text_CE08D74C24D3" xml:space="preserve">
+    <value>儲存連線並重新連線</value>
+  </data>
+  <data name="Text_CE17926FC19C" xml:space="preserve">
+    <value>註冊已遺失，但仍有已具現化的索引，已保留設定以待還原。</value>
+  </data>
+  <data name="Text_CE34A9E7C067" xml:space="preserve">
+    <value>無法讀取遠端中繼資料：{0}</value>
+  </data>
+  <data name="Text_CF0551621FC4" xml:space="preserve">
+    <value>已使用核驗後的遠端內容取代本機內容，原本機內容備份：{0}</value>
+  </data>
+  <data name="Text_CF6F4B5AB212" xml:space="preserve">
+    <value>請輸入有效的快取上限。</value>
+  </data>
+  <data name="Text_CF9FBC15EBC3" xml:space="preserve">
+    <value>請先連線至掛載，再核對衝突。</value>
+  </data>
+  <data name="Text_D06BC6EFDD8C" xml:space="preserve">
+    <value>查看結果</value>
+  </data>
+  <data name="Text_D076BD51ADFE" xml:space="preserve">
+    <value>{0}上次成功：{1}{2}</value>
+  </data>
+  <data name="Text_D2ACA8610E97" xml:space="preserve">
+    <value>介面密度已儲存並即時套用。</value>
+  </data>
+  <data name="Text_D2E33E1E22E6" xml:space="preserve">
+    <value>下載並移除</value>
+  </data>
+  <data name="Text_D3716CC5A2F5" xml:space="preserve">
+    <value>伺服器位址</value>
+  </data>
+  <data name="Text_D433988AA349" xml:space="preserve">
+    <value>等待套用</value>
+  </data>
+  <data name="Text_D44119F948EA" xml:space="preserve">
+    <value>群暉 WebDAV：https://nas.example.com:5006/共用資料夾/（須在 WebDAV Server 套件啟用 HTTPS）。DSM 5001 請使用群暉 NAS 入口。</value>
+  </data>
+  <data name="Text_D44E9B3D3B31" xml:space="preserve">
+    <value>名稱</value>
+  </data>
+  <data name="Text_D5551131636F" xml:space="preserve">
+    <value>此掛載固定的憑證 SHA-256：
+{0}</value>
+  </data>
+  <data name="Text_D6056A236CAB" xml:space="preserve">
+    <value>掛載連線或設定已變更，請重新核對。</value>
+  </data>
+  <data name="Text_D6F766F2ADF5" xml:space="preserve">
+    <value>正在排隊</value>
+  </data>
+  <data name="Text_D719D6371AD6" xml:space="preserve">
+    <value>等候檔案可用</value>
+  </data>
+  <data name="Text_D76876D823BF" xml:space="preserve">
+    <value>測試 SQS 連線（唯讀）</value>
+  </data>
+  <data name="Text_D79B1D0E5C61" xml:space="preserve">
+    <value>已結束</value>
+  </data>
+  <data name="Text_D80DA62D3B0A" xml:space="preserve">
+    <value>新增 · </value>
+  </data>
+  <data name="Text_D8510A0D488B" xml:space="preserve">
+    <value>請先測試連線以載入共用資料夾。電腦無須安裝 File Station，但 NAS 必須啟用 File Station 服務。</value>
+  </data>
+  <data name="Text_D8BEB94D8189" xml:space="preserve">
+    <value>遠端自動偵測已開啟。</value>
+  </data>
+  <data name="Text_D9060E83E41F" xml:space="preserve">
+    <value>無（本機新增）</value>
+  </data>
+  <data name="Text_DA8B86A7782B" xml:space="preserve">
+    <value>WebDAV（HTTPS）入口只接受 HTTPS 位址，群暉一般使用連接埠 5006。</value>
+  </data>
+  <data name="Text_DB1CDAA04D01" xml:space="preserve">
+    <value>請選取要匯出的掛載。</value>
+  </data>
+  <data name="Text_DBADF79FCEE4" xml:space="preserve">
+    <value>視窗背景</value>
+  </data>
+  <data name="Text_DBBD93A69189" xml:space="preserve">
+    <value>遠端容量：自動辨識，尚未查詢。</value>
+  </data>
+  <data name="Text_DBDA804F16C7" xml:space="preserve">
+    <value>正在執行唯讀探測…</value>
+  </data>
+  <data name="Text_DC0C60E5B1ED" xml:space="preserve">
+    <value>登入時啟動已關閉。</value>
+  </data>
+  <data name="Text_DC25DC95ACCE" xml:space="preserve">
+    <value>有 {0} 個上載問題需要處理</value>
+  </data>
+  <data name="Text_DC8BF8258D87" xml:space="preserve">
+    <value>處理期間相關路徑出現新工作，請重新核對。</value>
+  </data>
+  <data name="Text_DC8CC2915933" xml:space="preserve">
+    <value>完成排除重新命名清理</value>
+  </data>
+  <data name="Text_DCA2D1E7505B" xml:space="preserve">
+    <value>儲存上限</value>
+  </data>
+  <data name="Text_DCB22E1AF650" xml:space="preserve">
+    <value>啟動及通知區域</value>
+  </data>
+  <data name="Text_DCE215127749" xml:space="preserve">
+    <value>請繼續使用已選取的移除方式，不會自動重複刪除操作。</value>
+  </data>
+  <data name="Text_DD44CB00BAD0" xml:space="preserve">
+    <value>子資料夾（選填，相對於共用資料夾）</value>
+  </data>
+  <data name="Text_DDA61DA868D8" xml:space="preserve">
+    <value>Session Token（臨時認證，選填）</value>
+  </data>
+  <data name="Text_DE0DA0AE8DA4" xml:space="preserve">
+    <value>記錄層級</value>
+  </data>
+  <data name="Text_DE0FBF01AACB" xml:space="preserve">
+    <value>顯示縮圖（實驗功能）</value>
+  </data>
+  <data name="Text_DE1A9ED63D75" xml:space="preserve">
+    <value>處理所選項目</value>
+  </data>
+  <data name="Text_DF3D58C7D84B" xml:space="preserve">
+    <value>設定</value>
+  </data>
+  <data name="Text_DF9CE89B8A1A" xml:space="preserve">
+    <value>沒有可清除的{0}歷程記錄，執行中或有待還原的工作會保留。</value>
+  </data>
+  <data name="Text_DFBC15C21F05" xml:space="preserve">
+    <value>無法讀取還原記錄：{0}</value>
+  </data>
+  <data name="Text_E0105248342F" xml:space="preserve">
+    <value>WebDAV（HTTPS）掛載</value>
+  </data>
+  <data name="Text_E01311A466BF" xml:space="preserve">
+    <value>遠端新檔案的相對路徑</value>
+  </data>
+  <data name="Text_E131031441CF" xml:space="preserve">
+    <value>例如：文件/專案</value>
+  </data>
+  <data name="Text_E1F0F1CB1AB4" xml:space="preserve">
+    <value>比對方式</value>
+  </data>
+  <data name="Text_E2012BC95CE4" xml:space="preserve">
+    <value>佇列認證來源</value>
+  </data>
+  <data name="Text_E2039AFABE4C" xml:space="preserve">
+    <value>從快照填入內容</value>
+  </data>
+  <data name="Text_E2119A607C0A" xml:space="preserve">
+    <value>移除未完成</value>
+  </data>
+  <data name="Text_E2B1ACC016C0" xml:space="preserve">
+    <value>繼續下載並移除</value>
+  </data>
+  <data name="Text_E38AB48681DD" xml:space="preserve">
+    <value>連線設定</value>
+  </data>
+  <data name="Text_E3C64D1D126F" xml:space="preserve">
+    <value>所有掛載</value>
+  </data>
+  <data name="Text_E410A42CC339" xml:space="preserve">
+    <value>移除掛載（保留本機檔案）</value>
+  </data>
+  <data name="Text_E4170809495B" xml:space="preserve">
+    <value>開啟 Windows 啟動設定</value>
+  </data>
+  <data name="Text_E443ECCB0E9F" xml:space="preserve">
+    <value>無法讀取外觀設定。</value>
+  </data>
+  <data name="Text_E558E337DB75" xml:space="preserve">
+    <value>遠端容量：{0}
+可用 {1} · 已用 {2} · 總量 {3}{4}{5}{6}</value>
+  </data>
+  <data name="Text_E5FE24CA742F" xml:space="preserve">
+    <value>選取資料夾</value>
+  </data>
+  <data name="Text_E68F1C0ED374" xml:space="preserve">
+    <value>等候原上載結果</value>
+  </data>
+  <data name="Text_E6A7881C23A2" xml:space="preserve">
+    <value>應用程式正在結束，不再接受新工作。</value>
+  </data>
+  <data name="Text_E7028601E7DA" xml:space="preserve">
+    <value>資訊</value>
+  </data>
+  <data name="Text_E76A52C1441D" xml:space="preserve">
+    <value>套用遠端變更</value>
+  </data>
+  <data name="Text_E798BD8AAE7D" xml:space="preserve">
+    <value>等候遠端重新命名</value>
+  </data>
+  <data name="Text_E79E19D19A9D" xml:space="preserve">
+    <value>使用 AWS SDK 預設認證鏈</value>
+  </data>
+  <data name="Text_E7E1C13CAFC0" xml:space="preserve">
+    <value>查看獨立儲存的未解決同步問題</value>
+  </data>
+  <data name="Text_E8213DCA8072" xml:space="preserve">
+    <value>版本或類型衝突</value>
+  </data>
+  <data name="Text_E8E08B0F61DD" xml:space="preserve">
+    <value>正在取消處理…</value>
+  </data>
+  <data name="Text_E97206223328" xml:space="preserve">
+    <value>快照超過本版本一百萬項的安全上限，請縮小遠端根目錄範圍。</value>
+  </data>
+  <data name="Text_E987FAE4AEA4" xml:space="preserve">
+    <value>已連線至 {0}。</value>
+  </data>
+  <data name="Text_EA202573A4B5" xml:space="preserve">
+    <value>掛載正在連線，請等候目前連線完成。</value>
+  </data>
+  <data name="Text_EA215D28117F" xml:space="preserve">
+    <value>目前工作無法重試。</value>
+  </data>
+  <data name="Text_EC23F70A2031" xml:space="preserve">
+    <value>缺少語言資源，已改用簡體中文。</value>
+  </data>
+  <data name="Text_ECC76CD5FB74" xml:space="preserve">
+    <value>遠端衝突狀態已變更，請重新選取。</value>
+  </data>
+  <data name="Text_ED068529662D" xml:space="preserve">
+    <value>離線快取</value>
+  </data>
+  <data name="Text_ED1373DA607C" xml:space="preserve">
+    <value>儲存 SQS 設定</value>
+  </data>
+  <data name="Text_EDCD0FE3A86E" xml:space="preserve">
+    <value>已核對指紋，只信任此掛載並重試</value>
+  </data>
+  <data name="Text_EE9EBE523D42" xml:space="preserve">
+    <value>連線中…</value>
+  </data>
+  <data name="Text_EEADEE679ABB" xml:space="preserve">
+    <value>選單目標不屬於本產品的掛載。</value>
+  </data>
+  <data name="Text_F007E1890A6A" xml:space="preserve">
+    <value>兩次輸入的備份密碼不相符。</value>
+  </data>
+  <data name="Text_F02C2A9F730E" xml:space="preserve">
+    <value>遠端內容已刪除，而本機內容尚未完整，已保留設定及現有內容。</value>
+  </data>
+  <data name="Text_F075BC371E5A" xml:space="preserve">
+    <value>遠端自動偵測已關閉。</value>
+  </data>
+  <data name="Text_F0986AB1A2C4" xml:space="preserve">
+    <value>排除檔案</value>
+  </data>
+  <data name="Text_F0FA859C1E0D" xml:space="preserve">
+    <value>憑證驗證：系統信任。</value>
+  </data>
+  <data name="Text_F14C813F211F" xml:space="preserve">
+    <value>{0}已顯示 {1} 筆，保留最近 30 天、最多 10000 筆。{2}{3}{4}</value>
+  </data>
+  <data name="Text_F1B417B318B5" xml:space="preserve">
+    <value>完整診斷</value>
+  </data>
+  <data name="Text_F1E7BEC171AE" xml:space="preserve">
+    <value>未知版本</value>
+  </data>
+  <data name="Text_F203D577D142" xml:space="preserve">
+    <value>不限</value>
+  </data>
+  <data name="Text_F28461BB49C8" xml:space="preserve">
+    <value>已完成</value>
+  </data>
+  <data name="Text_F33AC04EECE6" xml:space="preserve">
+    <value>中斷連線</value>
+  </data>
+  <data name="Text_F3D810080ECB" xml:space="preserve">
+    <value>重新命名結果有待核對</value>
+  </data>
+  <data name="Text_F3F84AE474C2" xml:space="preserve">
+    <value>無法儲存關閉視窗的偏好。</value>
+  </data>
+  <data name="Text_F4D4BAE588C4" xml:space="preserve">
+    <value>取消全選</value>
+  </data>
+  <data name="Text_F4DAD8B3E4CF" xml:space="preserve">
+    <value>工作 ID：{0}
+掛載：{1}
+{2}
+{3}
+{4}
+{5}
+{6}
+{7}
+{8}
+</value>
+  </data>
+  <data name="Text_F5651904C35C" xml:space="preserve">
+    <value>更多掛載操作</value>
+  </data>
+  <data name="Text_F57E977ECDE7" xml:space="preserve">
+    <value>SQS：{0}；上次事件：{1}；待核對提示 {2}{3}</value>
+  </data>
+  <data name="Text_F59D50DAFB2E" xml:space="preserve">
+    <value>內容尚未清空完成。</value>
+  </data>
+  <data name="Text_F62DFC6C48E8" xml:space="preserve">
+    <value>S3 物件儲存</value>
+  </data>
+  <data name="Text_F66DF4636FF4" xml:space="preserve">
+    <value>上載複本</value>
+  </data>
+  <data name="Text_F66E4F942756" xml:space="preserve">
+    <value>平均 {0} · </value>
+  </data>
+  <data name="Text_F6B3FF7C362A" xml:space="preserve">
+    <value>重新核實容量</value>
+  </data>
+  <data name="Text_F71FF9567A7C" xml:space="preserve">
+    <value>已要求顯示視窗。</value>
+  </data>
+  <data name="Text_F745D52559D6" xml:space="preserve">
+    <value>DSM 伺服器位址</value>
+  </data>
+  <data name="Text_F797B44CFD54" xml:space="preserve">
+    <value>修改設定</value>
+  </data>
+  <data name="Text_F8AE324708BF" xml:space="preserve">
+    <value>停止連線時清理失敗，請查看生命週期階段。</value>
+  </data>
+  <data name="Text_F8FFEB435E02" xml:space="preserve">
+    <value>已提交重試。如掛載尚未連線，請先在掛載頁連線。</value>
+  </data>
+  <data name="Text_F96BBA110AEF" xml:space="preserve">
+    <value>連線測試失敗，請檢查設定、網絡及認證來源。</value>
+  </data>
+  <data name="Text_FA89C102F166" xml:space="preserve">
+    <value>獨立存取金鑰 ID</value>
+  </data>
+  <data name="Text_FAB66225B551" xml:space="preserve">
+    <value>查看執行記錄</value>
+  </data>
+  <data name="Text_FAF3E262130E" xml:space="preserve">
+    <value>掛載操作</value>
+  </data>
+  <data name="Text_FB1B4EE3098C" xml:space="preserve">
+    <value>本機：{0}；雲端目標：{1}</value>
+  </data>
+  <data name="Text_FB644ADE7E17" xml:space="preserve">
+    <value>切換預留位置版本</value>
+  </data>
+  <data name="Text_FB99EDB2DA85" xml:space="preserve">
+    <value>自簽憑證的指紋必須先經可信任途徑核對才可填入，信任只限此掛載。憑證更新後須重新核驗，請勿填入未經核對的指紋。</value>
+  </data>
+  <data name="Text_FC2942B518E1" xml:space="preserve">
+    <value>清除成功完成的工作歷程記錄，保留其他工作及同步資料。</value>
+  </data>
+  <data name="Text_FC2DB52DAAA9" xml:space="preserve">
+    <value>檢查中</value>
+  </data>
+  <data name="Text_FC8B9CB4FC5F" xml:space="preserve">
+    <value>留空以使用系統憑證驗證</value>
+  </data>
+  <data name="Text_FDEB8FA90307" xml:space="preserve">
+    <value>處理所選項目（{0}）</value>
+  </data>
+  <data name="Text_FEE3C5717BB4" xml:space="preserve">
+    <value>移除掛載</value>
+  </data>
+  <data name="Text_FEE60AE594C1" xml:space="preserve">
+    <value>項目</value>
+  </data>
+  <data name="Text_FF6DF7520EEE" xml:space="preserve">
+    <value>偵測設定已儲存。</value>
+  </data>
+  <data name="Text_46B3DC4ED4A4" xml:space="preserve">
+    <value>請選取受支援的介面語言。</value>
+  </data>
+  <data name="Text_7EC44126D7B8" xml:space="preserve">
+    <value>透過本機檢視管理遠端檔案</value>
+  </data>
+  <data name="Text_3769CB3E7C40" xml:space="preserve">
+    <value>此位址會以未加密方式傳送認證及內容，只限在可信任的測試網絡使用。</value>
+  </data>
+  <data name="Text_63116F299742" xml:space="preserve">
+    <value>HTTP 會以未加密方式傳送帳戶、密碼及檔案內容。只可在可信任的網絡明確允許後使用，建議改用 HTTPS（5001）。</value>
+  </data>
+  <data name="Text_92B13F21F95E" xml:space="preserve">
+    <value>還原記錄已保留。請先核對未確認的結果，再重新連線至受影響的掛載。</value>
+  </data>
+  <data name="Text_C2942442A231" xml:space="preserve">
+    <value>已移除的掛載</value>
+  </data>
+  <data name="Text_91A1D31663B9" xml:space="preserve"><value>顯示主視窗</value></data>
+  <data name="Text_EC4D1F9F82B1" xml:space="preserve"><value>結束 HybridMount.NET</value></data>
+</root>

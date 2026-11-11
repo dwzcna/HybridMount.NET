@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Page xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.LogsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:diagnostics="using:HybridMount.Models.Diagnostics">
+<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.LogsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:diagnostics="using:HybridMount.Models.Diagnostics">
   <Grid Style="{StaticResource SharedPageGridStyle}">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <TextBlock Text="日志" Style="{ThemeResource TitleTextBlockStyle}"/>
+    <TextBlock loc:Ui.TextKey="Text_7DBAC1C20F23" Style="{ThemeResource TitleTextBlockStyle}"/>
     <Grid Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="12" RowSpacing="8">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <TextBox PlaceholderText="搜索日志" Text="{x:Bind ViewModel.Query,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="搜索日志" AccessKey="Q"/>
-      <ComboBox x:Name="SeverityBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="SeverityChanged" HorizontalAlignment="Stretch" AutomationProperties.Name="日志级别">
-        <ComboBoxItem Content="全部级别" Tag="All"/><ComboBoxItem Content="信息" Tag="Information"/><ComboBoxItem Content="警告" Tag="Warning"/><ComboBoxItem Content="错误" Tag="Error"/>
+      <TextBox loc:Ui.PlaceholderTextKey="Text_1B9B75F51D20" Text="{x:Bind ViewModel.Query,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" loc:Ui.AutomationNameKey="Text_1B9B75F51D20" AccessKey="Q"/>
+      <ComboBox x:Name="SeverityBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="SeverityChanged" HorizontalAlignment="Stretch" loc:Ui.AutomationNameKey="Text_DE0DA0AE8DA4">
+        <ComboBoxItem loc:Ui.ContentKey="Text_81F9B5554532" Tag="All"/><ComboBoxItem loc:Ui.ContentKey="Text_E7028601E7DA" Tag="Information"/><ComboBoxItem loc:Ui.ContentKey="Text_A8B7A4480407" Tag="Warning"/><ComboBoxItem loc:Ui.ContentKey="Text_0BC1FB72AE1B" Tag="Error"/>
       </ComboBox>
-      <CommandBar Grid.Row="1" Grid.ColumnSpan="2" HorizontalContentAlignment="Left" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" AutomationProperties.Name="日志操作">
-        <AppBarButton Label="刷新" Icon="Refresh" AccessKey="R" Click="RefreshClicked"/>
-        <AppBarButton Label="复制" Icon="Copy" AccessKey="C" Click="CopyClicked"/>
-        <AppBarButton Label="导出" Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked"/>
-        <AppBarButton Label="清除" Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked"/>
-        <AppBarButton Label="生命周期记录" Icon="Document" AccessKey="L" Click="LifecycleClicked"/>
+      <CommandBar Grid.Row="1" Grid.ColumnSpan="2" HorizontalContentAlignment="Left" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True" Background="Transparent" loc:Ui.AutomationNameKey="Text_66D6E64FB489">
+        <AppBarButton loc:Ui.LabelKey="Text_AEE887434131" Icon="Refresh" AccessKey="R" Click="RefreshClicked"/>
+        <AppBarButton loc:Ui.LabelKey="Text_63D90D977348" Icon="Copy" AccessKey="C" Click="CopyClicked"/>
+        <AppBarButton loc:Ui.LabelKey="Text_76420433F22D" Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked"/>
+        <AppBarButton loc:Ui.LabelKey="Text_BCE2377283C2" Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked"/>
+        <AppBarButton loc:Ui.LabelKey="Text_0BD7CE0F30C6" Icon="Document" AccessKey="L" Click="LifecycleClicked"/>
       </CommandBar>
     </Grid>
     <Grid Grid.Row="2" Margin="0,10,0,0" ColumnSpacing="10" RowSpacing="8">
@@ -24,16 +24,16 @@
       <VisualStateManager.VisualStateGroups><VisualStateGroup>
         <VisualState><VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="760"/></VisualState.StateTriggers><VisualState.Setters><Setter Target="EndDate.(Grid.Row)" Value="0"/><Setter Target="EndDate.(Grid.Column)" Value="1"/><Setter Target="StartDate.(Grid.ColumnSpan)" Value="1"/><Setter Target="EndDate.(Grid.ColumnSpan)" Value="1"/></VisualState.Setters></VisualState>
       </VisualStateGroup></VisualStateManager.VisualStateGroups>
-      <CalendarDatePicker x:Name="StartDate" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" PlaceholderText="开始日期（不限）" Date="{x:Bind ViewModel.FromDate,Mode=TwoWay}" AutomationProperties.Name="日志开始日期"/>
-      <CalendarDatePicker x:Name="EndDate" Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" PlaceholderText="结束日期（不限）" Date="{x:Bind ViewModel.ToDate,Mode=TwoWay}" AutomationProperties.Name="日志结束日期"/>
+      <CalendarDatePicker x:Name="StartDate" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" loc:Ui.PlaceholderTextKey="Text_9779595F3198" Date="{x:Bind ViewModel.FromDate,Mode=TwoWay}" loc:Ui.AutomationNameKey="Text_94766C908207"/>
+      <CalendarDatePicker x:Name="EndDate" Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" loc:Ui.PlaceholderTextKey="Text_0D98F46613AC" Date="{x:Bind ViewModel.ToDate,Mode=TwoWay}" loc:Ui.AutomationNameKey="Text_27E53EA275F9"/>
     </Grid>
-    <ListView x:Name="LogList" Grid.Row="3" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Entries}" SelectionMode="None" AutomationProperties.Name="日志列表">
+    <ListView x:Name="LogList" Grid.Row="3" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Entries}" SelectionMode="None" loc:Ui.AutomationNameKey="Text_4FA7EB633C82">
       <ListView.ItemTemplate><DataTemplate x:DataType="diagnostics:DiagnosticEntry"><Grid Padding="8" RowSpacing="6"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="{x:Bind DisplayTime}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/><TextBlock Text="{x:Bind DisplaySeverity}"/><TextBlock Text="{x:Bind Source}" FontWeight="SemiBold"/></StackPanel><TextBlock Grid.Row="1" Text="{x:Bind Message}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></Grid></DataTemplate></ListView.ItemTemplate>
     </ListView>
-    <ProgressRing Grid.Row="3" IsActive="{x:Bind ViewModel.IsReading,Mode=OneWay}" Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.IsReading),Mode=OneWay}" AutomationProperties.Name="正在加载日志"/>
-    <TextBlock Grid.Row="3" Text="当前筛选下没有日志。" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyAndIdle(ViewModel.Entries.Count,ViewModel.IsReading),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
+    <ProgressRing Grid.Row="3" IsActive="{x:Bind ViewModel.IsReading,Mode=OneWay}" Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.IsReading),Mode=OneWay}" loc:Ui.AutomationNameKey="Text_AEFE72DC1317"/>
+    <TextBlock Grid.Row="3" loc:Ui.TextKey="Text_7DE8A6DFD5E0" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyAndIdle(ViewModel.Entries.Count,ViewModel.IsReading),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
     <Grid Grid.Row="4" Margin="0,16,0,0" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Button Content="加载更早" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" VerticalAlignment="Top"/>
+      <Button loc:Ui.ContentKey="Text_C3266E411EA3" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" VerticalAlignment="Top"/>
     <InfoBar Grid.Column="1" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
     </Grid>
   </Grid>
