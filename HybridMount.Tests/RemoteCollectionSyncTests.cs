@@ -52,16 +52,16 @@ public sealed class RemoteCollectionSyncTests
         var error=await Assert.ThrowsAsync<RemoteSyncException>(()=>source.GetCollectionChangesAsync("","urn:test:0",default));Assert.Equal(404,error.Status);
     }
     [Fact]
-    public async Task PartialBaselinePersistsContinuationWithoutInferringMissingAndRecovers()
+    public async Task PartialBaselinePublishesAdditionsWithoutInferringMissingAndRecoversFromRoot()
     {
         await using var fixture=new SyncDavFixture();await using var source=fixture.Dav.Source();var repo=fixture.Repository();var mount=Guid.NewGuid();
         var old=await source.GetMetadataAsync("文件.bin");repo.SaveEntry(mount,new("old","gone","gone",old.Version,false,Materialized:true));
         var calls=0;fixture.Report=(_,token)=>++calls==1?SyncDavFixture.Multi("urn:test:next",[fixture.Item("文件.bin"),SyncDavFixture.Resource("/dav/",507)]):new(503,[]);
         var engine=new RemoteSyncEngine(mount,"scope",source,source,repo);
         await Assert.ThrowsAsync<RemoteSyncException>(()=>engine.PollAsync(false,TimeSpan.Zero,default));
-        Assert.Empty(repo.RemotePending(mount,"scope"));var checkpoint=Assert.Single(repo.RemoteCollections(mount,"scope"));
-        Assert.True(checkpoint.BuildingBaseline);Assert.Equal("urn:test:next",checkpoint.Token);Assert.Single(checkpoint.Baseline!);
-        fixture.Report=(_,token)=>{Assert.Equal("urn:test:next",token);return SyncDavFixture.Multi("urn:test:done",[]);};
+        Assert.Contains(repo.RemotePending(mount,"scope"),item=>item.Path=="文件.bin"&&item.Entry is not null);Assert.DoesNotContain(repo.RemotePending(mount,"scope"),item=>item.Entry is null);var checkpoint=Assert.Single(repo.RemoteCollections(mount,"scope"));
+        Assert.True(checkpoint.BuildingBaseline);Assert.Equal("Full",checkpoint.Mode);Assert.Null(checkpoint.Baseline);
+        fixture.Report=(_,token)=>{Assert.Null(token);return SyncDavFixture.Multi("urn:test:done",[fixture.Item("文件.bin")]);};
         var restarted=new MountRepository(repo.DataDirectory,fixture.Registry);await new RemoteSyncEngine(mount,"scope",source,source,restarted).PollAsync(false,TimeSpan.Zero,default);
         Assert.False(Assert.Single(restarted.RemoteCollections(mount,"scope")).BuildingBaseline);
         Assert.Contains(restarted.RemotePending(mount,"scope"),x=>x.Path=="gone"&&x.Entry is null);

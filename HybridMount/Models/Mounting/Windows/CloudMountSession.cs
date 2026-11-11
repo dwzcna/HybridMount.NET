@@ -184,7 +184,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         try
         {
             if(_queueBinding is null)lease=await _reads.EnterAsync(info.Priority,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
-            var entry=_repository.Entries(_mount.Id).FirstOrDefault(item=>item.Id==id&&!item.Deleted&&item.RemotePresence!=RemotePresence.Deleted)??throw new FileNotFoundException("占位身份不存在。");
+            var entry=_repository.EntryById(_mount.Id,id);if(entry is null||entry.Deleted||entry.RemotePresence==RemotePresence.Deleted)throw new FileNotFoundException("占位身份不存在。");
             var ownedHydration=info.Explicit||info.ProcessId==(uint)Runtime.ProcessId||info.ProcessId==(uint)Environment.ProcessId;
             var parent=ownedHydration?_downloadTasks.GetValueOrDefault(id):null; // 外部普通打开保持P0，不因同文件正在固定而降级。
             using var queueTask=_queueBinding?.Queue.Enter(_queueBinding,parent??new("read:"+info.FetchId,_mount.Id,_queueBinding.Generation,MountingPriority.Demand,DateTimeOffset.UtcNow,"download",entry.SourcePath,entry.Id,entry.Version));
@@ -192,6 +192,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             if(staged is null&&_repository.HasPendingRemote(_mount.Id,entry.SourcePath))throw new SourceConflictException("远端更新待提交，暂缓旧版本水合。");
             var metadata=staged?.Metadata??await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
             await using var snapshot=staged is null?null:new FileStream(staged.Path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete,262144,FileOptions.Asynchronous|FileOptions.RandomAccess);
+            if(staged is null)entry=BindColdMetadata(entry,metadata,source);
             if(!source.IsSameVersion(metadata.Version,entry.Version))throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0||length<=0||offset>metadata.Size||length>metadata.Size-offset)throw new IOException("系统请求范围越界。");
             var start=offset/4096*4096;var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));var localStamp=HydrationStamp(entry,metadata);var fetchId=Guid.Parse(info.FetchId);
@@ -256,7 +257,52 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         try{var result=Runtime.Invoke("refreshPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()}));RecordLocalWrite(entry,NativeRuntimeArguments.Stamp(result));return true;}
         finally{EndMetadataUpdate(entry.Id);}
     }
-    /// <summary>原生端创建真实占位并返回文件戳；回执到达后才提交索引。</summary>
+    /// <summary>仅把未含摘要、零本地范围且干净的群晖占位绑定至本次已验证元数据；不重解释已有正文版本。</summary>
+    private MountEntry BindColdMetadata(MountEntry entry,SourceEntry metadata,IFileSource source)
+    {
+        if(source is not Models.Mounting.Synology.SynologyFileSource synology||entry.IsDirectory||metadata.IsDirectory||entry.Protected||entry.Deleted||!entry.Materialized||entry.Version.Contains(";md5:",StringComparison.Ordinal)||!synology.HasReliableVersion(metadata)||!synology.IsSameVersionHint(entry.Version,metadata.Version))return entry;
+        var path=RelativePaths.ToLocal(_mount.LocalPath,entry.LocalPath);MountPathGuard.ValidateOperation(_mount,path);var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
+        if(marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info!.Value.Info.ModifiedSize!=0||info.Value.Info.InSyncState!=1)return entry;
+        var stamp=LocalFileState.Read(path);if(stamp.IsDirectory||stamp.Length!=metadata.Size||stamp.LastWriteTime!=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc())return entry;
+        return _repository.BindColdObservedVersion(_mount.Id,entry,metadata.Version,info.Value.Info.OnDiskSize==0&&info.Value.Info.ValidatedSize==0)?entry with{Version=metadata.Version}:entry;
+    }
+    /// <summary>最多256个已有父目录下的占位符；只执行CFAPI并返回逐项结果，数据库提交由调用者在批次边界拥有。</summary>
+    internal IReadOnlyList<PlaceholderCreationResult> CreatePlaceholders(IReadOnlyList<(MountEntry Entry,SourceEntry Metadata)> items)
+    {
+        if(items.Count is <1 or >256)throw new ArgumentOutOfRangeException(nameof(items));
+        var expected=items.ToDictionary(item=>item.Entry.Id,StringComparer.Ordinal);
+        var results=new List<PlaceholderCreationResult>();
+        foreach(var batch in CreationFrames(items))
+        {
+        var response=Runtime.Invoke("createPlaceholders",batch);
+        foreach(var value in response.GetProperty("results").EnumerateArray())
+        {
+            var id=value.GetProperty("entryId").GetString()??throw new IOException("批次回执缺少条目身份。");
+            if(!expected.Remove(id,out var item))throw new IOException("批次回执身份重复或不属于本次请求。");
+            var code=value.GetProperty("hresult").GetInt32();var usn=code<0?0:NativeRuntimeProtocol.Read<long>(value.GetProperty("createUsn"));
+            if(code>=0)
+            {
+                var stamp=NativeRuntimeArguments.Stamp(value);
+                if(usn!=0&&stamp.Usn==usn&&stamp.Length==item.Metadata.Size&&stamp.LastWriteTime==item.Metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc())RecordLocalWrite(item.Entry,stamp);
+            }
+            results.Add(new(item.Entry,item.Metadata,code,usn));
+        }
+        }
+        if(expected.Count!=0)throw new IOException("批次回执不完整，已保存准备映射等待重新核验。");
+        return results;
+    }
+    /// <summary>按实际UTF8序列化大小拆分长路径批次，为一MiB私有帧的命令信封保留余量。</summary>
+    private IEnumerable<object> CreationFrames(IReadOnlyList<(MountEntry Entry,SourceEntry Metadata)> items)
+    {
+        var queue=new Queue<(int Start,int Count)>();queue.Enqueue((0,items.Count));
+        while(queue.TryDequeue(out var range))
+        {
+            var data=SessionArgs(new{entries=items.Skip(range.Start).Take(range.Count).Select(item=>EntryArgs(item.Entry,new{size=item.Metadata.Size,time=item.Metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()})).ToArray()});
+            if(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(data,NativeRuntimeProtocol.Json).Length<=768*1024){yield return data;continue;}
+            if(range.Count==1)throw new IOException("单项占位请求超过内部帧预算，保留准备身份等待处理。");
+            var half=range.Count/2;queue.Enqueue((range.Start,half));queue.Enqueue((range.Start+half,range.Count-half));
+        }
+    }
     public void CreatePlaceholder(MountEntry entry,SourceEntry metadata)
     {
         var result=Runtime.Invoke("createPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()}));_repository.SaveEntry(_mount.Id,entry with{Materialized=true});var usn=NativeRuntimeProtocol.Read<long>(result.GetProperty("createUsn"));RecordCreatedWrite(entry,metadata,usn);

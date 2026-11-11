@@ -20,6 +20,10 @@ public sealed partial class CloudMountSession
         if(marker?.MountId!=_mount.Id||marker.EntryId!=entry.Id||info!.PinState!=1||info.InSyncState!=1||info.ModifiedSize!=0)return(false,false);
         return(true,(snapshot.State&0x10)!=0||!snapshot.Full);
     }
+    /// <summary>只接纳同条目未含摘要的冷版本被本会话首读绑定后的升级；两个已验证版本仍须严格相等。</summary>
+    internal bool SamePinVersion(MountEntry expected,MountEntry current)
+        =>expected.Id==current.Id&&expected.SourcePath==current.SourcePath&&expected.LocalPath==current.LocalPath&&expected.IsDirectory==current.IsDirectory&&
+            (expected.Version==current.Version||_source is Models.Mounting.Synology.SynologyFileSource source&&!expected.Version.Contains(";md5:",StringComparison.Ordinal)&&current.Version.Contains(";md5:",StringComparison.Ordinal)&&source.IsSameVersionHint(expected.Version,current.Version));
     /// <summary>显式固定只由原生属性操作修改已核验条目。</summary>
     internal void RequestPin(MountEntry entry)=>Runtime.Invoke("requestPin",EntryArgs(entry));
     /// <summary>原生固定与显式下载共享同条目的水合；每位调用者独立取消，工作自己拥有句柄和停止令牌，不重新设置Pin或InSync。</summary>
@@ -35,12 +39,14 @@ public sealed partial class CloudMountSession
                 checkpointToken.ThrowIfCancellationRequested();
                 if(stage=="pinnedGuarded")
                 {
-                    var current=_repository.Entries(_mount.Id).FirstOrDefault(x=>x.Id==entry.Id);
-                    if(_clearing||current is null||current.Deleted||current.Protected||current.Version!=entry.Version||current.LocalPath!=entry.LocalPath||current.RemotePresence==RemotePresence.Deleted||_repository.HasPendingRemote(_mount.Id,entry.SourcePath)||_repository.Uploads(_mount.Id).Any(x=>x.LocalPath==entry.LocalPath&&x.State!="Completed"))throw new IOException("固定下载遇到本地修改、未决工作或身份变化，已保留内容。");
+                    var current=_repository.EntryById(_mount.Id,entry.Id);
+                    if(_clearing||current is null||current.Deleted||current.Protected||!SamePinVersion(entry,current)||current.LocalPath!=entry.LocalPath||current.RemotePresence==RemotePresence.Deleted||_repository.HasPendingRemote(_mount.Id,entry.SourcePath)||_repository.Uploads(_mount.Id).Any(x=>x.LocalPath==entry.LocalPath&&x.State!="Completed"))throw new IOException("固定下载遇到本地修改、未决工作或身份变化，已保留内容。");
+                    entry=current;
                 }
                 else if(stage=="pinReleasing"&&PinResourcesReleasingForTests is {} checkpoint)await checkpoint(checkpointToken).ConfigureAwait(false);
                 return null;
             },cancel).ConfigureAwait(false);
+            if(_repository.EntryById(_mount.Id,entry.Id) is {} latest&&SamePinVersion(entry,latest))entry=latest;
             var stamp=NativeRuntimeArguments.Stamp(result);if(stamp.Usn!=0)RecordLocalWrite(entry,stamp);_localContentReady?.Invoke(entry);return true;
         }
         finally{gate.Release();NotifyPinWorkCompleted(entry.Id);}

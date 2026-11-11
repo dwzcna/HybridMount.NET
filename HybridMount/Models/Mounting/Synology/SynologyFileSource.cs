@@ -94,6 +94,12 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
     }
     /// <summary>摘要和观测代次均属于不透明内容版本，不能解释为服务器条件写令牌。</summary>
     public bool IsSameVersion(string left,string right)=>string.Equals(left,right,StringComparison.Ordinal);
+    /// <summary>只比较大小和时间线索，不能据此认定文件正文相等；冷占位绑定仍须证明没有任何本地范围。</summary>
+    public bool IsSameVersionHint(string expected,string observed)
+    {
+        static string Hint(string value){var marker=value.IndexOf(";md5:",StringComparison.Ordinal);return marker<0?value:value[..marker];}
+        return Hint(expected)==Hint(observed);
+    }
     /// <summary>只读登录并核验远端目录；此处不运行写能力探测。</summary>
     public async Task ProbeAsync(CancellationToken token=default)
     {await EnsureSessionAsync(token).ConfigureAwait(false);if(!(await GetMetadataAsync("",token).ConfigureAwait(false)).IsDirectory)throw new IOException("群晖挂载根必须是目录。");}
@@ -123,7 +129,7 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
     /// <summary>仅明确不存在返回空；认证、权限、网络及内容核对失败继续报告。</summary>
     public async Task<SourceEntry?> TryGetMetadataAsync(string path,CancellationToken token=default)
     {try{return await GetMetadataAsync(path,token).ConfigureAwait(false);}catch(FileNotFoundException){return null;}}
-    /// <summary>完整分页并逐文件补充摘要；取消或路径歧义时不发布集合检查点。</summary>
+    /// <summary>完整分页仅返回本轮元数据，列表不逐文件查询MD5；未知摘要不证明内容相等。</summary>
     public async IAsyncEnumerable<SourceEntry> ListAsync(string path,[EnumeratorCancellation] CancellationToken token=default)
     {
         var offset=0;var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -137,7 +143,7 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
                 var entry=Entry(file);
                 if(entry.Path==path||RelativePathRules.Parent(entry.Path)!=path||!seen.Add(entry.Path)||seen.Count>1_000_000)
                     throw Failure("目录映射",ConnectionFailureKind.Service,"远端目录含重复、大小写碰撞、越界或过量路径；需要用户处理。");
-                if(!_probePaths.ContainsKey(entry.Path))yield return await FingerprintAsync(entry,token).ConfigureAwait(false);
+                if(!_probePaths.ContainsKey(entry.Path))yield return entry;
             }
             offset=checked(offset+files.GetArrayLength());if(offset>=total)yield break;
         }

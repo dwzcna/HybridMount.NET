@@ -22,6 +22,7 @@ public sealed partial class MountManager
         public string? CurrentId;
         public Task Work=Task.CompletedTask,QueueWork=Task.CompletedTask,Cancellation=Task.CompletedTask;
         public bool Stopping,LoopStarted,RescanSoon,QueueStarted;
+        public long Discovered,Created,Published,LastPublicationProgress;
         public Task? Finish;
         public void RequestStop(){lock(Sync){if(Stopping)return;Stopping=true;Cancellation=Stop.CancelAsync();}}
         public void Wake(){lock(Sync){if(Stopping)return;if(Signal.CurrentCount==0)Signal.Release();}}
@@ -43,6 +44,8 @@ public sealed partial class MountManager
             var scope=root.Source is IMountSourceRuntime scoped?scoped.RemoteScope(root.Definition.CredentialRevision):Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity+"\0"+root.Definition.CredentialRevision)));
             _repository.ActivateRemoteScope(root.Definition.Id,scope);
             var runtime=new RemoteSyncRuntime(root.Source,root.Session,new(root.Definition.Id,scope,root.Source,changes,_repository,root.ChangeSession),_stop.Token);root.RemoteSync=runtime;
+            runtime.Engine.PublishDiscovered=(batch,cancel)=>PublishDiscoveryBatchAsync(root,runtime,batch,cancel);
+            runtime.Engine.DiscoveryProgress=count=>{runtime.Discovered=count;PublishDiscoveryProgress(root,runtime);};
             changes.RestoreObservations(_repository.RemoteShadow(root.Definition.Id,scope));
             if(startLoop&&root.Definition.RemoteAutoDetectEnabled){runtime.LoopStarted=true;runtime.Work=TasksQueue.RunObserverAsync(new MountingObserver("remote:"+root.Definition.Id,root.Definition.Id,cancel=>RemoteLoopAsync(root,runtime,cancel)),runtime.Stop.Token);StartRemoteEvents(root,runtime);}
         }
@@ -118,6 +121,7 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
             try
             {
+                runtime.Discovered=runtime.Created=runtime.Published=runtime.LastPublicationProgress=0;
                 await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
                 try{await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);}
                 finally
@@ -138,11 +142,12 @@ public sealed partial class MountManager
     private IReadOnlyList<RemotePendingChange> RemotePendingFor(Runtime root)=>_repository.AllRemotePending(root.Definition.Id);
     private static MountOperationSnapshot RemoteTask(RemotePendingChange change,long bytes=0)=>new(change.Id,"remoteUpdate",change.State=="Pending"?"Queued":change.State,
         change.State=="Completed"?1:0,1,change.Error is null?[]:[new(change.Path,change.State,change.Error)],change.Error,change.MountId,change.Path,bytes,change.Entry?.Size??0,change.Entry?.IsDirectory,change.Path);
+    private RemotePendingChange RequireRemotePending(string id)=>_repository.FindRemotePending(id)??throw new IOException("远端事件身份已丢失，保留当前阶段等待核对。");
     private RemotePendingChange SaveRemote(RemotePendingChange pending,bool retry=false,Exception? failure=null)
     {
         lock(_remoteJournalLock)
         {
-            var current=_repository.RemotePending(pending.MountId,pending.Scope).FirstOrDefault(x=>x.Id==pending.Id);
+            var current=_repository.FindRemotePending(pending.Id);
             if(!retry&&current?.State=="Canceled"&&pending.State is not("Canceled" or "Completed" or "Superseded"))return current;
             if(!StagingDiskSpace.IsWaiting(pending.State,pending.Error)&&_roots.TryGetValue(pending.MountId,out var root))root.RemoteSync?.StagingRetries.Reset(pending.Id);
             _repository.SaveRemotePending(pending);RecordStateDiagnostic("远端更新",pending.MountId,pending.Id,pending.State,pending.Error is not null&&pending.State is not("Completed" or "Canceled" or "Superseded"),DiagnosticVersion(pending.Scope+pending.Error),failure);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;

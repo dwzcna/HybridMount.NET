@@ -53,13 +53,12 @@ public sealed partial class MountRepository
             using var row=cmd.ExecuteReader();var result=new List<MountEntry>();while(row.Read())result.Add(new(row.GetString(0),row.GetString(1),row.GetString(2),row.GetString(3),row.GetInt64(4)!=0,row.GetInt64(5)!=0,row.GetInt64(6)!=0,row.GetInt64(7)!=0,(RemotePresence)row.GetInt64(8)));return result;
         }
     }
-    public void SaveEntry(Guid mount, MountEntry entry)
+    public void SaveEntry(Guid mount,MountEntry entry)
+    {lock(_gate){using var db=Open();SaveEntryCore(db,null,mount,entry);}}
+    private static void SaveEntryCore(SqliteConnection db,SqliteTransaction? transaction,Guid mount,MountEntry entry)
     {
-        lock (_gate)
-        {
-            using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "INSERT INTO entries VALUES($m,$id,$s,$l,$v,$d,$x,$p,$c) ON CONFLICT(mount,id) DO UPDATE SET local=$l,version=$v,deleted=MAX(deleted,$x),protected=MAX(protected,$p),materialized=MAX(materialized,$c)";
-            cmd.Parameters.AddWithValue("$m", mount.ToString("N")); cmd.Parameters.AddWithValue("$id", entry.Id); cmd.Parameters.AddWithValue("$s", entry.SourcePath); cmd.Parameters.AddWithValue("$l", entry.LocalPath); cmd.Parameters.AddWithValue("$v", entry.Version); cmd.Parameters.AddWithValue("$d", entry.IsDirectory); cmd.Parameters.AddWithValue("$x", entry.Deleted); cmd.Parameters.AddWithValue("$p", entry.Protected); cmd.Parameters.AddWithValue("$c", entry.Materialized); cmd.ExecuteNonQuery();
-        }
+        using var cmd=db.CreateCommand();cmd.Transaction=transaction;cmd.CommandText="INSERT INTO entries VALUES($m,$id,$s,$l,$v,$d,$x,$p,$c) ON CONFLICT(mount,id) DO UPDATE SET local=$l,version=$v,deleted=MAX(deleted,$x),protected=MAX(protected,$p),materialized=MAX(materialized,$c)";
+        cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$id",entry.Id);cmd.Parameters.AddWithValue("$s",entry.SourcePath);cmd.Parameters.AddWithValue("$l",entry.LocalPath);cmd.Parameters.AddWithValue("$v",entry.Version);cmd.Parameters.AddWithValue("$d",entry.IsDirectory);cmd.Parameters.AddWithValue("$x",entry.Deleted);cmd.Parameters.AddWithValue("$p",entry.Protected);cmd.Parameters.AddWithValue("$c",entry.Materialized);cmd.ExecuteNonQuery();
     }
     public void SaveOperation(MountOperationSnapshot snapshot)
     {

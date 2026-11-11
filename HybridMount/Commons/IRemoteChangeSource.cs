@@ -20,6 +20,12 @@ public interface IRemoteSnapshotSource
     Task<IReadOnlyList<SourceEntry>> ReadSnapshotAsync(IReadOnlyList<RemoteShadowEntry> previous,CancellationToken token);
 }
 
+/// <summary>可选的有界快照发现流；父目录先于子项，枚举完成前只允许发布正向发现，不能据此推断删除。</summary>
+public interface IStreamingRemoteSnapshotSource:IRemoteSnapshotSource
+{
+    IAsyncEnumerable<SourceEntry> ReadSnapshotStreamAsync(IReadOnlyList<RemoteShadowEntry> previous,CancellationToken token);
+}
+
 /// <summary>持久提示的最小只读视图，不暴露队列正文、回执或协议事件字段。</summary>
 public interface IRemoteHintJournal
 {

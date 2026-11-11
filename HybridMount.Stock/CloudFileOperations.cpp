@@ -52,6 +52,33 @@ Json Create(const Json& data){
     auto bytes=Json{{"MountId",data.at("mountId")},{"EntryId",data.at("entryId")}}.dump();CF_PLACEHOLDER_CREATE_INFO item{};item.RelativeFileName=name.c_str();item.FsMetadata.BasicInfo.CreationTime.QuadPart=time;item.FsMetadata.BasicInfo.LastWriteTime.QuadPart=time;item.FsMetadata.BasicInfo.LastAccessTime.QuadPart=time;item.FsMetadata.BasicInfo.ChangeTime.QuadPart=time;item.FsMetadata.BasicInfo.FileAttributes=directory?FILE_ATTRIBUTE_DIRECTORY:FILE_ATTRIBUTE_NORMAL;item.FsMetadata.FileSize.QuadPart=size;item.FileIdentity=bytes.data();item.FileIdentityLength=static_cast<DWORD>(bytes.size());item.Flags=static_cast<CF_PLACEHOLDER_CREATE_FLAGS>(directory?3:2);
     DWORD processed{};Check(CfCreatePlaceholders(parent.c_str(),&item,1,CF_CREATE_FLAG_STOP_ON_ERROR,&processed));Check(item.Result);Require(processed==1);return {{"stamp",FileJson(InspectFile(path))},{"createUsn",std::to_string(item.CreateUsn)}};
 }
+/// <summary>同一会话最多256项；逐父目录调用SDK批次，结果独立返回，已有文件绝不覆盖。</summary>
+Json CreateBatch(const Json& data){
+    ValidateRuntimeRoot(data);const auto& incoming=data.at("entries");Require(incoming.is_array()&&!incoming.empty()&&incoming.size()<=256);
+    struct Pending{Json Data;std::wstring Path,Parent,Name;std::string Identity;};
+    std::vector<Pending> pending;pending.reserve(incoming.size());std::map<std::wstring,std::vector<size_t>> groups;
+    for(const auto& value:incoming){
+        Require(GuidN(value.at("mountId"))==GuidN(data.at("mountId"))&&SamePath(FullPath(Text(value,"rootPath")),FullPath(Text(data,"rootPath")))&&value.at("rootIdentity")==data.at("rootIdentity"),E_ACCESSDENIED);
+        auto path=EntryPath(value,false),parent=path.substr(0,path.find_last_of(L'\\')),name=path.substr(path.find_last_of(L'\\')+1);Require(!name.empty()&&name!=L"."&&name!=L"..");
+        groups[parent].push_back(pending.size());pending.push_back({value,path,parent,name,Json{{"MountId",value.at("mountId")},{"EntryId",value.at("entryId")}}.dump()});
+    }
+    Json results=Json::array();
+    for(const auto& [parent,indices]:groups){
+        std::vector<CF_PLACEHOLDER_CREATE_INFO> entries(indices.size());
+        for(size_t position=0;position<indices.size();++position){
+            auto& value=pending[indices[position]];auto& item=entries[position];const auto directory=value.Data.at("directory").get<bool>();auto time=Number(value.Data,"time"),size=Number(value.Data,"size");Require(size>=0&&time>=0);
+            item.RelativeFileName=value.Name.c_str();item.FsMetadata.BasicInfo.CreationTime.QuadPart=time;item.FsMetadata.BasicInfo.LastWriteTime.QuadPart=time;item.FsMetadata.BasicInfo.LastAccessTime.QuadPart=time;item.FsMetadata.BasicInfo.ChangeTime.QuadPart=time;
+            item.FsMetadata.BasicInfo.FileAttributes=directory?FILE_ATTRIBUTE_DIRECTORY:FILE_ATTRIBUTE_NORMAL;item.FsMetadata.FileSize.QuadPart=size;item.FileIdentity=value.Identity.data();item.FileIdentityLength=static_cast<DWORD>(value.Identity.size());item.Flags=static_cast<CF_PLACEHOLDER_CREATE_FLAGS>(directory?3:2);item.Result=E_PENDING;
+        }
+        DWORD processed{};const auto overall=CfCreatePlaceholders(parent.c_str(),entries.data(),static_cast<DWORD>(entries.size()),CF_CREATE_FLAG_NONE,&processed);
+        for(size_t position=0;position<indices.size();++position){
+            auto& value=pending[indices[position]];auto& item=entries[position];auto code=item.Result==E_PENDING?(FAILED(overall)?overall:E_ABORT):item.Result;Json result{{"entryId",value.Data.at("entryId")},{"hresult",static_cast<int>(code)}};
+            if(SUCCEEDED(code))try{auto file=OpenAttributes(value.Path);auto info=InspectPlaceholder(file.Value);Identity(value.Data,info);result["stamp"]=FileJson(InspectFile(file.Value));result["createUsn"]=std::to_string(item.CreateUsn);}catch(const Failure& error){result["hresult"]=static_cast<int>(error.Code);}
+            results.push_back(std::move(result));
+        }
+    }
+    return {{"results",std::move(results)}};
+}
 }
 Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* session,bool& handled){
     handled=true;auto& data=command.Data;const auto& operation=command.Operation;
@@ -63,6 +90,7 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
         Require(!png.empty()&&LocalThumbnailStamp(path)==stamp,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));return {{"frames",frames},{"stamp",FileJson(InspectFile(path))},{"startupMs",timing.Startup},{"decodeMs",timing.Decode}};
     }
     if(operation=="createPlaceholder")return Create(data);
+    if(operation=="createPlaceholders"){Require(session!=nullptr);return CreateBatch(data);}
     if(operation=="applyExclusion"){
         auto path=EntryPath(data);
         {

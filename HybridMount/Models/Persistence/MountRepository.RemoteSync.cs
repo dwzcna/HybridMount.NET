@@ -28,36 +28,52 @@ public sealed partial class MountRepository
     private static void RemoteCommand(SqliteConnection db,SqliteTransaction transaction,string sql,Guid mount,string scope,string path,string json,string? id=null)
     {
         using var cmd=db.CreateCommand();cmd.Transaction=transaction;cmd.CommandText=sql;
-        cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$s",scope);cmd.Parameters.AddWithValue("$p",path);cmd.Parameters.AddWithValue("$j",json);cmd.Parameters.AddWithValue("$id",(object?)id??DBNull.Value);cmd.ExecuteNonQuery();
+        cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$s",scope);cmd.Parameters.AddWithValue("$p",path);cmd.Parameters.AddWithValue("$start",path+"/");cmd.Parameters.AddWithValue("$end",path+"0");cmd.Parameters.AddWithValue("$j",json);cmd.Parameters.AddWithValue("$id",(object?)id??DBNull.Value);cmd.ExecuteNonQuery();
     }
     /// <summary>事件、远端观测和检查点在同一事务持久化；本地占用或中断不导致游标前进后丢事件。</summary>
     public void CommitRemoteBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null)
+        =>CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint);
+    /// <summary>返回本次事务实际创建的事件，供有界发布使用；调用方不能重放未提交的发现。</summary>
+    internal IReadOnlyList<RemotePendingChange> CommitDiscoveredBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null)
     {
         lock(_gate)
         {
             using var db=Open();using var transaction=db.BeginTransaction();
-            var oldPending=RemotePending(mount,scope);
+            var created=new List<RemotePendingChange>();
+            // 路径索引定位待退役事件，不逐个文件重新装载整根JSON；本事务内再核验静默回显候选。
+            var deletedPaths=deleted.ToHashSet(StringComparer.Ordinal);
             foreach(var path in changed.Select(x=>x.Entry.Path).Concat(deleted))
-                foreach(var pending in oldPending.Where(x=>(x.Path==path||deleted.Contains(path)&&x.Path.StartsWith(path+"/",StringComparison.Ordinal))&&x.State is not("Completed" or "Superseded" or "Committing" or "Hydrating")))
-                    SavePendingCore(db,transaction,pending with{State="Superseded",Error=null});
+            {
+                using var retire=db.CreateCommand();retire.Transaction=transaction;
+                retire.CommandText="UPDATE remote_pending SET json=json_set(json,'$.State','Superseded','$.Error',NULL) WHERE mount=$m AND scope=$s AND "+
+                    (deletedPaths.Contains(path)?"path >= $p AND path < $end AND (path=$p OR path >= $start)":"path=$p")+" AND json_extract(json,'$.State') NOT IN ('Completed','Superseded','Committing','Hydrating')";
+                retire.Parameters.AddWithValue("$m",mount.ToString("N"));retire.Parameters.AddWithValue("$s",scope);retire.Parameters.AddWithValue("$p",path);retire.Parameters.AddWithValue("$start",path+"/");retire.Parameters.AddWithValue("$end",path+"0");retire.ExecuteNonQuery();
+            }
             foreach(var shadow in changed)
             {
                 if(!shadow.Entry.IsDirectory)
-                    RemoteCommand(db,transaction,"DELETE FROM remote_shadow WHERE mount=$m AND scope=$s AND substr(path,1,length($p)+1)=$p||'/';DELETE FROM remote_collections WHERE mount=$m AND scope=$s AND (path=$p OR substr(path,1,length($p)+1)=$p||'/')",mount,scope,shadow.Entry.Path,"");
+                    RemoteCommand(db,transaction,"DELETE FROM remote_shadow WHERE mount=$m AND scope=$s AND path >= $start AND path < $end;DELETE FROM remote_collections WHERE mount=$m AND scope=$s AND path >= $p AND path < $end AND (path=$p OR path >= $start)",mount,scope,shadow.Entry.Path,"");
                 RemoteCommand(db,transaction,"INSERT INTO remote_shadow VALUES($m,$s,$p,$j) ON CONFLICT(mount,scope,path) DO UPDATE SET json=$j",mount,scope,shadow.Entry.Path,JsonSerializer.Serialize(shadow));
-                if(silent?.Contains(shadow.Entry.Path)!=true)SavePendingCore(db,transaction,new(Guid.NewGuid().ToString("N"),mount,scope,shadow.Entry.Path,shadow.Entry));
+                if(silent?.Contains(shadow.Entry.Path)!=true||!ConfirmedSilent(db,transaction,mount,shadow.Entry)){var pending=new RemotePendingChange(Guid.NewGuid().ToString("N"),mount,scope,shadow.Entry.Path,shadow.Entry);SavePendingCore(db,transaction,pending);created.Add(pending);}
             }
             foreach(var path in deleted)
             {
-                RemoteCommand(db,transaction,"DELETE FROM remote_shadow WHERE mount=$m AND scope=$s AND (path=$p OR substr(path,1,length($p)+1)=$p||'/');DELETE FROM remote_collections WHERE mount=$m AND scope=$s AND (path=$p OR substr(path,1,length($p)+1)=$p||'/')",mount,scope,path,"");
-                SavePendingCore(db,transaction,new(Guid.NewGuid().ToString("N"),mount,scope,path,null));
+                RemoteCommand(db,transaction,"DELETE FROM remote_shadow WHERE mount=$m AND scope=$s AND path >= $p AND path < $end AND (path=$p OR path >= $start);DELETE FROM remote_collections WHERE mount=$m AND scope=$s AND path >= $p AND path < $end AND (path=$p OR path >= $start)",mount,scope,path,"");
+                var pending=new RemotePendingChange(Guid.NewGuid().ToString("N"),mount,scope,path,null);SavePendingCore(db,transaction,pending);created.Add(pending);
             }
             RemoteCommand(db,transaction,"INSERT INTO remote_collections VALUES($m,$s,$p,$j) ON CONFLICT(mount,scope,path) DO UPDATE SET json=$j",mount,scope,checkpoint.Path,JsonSerializer.Serialize(checkpoint));
             if(hint is not null)foreach(var module in _protocolStorage)module.CompleteHint(this,db,transaction,mount,scope,hint);
             if(scan is not null)
             {using var done=db.CreateCommand();done.Transaction=transaction;done.CommandText="UPDATE remote_scans SET state='Completed' WHERE id=$id AND mount=$m AND scope=$s";done.Parameters.AddWithValue("$id",scan);done.Parameters.AddWithValue("$m",mount.ToString("N"));done.Parameters.AddWithValue("$s",scope);if(done.ExecuteNonQuery()!=1)throw new IOException("远端扫描身份丢失，未提交快照。");}
-            transaction.Commit();
+            transaction.Commit();return created;
         }
+    }
+    /// <summary>在同一提交事务内重验内存候选，避免扫描期间的本地上传／改名使旧索引错误吞掉远端事件。</summary>
+    private static bool ConfirmedSilent(SqliteConnection db,SqliteTransaction transaction,Guid mount,SourceEntry entry)
+    {
+        using var query=db.CreateCommand();query.Transaction=transaction;
+        query.CommandText="SELECT 1 FROM entries e WHERE mount=$m AND source=$p AND version=$v AND directory=$d AND materialized=1 AND NOT EXISTS(SELECT 1 FROM remote_presence p WHERE p.mount=e.mount AND p.id=e.id AND p.presence=$gone) LIMIT 1";
+        query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$p",entry.Path);query.Parameters.AddWithValue("$v",entry.Version);query.Parameters.AddWithValue("$d",entry.IsDirectory);query.Parameters.AddWithValue("$gone",(int)RemotePresence.Deleted);return query.ExecuteScalar() is not null;
     }
     private static void SavePendingCore(SqliteConnection db,SqliteTransaction transaction,RemotePendingChange pending)
         =>RemoteCommand(db,transaction,"INSERT INTO remote_pending VALUES($id,$m,$s,$p,$j) ON CONFLICT(id) DO UPDATE SET json=$j",pending.MountId,pending.Scope,pending.Path,JsonSerializer.Serialize(pending),pending.Id);

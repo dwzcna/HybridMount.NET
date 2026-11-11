@@ -125,6 +125,7 @@
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\MountContentCleaner.cs" Link="Production\Models\Mounting\Transactions\MountContentCleaner.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\RemoteSyncEngine.Compatibility.cs" Link="Production\Models\Mounting\Transactions\RemoteSyncEngine.Compatibility.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\RemoteSyncEngine.cs" Link="Production\Models\Mounting\Transactions\RemoteSyncEngine.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Transactions\RemoteSyncEngine.Index.cs" Link="Production\Models\Mounting\Transactions\RemoteSyncEngine.Index.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\UploadCommitRecovery.cs" Link="Production\Models\Mounting\Transactions\UploadCommitRecovery.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\UploadCopySnapshot.cs" Link="Production\Models\Mounting\Transactions\UploadCopySnapshot.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\UploadPreparation.cs" Link="Production\Models\Mounting\Transactions\UploadPreparation.cs"/>
@@ -188,6 +189,7 @@
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.UploadCopies.cs" Link="Production\Models\Persistence\MountRepository.UploadCopies.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.Uploads.cs" Link="Production\Models\Persistence\MountRepository.Uploads.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.cs" Link="Production\Models\Persistence\MountRepository.cs"/>
+    <Compile Include="..\HybridMount\Models\Persistence\MountRepository.Discovery.cs" Link="Production\Models\Persistence\MountRepository.Discovery.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\RegistryMountDefinitionStore.cs" Link="Production\Models\Persistence\RegistryMountDefinitionStore.cs"/>
     <Compile Include="..\HybridMount\Models\Runtime\NativeRuntimeArguments.cs" Link="Production\Models\Runtime\NativeRuntimeArguments.cs"/>
     <Compile Include="..\HybridMount\Models\Runtime\NativeRuntimeProtocol.cs" Link="Production\Models\Runtime\NativeRuntimeProtocol.cs"/>
@@ -241,6 +243,7 @@
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.UploadWorker.cs" Link="Production\Services\Mounting\MountManager.UploadWorker.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Uploads.cs" Link="Production\Services\Mounting\MountManager.Uploads.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.cs" Link="Production\Services\Mounting\MountManager.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.Discovery.cs" Link="Production\Services\Mounting\MountManager.Discovery.cs"/>
     <Compile Include="..\HybridMount\Services\NavigationService.cs" Link="Production\Services\NavigationService.cs"/>
     <Compile Include="..\HybridMount\Services\Notifications\UploadIssueNotificationService.cs" Link="Production\Services\Notifications\UploadIssueNotificationService.cs"/>
     <Compile Include="..\HybridMount\Services\Observers\SqsEventHub.cs" Link="Production\Services\Observers\SqsEventHub.cs"/>

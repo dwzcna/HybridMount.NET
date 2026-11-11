@@ -89,7 +89,7 @@ public sealed partial class MountManager
                         try
                         {
                             var intent=runtime.Session.ReadPinIntent(entry);
-                            if(runtime.Active is {} active&&active.Id==entry.Id&&active.Version==entry.Version&&active.LocalPath==entry.LocalPath&&intent.Pinned)activeWanted=true;
+                            if(runtime.Active is {} active&&active.Id==entry.Id&&runtime.Session.SamePinVersion(active,entry)&&active.LocalPath==entry.LocalPath&&intent.Pinned)activeWanted=true;
                             if(!intent.NeedsDownload)continue;
                             if(candidate is not null||!runtime.Download.IsCompleted){runtime.Defer(entry.LocalPath);continue;}
                             lock(runtime.Sync)if(runtime.Retry.TryGetValue(entry.Id,out var retry)&&retry.Version==entry.Version&&retry.Next>DateTimeOffset.UtcNow)continue;
@@ -125,7 +125,7 @@ public sealed partial class MountManager
             try
             {
                 var current=_repository.Entries(root.Definition.Id).FirstOrDefault(x=>x.Id==entry.Id);
-                if(ReferenceEquals(root.Pins,runtime)&&ReferenceEquals(root.Session,runtime.Session)&&!root.RemovalRequested&&current is not null&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&
+                if(ReferenceEquals(root.Pins,runtime)&&ReferenceEquals(root.Session,runtime.Session)&&!root.RemovalRequested&&current is not null&&runtime.Session.SamePinVersion(entry,current)&&current.LocalPath==entry.LocalPath&&
                     !current.Deleted&&!current.Protected&&!_repository.HasPendingRemote(root.Definition.Id,entry.SourcePath)&&runtime.Session.ReadPinIntent(current) is {Pinned:true,NeedsDownload:false})
                     changed=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);
             }

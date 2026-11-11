@@ -135,7 +135,7 @@ public sealed class SynologyTests : IDisposable
     {
         var server=new SynologyFakeDsm();server.Files["/share/.hm-user.tmp"]=[1];await using var source=Source(server);var entries=new List<SourceEntry>();
         await foreach(var entry in source.ListAsync(""))entries.Add(entry);Assert.Contains(entries,x=>x.Path==".hm-user.tmp");
-        Assert.All(entries,x=>Assert.Contains(";md5:",x.Version));
+        Assert.All(entries,x=>Assert.DoesNotContain(";md5:",x.Version));Assert.DoesNotContain(server.Requests,x=>x["api"]=="SYNO.FileStation.MD5");
         server.Files["/share/FILE.bin"]=[2];await Assert.ThrowsAsync<SourceConnectionException>(async()=>{await foreach(var _ in source.ListAsync("")){};});
     }
     [Fact]

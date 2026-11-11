@@ -21,6 +21,6 @@ internal sealed class RemoteChangeSessionState
     /// <summary>首次无效响应固定原因和时间；后续完整抓取失败不覆盖来源。</summary>
     public void Disable(InvalidRemoteChangeResponseException error){lock(_sync){_fallback??=new(error.Message,DateTimeOffset.UtcNow);_fullScanRequired=true;}}
     /// <summary>失败后的下一次调度必须重做全根扫描，不能用降级前的 Full 时间跳过。</summary>
-    public void RequireFullScan(){lock(_sync)if(_fallback is not null)_fullScanRequired=true;}
+    public void RequireFullScan(){lock(_sync)_fullScanRequired=true;}
     public void CompleteFullScan(){lock(_sync)_fullScanRequired=false;}
 }

@@ -13,7 +13,7 @@ public sealed class SynologyMountTests
     {
         await using var test=await Fixture.Create();var path=Path.Combine(test.Local,"file.bin");var initial=CloudFilesNative.Inspect(path)!.Value.Identity;
         Assert.False(CloudFilesNative.HasFullContent(path,8));
-        Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]))).State);
+        var pin=await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]));Assert.True(pin.State=="Completed",JsonSerializer.Serialize(pin));
         Assert.True(CloudFilesNative.HasFullContent(path,8));Assert.Equal(test.Server.Files["/share/file.bin"],await File.ReadAllBytesAsync(path));
         Assert.Equal(initial,CloudFilesNative.Inspect(path)!.Value.Identity);Assert.Equal(1,test.Server.Downloads);
         Assert.Equal("Completed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"freeSpace",[path]))).State);
@@ -101,7 +101,7 @@ public sealed class SynologyMountTests
         private void SaveEvidence(string phase,bool owned)
         {
             var root=new DirectoryInfo(AppContext.BaseDirectory);while(root.Parent is not null&&!File.Exists(Path.Combine(root.FullName,"Directory.Build.props")))root=root.Parent;
-            var folder=Path.Combine(root.FullName,"artifacts","validation","00957-synology");Directory.CreateDirectory(folder);
+            var folder=Path.Combine(root.FullName,"artifacts","validation",typeof(SynologyMountTests).Assembly.GetName().Version!.ToString(),"synology-cfapi");Directory.CreateDirectory(folder);
             File.WriteAllText(Path.Combine(folder,"cfapi-"+Path.GetFileName(Area)+"-"+phase+".json"),JsonSerializer.Serialize(new{Root=Local,Mount=_registered?.Id,RootId=_registered is null?null:CloudRootRegistration.Id(_registered),Owned=owned,Requests=Server.Requests.Count,Downloads=Server.Downloads}));
         }
         public async ValueTask DisposeAsync()

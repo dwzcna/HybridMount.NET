@@ -32,7 +32,7 @@ public sealed partial class MountManager
         }
         foreach(var old in missing.OrderByDescending(entry=>entry.LocalPath.Count(c=>c=='/')).ThenBy(entry=>entry.IsDirectory?1:0))
         {
-            token.ThrowIfCancellationRequested();var entry=_repository.Entries(mount.Id).First(item=>item.Id==old.Id);
+            token.ThrowIfCancellationRequested();var entry=_repository.EntryById(mount.Id,old.Id)??throw new IOException("删除核验期间条目身份已丢失。");
             if(HasOwnRenameEntry(mount.Id,entry.Id)){results.Add(new(entry.LocalPath,"Completed","改名排除事务拥有此条目，本地文件保持。"));continue;}
             var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
             try
