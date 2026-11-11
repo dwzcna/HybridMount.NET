@@ -6,72 +6,72 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="16">
                 <UserControl x:Name="ConnectionFields"><StackPanel Spacing="12">
-                    <TextBlock loc:Ui.TextKey="Text_E38AB48681DD" FontWeight="SemiBold"/>
-                    <TextBox x:Name="NameField" loc:Ui.HeaderKey="Text_D44E9B3D3B31"/>
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockConnectionSettings" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockConnectionSettings"/>
+                    <TextBox x:Name="NameField" x:Uid="/Strings/WebDAVConfigurationContentDialogNameField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogNameField"/>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="PathField" loc:Ui.HeaderKey="Text_4BB83F1A69F9" IsReadOnly="True"/>
-                        <Button x:Name="ChooseButton" Grid.Column="1" loc:Ui.ContentKey="Text_E5FE24CA742F" VerticalAlignment="Bottom" Click="ChooseFolder"/>
+                        <TextBox x:Name="PathField" IsReadOnly="True" x:Uid="/Strings/WebDAVConfigurationContentDialogPathField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogPathField"/>
+                        <Button x:Name="ChooseButton" Grid.Column="1" VerticalAlignment="Bottom" Click="ChooseFolder" x:Uid="/Strings/WebDAVConfigurationContentDialogChooseButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogChooseButton"/>
                     </Grid>
-                    <TextBox x:Name="EndpointField" loc:Ui.HeaderKey="Text_D3716CC5A2F5"/>
+                    <TextBox x:Name="EndpointField" x:Uid="/Strings/WebDAVConfigurationContentDialogEndpointField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogEndpointField"/>
                     <StackPanel x:Name="HttpsFields" Spacing="12" Visibility="Collapsed">
-                        <TextBlock loc:Ui.TextKey="Text_D44119F948EA" TextWrapping="Wrap"/>
-                        <TextBox x:Name="CertificatePinField" loc:Ui.HeaderKey="Text_B1110A3FAB2E" loc:Ui.PlaceholderTextKey="Text_FC8B9CB4FC5F"/>
-                        <TextBlock loc:Ui.TextKey="Text_FB99EDB2DA85" TextWrapping="Wrap"/>
+                        <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom"/>
+                        <TextBox x:Name="CertificatePinField" x:Uid="/Strings/WebDAVConfigurationContentDialogCertificatePinField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogCertificatePinField"/>
+                        <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify"/>
                     </StackPanel>
                     <StackPanel Spacing="12">
-                                    <TextBox x:Name="UserField" loc:Ui.HeaderKey="Text_311BB313FDEC"/>
-                                    <PasswordBox x:Name="PasswordField" loc:Ui.HeaderKey="Text_8073A15C1F2C"/>
+                                    <TextBox x:Name="UserField" x:Uid="/Strings/WebDAVConfigurationContentDialogUserField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogUserField"/>
+                                    <PasswordBox x:Name="PasswordField" x:Uid="/Strings/WebDAVConfigurationContentDialogPasswordField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogPasswordField"/>
                                 </StackPanel>
-                    <CheckBox x:Name="HttpField" loc:Ui.ContentKey="Text_10D3BF1F23A3"/>
-                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" loc:Ui.TitleKey="Text_CB4488E8DBC2" loc:Ui.MessageKey="Text_3769CB3E7C40" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_499B2ECC88CD"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" loc:Ui.AutomationNameKey="Text_499B2ECC88CD"/></controls:SettingRow>
+                    <CheckBox x:Name="HttpField" x:Uid="/Strings/WebDAVConfigurationContentDialogHttpField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogHttpField"/>
+                    <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" x:Uid="/Strings/WebDAVConfigurationContentDialogHttpWarning" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogHttpWarning"/>
+                    <controls:SettingRow x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogAutoConnectField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogAutoConnectField"/></controls:SettingRow>
                 </StackPanel></UserControl>
-                <Expander loc:Ui.HeaderKey="Text_09C5BAC0EC82" HorizontalAlignment="Stretch"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
-                    <TextBlock loc:Ui.TextKey="Text_F0986AB1A2C4" FontWeight="SemiBold"/>
+                <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockExcludedFiles" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockExcludedFiles"/>
                     <ListView x:Name="ExclusionList" SelectionMode="None" MaxHeight="220" HorizontalContentAlignment="Stretch">
                         <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/></Style></ListView.ItemContainerStyle>
                         <ListView.ItemTemplate><DataTemplate x:DataType="vm:FileExclusionRuleDraft">
                             <Grid ColumnSpacing="8" Padding="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" loc:Ui.AutomationNameKey="Text_E1F0F1CB1AB4"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
-                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" loc:Ui.PlaceholderTextKey="Text_71668ADD2876" loc:Ui.AutomationNameKey="Text_05FC5419DE3F"/>
-                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" loc:Ui.ToolTipKey="Text_C02FDCF208B3" loc:Ui.AutomationNameKey="Text_C02FDCF208B3"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
+                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" x:Uid="/Strings/WebDAVConfigurationContentDialogComboBoxMatchMode" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogComboBoxMatchMode"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
+                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBoxFileNameText" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBoxFileNameText"/>
+                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonDeleteRule" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonDeleteRule"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
                             </Grid>
                         </DataTemplate></ListView.ItemTemplate>
                     </ListView>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button loc:Ui.ContentKey="Text_C9F9E18B0623" Click="AddExclusionRule"/>
-                        <Button loc:Ui.ContentKey="Text_AF0AD96CB324" Click="AddDefaultExclusionRules"/>
-                        <Button x:Name="SaveExclusionsButton" loc:Ui.ContentKey="Text_6E5DDDF098FC" Click="SaveExclusions"/>
+                        <Button Click="AddExclusionRule" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonAddRule" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonAddRule"/>
+                        <Button Click="AddDefaultExclusionRules" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonAddDefaultRules" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonAddDefaultRules"/>
+                        <Button x:Name="SaveExclusionsButton" Click="SaveExclusions" x:Uid="/Strings/WebDAVConfigurationContentDialogSaveExclusionsButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSaveExclusionsButton"/>
                     </StackPanel>
                 </StackPanel></UserControl></Expander>
-                <Expander loc:Ui.HeaderKey="Text_9A0F126A843B" HorizontalAlignment="Stretch"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
-                    <TextBlock loc:Ui.TextKey="Text_3276C0F65EE8" FontWeight="SemiBold"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_19BCEEEF8DE1" Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityModeChanged" loc:Ui.AutomationNameKey="Text_19BCEEEF8DE1"/></controls:SettingRow>
+                <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/WebDAVConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockCapacityLimit" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockCapacityLimit"/>
+                    <controls:SettingRow Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}" x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowUseServerCapacityInformationAutomatically" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowUseServerCapacityInformationAutomatically"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityModeChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogCapacityAuto" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogCapacityAuto"/></controls:SettingRow>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="MaximumField" loc:Ui.HeaderKey="Text_27467832B606" TextChanged="CapacityTextChanged"/>
-                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" loc:Ui.HeaderKey="Text_80B19D68B149" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
+                        <TextBox x:Name="MaximumField" TextChanged="CapacityTextChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogMaximumField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogMaximumField"/>
+                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogCapacityUnit" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogCapacityUnit"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
                     </Grid>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock loc:Ui.TextKey="Text_6B814AEC0BC3" TextWrapping="Wrap" TextAlignment="Center"/></Button>
-                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock loc:Ui.TextKey="Text_B6FD03C2DB1D" TextWrapping="Wrap" TextAlignment="Center"/></Button>
+                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings"/></Button>
+                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer"/></Button>
                     </Grid>
                     <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(CapacityDescription.Text),Mode=OneWay}"/>
-                    <TextBlock loc:Ui.TextKey="Text_601740321114" FontWeight="SemiBold"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_2556F45FAF22" Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="ThumbnailChanged" loc:Ui.AutomationNameKey="Text_2556F45FAF22"/></controls:SettingRow>
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSyncAndPreviews" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSyncAndPreviews"/>
+                    <controls:SettingRow Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}" x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowThumbnailsExperimental" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowThumbnailsExperimental"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="ThumbnailChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogThumbnailToggle" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogThumbnailToggle"/></controls:SettingRow>
                     <TextBlock x:Name="ThumbnailDescription" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ThumbnailDescription.Text),Mode=OneWay}"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_5B751D3A80A6"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" loc:Ui.AutomationNameKey="Text_5B751D3A80A6"/></controls:SettingRow>
-                    <NumberBox x:Name="IncrementalField" loc:Ui.HeaderKey="Text_3CF3EBC61173" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
-                    <NumberBox x:Name="FullField" loc:Ui.HeaderKey="Text_750F712B33B8" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
-                    <Button x:Name="SaveIntervalsButton" loc:Ui.ContentKey="Text_B8826D711144" Click="SaveIntervals"/>
+                    <controls:SettingRow x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowAutomaticRemoteDetectionRFC" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowAutomaticRemoteDetectionRFC"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogRemoteAuto" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogRemoteAuto"/></controls:SettingRow>
+                    <NumberBox x:Name="IncrementalField" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogIncrementalField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogIncrementalField"/>
+                    <NumberBox x:Name="FullField" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogFullField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogFullField"/>
+                    <Button x:Name="SaveIntervalsButton" Click="SaveIntervals" x:Uid="/Strings/WebDAVConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSaveIntervalsButton"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(DetectionDescription.Text),Mode=OneWay}"/>
                 </StackPanel></UserControl></Expander>
             </StackPanel>
         </ScrollViewer>
         <ScrollViewer Grid.Row="1" Margin="0,12,0,0" Visibility="{x:Bind helpers:TextVisibility.ForOpenFeedback(ProbeBar.IsOpen,ErrorBar.IsOpen,OperationBar.IsOpen),Mode=OneWay}" MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
-                <InfoBar x:Name="ProbeBar" Visibility="{x:Bind ProbeBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Informational" loc:Ui.TitleKey="Text_17D7F8B86E5F"/>
-                <InfoBar x:Name="ErrorBar" Visibility="{x:Bind ErrorBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Error" loc:Ui.TitleKey="Text_73555A93A314"/>
-                <InfoBar x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="ProbeBar" Visibility="{x:Bind ProbeBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Informational" x:Uid="/Strings/WebDAVConfigurationContentDialogProbeBar" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogProbeBar"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="ErrorBar" Visibility="{x:Bind ErrorBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Error" x:Uid="/Strings/WebDAVConfigurationContentDialogErrorBar" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogErrorBar"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

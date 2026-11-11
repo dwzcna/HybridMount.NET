@@ -4,6 +4,21 @@ namespace HybridMount.Services.Localization;
 
 /// <summary>纯资源提供者；语言明确指定，不修改日期、数字、协议或线程区域格式。</summary>
 public interface IUiTextProvider { string? Read(string language,string key); }
+/// <summary>应用内部的属性资源枚举契约；仅资源提供器实现，不扩展公共IPC或配置。</summary>
+internal interface IUiPropertyProvider
+{
+    IReadOnlyDictionary<string,string> PropertyResources(string id);
+}
+/// <summary>转换RESW属性名中的分隔点；using命名空间括号内的点保持原样。</summary>
+internal static class ResourceNames
+{
+    internal static string ToPriPath(string key)
+    {
+        var depth=0;var result=new System.Text.StringBuilder(key.Length);
+        foreach(var c in key){if(c=='[')depth++;else if(c==']')depth--;result.Append(c=='.'&&depth==0?'/':c);}
+        return result.ToString();
+    }
+}
 /// <summary>消息保留资源键和参数，原始用户名称、路径、服务错误作为参数或Raw保留。语言刷新不重新发布业务消息。</summary>
 public sealed record ResourceMessage
 {

@@ -2001,4 +2001,402 @@
   <data name="Text_40FF6300F981" xml:space="preserve">
     <value>診斷</value>
   </data>
+  <data name="Text_5C55A67935AF" xml:space="preserve"><value>全部</value></data>
+  <data name="Text_DDDE08946298" xml:space="preserve"><value>還原</value></data>
+  <data name="Text_0A1224F36CA9" xml:space="preserve"><value>清空所有程式設定</value></data>
+  <data name="Text_2A13ECC4FB51" xml:space="preserve"><value>僅清理目前執行模式的設定、記錄和快取。沒有掛載點或待復原記錄時才可執行；完成後結束程式。</value></data>
+  <data name="Text_BFE711C7C723" xml:space="preserve"><value>正在核對目前執行模式的掛載及資料目錄…</value></data>
+  <data name="Text_373F72608CC3" xml:space="preserve"><value>這將永久刪除目前執行模式（{0}）的全部設定、記錄和快取，並結束程式。
+
+登錄：HKCU\{1}
+
+資料目錄：
+{2}
+
+已刪除的內容無法復原。</value></data>
+  <data name="Text_5F19F9B45A5E" xml:space="preserve"><value>清空並結束</value></data>
+  <data name="Text_A963767D29BA" xml:space="preserve"><value>正在停止目前模式的背景服務並清空設定…</value></data>
+  <data name="Text_0CFCBC69FEFE" xml:space="preserve"><value>目前模式仍有掛載設定，請先移除所有掛載。</value></data>
+  <data name="Text_3CE4692D3A00" xml:space="preserve"><value>目前模式仍有同步根或 Explorer 入口，請先處理遺留掛載。</value></data>
+  <data name="Text_A96A9F9A256A" xml:space="preserve"><value>資料目錄與有效同步根重疊，無法還原設定。</value></data>
+  <data name="Text_4057AC6E04F7" xml:space="preserve"><value>仍有待核對或未完成的復原記錄，請先處理遺留掛載或同步問題。</value></data>
+  <data name="Text_E122A99B231B" xml:space="preserve"><value>執行模式或資料目錄已變更，請重新核對並確認。</value></data>
+  <data name="Text_ABA53AA1CD13" xml:space="preserve"><value>目錄身分已變更，請重新核對並確認：{0}</value></data>
+  <data name="Text_CBE71FBB20D3" xml:space="preserve"><value>資料目錄或其上層含重解析連結，無法安全清理：{0}</value></data>
+  <data name="Text_9E9FE4E789B7" xml:space="preserve"><value>無法核對資料目錄：{0}</value></data>
+  <data name="Text_C8CADF5A6F81" xml:space="preserve"><value>無法核對套件資料目錄。</value></data>
+  <data name="Text_975DCC9648CA" xml:space="preserve"><value>系統原則仍啟用目前應用程式的登入啟動，無法完成還原。</value></data>
+  <data name="Text_5BBAD56EBA28" xml:space="preserve"><value>還原未完成</value></data>
+  <data name="Text_317016430E4E" xml:space="preserve"><value>還原未完成（{0}，0x{1:X8}）：
+{2}
+
+已清理的內容不會復原。關閉此提示後程式結束，下次啟動可重新核對。</value></data>
+  <data name="Text_542813A4B00F" xml:space="preserve"><value>背景服務未完整結束，已保留設定和資料目錄。</value></data>
+  <data name="ConflictResolutionContentDialogButtonCheckAgain.Content" xml:space="preserve"><value>重新核對</value></data>
+  <data name="ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote.CloseButtonText" xml:space="preserve"><value>稍後</value></data>
+  <data name="ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote.PrimaryButtonText" xml:space="preserve"><value>使用本機版本覆寫遠端</value></data>
+  <data name="ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote.SecondaryButtonText" xml:space="preserve"><value>使用遠端版本取代本機內容</value></data>
+  <data name="ConflictResolutionContentDialogTextBlockCurrentLocalVersion.Text" xml:space="preserve"><value>目前本機版本</value></data>
+  <data name="ConflictResolutionContentDialogTextBlockCurrentRemoteVersion.Text" xml:space="preserve"><value>目前遠端版本</value></data>
+  <data name="ConflictResolutionContentDialogTextBlockUseLocalFreezeTheCurrentLocal.Text" xml:space="preserve"><value>使用本機版本：凍結目前的本機內容，依已確認的遠端版本條件上載。使用遠端版本：先在同步根目錄以外儲存可還原的本機備份，再以核驗後的遠端內容取代本機內容。確認後若任何一端變更，處理便會停止。</value></data>
+  <data name="HomePageAppBarButtonManageMounts.Label" xml:space="preserve"><value>管理掛載</value></data>
+  <data name="HomePageAppBarButtonManageMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>管理掛載</value></data>
+  <data name="HomePageAppBarButtonManageMounts.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>管理掛載</value></data>
+  <data name="HomePageAppBarButtonOpenSettings.Label" xml:space="preserve"><value>開啟設定</value></data>
+  <data name="HomePageAppBarButtonOpenSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟設定</value></data>
+  <data name="HomePageAppBarButtonOpenSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>開啟設定</value></data>
+  <data name="HomePageAppBarButtonViewLogs.Label" xml:space="preserve"><value>查看記錄</value></data>
+  <data name="HomePageAppBarButtonViewLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>查看記錄</value></data>
+  <data name="HomePageAppBarButtonViewLogs.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>查看記錄</value></data>
+  <data name="HomePageCommandBarManageMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>管理掛載</value></data>
+  <data name="HomePageCommandBarOpenSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟設定</value></data>
+  <data name="HomePageCommandBarViewLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>查看記錄</value></data>
+  <data name="HomePageTextBlockCustomizeTheAppearance.Text" xml:space="preserve"><value>按喜好調整外觀</value></data>
+  <data name="HomePageTextBlockOnDemandMountsAreReady.Text" xml:space="preserve"><value>隨選掛載已就緒</value></data>
+  <data name="HomePageTextBlockViewRuntimeRecords.Text" xml:space="preserve"><value>查看執行記錄</value></data>
+  <data name="LogsPageAppBarButtonClear.Label" xml:space="preserve"><value>清除</value></data>
+  <data name="LogsPageAppBarButtonClear.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>清除</value></data>
+  <data name="LogsPageAppBarButtonClear.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清除</value></data>
+  <data name="LogsPageAppBarButtonCopy.Label" xml:space="preserve"><value>複製</value></data>
+  <data name="LogsPageAppBarButtonCopy.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>複製</value></data>
+  <data name="LogsPageAppBarButtonCopy.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>複製</value></data>
+  <data name="LogsPageAppBarButtonExport.Label" xml:space="preserve"><value>匯出</value></data>
+  <data name="LogsPageAppBarButtonExport.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>匯出</value></data>
+  <data name="LogsPageAppBarButtonExport.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>匯出</value></data>
+  <data name="LogsPageAppBarButtonLifecycleRecords.Label" xml:space="preserve"><value>生命週期記錄</value></data>
+  <data name="LogsPageAppBarButtonLifecycleRecords.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>生命週期記錄</value></data>
+  <data name="LogsPageAppBarButtonLifecycleRecords.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>生命週期記錄</value></data>
+  <data name="LogsPageAppBarButtonLoadEarlier.Label" xml:space="preserve"><value>載入較早記錄</value></data>
+  <data name="LogsPageAppBarButtonLoadEarlier.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>載入較早記錄</value></data>
+  <data name="LogsPageAppBarButtonLoadEarlier.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>載入較早記錄</value></data>
+  <data name="LogsPageAppBarButtonRefresh.Label" xml:space="preserve"><value>重新整理</value></data>
+  <data name="LogsPageAppBarButtonRefresh.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>重新整理</value></data>
+  <data name="LogsPageAppBarButtonRefresh.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>重新整理</value></data>
+  <data name="LogsPageCommandBarLogActions.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>記錄操作</value></data>
+  <data name="LogsPageLogList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>記錄清單</value></data>
+  <data name="LogsPageProgressRingLoadingLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>正在載入記錄</value></data>
+  <data name="LogsPageTextBlockLogs.Text" xml:space="preserve"><value>記錄</value></data>
+  <data name="LogsPageTextBlockNoLogsMatchTheCurrentFilters.Text" xml:space="preserve"><value>目前篩選條件下沒有記錄。</value></data>
+  <data name="LogsPageTextBoxSearchLogs.PlaceholderText" xml:space="preserve"><value>搜尋記錄</value></data>
+  <data name="LogsPageTextBoxSearchLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>搜尋記錄</value></data>
+  <data name="MainWindowNavigation.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>主導覽</value></data>
+  <data name="MainWindowNavigationViewItemHome.Content" xml:space="preserve"><value>首頁</value></data>
+  <data name="MainWindowNavigationViewItemHome.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>首頁</value></data>
+  <data name="MainWindowNavigationViewItemLogs.Content" xml:space="preserve"><value>記錄</value></data>
+  <data name="MainWindowNavigationViewItemLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>記錄</value></data>
+  <data name="MainWindowNavigationViewItemMount.Content" xml:space="preserve"><value>掛載</value></data>
+  <data name="MainWindowNavigationViewItemMount.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掛載</value></data>
+  <data name="MainWindowNavigationViewItemSettings.Content" xml:space="preserve"><value>設定</value></data>
+  <data name="MainWindowNavigationViewItemSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>設定</value></data>
+  <data name="MainWindowNavigationViewItemTasks.Content" xml:space="preserve"><value>工作</value></data>
+  <data name="MainWindowNavigationViewItemTasks.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>工作</value></data>
+  <data name="MountBackupDialogButtonSelectFolder.Content" xml:space="preserve"><value>選取資料夾</value></data>
+  <data name="MountBackupDialogConfirmPasswordField.Header" xml:space="preserve"><value>再次輸入備份密碼</value></data>
+  <data name="MountBackupDialogContentDialogExportConfiguration.CloseButtonText" xml:space="preserve"><value>取消</value></data>
+  <data name="MountBackupDialogContentDialogExportConfiguration.PrimaryButtonText" xml:space="preserve"><value>匯出</value></data>
+  <data name="MountBackupDialogContentDialogExportConfiguration.Title" xml:space="preserve"><value>匯出設定</value></data>
+  <data name="MountBackupDialogPasswordField.Header" xml:space="preserve"><value>備份密碼（可留空，如設定則至少 8 個字元）</value></data>
+  <data name="MountBackupDialogRowsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掛載設定備份清單</value></data>
+  <data name="MountBackupDialogStatusBar.Title" xml:space="preserve"><value>設定備份</value></data>
+  <data name="MountBackupDialogTextBlockLeavingThisBlankGivesNoPassword.Text" xml:space="preserve"><value>留空即不設密碼保護，任何取得備份的人均可讀取當中的認證。</value></data>
+  <data name="MountBackupDialogTextBoxLocalFolder.Header" xml:space="preserve"><value>本機資料夾</value></data>
+  <data name="MountCardButtonOpenFolder.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟資料夾</value></data>
+  <data name="MountCardButtonOpenFolder.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>開啟資料夾</value></data>
+  <data name="MountCardCapacityButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>重新核實容量</value></data>
+  <data name="MountCardCapacityButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>重新核實容量</value></data>
+  <data name="MountCardCapacityOverflow.Text" xml:space="preserve"><value>重新核實容量</value></data>
+  <data name="MountCardDetectButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>遠端手動偵測</value></data>
+  <data name="MountCardDetectButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>手動偵測遠端變更（完整核對）</value></data>
+  <data name="MountCardDetectOverflow.Text" xml:space="preserve"><value>遠端手動偵測</value></data>
+  <data name="MountCardFreeButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>釋放空間</value></data>
+  <data name="MountCardFreeButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>釋放空間</value></data>
+  <data name="MountCardFreeOverflow.Text" xml:space="preserve"><value>釋放空間</value></data>
+  <data name="MountCardKeepButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>一律保留在裝置上</value></data>
+  <data name="MountCardKeepButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>一律保留在裝置上</value></data>
+  <data name="MountCardKeepOverflow.Text" xml:space="preserve"><value>一律保留在裝置上</value></data>
+  <data name="MountCardMenuFlyoutItemFullDiagnostics.Text" xml:space="preserve"><value>完整診斷</value></data>
+  <data name="MountCardMoreButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>更多掛載操作</value></data>
+  <data name="MountCardMoreButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>更多操作</value></data>
+  <data name="MountCardScanButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掃描本機變更</value></data>
+  <data name="MountCardScanButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>掃描本機變更</value></data>
+  <data name="MountCardScanOverflow.Text" xml:space="preserve"><value>掃描本機變更</value></data>
+  <data name="MountCardSettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>修改設定</value></data>
+  <data name="MountCardSettingsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>修改設定</value></data>
+  <data name="MountCardSettingsOverflow.Text" xml:space="preserve"><value>修改設定</value></data>
+  <data name="MountCardTextBlockAlwaysKeepOnDevice.Text" xml:space="preserve"><value>一律保留在裝置上</value></data>
+  <data name="MountCardTextBlockDiagnostics.Text" xml:space="preserve"><value>診斷</value></data>
+  <data name="MountCardTextBlockEditSettings.Text" xml:space="preserve"><value>修改設定</value></data>
+  <data name="MountCardTextBlockFreeUpSpace.Text" xml:space="preserve"><value>釋放空間</value></data>
+  <data name="MountCardTextBlockManualRemoteDetection.Text" xml:space="preserve"><value>遠端手動偵測</value></data>
+  <data name="MountCardTextBlockOpenFolder.Text" xml:space="preserve"><value>開啟資料夾</value></data>
+  <data name="MountCardTextBlockRecheckCapacity.Text" xml:space="preserve"><value>重新核實容量</value></data>
+  <data name="MountCardTextBlockScanLocalChanges.Text" xml:space="preserve"><value>掃描本機變更</value></data>
+  <data name="MountsPageAddButton.Label" xml:space="preserve"><value>新增掛載</value></data>
+  <data name="MountsPageAddButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>新增掛載</value></data>
+  <data name="MountsPageAddButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>新增掛載</value></data>
+  <data name="MountsPageButtonReconnectAll.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>全部重新連線</value></data>
+  <data name="MountsPageCommandBarMountActions.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掛載操作</value></data>
+  <data name="MountsPageExportButton.Label" xml:space="preserve"><value>匯出設定</value></data>
+  <data name="MountsPageExportButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>匯出設定</value></data>
+  <data name="MountsPageExportButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>匯出設定</value></data>
+  <data name="MountsPageImportButton.Label" xml:space="preserve"><value>匯入設定</value></data>
+  <data name="MountsPageImportButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>匯入設定</value></data>
+  <data name="MountsPageImportButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>匯入設定</value></data>
+  <data name="MountsPageInfoBarNativeBackendDisconnected.Message" xml:space="preserve"><value>還原記錄已保留。請先核對未確認的結果，再重新連線至受影響的掛載。</value></data>
+  <data name="MountsPageInfoBarNativeBackendDisconnected.Title" xml:space="preserve"><value>原生後端已中斷連線</value></data>
+  <data name="MountsPageMenuFlyoutItemS3ObjectStorage.Text" xml:space="preserve"><value>S3 物件儲存</value></data>
+  <data name="MountsPageMenuFlyoutItemSynologyNAS.Text" xml:space="preserve"><value>群暉 NAS（Synology）</value></data>
+  <data name="MountsPageMountList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掛載清單</value></data>
+  <data name="MountsPageRecoveryButton.Label" xml:space="preserve"><value>遺留掛載</value></data>
+  <data name="MountsPageRecoveryButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>遺留掛載</value></data>
+  <data name="MountsPageRecoveryButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>遺留掛載</value></data>
+  <data name="MountsPageTextBlockMount.Text" xml:space="preserve"><value>掛載</value></data>
+  <data name="MountsPageTextBlockNoMountsYetSelectAddMount.Text" xml:space="preserve"><value>尚無掛載。請選取「新增掛載」以連線至檔案來源。</value></data>
+  <data name="MountsPageTextBlockReconnectAll.Text" xml:space="preserve"><value>全部重新連線</value></data>
+  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET 原生預覽版：將遠端儲存掛載為本機資料夾。</value></data>
+  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount Native Preview</value></data>
+  <data name="S3ConfigurationContentDialogAutoConnectField.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
+  <data name="S3ConfigurationContentDialogBucketField.Header" xml:space="preserve"><value>貯體名稱／Bucket</value></data>
+  <data name="S3ConfigurationContentDialogButtonAddDefaultRules.Content" xml:space="preserve"><value>加入預設規則</value></data>
+  <data name="S3ConfigurationContentDialogButtonAddRule.Content" xml:space="preserve"><value>加入規則</value></data>
+  <data name="S3ConfigurationContentDialogButtonDeleteRule.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>刪除規則</value></data>
+  <data name="S3ConfigurationContentDialogButtonDeleteRule.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>刪除規則</value></data>
+  <data name="S3ConfigurationContentDialogCapacityAuto.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>自動採用伺服器容量資料</value></data>
+  <data name="S3ConfigurationContentDialogCapacityUnit.Header" xml:space="preserve"><value>單位</value></data>
+  <data name="S3ConfigurationContentDialogChooseButton.Content" xml:space="preserve"><value>選取資料夾</value></data>
+  <data name="S3ConfigurationContentDialogComboBoxMatchMode.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>比對方式</value></data>
+  <data name="S3ConfigurationContentDialogDefaultCredentialsField.Content" xml:space="preserve"><value>使用 AWS SDK 預設認證鏈</value></data>
+  <data name="S3ConfigurationContentDialogEndpointField.Header" xml:space="preserve"><value>伺服器位址</value></data>
+  <data name="S3ConfigurationContentDialogErrorBar.Title" xml:space="preserve"><value>無法完成操作</value></data>
+  <data name="S3ConfigurationContentDialogExpanderExcludedFilesAdvanced.Header" xml:space="preserve"><value>排除檔案（進階）</value></data>
+  <data name="S3ConfigurationContentDialogExpanderSQSEventAccelerationSettings.Header" xml:space="preserve"><value>SQS 事件加速設定</value></data>
+  <data name="S3ConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced.Header" xml:space="preserve"><value>同步、容量及預覽（進階）</value></data>
+  <data name="S3ConfigurationContentDialogFullField.Header" xml:space="preserve"><value>完整核對間隔（秒）</value></data>
+  <data name="S3ConfigurationContentDialogHttpField.Content" xml:space="preserve"><value>允許未加密 HTTP（只限可信任的測試環境）</value></data>
+  <data name="S3ConfigurationContentDialogHttpWarning.Message" xml:space="preserve"><value>此位址會以未加密方式傳送認證及內容，只限在可信任的測試網絡使用。</value></data>
+  <data name="S3ConfigurationContentDialogHttpWarning.Title" xml:space="preserve"><value>未加密 HTTP</value></data>
+  <data name="S3ConfigurationContentDialogIncrementalField.Header" xml:space="preserve"><value>增量偵測間隔（秒）</value></data>
+  <data name="S3ConfigurationContentDialogMaximumField.Header" xml:space="preserve"><value>手動容量上限（留空為不限）</value></data>
+  <data name="S3ConfigurationContentDialogNameField.Header" xml:space="preserve"><value>名稱</value></data>
+  <data name="S3ConfigurationContentDialogPathField.Header" xml:space="preserve"><value>空白本機 NTFS 資料夾</value></data>
+  <data name="S3ConfigurationContentDialogPathStyleField.Content" xml:space="preserve"><value>路徑式定址／Path-Style</value></data>
+  <data name="S3ConfigurationContentDialogPrefixField.Header" xml:space="preserve"><value>資料夾前綴（選填）</value></data>
+  <data name="S3ConfigurationContentDialogProbeBar.Title" xml:space="preserve"><value>唯讀連線測試</value></data>
+  <data name="S3ConfigurationContentDialogRegionField.Header" xml:space="preserve"><value>簽署區域／Region</value></data>
+  <data name="S3ConfigurationContentDialogRemoteAuto.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>遠端自動偵測</value></data>
+  <data name="S3ConfigurationContentDialogSaveExclusionsButton.Content" xml:space="preserve"><value>儲存排除規則</value></data>
+  <data name="S3ConfigurationContentDialogSaveIntervalsButton.Content" xml:space="preserve"><value>儲存偵測間隔</value></data>
+  <data name="S3ConfigurationContentDialogSessionTokenField.Header" xml:space="preserve"><value>Session Token（臨時認證，選填）</value></data>
+  <data name="S3ConfigurationContentDialogSettingRowAutomaticRemoteDetection.Header" xml:space="preserve"><value>遠端自動偵測</value></data>
+  <data name="S3ConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts.Header" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
+  <data name="S3ConfigurationContentDialogSettingRowEnableSQSEventAcceleration.Header" xml:space="preserve"><value>啟用 SQS 事件加速</value></data>
+  <data name="S3ConfigurationContentDialogSettingRowThumbnailsExperimental.Header" xml:space="preserve"><value>縮圖（實驗功能）</value></data>
+  <data name="S3ConfigurationContentDialogSettingRowUseServerCapacityInformationAutomatically.Header" xml:space="preserve"><value>自動採用伺服器容量資料</value></data>
+  <data name="S3ConfigurationContentDialogSqsAccessField.Header" xml:space="preserve"><value>獨立存取金鑰 ID</value></data>
+  <data name="S3ConfigurationContentDialogSqsEnabled.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>啟用 SQS 事件加速</value></data>
+  <data name="S3ConfigurationContentDialogSqsMode.Header" xml:space="preserve"><value>佇列認證來源</value></data>
+  <data name="S3ConfigurationContentDialogSqsRegion.Header" xml:space="preserve"><value>佇列區域（必須與 S3 相同）</value></data>
+  <data name="S3ConfigurationContentDialogSqsSaveButton.Content" xml:space="preserve"><value>儲存 SQS 設定</value></data>
+  <data name="S3ConfigurationContentDialogSqsSecretField.Header" xml:space="preserve"><value>獨立存取金鑰</value></data>
+  <data name="S3ConfigurationContentDialogSqsSessionField.Header" xml:space="preserve"><value>臨時工作階段權杖（選填）</value></data>
+  <data name="S3ConfigurationContentDialogSqsTestButton.Content" xml:space="preserve"><value>測試 SQS 連線（唯讀）</value></data>
+  <data name="S3ConfigurationContentDialogTextBlockCapacityLimit.Text" xml:space="preserve"><value>容量上限</value></data>
+  <data name="S3ConfigurationContentDialogTextBlockConnectionSettings.Text" xml:space="preserve"><value>連線設定</value></data>
+  <data name="S3ConfigurationContentDialogTextBlockExcludedFiles.Text" xml:space="preserve"><value>排除檔案</value></data>
+  <data name="S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer.Text" xml:space="preserve"><value>從伺服器擷取容量資料</value></data>
+  <data name="S3ConfigurationContentDialogTextBlockSaveCapacitySettings.Text" xml:space="preserve"><value>儲存容量設定</value></data>
+  <data name="S3ConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve"><value>同步及預覽</value></data>
+  <data name="S3ConfigurationContentDialogTextBoxFileNameText.PlaceholderText" xml:space="preserve"><value>檔案名稱文字</value></data>
+  <data name="S3ConfigurationContentDialogTextBoxFileNameText.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>比對文字</value></data>
+  <data name="S3ConfigurationContentDialogThumbnailToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>縮圖（實驗功能）</value></data>
+  <data name="SettingsPageAppBarButtonCheckEvictionNow.Label" xml:space="preserve"><value>立即檢查回收</value></data>
+  <data name="SettingsPageAppBarButtonCheckEvictionNow.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>立即檢查回收</value></data>
+  <data name="SettingsPageAppBarButtonCheckEvictionNow.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>立即檢查回收</value></data>
+  <data name="SettingsPageAppBarButtonClearAllAppSettings.Label" xml:space="preserve"><value>清空所有程式設定</value></data>
+  <data name="SettingsPageAppBarButtonClearAllAppSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>清空所有程式設定</value></data>
+  <data name="SettingsPageAppBarButtonClearAllAppSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清空所有程式設定</value></data>
+  <data name="SettingsPageAppBarButtonOpenWindowsStartupSettings.Label" xml:space="preserve"><value>開啟 Windows 啟動設定</value></data>
+  <data name="SettingsPageAppBarButtonOpenWindowsStartupSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟 Windows 啟動設定</value></data>
+  <data name="SettingsPageAppBarButtonOpenWindowsStartupSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>開啟 Windows 啟動設定</value></data>
+  <data name="SettingsPageAppBarButtonSaveLimit.Label" xml:space="preserve"><value>儲存上限</value></data>
+  <data name="SettingsPageAppBarButtonSaveLimit.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>儲存上限</value></data>
+  <data name="SettingsPageAppBarButtonSaveLimit.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>儲存上限</value></data>
+  <data name="SettingsPageComboBoxInterfaceDensity.Header" xml:space="preserve"><value>介面密度</value></data>
+  <data name="SettingsPageComboBoxInterfaceDensity.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>介面密度</value></data>
+  <data name="SettingsPageComboBoxInterfaceLanguage.Header" xml:space="preserve"><value>介面語言</value></data>
+  <data name="SettingsPageComboBoxInterfaceLanguage.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>介面語言</value></data>
+  <data name="SettingsPageComboBoxInterfaceLanguage.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>即時切換介面語言，保留目前頁面及未儲存的內容。</value></data>
+  <data name="SettingsPageComboBoxItemCompact.Content" xml:space="preserve"><value>精簡</value></data>
+  <data name="SettingsPageComboBoxItemDark.Content" xml:space="preserve"><value>深色</value></data>
+  <data name="SettingsPageComboBoxItemFollowSystem.Content" xml:space="preserve"><value>跟隨系統</value></data>
+  <data name="SettingsPageComboBoxItemFollowSystem2.Content" xml:space="preserve"><value>跟隨系統</value></data>
+  <data name="SettingsPageComboBoxItemLight.Content" xml:space="preserve"><value>淺色</value></data>
+  <data name="SettingsPageComboBoxItemNoMaterial.Content" xml:space="preserve"><value>無材質效果</value></data>
+  <data name="SettingsPageComboBoxItemStandard.Content" xml:space="preserve"><value>標準</value></data>
+  <data name="SettingsPageComboBoxWindowBackground.Header" xml:space="preserve"><value>視窗背景</value></data>
+  <data name="SettingsPageComboBoxWindowBackground.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>視窗背景</value></data>
+  <data name="SettingsPageComboBoxWindowTheme.Header" xml:space="preserve"><value>視窗主題</value></data>
+  <data name="SettingsPageComboBoxWindowTheme.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>視窗主題</value></data>
+  <data name="SettingsPageCommandBarOfflineCache.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>離線快取</value></data>
+  <data name="SettingsPageCommandBarOpenWindowsStartupSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟 Windows 啟動設定</value></data>
+  <data name="SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic.Header" xml:space="preserve"><value>快取彈性上限（GiB，0 表示關閉自動回收）</value></data>
+  <data name="SettingsPageSettingRowHideToTheTrayWhenClosing.Header" xml:space="preserve"><value>關閉視窗時隱藏至通知區域</value></data>
+  <data name="SettingsPageSettingRowStartAfterSigningInToWindows.Header" xml:space="preserve"><value>登入 Windows 後啟動</value></data>
+  <data name="SettingsPageTextBlockAppearance.Text" xml:space="preserve"><value>外觀</value></data>
+  <data name="SettingsPageTextBlockClearSettingsLogsAndCachesFor.Text" xml:space="preserve"><value>僅清理目前執行模式的設定、記錄和快取。沒有掛載點或待復原記錄時才可執行；完成後結束程式。</value></data>
+  <data name="SettingsPageTextBlockOfflineCache.Text" xml:space="preserve"><value>離線快取</value></data>
+  <data name="SettingsPageTextBlockReset.Text" xml:space="preserve"><value>還原</value></data>
+  <data name="SettingsPageTextBlockSettings.Text" xml:space="preserve"><value>設定</value></data>
+  <data name="SettingsPageTextBlockStartupAndTray.Text" xml:space="preserve"><value>啟動及通知區域</value></data>
+  <data name="SettingsPageToggleSwitchHideToTheTrayWhenClosing.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>關閉視窗時隱藏至通知區域</value></data>
+  <data name="SettingsPageToggleSwitchStartAfterSigningInToWindows.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>登入 Windows 後啟動</value></data>
+  <data name="ShellMaintenanceDescription" xml:space="preserve"><value>目前使用者 Shell 註冊維護</value></data>
+  <data name="ShellMaintenanceDisplayName" xml:space="preserve"><value>HybridMount Shell 維護</value></data>
+  <data name="ShellMenuDisplayName" xml:space="preserve"><value>HybridMount 動態功能表</value></data>
+  <data name="ShellServerDisplayName" xml:space="preserve"><value>HybridMount Shell</value></data>
+  <data name="ShellThumbnailDisplayName" xml:space="preserve"><value>HybridMount 資料庫縮圖</value></data>
+  <data name="SynologyConfigurationContentDialogAutoConnectField.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
+  <data name="SynologyConfigurationContentDialogButtonFingerprintVerifiedTrustForThisMount.Content" xml:space="preserve"><value>已核對指紋，只信任此掛載並重試</value></data>
+  <data name="SynologyConfigurationContentDialogCapacityAuto.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>自動辨識磁碟區容量（非帳戶配額）</value></data>
+  <data name="SynologyConfigurationContentDialogCertificateBar.Title" xml:space="preserve"><value>請核對伺服器憑證</value></data>
+  <data name="SynologyConfigurationContentDialogChooseButton.Content" xml:space="preserve"><value>選取資料夾</value></data>
+  <data name="SynologyConfigurationContentDialogClearPinButton.Content" xml:space="preserve"><value>清除此掛載的固定憑證指紋</value></data>
+  <data name="SynologyConfigurationContentDialogEndpointField.Header" xml:space="preserve"><value>DSM 伺服器位址</value></data>
+  <data name="SynologyConfigurationContentDialogErrorBar.Title" xml:space="preserve"><value>無法完成操作</value></data>
+  <data name="SynologyConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced.Header" xml:space="preserve"><value>同步、容量及預覽（進階）</value></data>
+  <data name="SynologyConfigurationContentDialogFullField.Header" xml:space="preserve"><value>完整核對間隔（秒）</value></data>
+  <data name="SynologyConfigurationContentDialogHttpField.Content" xml:space="preserve"><value>允許未加密 HTTP（連接埠 5000）</value></data>
+  <data name="SynologyConfigurationContentDialogHttpWarning.Message" xml:space="preserve"><value>HTTP 會以未加密方式傳送帳戶、密碼及檔案內容。只可在可信任的網絡明確允許後使用，建議改用 HTTPS（5001）。</value></data>
+  <data name="SynologyConfigurationContentDialogHttpWarning.Title" xml:space="preserve"><value>未加密連線並不安全</value></data>
+  <data name="SynologyConfigurationContentDialogIncrementalField.Header" xml:space="preserve"><value>偵測排程間隔（秒）</value></data>
+  <data name="SynologyConfigurationContentDialogMaximumField.Header" xml:space="preserve"><value>手動容量上限（GB，留空為不限）</value></data>
+  <data name="SynologyConfigurationContentDialogNameField.Header" xml:space="preserve"><value>名稱</value></data>
+  <data name="SynologyConfigurationContentDialogOtpField.Header" xml:space="preserve"><value>兩步驟驗證碼（只供本次登入使用，不會儲存）</value></data>
+  <data name="SynologyConfigurationContentDialogPasswordField.Header" xml:space="preserve"><value>密碼</value></data>
+  <data name="SynologyConfigurationContentDialogPathField.Header" xml:space="preserve"><value>空白本機 NTFS 資料夾</value></data>
+  <data name="SynologyConfigurationContentDialogProbeBar.Title" xml:space="preserve"><value>唯讀連線測試</value></data>
+  <data name="SynologyConfigurationContentDialogRecheckButton.Content" xml:space="preserve"><value>從伺服器擷取容量資料</value></data>
+  <data name="SynologyConfigurationContentDialogRemoteAuto.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>自動偵測遠端變更（輪詢完整資料夾）</value></data>
+  <data name="SynologyConfigurationContentDialogSaveCapacityButton.Content" xml:space="preserve"><value>儲存容量設定</value></data>
+  <data name="SynologyConfigurationContentDialogSaveIntervalsButton.Content" xml:space="preserve"><value>儲存偵測設定</value></data>
+  <data name="SynologyConfigurationContentDialogSettingRowAutomaticRemoteDetectionFullFolderPolling.Header" xml:space="preserve"><value>自動偵測遠端變更（輪詢完整資料夾）</value></data>
+  <data name="SynologyConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts.Header" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
+  <data name="SynologyConfigurationContentDialogSettingRowDetectVolumeCapacityAutomaticallyNotAccount.Header" xml:space="preserve"><value>自動辨識磁碟區容量（非帳戶配額）</value></data>
+  <data name="SynologyConfigurationContentDialogSettingRowThumbnailsExperimental.Header" xml:space="preserve"><value>縮圖（實驗功能）</value></data>
+  <data name="SynologyConfigurationContentDialogShareField.Header" xml:space="preserve"><value>共用資料夾</value></data>
+  <data name="SynologyConfigurationContentDialogSubfolderField.Header" xml:space="preserve"><value>子資料夾（選填，相對於共用資料夾）</value></data>
+  <data name="SynologyConfigurationContentDialogSubfolderField.PlaceholderText" xml:space="preserve"><value>例如：文件/專案</value></data>
+  <data name="SynologyConfigurationContentDialogTextBlockSynologyDoesNotProvideAnIncremental.Text" xml:space="preserve"><value>群暉沒有增量變更游標，資料夾會按完整核對間隔掃描。</value></data>
+  <data name="SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad.Text" xml:space="preserve"><value>請先測試連線以載入共用資料夾。電腦無須安裝 File Station，但 NAS 必須啟用 File Station 服務。</value></data>
+  <data name="SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd.Text" xml:space="preserve"><value>本版本支援讀取、建立及另存複本。覆寫、刪除及移動仍受衝突保護；暫不支援僅供線上使用的縮圖。</value></data>
+  <data name="SynologyConfigurationContentDialogThumbnailToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>縮圖（實驗功能）</value></data>
+  <data name="SynologyConfigurationContentDialogUserField.Header" xml:space="preserve"><value>帳戶</value></data>
+  <data name="TasksPageAllFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>全部</value></data>
+  <data name="TasksPageAllFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>全部</value></data>
+  <data name="TasksPageAppBarButtonAllMounts.Label" xml:space="preserve"><value>所有掛載</value></data>
+  <data name="TasksPageAppBarButtonAllMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>所有掛載</value></data>
+  <data name="TasksPageAppBarButtonAllMounts.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>所有掛載</value></data>
+  <data name="TasksPageAppBarButtonCancelSelectedTask.Label" xml:space="preserve"><value>取消所選工作</value></data>
+  <data name="TasksPageAppBarButtonCancelSelectedTask.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>取消所選工作</value></data>
+  <data name="TasksPageAppBarButtonCancelSelectedTask.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>取消所選工作</value></data>
+  <data name="TasksPageAppBarButtonCheckAgain.Label" xml:space="preserve"><value>重新核對</value></data>
+  <data name="TasksPageAppBarButtonCheckAgain.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>重新核對</value></data>
+  <data name="TasksPageAppBarButtonCheckAgain.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>重新核對</value></data>
+  <data name="TasksPageAppBarButtonCleanUpTaskHistory.Label" xml:space="preserve"><value>清理工作歷程記錄</value></data>
+  <data name="TasksPageAppBarButtonCleanUpTaskHistory.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>清理工作歷程記錄</value></data>
+  <data name="TasksPageAppBarButtonCleanUpTaskHistory.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清理工作歷程記錄</value></data>
+  <data name="TasksPageAppBarButtonOpenFileLocation.Label" xml:space="preserve"><value>開啟檔案位置</value></data>
+  <data name="TasksPageAppBarButtonOpenFileLocation.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟檔案位置</value></data>
+  <data name="TasksPageAppBarButtonOpenFileLocation.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>開啟檔案位置</value></data>
+  <data name="TasksPageAppBarButtonResolveConflict.Label" xml:space="preserve"><value>處理衝突</value></data>
+  <data name="TasksPageAppBarButtonResolveConflict.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>處理衝突</value></data>
+  <data name="TasksPageAppBarButtonResolveConflict.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>處理衝突</value></data>
+  <data name="TasksPageAppBarButtonRetrySelected.Label" xml:space="preserve"><value>重試所選工作</value></data>
+  <data name="TasksPageAppBarButtonRetrySelected.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>重試所選工作</value></data>
+  <data name="TasksPageAppBarButtonRetrySelected.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>重試所選工作</value></data>
+  <data name="TasksPageAppBarButtonSaveACopy.Label" xml:space="preserve"><value>另存複本</value></data>
+  <data name="TasksPageAppBarButtonSaveACopy.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>另存複本</value></data>
+  <data name="TasksPageAppBarButtonSaveACopy.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>另存複本</value></data>
+  <data name="TasksPageAppBarButtonViewResults.Label" xml:space="preserve"><value>查看結果</value></data>
+  <data name="TasksPageAppBarButtonViewResults.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>查看結果</value></data>
+  <data name="TasksPageAppBarButtonViewResults.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>查看結果</value></data>
+  <data name="TasksPageConflictsFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>衝突</value></data>
+  <data name="TasksPageConflictsFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>衝突</value></data>
+  <data name="TasksPageIssuesFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>同步問題</value></data>
+  <data name="TasksPageIssuesFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>查看獨立儲存的未解決同步問題</value></data>
+  <data name="TasksPageJobList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掛載工作</value></data>
+  <data name="TasksPageMenuFlyoutItemClearAllEndedTasks.Text" xml:space="preserve"><value>清除所有已結束工作</value></data>
+  <data name="TasksPageMenuFlyoutItemClearAllEndedTasks.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清除所有已結束的工作，保留執行中、等候中、有衝突及結果待核對的工作，不會刪除檔案或還原資料。</value></data>
+  <data name="TasksPageMenuFlyoutItemClearCompletedTasks.Text" xml:space="preserve"><value>清除已完成工作</value></data>
+  <data name="TasksPageMenuFlyoutItemClearCompletedTasks.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清除成功完成的工作歷程記錄，保留其他工作及同步資料。</value></data>
+  <data name="TasksPageMenuFlyoutItemClearFailedTasks.Text" xml:space="preserve"><value>清除失敗工作</value></data>
+  <data name="TasksPageMenuFlyoutItemClearFailedTasks.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清除失敗及部分失敗的工作歷程記錄，不會刪除檔案或還原資料。</value></data>
+  <data name="TasksPageTaskActions.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>工作操作</value></data>
+  <data name="TasksPageTextBlockNoTasksMatchTheCurrentFilters.Text" xml:space="preserve"><value>目前篩選條件下沒有工作。</value></data>
+  <data name="TasksPageTextBlockTaskID.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>工作 ID</value></data>
+  <data name="TasksPageTextBlockTaskID.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>工作 ID，可選取並複製，以便查詢或提供意見。</value></data>
+  <data name="TasksPageTextBlockTasks.Text" xml:space="preserve"><value>工作</value></data>
+  <data name="WebDAVConfigurationContentDialogAutoConnectField.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
+  <data name="WebDAVConfigurationContentDialogButtonAddDefaultRules.Content" xml:space="preserve"><value>加入預設規則</value></data>
+  <data name="WebDAVConfigurationContentDialogButtonAddRule.Content" xml:space="preserve"><value>加入規則</value></data>
+  <data name="WebDAVConfigurationContentDialogButtonDeleteRule.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>刪除規則</value></data>
+  <data name="WebDAVConfigurationContentDialogButtonDeleteRule.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>刪除規則</value></data>
+  <data name="WebDAVConfigurationContentDialogCapacityAuto.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>自動採用伺服器容量資料</value></data>
+  <data name="WebDAVConfigurationContentDialogCapacityUnit.Header" xml:space="preserve"><value>單位</value></data>
+  <data name="WebDAVConfigurationContentDialogCertificatePinField.Header" xml:space="preserve"><value>HTTPS 憑證 SHA-256 指紋（選填）</value></data>
+  <data name="WebDAVConfigurationContentDialogCertificatePinField.PlaceholderText" xml:space="preserve"><value>留空以使用系統憑證驗證</value></data>
+  <data name="WebDAVConfigurationContentDialogChooseButton.Content" xml:space="preserve"><value>選取資料夾</value></data>
+  <data name="WebDAVConfigurationContentDialogComboBoxMatchMode.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>比對方式</value></data>
+  <data name="WebDAVConfigurationContentDialogEndpointField.Header" xml:space="preserve"><value>伺服器位址</value></data>
+  <data name="WebDAVConfigurationContentDialogErrorBar.Title" xml:space="preserve"><value>無法完成操作</value></data>
+  <data name="WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced.Header" xml:space="preserve"><value>排除檔案（進階）</value></data>
+  <data name="WebDAVConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced.Header" xml:space="preserve"><value>同步、容量及預覽（進階）</value></data>
+  <data name="WebDAVConfigurationContentDialogFullField.Header" xml:space="preserve"><value>完整核對間隔（秒）</value></data>
+  <data name="WebDAVConfigurationContentDialogHttpField.Content" xml:space="preserve"><value>允許未加密 HTTP（只限可信任的測試環境）</value></data>
+  <data name="WebDAVConfigurationContentDialogHttpWarning.Message" xml:space="preserve"><value>此位址會以未加密方式傳送認證及內容，只限在可信任的測試網絡使用。</value></data>
+  <data name="WebDAVConfigurationContentDialogHttpWarning.Title" xml:space="preserve"><value>未加密 HTTP</value></data>
+  <data name="WebDAVConfigurationContentDialogIncrementalField.Header" xml:space="preserve"><value>增量偵測間隔（秒）</value></data>
+  <data name="WebDAVConfigurationContentDialogMaximumField.Header" xml:space="preserve"><value>手動容量上限（留空為不限）</value></data>
+  <data name="WebDAVConfigurationContentDialogNameField.Header" xml:space="preserve"><value>名稱</value></data>
+  <data name="WebDAVConfigurationContentDialogPasswordField.Header" xml:space="preserve"><value>密碼或第三方應用程式密碼</value></data>
+  <data name="WebDAVConfigurationContentDialogPathField.Header" xml:space="preserve"><value>空白本機 NTFS 資料夾</value></data>
+  <data name="WebDAVConfigurationContentDialogProbeBar.Title" xml:space="preserve"><value>唯讀連線測試</value></data>
+  <data name="WebDAVConfigurationContentDialogRemoteAuto.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>遠端自動偵測（RFC 6578）</value></data>
+  <data name="WebDAVConfigurationContentDialogSaveExclusionsButton.Content" xml:space="preserve"><value>儲存排除規則</value></data>
+  <data name="WebDAVConfigurationContentDialogSaveIntervalsButton.Content" xml:space="preserve"><value>儲存偵測間隔</value></data>
+  <data name="WebDAVConfigurationContentDialogSettingRowAutomaticRemoteDetectionRFC.Header" xml:space="preserve"><value>遠端自動偵測（RFC 6578）</value></data>
+  <data name="WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts.Header" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
+  <data name="WebDAVConfigurationContentDialogSettingRowThumbnailsExperimental.Header" xml:space="preserve"><value>縮圖（實驗功能）</value></data>
+  <data name="WebDAVConfigurationContentDialogSettingRowUseServerCapacityInformationAutomatically.Header" xml:space="preserve"><value>自動採用伺服器容量資料</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockCapacityLimit.Text" xml:space="preserve"><value>容量上限</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockConnectionSettings.Text" xml:space="preserve"><value>連線設定</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockExcludedFiles.Text" xml:space="preserve"><value>排除檔案</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer.Text" xml:space="preserve"><value>從伺服器擷取容量資料</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>自簽憑證的指紋必須先經可信任途徑核對才可填入，信任只限此掛載。憑證更新後須重新核驗，請勿填入未經核對的指紋。</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings.Text" xml:space="preserve"><value>儲存容量設定</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve"><value>同步及預覽</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom.Text" xml:space="preserve"><value>群暉 WebDAV：https://nas.example.com:5006/共用資料夾/（須在 WebDAV Server 套件啟用 HTTPS）。DSM 5001 請使用群暉 NAS 入口。</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBoxFileNameText.PlaceholderText" xml:space="preserve"><value>檔案名稱文字</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBoxFileNameText.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>比對文字</value></data>
+  <data name="WebDAVConfigurationContentDialogThumbnailToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>縮圖（實驗功能）</value></data>
+  <data name="WebDAVConfigurationContentDialogUserField.Header" xml:space="preserve"><value>帳戶</value></data>
+  <data name="LogsPageAllFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>全部</value></data>
+  <data name="LogsPageAllFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>全部</value></data>
+  <data name="LogsPageInformationFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>資訊</value></data>
+  <data name="LogsPageInformationFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>資訊</value></data>
+  <data name="LogsPageWarningFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>警告</value></data>
+  <data name="LogsPageWarningFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>警告</value></data>
+  <data name="LogsPageErrorFilter.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>錯誤</value></data>
+  <data name="LogsPageErrorFilter.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>錯誤</value></data>
+  <data name="LogsPageSelectedDate.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>查詢日期</value></data>
+  <data name="LogsPageSelectedDate.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>查詢日期</value></data>
+  <data name="LogsPageClearDate.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>清除日期選擇</value></data>
+  <data name="LogsPageClearDate.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>清除日期選擇</value></data>
+  <data name="TasksPageAllFilterLabel.Text" xml:space="preserve"><value>全部</value></data>
+  <data name="TasksPageIssuesFilterLabel.Text" xml:space="preserve"><value>同步問題</value></data>
+  <data name="TasksPageConflictsFilterLabel.Text" xml:space="preserve"><value>衝突</value></data>
+  <data name="LogsPageAllFilterLabel.Text" xml:space="preserve"><value>全部</value></data>
+  <data name="LogsPageInformationFilterLabel.Text" xml:space="preserve"><value>資訊</value></data>
+  <data name="LogsPageWarningFilterLabel.Text" xml:space="preserve"><value>警告</value></data>
+  <data name="LogsPageErrorFilterLabel.Text" xml:space="preserve"><value>錯誤</value></data>
 </root>

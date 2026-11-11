@@ -7,7 +7,7 @@ $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
 try {
     $entries = @{}
     foreach ($entry in $archive.Entries) { $entries[$entry.FullName.Replace('\','/')] = $entry }
-    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.exe','HybridMount.dll','HybridMount.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
+    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.Ext.resources.dll','HybridMount.exe','HybridMount.dll','HybridMount.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
         if (-not $entries.ContainsKey($required)) { throw "包缺少 $required" }
     }
     # 改名后的包只允许当前主映像，防止增量构建夹带旧入口。
@@ -39,11 +39,16 @@ try {
         if($resource.Count -ne 1){throw "包内编译资源缺失或重复：$name"}
     }
     foreach($language in @('zh-CN','en-US','zh-HK')){
-        $name="$language/HybridMount.Ext.dll.mui";if(-not $entries.ContainsKey($name)){throw "缺少原生语言资源：$language"}
+        $name="$language/HybridMount.Ext.resources.dll.mui";if(-not $entries.ContainsKey($name)){throw "缺少原生语言资源：$language"}
         [IO.Directory]::CreateDirectory((Join-Path $resourceWork $language))|Out-Null
         [IO.File]::WriteAllBytes((Join-Path $resourceWork $name),(Read-Bytes $name))
     }
-    & (Join-Path $PSScriptRoot 'Test-Localization.ps1') -PriPath $priFile -MuiRoot $resourceWork -Platform $Platform
+    [IO.File]::WriteAllBytes((Join-Path $resourceWork 'HybridMount.Ext.resources.dll'),(Read-Bytes 'HybridMount.Ext.resources.dll'))
+    # 复用MSBuild中的资源任务与已有PRI转储，不再调用独立语言校验脚本。
+    $resourceMsbuild=& (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe') -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
+    if(-not $resourceMsbuild){throw '需要Visual Studio MSBuild进行资源契约检查。'}
+    & $resourceMsbuild (Join-Path $PSScriptRoot 'HybridMount.ResourceValidation.proj') /nologo /v:minimal "/p:LocalizationPriDump=$resourceXml" "/p:LocalizationMuiRoot=$resourceWork" "/p:Platform=$Platform"
+    if($LASTEXITCODE -ne 0){throw '包内三语言资源校验失败。'}
     # 主入口保持既有虚拟化；隐藏维护入口必须独立使用经隔离验证的win32App／mediumIL组合。
     $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")
     $main=@($apps|Where-Object {$_.Id -eq 'App'})

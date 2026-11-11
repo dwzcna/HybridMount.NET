@@ -6,85 +6,85 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="16">
                 <UserControl x:Name="ConnectionFields"><StackPanel Spacing="12">
-                    <TextBlock loc:Ui.TextKey="Text_E38AB48681DD" FontWeight="SemiBold"/>
-                    <TextBox x:Name="NameField" loc:Ui.HeaderKey="Text_D44E9B3D3B31"/>
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockConnectionSettings" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockConnectionSettings"/>
+                    <TextBox x:Name="NameField" x:Uid="/Strings/S3ConfigurationContentDialogNameField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogNameField"/>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="PathField" loc:Ui.HeaderKey="Text_4BB83F1A69F9" IsReadOnly="True"/>
-                        <Button x:Name="ChooseButton" Grid.Column="1" loc:Ui.ContentKey="Text_E5FE24CA742F" VerticalAlignment="Bottom" Click="ChooseFolder"/>
+                        <TextBox x:Name="PathField" IsReadOnly="True" x:Uid="/Strings/S3ConfigurationContentDialogPathField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogPathField"/>
+                        <Button x:Name="ChooseButton" Grid.Column="1" VerticalAlignment="Bottom" Click="ChooseFolder" x:Uid="/Strings/S3ConfigurationContentDialogChooseButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogChooseButton"/>
                     </Grid>
-                    <TextBox x:Name="EndpointField" loc:Ui.HeaderKey="Text_D3716CC5A2F5"/>
+                    <TextBox x:Name="EndpointField" x:Uid="/Strings/S3ConfigurationContentDialogEndpointField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogEndpointField"/>
                     <StackPanel Spacing="12">
-                                    <TextBox x:Name="BucketField" loc:Ui.HeaderKey="Text_587ECDB3BA8F"/>
-                                    <TextBox x:Name="PrefixField" loc:Ui.HeaderKey="Text_8BAA7CFDED0B"/>
-                                    <TextBox x:Name="RegionField" loc:Ui.HeaderKey="Text_C60745B652A6" Text="us-east-1"/>
-                                    <CheckBox x:Name="PathStyleField" loc:Ui.ContentKey="Text_C866EBEF00E6" IsChecked="True"/>
-                                    <CheckBox x:Name="DefaultCredentialsField" loc:Ui.ContentKey="Text_E79E19D19A9D" Checked="CredentialsModeChanged" Unchecked="CredentialsModeChanged"/>
+                                    <TextBox x:Name="BucketField" x:Uid="/Strings/S3ConfigurationContentDialogBucketField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogBucketField"/>
+                                    <TextBox x:Name="PrefixField" x:Uid="/Strings/S3ConfigurationContentDialogPrefixField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogPrefixField"/>
+                                    <TextBox x:Name="RegionField" Text="us-east-1" x:Uid="/Strings/S3ConfigurationContentDialogRegionField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogRegionField"/>
+                                    <CheckBox x:Name="PathStyleField" IsChecked="True" x:Uid="/Strings/S3ConfigurationContentDialogPathStyleField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogPathStyleField"/>
+                                    <CheckBox x:Name="DefaultCredentialsField" Checked="CredentialsModeChanged" Unchecked="CredentialsModeChanged" x:Uid="/Strings/S3ConfigurationContentDialogDefaultCredentialsField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogDefaultCredentialsField"/>
                                     <UserControl x:Name="S3Secrets"><StackPanel Spacing="12">
                                         <TextBox x:Name="AccessKeyField" Header="Access Key ID"/>
                                         <PasswordBox x:Name="SecretKeyField" Header="Secret Access Key"/>
-                                        <PasswordBox x:Name="SessionTokenField" loc:Ui.HeaderKey="Text_DDA61DA868D8"/>
+                                        <PasswordBox x:Name="SessionTokenField" x:Uid="/Strings/S3ConfigurationContentDialogSessionTokenField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSessionTokenField"/>
                                     </StackPanel></UserControl>
                                 </StackPanel>
-                    <CheckBox x:Name="HttpField" loc:Ui.ContentKey="Text_10D3BF1F23A3"/>
-                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" loc:Ui.TitleKey="Text_CB4488E8DBC2" loc:Ui.MessageKey="Text_3769CB3E7C40" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_499B2ECC88CD"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" loc:Ui.AutomationNameKey="Text_499B2ECC88CD"/></controls:SettingRow>
+                    <CheckBox x:Name="HttpField" x:Uid="/Strings/S3ConfigurationContentDialogHttpField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogHttpField"/>
+                    <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" x:Uid="/Strings/S3ConfigurationContentDialogHttpWarning" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogHttpWarning"/>
+                    <controls:SettingRow x:Uid="/Strings/S3ConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" x:Uid="/Strings/S3ConfigurationContentDialogAutoConnectField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogAutoConnectField"/></controls:SettingRow>
                 </StackPanel></UserControl>
-                <Expander loc:Ui.HeaderKey="Text_09C5BAC0EC82" HorizontalAlignment="Stretch"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
-                    <TextBlock loc:Ui.TextKey="Text_F0986AB1A2C4" FontWeight="SemiBold"/>
+                <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/S3ConfigurationContentDialogExpanderExcludedFilesAdvanced" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogExpanderExcludedFilesAdvanced"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockExcludedFiles" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockExcludedFiles"/>
                     <ListView x:Name="ExclusionList" SelectionMode="None" MaxHeight="220" HorizontalContentAlignment="Stretch">
                         <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/></Style></ListView.ItemContainerStyle>
                         <ListView.ItemTemplate><DataTemplate x:DataType="vm:FileExclusionRuleDraft">
                             <Grid ColumnSpacing="8" Padding="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" loc:Ui.AutomationNameKey="Text_E1F0F1CB1AB4"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
-                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" loc:Ui.PlaceholderTextKey="Text_71668ADD2876" loc:Ui.AutomationNameKey="Text_05FC5419DE3F"/>
-                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" loc:Ui.ToolTipKey="Text_C02FDCF208B3" loc:Ui.AutomationNameKey="Text_C02FDCF208B3"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
+                                <ComboBox Grid.Column="0" SelectedIndex="{x:Bind MatchIndex,Mode=TwoWay}" HorizontalAlignment="Stretch" x:Uid="/Strings/S3ConfigurationContentDialogComboBoxMatchMode" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogComboBoxMatchMode"><x:String>包含</x:String><x:String>前缀</x:String><x:String>后缀</x:String></ComboBox>
+                                <TextBox Grid.Column="1" Text="{x:Bind Text,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" MaxLength="255" x:Uid="/Strings/S3ConfigurationContentDialogTextBoxFileNameText" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBoxFileNameText"/>
+                                <Button Grid.Column="2" Tag="{x:Bind}" Click="RemoveExclusionRule" Padding="6" x:Uid="/Strings/S3ConfigurationContentDialogButtonDeleteRule" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonDeleteRule"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
                             </Grid>
                         </DataTemplate></ListView.ItemTemplate>
                     </ListView>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button loc:Ui.ContentKey="Text_C9F9E18B0623" Click="AddExclusionRule"/>
-                        <Button loc:Ui.ContentKey="Text_AF0AD96CB324" Click="AddDefaultExclusionRules"/>
-                        <Button x:Name="SaveExclusionsButton" loc:Ui.ContentKey="Text_6E5DDDF098FC" Click="SaveExclusions"/>
+                        <Button Click="AddExclusionRule" x:Uid="/Strings/S3ConfigurationContentDialogButtonAddRule" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonAddRule"/>
+                        <Button Click="AddDefaultExclusionRules" x:Uid="/Strings/S3ConfigurationContentDialogButtonAddDefaultRules" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonAddDefaultRules"/>
+                        <Button x:Name="SaveExclusionsButton" Click="SaveExclusions" x:Uid="/Strings/S3ConfigurationContentDialogSaveExclusionsButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSaveExclusionsButton"/>
                     </StackPanel>
                 </StackPanel></UserControl></Expander>
-                <Expander loc:Ui.HeaderKey="Text_9A0F126A843B" HorizontalAlignment="Stretch"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
-                    <TextBlock loc:Ui.TextKey="Text_3276C0F65EE8" FontWeight="SemiBold"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_19BCEEEF8DE1" Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityModeChanged" loc:Ui.AutomationNameKey="Text_19BCEEEF8DE1"/></controls:SettingRow>
+                <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/S3ConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockCapacityLimit" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockCapacityLimit"/>
+                    <controls:SettingRow Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}" x:Uid="/Strings/S3ConfigurationContentDialogSettingRowUseServerCapacityInformationAutomatically" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSettingRowUseServerCapacityInformationAutomatically"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityModeChanged" x:Uid="/Strings/S3ConfigurationContentDialogCapacityAuto" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogCapacityAuto"/></controls:SettingRow>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="MaximumField" loc:Ui.HeaderKey="Text_27467832B606" TextChanged="CapacityTextChanged"/>
-                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" loc:Ui.HeaderKey="Text_80B19D68B149" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
+                        <TextBox x:Name="MaximumField" TextChanged="CapacityTextChanged" x:Uid="/Strings/S3ConfigurationContentDialogMaximumField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogMaximumField"/>
+                        <ComboBox x:Name="CapacityUnit" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged" x:Uid="/Strings/S3ConfigurationContentDialogCapacityUnit" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogCapacityUnit"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
                     </Grid>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock loc:Ui.TextKey="Text_6B814AEC0BC3" TextWrapping="Wrap" TextAlignment="Center"/></Button>
-                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock loc:Ui.TextKey="Text_B6FD03C2DB1D" TextWrapping="Wrap" TextAlignment="Center"/></Button>
+                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockSaveCapacitySettings" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockSaveCapacitySettings"/></Button>
+                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer"/></Button>
                     </Grid>
                     <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(CapacityDescription.Text),Mode=OneWay}"/>
-                    <TextBlock loc:Ui.TextKey="Text_601740321114" FontWeight="SemiBold"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_2556F45FAF22" Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="ThumbnailChanged" loc:Ui.AutomationNameKey="Text_2556F45FAF22"/></controls:SettingRow>
+                    <TextBlock FontWeight="SemiBold" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockSyncAndPreviews" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockSyncAndPreviews"/>
+                    <controls:SettingRow Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}" x:Uid="/Strings/S3ConfigurationContentDialogSettingRowThumbnailsExperimental" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSettingRowThumbnailsExperimental"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="ThumbnailChanged" x:Uid="/Strings/S3ConfigurationContentDialogThumbnailToggle" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogThumbnailToggle"/></controls:SettingRow>
                     <TextBlock x:Name="ThumbnailDescription" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ThumbnailDescription.Text),Mode=OneWay}"/>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_8084D978D651"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" loc:Ui.AutomationNameKey="Text_8084D978D651"/></controls:SettingRow>
-                    <NumberBox x:Name="IncrementalField" loc:Ui.HeaderKey="Text_3CF3EBC61173" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
-                    <NumberBox x:Name="FullField" loc:Ui.HeaderKey="Text_750F712B33B8" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged"/>
-                    <Button x:Name="SaveIntervalsButton" loc:Ui.ContentKey="Text_B8826D711144" Click="SaveIntervals"/>
+                    <controls:SettingRow x:Uid="/Strings/S3ConfigurationContentDialogSettingRowAutomaticRemoteDetection" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSettingRowAutomaticRemoteDetection"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" x:Uid="/Strings/S3ConfigurationContentDialogRemoteAuto" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogRemoteAuto"/></controls:SettingRow>
+                    <NumberBox x:Name="IncrementalField" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/S3ConfigurationContentDialogIncrementalField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogIncrementalField"/>
+                    <NumberBox x:Name="FullField" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/S3ConfigurationContentDialogFullField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogFullField"/>
+                    <Button x:Name="SaveIntervalsButton" Click="SaveIntervals" x:Uid="/Strings/S3ConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSaveIntervalsButton"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(DetectionDescription.Text),Mode=OneWay}"/>
                     <TextBlock x:Name="SqsDescription" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(SqsDescription.Text),Mode=OneWay}"/>
-                    <Expander loc:Ui.HeaderKey="Text_B64BD4615124" HorizontalAlignment="Stretch" IsExpanded="False">
+                    <Expander HorizontalAlignment="Stretch" IsExpanded="False" x:Uid="/Strings/S3ConfigurationContentDialogExpanderSQSEventAccelerationSettings" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogExpanderSQSEventAccelerationSettings">
                         <StackPanel Spacing="12">
                             <UserControl x:Name="SqsFields"><StackPanel Spacing="12">
-                                <controls:SettingRow loc:Ui.HeaderKey="Text_01054FF40565"><ToggleSwitch x:Name="SqsEnabled" Toggled="SqsEnabledChanged" loc:Ui.AutomationNameKey="Text_01054FF40565"/></controls:SettingRow>
+                                <controls:SettingRow x:Uid="/Strings/S3ConfigurationContentDialogSettingRowEnableSQSEventAcceleration" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSettingRowEnableSQSEventAcceleration"><ToggleSwitch x:Name="SqsEnabled" Toggled="SqsEnabledChanged" x:Uid="/Strings/S3ConfigurationContentDialogSqsEnabled" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsEnabled"/></controls:SettingRow>
                                 <TextBox x:Name="SqsUrl" Header="Standard Queue URL"/>
-                                <TextBox x:Name="SqsRegion" loc:Ui.HeaderKey="Text_1CBD62ABD1B0"/>
-                                <ComboBox x:Name="SqsMode" loc:Ui.HeaderKey="Text_E2012BC95CE4" HorizontalAlignment="Stretch" SelectionChanged="SqsCredentialsModeChanged">
+                                <TextBox x:Name="SqsRegion" x:Uid="/Strings/S3ConfigurationContentDialogSqsRegion" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsRegion"/>
+                                <ComboBox x:Name="SqsMode" HorizontalAlignment="Stretch" SelectionChanged="SqsCredentialsModeChanged" x:Uid="/Strings/S3ConfigurationContentDialogSqsMode" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsMode">
                                     <x:String>明确复用 S3 凭据</x:String><x:String>SDK 默认凭据链</x:String><x:String>独立访问密钥</x:String>
                                 </ComboBox>
                                 <UserControl x:Name="SqsSecrets"><StackPanel Spacing="12">
-                                    <TextBox x:Name="SqsAccessField" loc:Ui.HeaderKey="Text_FA89C102F166"/>
-                                    <PasswordBox x:Name="SqsSecretField" loc:Ui.HeaderKey="Text_6439A5C466AB"/>
-                                    <PasswordBox x:Name="SqsSessionField" loc:Ui.HeaderKey="Text_C25FEEEB96C6"/>
+                                    <TextBox x:Name="SqsAccessField" x:Uid="/Strings/S3ConfigurationContentDialogSqsAccessField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsAccessField"/>
+                                    <PasswordBox x:Name="SqsSecretField" x:Uid="/Strings/S3ConfigurationContentDialogSqsSecretField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsSecretField"/>
+                                    <PasswordBox x:Name="SqsSessionField" x:Uid="/Strings/S3ConfigurationContentDialogSqsSessionField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsSessionField"/>
                                 </StackPanel></UserControl>
                             </StackPanel></UserControl>
-                            <Button x:Name="SqsTestButton" loc:Ui.ContentKey="Text_D76876D823BF" Click="TestSqs"/>
-                            <Button x:Name="SqsSaveButton" loc:Ui.ContentKey="Text_ED1373DA607C" Click="SaveSqs"/>
+                            <Button x:Name="SqsTestButton" Click="TestSqs" x:Uid="/Strings/S3ConfigurationContentDialogSqsTestButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsTestButton"/>
+                            <Button x:Name="SqsSaveButton" Click="SaveSqs" x:Uid="/Strings/S3ConfigurationContentDialogSqsSaveButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsSaveButton"/>
                         </StackPanel>
                     </Expander>
                 </StackPanel></UserControl></Expander>
@@ -92,9 +92,9 @@
         </ScrollViewer>
         <ScrollViewer Grid.Row="1" Margin="0,12,0,0" Visibility="{x:Bind helpers:TextVisibility.ForOpenFeedback(ProbeBar.IsOpen,ErrorBar.IsOpen,OperationBar.IsOpen),Mode=OneWay}" MaxHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
-                <InfoBar x:Name="ProbeBar" Visibility="{x:Bind ProbeBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Informational" loc:Ui.TitleKey="Text_17D7F8B86E5F"/>
-                <InfoBar x:Name="ErrorBar" Visibility="{x:Bind ErrorBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Error" loc:Ui.TitleKey="Text_73555A93A314"/>
-                <InfoBar x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="ProbeBar" Visibility="{x:Bind ProbeBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Informational" x:Uid="/Strings/S3ConfigurationContentDialogProbeBar" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogProbeBar"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="ErrorBar" Visibility="{x:Bind ErrorBar.IsOpen,Mode=OneWay}" IsOpen="False" IsClosable="True" Severity="Error" x:Uid="/Strings/S3ConfigurationContentDialogErrorBar" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogErrorBar"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

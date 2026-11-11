@@ -18,6 +18,14 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     public PageStatusMessage StatusMessage {get;}=new();
     public PageStatusMessage AppearanceMessage {get;}=new();
     public PageStatusMessage CacheMessage {get;}=new();
+    /// <summary>还原反馈独立于其余卡片；待确认及退出时冻结页面编辑，仍允许关闭提示。</summary>
+    public PageStatusMessage ResetMessage {get;}=new();
+    private bool _resetting;
+    public bool CanEditSettings=>!_disposed&&!_resetting;
+    public bool CanReset=>CanEditSettings;
+    public bool TryBeginReset(){if(!CanReset)return false;_resetting=true;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));return true;}
+    public Task DrainSettingsOperationsAsync()=>Task.WhenAll(_startupWork,_cacheWork);
+    public void EndReset(){if(!_disposed){_resetting=false;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));}}
     private void Publish(PageStatusMessage message,string text,string property,bool reopen=true,PageMessageSeverity severity=PageMessageSeverity.Information)
     {if(!_disposed&&(reopen?message.Show(text,severity):message.Update(text,severity)))OnPropertyChanged(property);}
     private double _cacheLimitGiB,_savedCacheLimitGiB;
@@ -186,6 +194,6 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
 
     /// <summary>真正退出先停止页面通知；系统已发出的操作安全完成后再释放日志等服务。</summary>
-    public void Dispose(){_languageSubscription.Dispose();if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();_settings.Changed-=SettingsChanged;if(_preferences is not null)_preferences.LayoutChanged-=DensityChanged;}
+    public void Dispose(){_languageSubscription.Dispose();if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();ResetMessage.Dispose();_settings.Changed-=SettingsChanged;if(_preferences is not null)_preferences.LayoutChanged-=DensityChanged;}
     public async ValueTask DisposeAsync(){Dispose();await Task.WhenAll(_startupWork,_cacheWork);}
 }

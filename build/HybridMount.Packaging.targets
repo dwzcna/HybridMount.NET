@@ -29,6 +29,13 @@
 		<ProjectCapability Include="Msix" />
 	</ItemGroup>
 
+  <UsingTask TaskName="HybridMountPrepareManifest" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <!-- 默认netstandard引用已涵盖本任务API；Task正文不支持MSBuild条件求值。 -->
+    <Task>
+      <Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)PrepareManifestTask.cs"/>
+    </Task>
+  </UsingTask>
+
 	<!-- 源清单供 VS 包向导读取，必须与集中版本一致；仅修改构建副本的Shell配置。 -->
 	<Target Name="PrepareProductManifest" BeforeTargets="PrepareForBuild" Condition="'$(HybridMountDeployment)'=='Packaged'">
 		<Error Condition="'$(HybridMountEnableCloudThumbnails)'!=''" Text="请使用HybridMountShellProfile选择MenusAndThumbnails、Menus或Native。" />
@@ -40,7 +47,7 @@
 		<PropertyGroup>
 			<_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
 		</PropertyGroup>
-		<Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)Prepare-Manifest.ps1&quot; -Source &quot;$(MSBuildProjectDirectory)\Package.appxmanifest&quot; -Destination &quot;$(_ProductManifest)&quot; -ShellProfile $(HybridMountShellProfile)" />
+        <HybridMountPrepareManifest Source="$(MSBuildProjectDirectory)\Package.appxmanifest" Destination="$(_ProductManifest)" ProjectDirectory="$(MSBuildProjectDirectory)" ShellProfile="$(HybridMountShellProfile)" />
 		<ItemGroup>
 			<AppxManifest Remove="@(AppxManifest)" />
 			<AppxManifest Include="$(_ProductManifest)" />

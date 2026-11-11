@@ -27,6 +27,9 @@ internal sealed class OrphanedDirectoryRecovery(string directory,Func<IReadOnlyL
             return value;
         }).ToArray();
     }
+    /// <summary>还原设置只核验日志，不调用原生检查或重放清理；未知／损坏日志仍按原校验失败。</summary>
+    internal void EnsureNoPendingForSettingsReset()
+    {if(Journals().Any(value=>!value.Completed))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_4057AC6E04F7"));}
     private Journal? Pending(string path)
     {
         var matches=Journals().Where(x=>!x.Completed&&x.Root.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase)).ToArray();

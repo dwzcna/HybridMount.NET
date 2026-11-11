@@ -73,7 +73,7 @@ public sealed partial class MountCard : UserControl
             // 折叠内容没有Loaded事件，先更新自有静态标签再测量，避免语言切换沿用旧宽度。
             if(content is Panel panel)
                 foreach(var label in panel.Children.OfType<TextBlock>())
-                    if(global::HybridMount.Helpers.UI.Ui.GetTextKey(label) is {Length:>0} key)label.Text=global::HybridMount.Services.Localization.UiText.Text(key);
+                    global::HybridMount.Helpers.UI.Ui.RefreshResources(label);
             content.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity,double.PositiveInfinity));
             return Math.Ceiling(Math.Max(button.MinWidth,content.DesiredSize.Width+button.Padding.Left+button.Padding.Right+button.BorderThickness.Left+button.BorderThickness.Right));
         }).ToArray();

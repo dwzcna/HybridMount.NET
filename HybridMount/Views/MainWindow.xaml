@@ -20,31 +20,31 @@
                 <BitmapIconSource UriSource="ms-appx:///Assets/HybridMount.png" ShowAsMonochrome="False"/>
             </TitleBar.IconSource>
         </TitleBar>
-        <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" loc:Ui.AutomationNameKey="Text_9BAE68040509">
+        <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" x:Uid="/Strings/MainWindowNavigation" loc:Ui.ResourceId="/Strings/MainWindowNavigation">
             <NavigationView.MenuItems>
-                <NavigationViewItem loc:Ui.ContentKey="Text_203C08E0D44A" Tag="{x:Bind models:ApplicationPage.Home}" loc:Ui.AutomationNameKey="Text_203C08E0D44A">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Home}" x:Uid="/Strings/MainWindowNavigationViewItemHome" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemHome">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Home" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem loc:Ui.ContentKey="Text_6FC9C71CB14F" Tag="{x:Bind models:ApplicationPage.Mounts}" loc:Ui.AutomationNameKey="Text_6FC9C71CB14F">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Mounts}" x:Uid="/Strings/MainWindowNavigationViewItemMount" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemMount">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="MapDrive" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem loc:Ui.ContentKey="Text_5253040DB864" Tag="{x:Bind models:ApplicationPage.Tasks}" loc:Ui.AutomationNameKey="Text_5253040DB864">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Tasks}" x:Uid="/Strings/MainWindowNavigationViewItemTasks" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemTasks">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7C4;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem loc:Ui.ContentKey="Text_7DBAC1C20F23" Tag="{x:Bind models:ApplicationPage.Logs}" loc:Ui.AutomationNameKey="Text_7DBAC1C20F23">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Logs}" x:Uid="/Strings/MainWindowNavigationViewItemLogs" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemLogs">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xF120;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem loc:Ui.ContentKey="Text_DF3D58C7D84B" Tag="{x:Bind models:ApplicationPage.Settings}" loc:Ui.AutomationNameKey="Text_DF3D58C7D84B">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Settings}" x:Uid="/Strings/MainWindowNavigationViewItemSettings" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemSettings">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Setting" />
                     </NavigationViewItem.Icon>
@@ -58,7 +58,13 @@
                 </Frame.ContentTransitions>
             </Frame>
         </NavigationView>
-        <StackPanel x:Name="IssueNotifications" Grid.Row="1" Spacing="8" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Top"/>
-        <InfoBar x:Name="NotificationBar" Title="{x:Bind ViewModel.NotificationSource,Mode=OneWay}" Message="{x:Bind ViewModel.NotificationMessage,Mode=OneWay}" IsOpen="{x:Bind ViewModel.IsNotificationOpen,Mode=TwoWay}" Grid.Row="1" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsClosable="True" />
+        <!-- 与参考主窗口一致，所有即时反馈叠放在内容右下角；长消息或多个渠道可在窗口内滚动。 -->
+        <ScrollViewer x:Name="NotificationHost" Grid.Row="1" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Bottom" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="8">
+                <StackPanel x:Name="PageNotifications" Spacing="8"/>
+                <StackPanel x:Name="IssueNotifications" Spacing="8"/>
+                <InfoBar x:Name="NotificationBar" Style="{StaticResource InstantNotificationStyle}" Title="{x:Bind ViewModel.NotificationSource,Mode=OneWay}" Message="{x:Bind ViewModel.NotificationMessage,Mode=OneWay}" IsOpen="{x:Bind ViewModel.IsNotificationOpen,Mode=TwoWay}"/>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>

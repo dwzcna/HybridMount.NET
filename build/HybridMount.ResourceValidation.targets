@@ -1,0 +1,12 @@
+<Project>
+  <!-- 与VS及dotnet的MSBuild复用同一资源任务，不调用PowerShell脚本。 -->
+  <UsingTask TaskName="HybridMountValidateResources" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <!-- 默认netstandard引用已涵盖本任务API；Task正文不支持MSBuild条件求值。 -->
+    <Task>
+      <Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)ValidateResourcesTask.cs"/>
+    </Task>
+  </UsingTask>
+  <Target Name="ValidateHybridMountResources">
+    <HybridMountValidateResources RepositoryRoot="$(MSBuildThisFileDirectory).." PriDumpPath="$(LocalizationPriDump)" MuiRoot="$(LocalizationMuiRoot)" Platform="$(Platform)"/>
+  </Target>
+</Project>

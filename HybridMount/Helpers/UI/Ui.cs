@@ -14,70 +14,12 @@ public static class Ui
 {
     private static readonly DependencyProperty StateProperty=DependencyProperty.RegisterAttached("State",typeof(State),typeof(Ui),new PropertyMetadata(null));
     private static State For(DependencyObject target){if(target.GetValue(StateProperty) is State value)return value;var state=new State(target);target.SetValue(StateProperty,state);return state;}
-    /// <summary>以资源键更新Text，不触发业务提交。</summary>
-    public static readonly DependencyProperty TextKeyProperty=DependencyProperty.RegisterAttached("TextKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Text",args.NewValue as string)));
-    public static string GetTextKey(DependencyObject target)=>target.GetValue(TextKeyProperty) as string??"";
-    public static void SetTextKey(DependencyObject target,string value)=>target.SetValue(TextKeyProperty,value);
-    /// <summary>以资源键更新Label，不触发业务提交。</summary>
-    public static readonly DependencyProperty LabelKeyProperty=DependencyProperty.RegisterAttached("LabelKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Label",args.NewValue as string)));
-    public static string GetLabelKey(DependencyObject target)=>target.GetValue(LabelKeyProperty) as string??"";
-    public static void SetLabelKey(DependencyObject target,string value)=>target.SetValue(LabelKeyProperty,value);
-    /// <summary>以资源键更新Content，不触发业务提交。</summary>
-    public static readonly DependencyProperty ContentKeyProperty=DependencyProperty.RegisterAttached("ContentKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Content",args.NewValue as string)));
-    public static string GetContentKey(DependencyObject target)=>target.GetValue(ContentKeyProperty) as string??"";
-    public static void SetContentKey(DependencyObject target,string value)=>target.SetValue(ContentKeyProperty,value);
-    /// <summary>以资源键更新Header，不触发业务提交。</summary>
-    public static readonly DependencyProperty HeaderKeyProperty=DependencyProperty.RegisterAttached("HeaderKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Header",args.NewValue as string)));
-    public static string GetHeaderKey(DependencyObject target)=>target.GetValue(HeaderKeyProperty) as string??"";
-    public static void SetHeaderKey(DependencyObject target,string value)=>target.SetValue(HeaderKeyProperty,value);
-    /// <summary>以资源键更新Description，不触发业务提交。</summary>
-    public static readonly DependencyProperty DescriptionKeyProperty=DependencyProperty.RegisterAttached("DescriptionKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Description",args.NewValue as string)));
-    public static string GetDescriptionKey(DependencyObject target)=>target.GetValue(DescriptionKeyProperty) as string??"";
-    public static void SetDescriptionKey(DependencyObject target,string value)=>target.SetValue(DescriptionKeyProperty,value);
-    /// <summary>以资源键更新PlaceholderText，不触发业务提交。</summary>
-    public static readonly DependencyProperty PlaceholderTextKeyProperty=DependencyProperty.RegisterAttached("PlaceholderTextKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("PlaceholderText",args.NewValue as string)));
-    public static string GetPlaceholderTextKey(DependencyObject target)=>target.GetValue(PlaceholderTextKeyProperty) as string??"";
-    public static void SetPlaceholderTextKey(DependencyObject target,string value)=>target.SetValue(PlaceholderTextKeyProperty,value);
-    /// <summary>以资源键更新Title，不触发业务提交。</summary>
-    public static readonly DependencyProperty TitleKeyProperty=DependencyProperty.RegisterAttached("TitleKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Title",args.NewValue as string)));
-    public static string GetTitleKey(DependencyObject target)=>target.GetValue(TitleKeyProperty) as string??"";
-    public static void SetTitleKey(DependencyObject target,string value)=>target.SetValue(TitleKeyProperty,value);
-    /// <summary>以资源键更新Message，不触发业务提交。</summary>
-    public static readonly DependencyProperty MessageKeyProperty=DependencyProperty.RegisterAttached("MessageKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("Message",args.NewValue as string)));
-    public static string GetMessageKey(DependencyObject target)=>target.GetValue(MessageKeyProperty) as string??"";
-    public static void SetMessageKey(DependencyObject target,string value)=>target.SetValue(MessageKeyProperty,value);
-    /// <summary>以资源键更新PrimaryButtonText，不触发业务提交。</summary>
-    public static readonly DependencyProperty PrimaryButtonTextKeyProperty=DependencyProperty.RegisterAttached("PrimaryButtonTextKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("PrimaryButtonText",args.NewValue as string)));
-    public static string GetPrimaryButtonTextKey(DependencyObject target)=>target.GetValue(PrimaryButtonTextKeyProperty) as string??"";
-    public static void SetPrimaryButtonTextKey(DependencyObject target,string value)=>target.SetValue(PrimaryButtonTextKeyProperty,value);
-    /// <summary>以资源键更新SecondaryButtonText，不触发业务提交。</summary>
-    public static readonly DependencyProperty SecondaryButtonTextKeyProperty=DependencyProperty.RegisterAttached("SecondaryButtonTextKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("SecondaryButtonText",args.NewValue as string)));
-    public static string GetSecondaryButtonTextKey(DependencyObject target)=>target.GetValue(SecondaryButtonTextKeyProperty) as string??"";
-    public static void SetSecondaryButtonTextKey(DependencyObject target,string value)=>target.SetValue(SecondaryButtonTextKeyProperty,value);
-    /// <summary>以资源键更新CloseButtonText，不触发业务提交。</summary>
-    public static readonly DependencyProperty CloseButtonTextKeyProperty=DependencyProperty.RegisterAttached("CloseButtonTextKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("CloseButtonText",args.NewValue as string)));
-    public static string GetCloseButtonTextKey(DependencyObject target)=>target.GetValue(CloseButtonTextKeyProperty) as string??"";
-    public static void SetCloseButtonTextKey(DependencyObject target,string value)=>target.SetValue(CloseButtonTextKeyProperty,value);
-    /// <summary>以资源键更新OnContent，不触发业务提交。</summary>
-    public static readonly DependencyProperty OnContentKeyProperty=DependencyProperty.RegisterAttached("OnContentKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("OnContent",args.NewValue as string)));
-    public static string GetOnContentKey(DependencyObject target)=>target.GetValue(OnContentKeyProperty) as string??"";
-    public static void SetOnContentKey(DependencyObject target,string value)=>target.SetValue(OnContentKeyProperty,value);
-    /// <summary>以资源键更新OffContent，不触发业务提交。</summary>
-    public static readonly DependencyProperty OffContentKeyProperty=DependencyProperty.RegisterAttached("OffContentKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("OffContent",args.NewValue as string)));
-    public static string GetOffContentKey(DependencyObject target)=>target.GetValue(OffContentKeyProperty) as string??"";
-    public static void SetOffContentKey(DependencyObject target,string value)=>target.SetValue(OffContentKeyProperty,value);
-    /// <summary>以资源键更新ToolTip，不触发业务提交。</summary>
-    public static readonly DependencyProperty ToolTipKeyProperty=DependencyProperty.RegisterAttached("ToolTipKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("ToolTip",args.NewValue as string)));
-    public static string GetToolTipKey(DependencyObject target)=>target.GetValue(ToolTipKeyProperty) as string??"";
-    public static void SetToolTipKey(DependencyObject target,string value)=>target.SetValue(ToolTipKeyProperty,value);
-    /// <summary>以资源键更新AutomationName，不触发业务提交。</summary>
-    public static readonly DependencyProperty AutomationNameKeyProperty=DependencyProperty.RegisterAttached("AutomationNameKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("AutomationName",args.NewValue as string)));
-    public static string GetAutomationNameKey(DependencyObject target)=>target.GetValue(AutomationNameKeyProperty) as string??"";
-    public static void SetAutomationNameKey(DependencyObject target,string value)=>target.SetValue(AutomationNameKeyProperty,value);
-    /// <summary>以资源键更新HelpText，不触发业务提交。</summary>
-    public static readonly DependencyProperty HelpTextKeyProperty=DependencyProperty.RegisterAttached("HelpTextKey",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetKey("HelpText",args.NewValue as string)));
-    public static string GetHelpTextKey(DependencyObject target)=>target.GetValue(HelpTextKeyProperty) as string??"";
-    public static void SetHelpTextKey(DependencyObject target,string value)=>target.SetValue(HelpTextKeyProperty,value);
+    /// <summary>与x:Uid相同的资源前缀；只登记本地化属性，语言变化时从当前PRI原位更新。</summary>
+    public static readonly DependencyProperty ResourceIdProperty=DependencyProperty.RegisterAttached("ResourceId",typeof(string),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetResourceId(args.NewValue as string)));
+    public static string GetResourceId(DependencyObject target)=>target.GetValue(ResourceIdProperty) as string??"";
+    public static void SetResourceId(DependencyObject target,string value)=>target.SetValue(ResourceIdProperty,value);
+    /// <summary>布局在测量尚未Loaded的标签前刷新当前语言；不改写用户输入、选择和消息开关。</summary>
+    internal static void RefreshResources(DependencyObject target)=>For(target).RefreshResources();
     /// <summary>绑定DataTemplate的原展示对象；只读指定计算属性，路径／名称／ID不应使用本入口。</summary>
     public static readonly DependencyProperty SourceProperty=DependencyProperty.RegisterAttached("Source",typeof(object),typeof(Ui),new PropertyMetadata(null,(target,args)=>For(target).SetSource(args.NewValue)));
     public static object? GetSource(DependencyObject target)=>target.GetValue(SourceProperty);
@@ -128,6 +70,17 @@ public static class Ui
         private readonly WeakReference<DependencyObject> _target;private readonly DispatcherQueue _queue;private readonly IDisposable _language;
         private readonly Dictionary<string,ResourceMessage> _messages=new(StringComparer.Ordinal);private readonly Dictionary<string,string> _paths=new(StringComparer.Ordinal);
         private readonly Dictionary<string,Func<ResourceMessage>> _factories=new(StringComparer.Ordinal);
+        private readonly HashSet<string> _resourceProperties=new(StringComparer.Ordinal);
+        /// <summary>仅替换此UID拥有的属性；属性清单来自PRI，不保存第二份翻译文本。</summary>
+        internal void SetResourceId(string? id)
+        {
+            foreach(var property in _resourceProperties)_messages.Remove(property);
+            _resourceProperties.Clear();
+            if(string.IsNullOrEmpty(id))return;
+            foreach(var pair in UiText.Current.PropertyResources(id))
+            {_resourceProperties.Add(pair.Key);SetKey(pair.Key,pair.Value);}
+        }
+        internal void RefreshResources()=>Refresh(false);
         internal bool Has(string property)=>_messages.ContainsKey(property)||_factories.ContainsKey(property);
         internal void SetFactory(string property,Func<ResourceMessage> read){if(_disposed)return;_messages.Remove(property);_factories[property]=read;Refresh(false);}
         private object? _source;private INotifyPropertyChanged? _notifier;private bool _disposed,_loaded;private long _revision;

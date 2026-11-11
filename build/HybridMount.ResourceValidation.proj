@@ -1,0 +1,4 @@
+<Project DefaultTargets="ValidateHybridMountResources">
+  <!-- 包检查仅请求资源任务，不构建产品、不还原包或创建额外工程。 -->
+  <Import Project="HybridMount.ResourceValidation.targets"/>
+</Project>

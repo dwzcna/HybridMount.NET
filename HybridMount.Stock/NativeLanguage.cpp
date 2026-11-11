@@ -50,14 +50,23 @@ bool Read(const std::shared_ptr<Mapping>& map,unsigned& value,bool& system)noexc
     const auto magic=p[0],version=p[1],lcid=p[2],mode=p[3];MemoryBarrier();if(before!=p[5]||magic!=0x484d4c47||version!=1||!Valid(lcid)||mode>1)return false;
     value=lcid;system=mode!=0;return true;
 }
-/// <summary>后台加载精确语言文件，整套初始化后一次发布；返回指针永远不指向已卸载MUI。</summary>
+/// <summary>专用加载线程临时使用Win32 MUI优先列表；资源模块为标准LN，最终回退由其元数据指定。</summary>
 void LoadStrings(HMODULE module){
     wchar_t path[32768]{};const auto length=GetModuleFileNameW(module,path,ARRAYSIZE(path));if(!length||length>=ARRAYSIZE(path))return;
-    std::wstring directory(path,length);directory.resize(directory.find_last_of(L"\\/")+1);const wchar_t* names[]={L"zh-CN",L"en-US",L"zh-HK"};
-    for(unsigned language=0;language<3;language++){auto mui=LoadLibraryExW((directory+names[language]+L"\\HybridMount.Ext.dll.mui").c_str(),nullptr,LOAD_LIBRARY_AS_DATAFILE|LOAD_LIBRARY_AS_IMAGE_RESOURCE);
-        for(unsigned text=0;text<8;text++)if(!mui||!LoadStringW(mui,1001+text,Strings[language][text],512))wcscpy_s(Strings[language][text],Fallback[language][text]);
-        if(mui)FreeLibrary(mui);
-    }Ready.store(true,std::memory_order_release);
+    std::wstring directory(path,length);directory.resize(directory.find_last_of(L"\\/")+1);
+    struct ThreadLanguages {
+        std::vector<wchar_t> Previous;
+        ThreadLanguages(){ULONG count{},size{};if(GetThreadPreferredUILanguages(MUI_LANGUAGE_NAME,&count,nullptr,&size)&&size&&size<=32768){Previous.resize(size);if(!GetThreadPreferredUILanguages(MUI_LANGUAGE_NAME,&count,Previous.data(),&size))Previous.clear();}}
+        ~ThreadLanguages(){ULONG count{};SetThreadPreferredUILanguages(MUI_LANGUAGE_NAME,Previous.empty()?nullptr:Previous.data(),&count);}
+    } restore;
+    struct DataModule { HMODULE Handle{}; ~DataModule(){if(Handle)FreeLibrary(Handle);} } resources{LoadLibraryExW((directory+L"HybridMount.Ext.resources.dll").c_str(),nullptr,LOAD_LIBRARY_AS_DATAFILE|LOAD_LIBRARY_AS_IMAGE_RESOURCE)};
+    const wchar_t* names[]={L"zh-CN",L"en-US",L"zh-HK"};
+    for(unsigned language=0;language<3;language++){
+        std::wstring preferred=names[language];preferred.push_back(L'\0');if(language){preferred+=L"zh-CN";preferred.push_back(L'\0');}preferred.push_back(L'\0');
+        ULONG count{};const auto configured=SetThreadPreferredUILanguages(MUI_LANGUAGE_NAME,preferred.c_str(),&count)&&count;
+        for(unsigned text=0;text<8;text++)if(!resources.Handle||!configured||!LoadStringW(resources.Handle,1001+text,Strings[language][text],512))wcscpy_s(Strings[language][text],Fallback[language][text]);
+    }
+    Ready.store(true,std::memory_order_release);
 }
 /// <summary>短后台任务保有模块引用，收尾立即释放；不存在常驻线程或COM卸载死锁。</summary>
 DWORD WINAPI Refresh(void* parameter){

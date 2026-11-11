@@ -24,14 +24,14 @@
 		<PublishAot>false</PublishAot>
 	</PropertyGroup>
 	<Import Project="..\build\HybridMount.Packaging.targets" />
-    <Target Name="CheckUiLocalization" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
-      <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\build\Test-Localization.ps1&quot;" />
-    </Target>
+    <Import Project="..\build\HybridMount.ResourceValidation.targets" />
+    <Target Name="CheckUiLocalization" BeforeTargets="BeforeBuild" DependsOnTargets="ValidateHybridMountResources" Condition="'$(DesignTimeBuild)' != 'true'" />
     <ItemGroup><EmbeddedResource Include="Resources\UiCatalog.json" LogicalName="HybridMount.Resources.UiCatalog.json" /></ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.WindowsAppSDK" />
 		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
 		<PackageReference Include="CommunityToolkit.Mvvm" />
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" />
 		<PackageReference Include="Microsoft.Data.Sqlite" />
 		<PackageReference Include="AWSSDK.S3" />
 		<PackageReference Include="AWSSDK.SQS" />
@@ -42,9 +42,10 @@
 		<Content Include="ThirdParty\**\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="..\HybridMount.Stock\bin\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Stock.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-CN\*.mui" Link="zh-CN\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\en-US\*.mui" Link="en-US\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-HK\*.mui" Link="zh-HK\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-CN\HybridMount.Ext.resources.dll.mui" Link="zh-CN\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\en-US\HybridMount.Ext.resources.dll.mui" Link="en-US\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-HK\HybridMount.Ext.resources.dll.mui" Link="zh-HK\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.resources.dll" Link="HybridMount.Ext.resources.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Manifest Include="$(ApplicationManifest)" />
 		<Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 	</ItemGroup>

@@ -50,6 +50,15 @@ public sealed class LocalizationTests
     {
         var value=Observe();GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();Assert.False(value.Target.IsAlive);using var service=new UiLanguageService(new Store("zh-CN"),new TextProvider());using var current=UiText.Use(service);Assert.True(service.TrySave("en-US",out _));value.Subscription.Dispose();
     }
+    [Fact]
+    public void SemanticPropertyResourceFormatsAndMalformedTranslationFallsBackWithoutCatalogEntry()
+    {
+        using var service=new UiLanguageService(new Store("en-US"),new SemanticProvider());using var installed=UiText.Use(service);
+        Assert.Equal("默认 7",UiText.Text("Semantic.Status",7));
+        Assert.Equal("Greeting/[using:Microsoft.UI.Xaml.Automation]AutomationProperties/Name",ResourceNames.ToPriPath("Greeting.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"));
+        Assert.Equal("Greeting/Text",ResourceNames.ToPriPath("Greeting.Text"));
+    }
+    private sealed class SemanticProvider:IUiTextProvider {public string? Read(string language,string key)=>language=="en-US"?"broken {1}":"默认 {0}";}
     [MethodImpl(MethodImplOptions.NoInlining)]private static (WeakReference Target,IDisposable Subscription) Observe(){var value=new object();return(new(value),UiText.Observe(value,static _=>{}));}
     private static string Key(string source)=>"Text_"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..12];
     private sealed class Store(string? value):IUiLanguageStore

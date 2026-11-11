@@ -20,6 +20,7 @@ public partial class App:Application
     private bool _allowClose;
     private readonly object _exitSync=new();
     private Task? _exitTask;
+    private SettingsResetPlan? _settingsReset;
     public bool IsExiting=>_exiting;
     private LifecycleDiagnostics? _lifecycle;
     public new static App Current=>(App)Application.Current;
@@ -43,7 +44,12 @@ public partial class App:Application
         if(languages is null)
         {
             try{_languageBridge=new();}catch(Exception error){System.Diagnostics.Trace.TraceWarning("Language bridge initialization: 0x{0:X8}",error.HResult);}
-            var queue=DispatcherQueue.GetForCurrentThread();languages=new(new Services.Localization.RegistryUiLanguageStore(ApplicationPaths.RegistryPath),new Services.Localization.MrtUiTextProvider(),dispatch:action=>{if(queue is null||queue.HasThreadAccess)action();else queue.TryEnqueue(()=>action());},publish:value=>{global::Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride=value.Effective;_languageBridge?.Publish(value);});
+            var queue=DispatcherQueue.GetForCurrentThread();
+            languages=new(new Services.Localization.RegistryUiLanguageStore(ApplicationPaths.RegistryPath),new Services.Localization.MrtUiTextProvider(),
+                dispatch:action=>{if(queue is null||queue.HasThreadAccess)action();else queue.TryEnqueue(()=>action());},
+                publish:value=>Services.Localization.UiLanguagePublication.Publish(value,WinRegisterService.IsPackaged,
+                    language=>global::Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride=language,
+                    selection=>_languageBridge?.Publish(selection)));
         }
         Languages=languages;_languageScope=Services.Localization.UiText.Use(languages);try{InitializeComponent();}catch{_languageScope.Dispose();_languageBridge?.Dispose();throw;}
     }
@@ -145,6 +151,16 @@ public partial class App:Application
         try{await ExitAsync();}
         catch(Exception error){_lifecycle?.Record("ExitBoundaryFailure",error,true);Logger?.QueueException("退出","Error","退出边界失败",error);Environment.ExitCode=1;}
     }
+    /// <summary>页面只请求应用生命周期动作，挂载检查仍由应用协调器持锁执行。</summary>
+    internal Task<SettingsResetPlan> InspectSettingsResetAsync(CancellationToken token)=>Mounts.InspectSettingsResetAsync(token);
+    /// <summary>已确认的当前模式还原先在配置锁内复核并停止接纳业务；删除仅在完整退出阶段执行。</summary>
+    internal async Task ResetSettingsAndExitAsync(SettingsResetPlan plan,CancellationToken token)
+    {
+        if(_exiting)throw new OperationCanceledException(token);
+        await Mounts.BeginSettingsResetAsync(plan,token);
+        lock(_exitSync){if(_exitTask is not null)throw new OperationCanceledException(token);_settingsReset=plan;}
+        await ExitAsync();
+    }
     private Task ExitAsync()
     {
         lock(_exitSync)
@@ -155,10 +171,11 @@ public partial class App:Application
     }
     private async Task ExitCoreAsync()
     {
+        var resetStopFailures=new List<string>();
         var stages=new ShutdownSequence((phase,error)=>
         {
             _lifecycle?.Record(phase,error,cancellationReason:"Shutdown");
-            if(error is not null)Logger?.Queue("退出","Error",phase+"："+error.GetType().Name);
+            if(error is not null){resetStopFailures.Add(phase+" 0x"+error.HResult.ToString("X8"));Logger?.Queue("退出","Error",phase+"："+error.GetType().Name);}
         });
         // 先向所有生产者发信号；一个服务的取消回调不能阻挡另一个服务收到停止通知。
         stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
@@ -179,13 +196,39 @@ public partial class App:Application
         // 所有日志生产者已结束，再排空日志；后续阶段证据直接进入生命周期文件。
         await stages.RunAsync("LoggerStop",async()=>{if(Logger is not null){Logger.Queue("应用","Information","HybridMount.NET 正在退出。");await Logger.DisposeAsync();}});
         stages.Run("TrayRelease",()=>{if(_tray is not null){_tray.RestoreRequested-=RestoreWindow;_tray.ExitRequested-=RequestExit;_tray.Dispose();_tray=null;}});
-        stages.Run("WindowRelease",()=>{_allowClose=true;MainWindow?.Close();MainWindow=null;});
-        stages.Run("LegacyInstanceRelease",()=>{_legacyInstance?.Dispose();_legacyInstance=null;});
-        stages.Run("LanguageRelease",()=>{_languageScope?.Dispose();_languageScope=null;Languages.Dispose();_languageBridge?.Dispose();_languageBridge=null;});
-        stages.Run("InstanceRelease",()=>{_instance?.Dispose();_instance=null;});
+        if(_settingsReset is null)stages.Run("WindowRelease",()=>{_allowClose=true;MainWindow?.Close();MainWindow=null;});
+        stages.Run("LanguageRelease",()=>{if(_settingsReset is null){_languageScope?.Dispose();_languageScope=null;}Languages.Dispose();_languageBridge?.Dispose();_languageBridge=null;});
+        if(_settingsReset is null)
+        {
+            stages.Run("LegacyInstanceRelease",()=>{_legacyInstance?.Dispose();_legacyInstance=null;});
+            stages.Run("InstanceRelease",()=>{_instance?.Dispose();_instance=null;});
+        }
         Environment.ExitCode=stages.Failures==0?0:1;
         _lifecycle?.Record(stages.Failures==0?"ExitCompleted":"ExitCompletedWithErrors",completed:stages.Failures==0,cancellationReason:"Shutdown");
         UnhandledException-=OnUiUnhandled;AppDomain.CurrentDomain.UnhandledException-=OnDomainUnhandled;TaskScheduler.UnobservedTaskException-=OnTaskUnobserved;
+        if(_settingsReset is {} reset)
+        {
+            // 最后记录已经刷盘；随后彻底停用生命周期写入，不能在删除后重新创建Logs。
+            _lifecycle=null;
+            try
+            {
+                if(stages.Failures!=0)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_542813A4B00F")+"\n"+string.Join("\n",resetStopFailures));
+                await SettingsResetService.CompleteAsync(reset);
+            }
+            catch(Exception error)
+            {
+                Environment.ExitCode=1;
+                if(MainWindow is {} window)try{await window.ShowSettingsResetFailureAsync(error);}catch(Exception displayError){System.Diagnostics.Debug.WriteLine(displayError.GetType().Name);}
+            }
+            stages.Run("LanguageScopeRelease",()=>{_languageScope?.Dispose();_languageScope=null;});
+            stages.Run("WindowRelease",()=>{_allowClose=true;MainWindow?.Close();MainWindow=null;});
+        }
+        if(_settingsReset is not null)
+        {
+            stages.Run("LegacyInstanceRelease",()=>{_legacyInstance?.Dispose();_legacyInstance=null;});
+            stages.Run("InstanceRelease",()=>{_instance?.Dispose();_instance=null;});
+        }
+        if(stages.Failures>0)Environment.ExitCode=1;
         try{Exit();}catch(Exception error){_lifecycle?.Record("ExitApplicationFailed",error,true);Environment.ExitCode=1;}
     }
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern int MessageBox(nint owner,string text,string caption,uint type);

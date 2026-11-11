@@ -128,7 +128,7 @@ public sealed partial class MountsPage : Page,IDisposable
     {
         using var cancel=new CancellationTokenSource();_recoveryCancel=cancel;
         var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,ItemTemplate=(DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.Helpers.UI\"><TextBlock loc:Ui.Source=\"{Binding}\" loc:Ui.Path=\"Display\" TextWrapping=\"Wrap\"/></DataTemplate>"),SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MinWidth=360,MaxWidth=620,MaxHeight=320};
-        var feedback=new InfoBar{IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
+        var feedback=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
         var count=new TextBlock();var choose=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_9D163C698599")));
         var selectAll=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_BE146CE5330F")));var clearAll=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_F4D4BAE588C4")));
         var choosing=false;var changing=false;var selecting=true;

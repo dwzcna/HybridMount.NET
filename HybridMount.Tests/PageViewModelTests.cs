@@ -247,6 +247,13 @@ public sealed class PageViewModelTests
         public Task<StartupState> GetAsync(){Gets++;return Task.FromResult(new StartupState(false,true,"disabled"));}
         public Task<StartupState> SetAsync(bool value){Sets++;return Completion.Task;}
     }
+    [Fact]
+    public void SettingsResetHasIndependentFeedbackAndBlocksDuplicateEntry()
+    {
+        using var vm=new SettingsViewModel(new AppearanceSettingsService(new AppearanceStore()));vm.AppearanceMessage.Show("appearance");vm.ResetMessage.Show("reset");vm.ResetMessage.IsOpen=false;Assert.True(vm.AppearanceMessage.IsOpen);
+        Assert.True(vm.TryBeginReset());Assert.False(vm.CanEditSettings);Assert.False(vm.TryBeginReset());vm.EndReset();Assert.True(vm.CanReset);vm.ResetMessage.Show("reset");Assert.True(vm.ResetMessage.IsOpen);
+        vm.Dispose();vm.EndReset();Assert.False(vm.CanReset);Assert.False(vm.TryBeginReset());
+    }
     private static string Root()
     {for(var directory=new DirectoryInfo(AppContext.BaseDirectory);directory is not null;directory=directory.Parent)if(File.Exists(Path.Combine(directory.FullName,"Directory.Build.props")))return directory.FullName;throw new IOException("需要源码仓库。");}
     [Fact]

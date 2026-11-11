@@ -13,16 +13,32 @@ namespace HybridMount.Pages;
 public sealed partial class LogsPage : Page, IDisposable
 {
     private IDisposable? _localization;
+    private HeaderLayoutCoordinator? _header;
     /// <summary>仅该页面拥有日志展示订阅。</summary>
     public LogsViewModel ViewModel { get; } = new(App.Current.Logger,App.Current.UiDispatcher);
     /// <summary>页面出现时重新读取 SQLite 快照。</summary>
     private readonly PageScrollBookmark _viewport=new();
-    public LogsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    public LogsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>{Bindings.Update();_header?.Invalidate();});NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}_header=new(LogToolbar,LogFilters,LogActions,SetFilterLabels);Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(LogList);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(LogList);base.OnNavigatedFrom(args);}
     private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(LogList);await ViewModel.RefreshAsync(reopenStatus:false);}
-    private void SeverityChanged(object sender, SelectionChangedEventArgs args)
-    { if (SeverityBox?.SelectedItem is ComboBoxItem item && item.Tag is string tag) ViewModel.Severity = tag; }
+    /// <summary>只收起筛选文字；图标、提示、读屏名称和当前选择保留。</summary>
+    private void SetFilterLabels(bool compact)
+    {
+        foreach(var label in new[]{AllFilterLabel,InformationFilterLabel,WarningFilterLabel,ErrorFilterLabel})label.Visibility=compact?Visibility.Collapsed:Visibility.Visible;
+    }
+    private void ClearDateClicked(object sender,RoutedEventArgs args)=>ViewModel.SelectedDate=null;
+    /// <summary>按实际内容宽度换行日期区域，保留搜索与日期完整可用；不依赖窗口外层导航宽度。</summary>
+    private void QueryHeaderSizeChanged(object sender,SizeChangedEventArgs args)=>ReflowQueryHeader();
+    private void DateFilterSizeChanged(object sender,SizeChangedEventArgs args)=>ReflowQueryHeader();
+    private void ReflowQueryHeader()
+    {
+        if(DateFilter is null||LogSearch is null)return;
+        DateFilter.Measure(new(double.PositiveInfinity,double.PositiveInfinity));
+        var inline=QueryHeader.ActualWidth>=LogSearch.MinWidth+DateFilter.DesiredSize.Width+QueryHeader.ColumnSpacing;
+        Grid.SetColumnSpan(LogSearch,inline?1:2);Grid.SetColumn(DateFilter,inline?1:0);
+        Grid.SetColumnSpan(DateFilter,inline?1:2);Grid.SetRow(DateFilter,inline?0:1);
+    }
     private async void RefreshClicked(object sender, RoutedEventArgs args) => await ViewModel.RefreshAsync();
     private async void OlderClicked(object sender,RoutedEventArgs args)=>await ViewModel.LoadOlderAsync();
     /// <summary>只打开本应用安全生命周期证据目录，不附带注册表、连接配置或正文备份。</summary>
@@ -64,5 +80,5 @@ public sealed partial class LogsPage : Page, IDisposable
         finally {ViewModel.EndDialog();}
     }
     /// <summary>真正退出时解除日志订阅。</summary>
-    public void Dispose(){_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
+    public void Dispose(){_header?.Dispose();_header=null;_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
 }

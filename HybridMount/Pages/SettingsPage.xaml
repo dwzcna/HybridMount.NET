@@ -1,57 +1,62 @@
 <Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.SettingsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views">
   <Grid Style="{StaticResource SharedPageGridStyle}" RowSpacing="16">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-    <TextBlock loc:Ui.TextKey="Text_DF3D58C7D84B" Style="{ThemeResource TitleTextBlockStyle}"/>
-    <ScrollViewer x:Name="SettingsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
+    <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/SettingsPageTextBlockSettings" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockSettings"/>
+    <ScrollViewer IsEnabled="{x:Bind ViewModel.CanEditSettings,Mode=OneWay}" x:Name="SettingsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
       <!-- 视口始终拉伸，单列将宽屏余量留在右侧；避免受限宽度内容被默认居中后偏移。 -->
       <Grid Padding="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Top">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
         <StackPanel Spacing="24">
-          <Border Style="{StaticResource CardBorderStyle}" Padding="24">
+          <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.AppearanceMessage}">
             <StackPanel Spacing="16">
-              <TextBlock loc:Ui.TextKey="Text_86A63F23A076" FontSize="20" FontWeight="SemiBold"/>
+              <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockAppearance" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockAppearance"/>
               <!-- 控件在可用列宽内缩小；宽屏仍保持原控件宽度和左侧对齐。 -->
               <Grid RowSpacing="16">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="300"/></Grid.ColumnDefinitions>
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                <ComboBox loc:Ui.HeaderKey="Text_9D933522D6D0" loc:Ui.AutomationNameKey="Text_9D933522D6D0" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.ThemeSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditAppearance, Mode=OneWay}">
-                  <ComboBoxItem loc:Ui.ContentKey="Text_217CFE7DB1E3" Tag="System"/><ComboBoxItem loc:Ui.ContentKey="Text_AA0819DFC4D8" Tag="Light"/><ComboBoxItem loc:Ui.ContentKey="Text_A6B75D068032" Tag="Dark"/>
+                <ComboBox HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.ThemeSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditAppearance, Mode=OneWay}" x:Uid="/Strings/SettingsPageComboBoxWindowTheme" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxWindowTheme">
+                  <ComboBoxItem Tag="System" x:Uid="/Strings/SettingsPageComboBoxItemFollowSystem" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemFollowSystem"/><ComboBoxItem Tag="Light" x:Uid="/Strings/SettingsPageComboBoxItemLight" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemLight"/><ComboBoxItem Tag="Dark" x:Uid="/Strings/SettingsPageComboBoxItemDark" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemDark"/>
                 </ComboBox>
-                <ComboBox Grid.Row="1" loc:Ui.HeaderKey="Text_DBADF79FCEE4" loc:Ui.AutomationNameKey="Text_DBADF79FCEE4" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.BackdropSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditAppearance, Mode=OneWay}">
-                  <ComboBoxItem loc:Ui.ContentKey="Text_6BD268503883" Tag="None"/><ComboBoxItem Content="Mica" Tag="MicaBase"/><ComboBoxItem Content="Mica Alt" Tag="MicaAltBaseAlt"/><ComboBoxItem Content="Acrylic" Tag="AcrylicBase"/><ComboBoxItem Content="Thin Acrylic" Tag="AcrylicThin"/>
+                <ComboBox Grid.Row="1" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.BackdropSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditAppearance, Mode=OneWay}" x:Uid="/Strings/SettingsPageComboBoxWindowBackground" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxWindowBackground">
+                  <ComboBoxItem Tag="None" x:Uid="/Strings/SettingsPageComboBoxItemNoMaterial" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemNoMaterial"/><ComboBoxItem Content="Mica" Tag="MicaBase"/><ComboBoxItem Content="Mica Alt" Tag="MicaAltBaseAlt"/><ComboBoxItem Content="Acrylic" Tag="AcrylicBase"/><ComboBoxItem Content="Thin Acrylic" Tag="AcrylicThin"/>
                 </ComboBox>
-                <ComboBox Grid.Row="2" loc:Ui.HeaderKey="Text_44979BA1F128" loc:Ui.AutomationNameKey="Text_44979BA1F128" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.DensitySelection,Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditDensity,Mode=OneWay}">
-                    <ComboBoxItem loc:Ui.ContentKey="Text_6BEA77ACEFB3" Tag="Comfortable"/><ComboBoxItem loc:Ui.ContentKey="Text_5D63D587B0B0" Tag="Compact"/>
+                <ComboBox Grid.Row="2" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.DensitySelection,Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditDensity,Mode=OneWay}" x:Uid="/Strings/SettingsPageComboBoxInterfaceDensity" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxInterfaceDensity">
+                    <ComboBoxItem Tag="Comfortable" x:Uid="/Strings/SettingsPageComboBoxItemStandard" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemStandard"/><ComboBoxItem Tag="Compact" x:Uid="/Strings/SettingsPageComboBoxItemCompact" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemCompact"/>
                 </ComboBox>
-                <ComboBox Grid.Row="3" loc:Ui.HeaderKey="Text_3D13868593AE" loc:Ui.AutomationNameKey="Text_3D13868593AE" loc:Ui.ToolTipKey="Text_86E70C1B4824" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.LanguageSelection,Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditLanguage,Mode=OneWay}">
-                  <ComboBoxItem loc:Ui.ContentKey="Text_217CFE7DB1E3" Tag="system"/><ComboBoxItem Content="中文（中国）" Tag="zh-CN"/><ComboBoxItem Content="English (United States)" Tag="en-US"/><ComboBoxItem Content="中文（香港特別行政區）" Tag="zh-HK"/>
+                <ComboBox Grid.Row="3" HorizontalAlignment="Stretch" SelectedValuePath="Tag" SelectedValue="{x:Bind ViewModel.LanguageSelection,Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditLanguage,Mode=OneWay}" x:Uid="/Strings/SettingsPageComboBoxInterfaceLanguage" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxInterfaceLanguage">
+                  <ComboBoxItem Tag="system" x:Uid="/Strings/SettingsPageComboBoxItemFollowSystem2" loc:Ui.ResourceId="/Strings/SettingsPageComboBoxItemFollowSystem2"/><ComboBoxItem Content="中文（中国）" Tag="zh-CN"/><ComboBoxItem Content="English (United States)" Tag="en-US"/><ComboBoxItem Content="中文（香港特別行政區）" Tag="zh-HK"/>
                 </ComboBox>
               </Grid>
-              <InfoBar Message="{x:Bind ViewModel.AppearanceStatus,Mode=OneWay}" IsOpen="{x:Bind ViewModel.AppearanceMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.AppearanceMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.AppearanceMessage.IsOpen),Mode=OneWay}"/>
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource CardBorderStyle}" Padding="24">
-            <StackPanel Spacing="16">
-              <TextBlock loc:Ui.TextKey="Text_DCB22E1AF650" FontSize="20" FontWeight="SemiBold"/>
-              <controls:SettingRow loc:Ui.HeaderKey="Text_970F3009DDCD"><ToggleSwitch loc:Ui.AutomationNameKey="Text_970F3009DDCD" IsOn="{x:Bind ViewModel.CloseToTraySelection, Mode=TwoWay}"/></controls:SettingRow>
-              <controls:SettingRow loc:Ui.HeaderKey="Text_4C0B929BDBE0"><ToggleSwitch loc:Ui.AutomationNameKey="Text_4C0B929BDBE0" IsOn="{x:Bind ViewModel.StartupSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditStartup, Mode=OneWay}"/></controls:SettingRow>
-              <TextBlock Text="{x:Bind ViewModel.StartupDetail, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.StartupDetail),Mode=OneWay}"/>
-              <CommandBar Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_E4170809495B"><AppBarButton loc:Ui.AutomationNameKey="Text_E4170809495B" loc:Ui.ToolTipKey="Text_E4170809495B" loc:Ui.LabelKey="Text_E4170809495B" Icon="Setting" Click="OpenStartupSettings"/></CommandBar>
-              <InfoBar Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
+          <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.StatusMessage}">
+            <StackPanel Spacing="8">
+              <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockStartupAndTray" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockStartupAndTray"/>
+              <controls:SettingRow IsCompact="True" x:Uid="/Strings/SettingsPageSettingRowHideToTheTrayWhenClosing" loc:Ui.ResourceId="/Strings/SettingsPageSettingRowHideToTheTrayWhenClosing"><ToggleSwitch IsOn="{x:Bind ViewModel.CloseToTraySelection, Mode=TwoWay}" x:Uid="/Strings/SettingsPageToggleSwitchHideToTheTrayWhenClosing" loc:Ui.ResourceId="/Strings/SettingsPageToggleSwitchHideToTheTrayWhenClosing"/></controls:SettingRow>
+              <controls:SettingRow IsCompact="True" Description="{x:Bind ViewModel.StartupDetail,Mode=OneWay}" x:Uid="/Strings/SettingsPageSettingRowStartAfterSigningInToWindows" loc:Ui.ResourceId="/Strings/SettingsPageSettingRowStartAfterSigningInToWindows"><ToggleSwitch IsOn="{x:Bind ViewModel.StartupSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditStartup, Mode=OneWay}" x:Uid="/Strings/SettingsPageToggleSwitchStartAfterSigningInToWindows" loc:Ui.ResourceId="/Strings/SettingsPageToggleSwitchStartAfterSigningInToWindows"/></controls:SettingRow>
+              <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings" loc:Ui.ResourceId="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings"><AppBarButton Icon="Setting" Click="OpenStartupSettings" x:Uid="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings"/></CommandBar>
             </StackPanel>
           </Border>
-          <Border Style="{StaticResource CardBorderStyle}" Padding="24">
+          <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.CacheMessage}">
             <StackPanel Spacing="16">
-              <TextBlock loc:Ui.TextKey="Text_ED068529662D" FontSize="20" FontWeight="SemiBold"/>
+              <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockOfflineCache" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockOfflineCache"/>
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="320"/></Grid.ColumnDefinitions>
-                <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" loc:Ui.HeaderKey="Text_479D45C856A1" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch"/>
+                <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" x:Uid="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic" loc:Ui.ResourceId="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic"/>
               </Grid>
-              <CommandBar Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_ED068529662D">
-                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" loc:Ui.AutomationNameKey="Text_DCA2D1E7505B" loc:Ui.ToolTipKey="Text_DCA2D1E7505B" loc:Ui.LabelKey="Text_DCA2D1E7505B" Icon="Save" Click="SaveCache"/>
-                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" loc:Ui.AutomationNameKey="Text_A6124727E357" loc:Ui.ToolTipKey="Text_A6124727E357" loc:Ui.LabelKey="Text_A6124727E357" Icon="Delete" Click="TrimCache"/>
+              <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOfflineCache" loc:Ui.ResourceId="/Strings/SettingsPageCommandBarOfflineCache">
+                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Icon="Save" Click="SaveCache" x:Uid="/Strings/SettingsPageAppBarButtonSaveLimit" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonSaveLimit"/>
+                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Icon="Delete" Click="TrimCache" x:Uid="/Strings/SettingsPageAppBarButtonCheckEvictionNow" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonCheckEvictionNow"/>
               </CommandBar>
-              <InfoBar Message="{x:Bind ViewModel.CacheStatus,Mode=OneWay}" IsOpen="{x:Bind ViewModel.CacheMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.CacheMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.CacheMessage.IsOpen),Mode=OneWay}"/>
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.ResetMessage}">
+            <StackPanel Spacing="12">
+              <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockReset" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockReset"/>
+              <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor"/>
+              <CommandBar Style="{StaticResource PageCommandBarStyle}">
+                <AppBarButton IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" Icon="Undo" Click="ResetSettings" x:Uid="/Strings/SettingsPageAppBarButtonClearAllAppSettings" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonClearAllAppSettings"/>
+              </CommandBar>
             </StackPanel>
           </Border>
           <TextBlock Text="{x:Bind ViewModel.VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>

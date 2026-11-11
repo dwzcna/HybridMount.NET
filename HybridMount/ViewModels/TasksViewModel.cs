@@ -59,8 +59,16 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public void ReportError(string text){if(!_disposed&&StatusMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Raw(text),PageMessageSeverity.Error))OnPropertyChanged(nameof(Status));}
     public string Status {get=>StatusMessage.Text;set=>PublishStatus(value);}
     private void PublishStatus(string text,PageMessageSeverity severity=PageMessageSeverity.Information){if(!_disposed&&StatusMessage.Show(text,severity))OnPropertyChanged(nameof(Status));}
-    public bool IssuesOnly {get=>_issuesOnly;set{if(!_disposed&&SetProperty(ref _issuesOnly,value)){if(value){_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));}Refresh();}}}
-    public bool ConflictsOnly{get=>_conflictsOnly;set{if(!_disposed&&SetProperty(ref _conflictsOnly,value)){if(value){_issuesOnly=false;OnPropertyChanged(nameof(IssuesOnly));}Refresh();}}}
+    /// <summary>三段筛选的唯一选择：0全部、1同步问题、2冲突；切换一次只发布一次任务快照。</summary>
+    public int SelectedTaskFilter {get=>_issuesOnly?1:_conflictsOnly?2:0;set=>SetTaskFilter(value);}
+    public bool IssuesOnly {get=>_issuesOnly;set{if(value||_issuesOnly)SetTaskFilter(value?1:0);}}
+    public bool ConflictsOnly {get=>_conflictsOnly;set{if(value||_conflictsOnly)SetTaskFilter(value?2:0);}}
+    private void SetTaskFilter(int selected)
+    {
+        if(_disposed||selected is <0 or >2||SelectedTaskFilter==selected)return;
+        _issuesOnly=selected==1;_conflictsOnly=selected==2;
+        OnPropertyChanged(nameof(IssuesOnly));OnPropertyChanged(nameof(ConflictsOnly));OnPropertyChanged(nameof(SelectedTaskFilter));Refresh();
+    }
     public string IssueViewTitle=>_filterMount is {} id?global::HybridMount.Services.Localization.UiText.Text("Text_2459713C2EC0",(_queue.Mounts.FirstOrDefault(x=>x.Definition.Id==id)?.Definition.Name??global::HybridMount.Services.Localization.UiText.Text("Text_6FC9C71CB14F"))):global::HybridMount.Services.Localization.UiText.Text("Text_73213BCEB8A1");
     public bool HasIssueFilter=>_filterMount is not null||_filterPaths.Count>0;
     public void ClearIssueFilter(){_filterMount=null;_filterPaths=[];Refresh();}
@@ -77,7 +85,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_focus?.Current is not {} focus||focus.Revision==_focusRevision)return;
         _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=true;_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));
-        OnPropertyChanged(nameof(IssuesOnly));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
+        OnPropertyChanged(nameof(IssuesOnly));OnPropertyChanged(nameof(SelectedTaskFilter));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
     }
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
     public TaskListItem? SelectedRow=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);

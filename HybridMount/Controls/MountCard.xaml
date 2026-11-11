@@ -44,17 +44,17 @@
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}" FontSize="16"/><TextBlock Text="{x:Bind Item.ConnectionText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </ToggleButton>
                     <Button x:Name="SettingsButton" Tag="settings" Height="32" Padding="8,4"
-                            IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" loc:Ui.ToolTipKey="Text_F797B44CFD54" loc:Ui.AutomationNameKey="Text_F797B44CFD54" Click="PerformAction">
-                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE713;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_F797B44CFD54" VerticalAlignment="Center"/></StackPanel>
+                            IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardSettingsButton" loc:Ui.ResourceId="/Strings/MountCardSettingsButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE713;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockEditSettings" loc:Ui.ResourceId="/Strings/MountCardTextBlockEditSettings"/></StackPanel>
                     </Button>
                     <Border x:Name="ConnectionSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
                     <Button x:Name="ScanButton" Tag="scan" Height="32" Padding="8,4"
-                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_0C9E1C407AF7" loc:Ui.AutomationNameKey="Text_0C9E1C407AF7" Click="PerformAction">
-                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE721;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_0C9E1C407AF7" VerticalAlignment="Center"/></StackPanel>
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardScanButton" loc:Ui.ResourceId="/Strings/MountCardScanButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE721;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockScanLocalChanges" loc:Ui.ResourceId="/Strings/MountCardTextBlockScanLocalChanges"/></StackPanel>
                     </Button>
                     <Button x:Name="DetectButton" Tag="refresh" Height="32" Padding="8,4"
-                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_6C17E763C3ED" loc:Ui.AutomationNameKey="Text_80A92AD480C0" Click="PerformAction">
-                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE895;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_80A92AD480C0" VerticalAlignment="Center"/></StackPanel>
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardDetectButton" loc:Ui.ResourceId="/Strings/MountCardDetectButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE895;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockManualRemoteDetection" loc:Ui.ResourceId="/Strings/MountCardTextBlockManualRemoteDetection"/></StackPanel>
                     </Button>
                     <Border x:Name="ManualSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
                     <ToggleButton x:Name="ThumbnailButton" Tag="thumbnails" Height="32" Padding="8,4"
@@ -69,16 +69,16 @@
                     </ToggleButton>
                     <Border x:Name="OptionsSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
                     <Button x:Name="KeepButton" Tag="keepOnDevice" Height="32" Padding="8,4"
-                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_121799CED97E" loc:Ui.AutomationNameKey="Text_121799CED97E" Click="PerformAction">
-                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE718;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_121799CED97E" VerticalAlignment="Center"/></StackPanel>
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardKeepButton" loc:Ui.ResourceId="/Strings/MountCardKeepButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE718;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockAlwaysKeepOnDevice" loc:Ui.ResourceId="/Strings/MountCardTextBlockAlwaysKeepOnDevice"/></StackPanel>
                     </Button>
                     <Button x:Name="FreeButton" Tag="freeSpace" Height="32" Padding="8,4"
-                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" loc:Ui.ToolTipKey="Text_3D1D2F450C37" loc:Ui.AutomationNameKey="Text_3D1D2F450C37" Click="PerformAction">
-                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE753;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_3D1D2F450C37" VerticalAlignment="Center"/></StackPanel>
+                            IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardFreeButton" loc:Ui.ResourceId="/Strings/MountCardFreeButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE753;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockFreeUpSpace" loc:Ui.ResourceId="/Strings/MountCardTextBlockFreeUpSpace"/></StackPanel>
                     </Button>
                     <Button x:Name="CapacityButton" Tag="capacity" Height="32" Padding="8,4"
-                            IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" loc:Ui.ToolTipKey="Text_F6B3FF7C362A" loc:Ui.AutomationNameKey="Text_F6B3FF7C362A" Click="PerformAction">
-                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEDA2;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_F6B3FF7C362A" VerticalAlignment="Center"/></StackPanel>
+                            IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardCapacityButton" loc:Ui.ResourceId="/Strings/MountCardCapacityButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEDA2;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockRecheckCapacity" loc:Ui.ResourceId="/Strings/MountCardTextBlockRecheckCapacity"/></StackPanel>
                     </Button>
                     <Border x:Name="StorageSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
                     <Button x:Name="RemoveButton" Tag="remove" Height="32" Padding="8,4"
@@ -86,35 +86,34 @@
                             AutomationProperties.Name="{x:Bind Item.RemoveText,Mode=OneWay}" Click="PerformAction">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="16"/><TextBlock Text="{x:Bind Item.RemoveText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </Button>
-                    <DropDownButton x:Name="MoreButton" Width="48" Height="32" Padding="6" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}"
-                                    loc:Ui.AutomationNameKey="Text_F5651904C35C" loc:Ui.ToolTipKey="Text_9F07D2CE4115">
+                    <DropDownButton x:Name="MoreButton" Width="48" Height="32" Padding="6" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" x:Uid="/Strings/MountCardMoreButton" loc:Ui.ResourceId="/Strings/MountCardMoreButton">
                         <FontIcon Glyph="&#xE712;" FontSize="16"/>
                         <DropDownButton.Flyout>
                             <MenuFlyout Opening="OverflowOpening">
                                 <MenuFlyoutItem x:Name="ConnectionOverflow" Text="{x:Bind Item.ConnectionText,Mode=OneWay}" Tag="connection" IsEnabled="{x:Bind Item.CanChangeConnection,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem x:Name="SettingsOverflow" loc:Ui.TextKey="Text_F797B44CFD54" Tag="settings" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                <MenuFlyoutItem x:Name="SettingsOverflow" Tag="settings" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed" x:Uid="/Strings/MountCardSettingsOverflow" loc:Ui.ResourceId="/Strings/MountCardSettingsOverflow">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE713;"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator x:Name="ConnectionOverflowSeparator" Visibility="Collapsed"/>
-                                <MenuFlyoutItem x:Name="ScanOverflow" loc:Ui.TextKey="Text_0C9E1C407AF7" Tag="scan" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                <MenuFlyoutItem x:Name="ScanOverflow" Tag="scan" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed" x:Uid="/Strings/MountCardScanOverflow" loc:Ui.ResourceId="/Strings/MountCardScanOverflow">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE721;"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem x:Name="DetectOverflow" loc:Ui.TextKey="Text_80A92AD480C0" Tag="refresh" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed">
+                                <MenuFlyoutItem x:Name="DetectOverflow" Tag="refresh" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" Visibility="Collapsed" x:Uid="/Strings/MountCardDetectOverflow" loc:Ui.ResourceId="/Strings/MountCardDetectOverflow">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator x:Name="ManualOverflowSeparator" Visibility="Collapsed"/>
                                 <ToggleMenuFlyoutItem x:Name="ThumbnailOverflow" Text="{x:Bind Item.ThumbnailText,Mode=OneWay}" Tag="thumbnails" IsChecked="{x:Bind Item.ThumbnailsEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction"/>
                                 <ToggleMenuFlyoutItem x:Name="RemoteDetectionOverflow" Text="{x:Bind Item.DetectionText,Mode=OneWay}" Tag="remoteDetection" IsChecked="{x:Bind Item.RemoteDetectionEnabled,Mode=OneWay}" IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction"/>
                                 <MenuFlyoutSeparator x:Name="OverflowSeparator" Visibility="Collapsed"/>
-                                <MenuFlyoutItem x:Name="KeepOverflow" loc:Ui.TextKey="Text_121799CED97E" Tag="keepOnDevice" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction">
+                                <MenuFlyoutItem x:Name="KeepOverflow" Tag="keepOnDevice" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardKeepOverflow" loc:Ui.ResourceId="/Strings/MountCardKeepOverflow">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE718;"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem x:Name="FreeOverflow" loc:Ui.TextKey="Text_3D1D2F450C37" Tag="freeSpace" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction">
+                                <MenuFlyoutItem x:Name="FreeOverflow" Tag="freeSpace" IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardFreeOverflow" loc:Ui.ResourceId="/Strings/MountCardFreeOverflow">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE753;"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutItem x:Name="CapacityOverflow" loc:Ui.TextKey="Text_F6B3FF7C362A" Tag="capacity" IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" Click="PerformAction">
+                                <MenuFlyoutItem x:Name="CapacityOverflow" Tag="capacity" IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardCapacityOverflow" loc:Ui.ResourceId="/Strings/MountCardCapacityOverflow">
                                     <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEDA2;"/></MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
                                 <MenuFlyoutSeparator x:Name="StorageOverflowSeparator" Visibility="Collapsed"/>
@@ -133,11 +132,11 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="12,0,0,0">
                 <Grid RowSpacing="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Button Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Height="32" Padding="8,4" loc:Ui.ToolTipKey="Text_7D0D5850515D" loc:Ui.AutomationNameKey="Text_7D0D5850515D"><StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xED25;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_7D0D5850515D" VerticalAlignment="Center"/></StackPanel></Button>
+                    <Button Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Height="32" Padding="8,4" x:Uid="/Strings/MountCardButtonOpenFolder" loc:Ui.ResourceId="/Strings/MountCardButtonOpenFolder"><StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xED25;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockOpenFolder" loc:Ui.ResourceId="/Strings/MountCardTextBlockOpenFolder"/></StackPanel></Button>
                     <Grid Grid.Row="2" Height="32">
                         <Button Tag="diagnostics" Click="PerformAction" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" Height="32" Padding="8,4" ToolTipService.ToolTip="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}">
-                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9D9;" FontSize="16"/><TextBlock loc:Ui.TextKey="Text_40FF6300F981" VerticalAlignment="Center"/></StackPanel>
-                            <Button.ContextFlyout><MenuFlyout Opening="OverflowOpening"><MenuFlyoutItem loc:Ui.TextKey="Text_F1B417B318B5" Tag="fullDiagnostics" Click="PerformAction"/></MenuFlyout></Button.ContextFlyout>
+                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9D9;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockDiagnostics" loc:Ui.ResourceId="/Strings/MountCardTextBlockDiagnostics"/></StackPanel>
+                            <Button.ContextFlyout><MenuFlyout Opening="OverflowOpening"><MenuFlyoutItem Tag="fullDiagnostics" Click="PerformAction" x:Uid="/Strings/MountCardMenuFlyoutItemFullDiagnostics" loc:Ui.ResourceId="/Strings/MountCardMenuFlyoutItemFullDiagnostics"/></MenuFlyout></Button.ContextFlyout>
                         </Button>
                         <Border Background="{ThemeResource MountIssueBadgeBackgroundBrush}" CornerRadius="7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-6,0" MinWidth="14" Height="14" IsHitTestVisible="False" Visibility="{x:Bind helpers:TextVisibility.ForFlag(Item.HasUploadIssues),Mode=OneWay}">
                             <TextBlock Text="{x:Bind Item.IssueBadge,Mode=OneWay}" Foreground="{ThemeResource MountIssueBadgeForegroundBrush}" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0"/>

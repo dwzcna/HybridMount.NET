@@ -11,6 +11,10 @@
   <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/>
     <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
   <ItemGroup>
+    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.resources.dll" Link="HybridMount.Ext.resources.dll" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-CN\HybridMount.Ext.resources.dll.mui" Link="zh-CN\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\en-US\HybridMount.Ext.resources.dll.mui" Link="en-US\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-HK\HybridMount.Ext.resources.dll.mui" Link="zh-HK\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest"/>
     <Content Include="..\HybridMount.Stock\bin\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Link="HybridMount.Stock.exe" CopyToOutputDirectory="PreserveNewest" Condition="!Exists('..\artifacts\native-runtime-tests\$(Platform)\$(Configuration)\HybridMount.Stock.exe')" />
     <Content Include="..\artifacts\native-runtime-tests\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Link="HybridMount.Stock.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\artifacts\native-runtime-tests\$(Platform)\$(Configuration)\HybridMount.Stock.exe')" />
     <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll')"/>
@@ -18,7 +22,7 @@
     <Content Include="..\HybridMount\Assets\SyncIssue.ico" Link="Assets\SyncIssue.ico" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
   <ItemGroup><Content Include="..\HybridMount\Assets\SyncExcluded.png" Link="Assets\SyncExcluded.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="..\HybridMount\Assets\SyncIssue.png" Link="Assets\SyncIssue.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
-  <ItemGroup><Compile Include="..\HybridMount\Services\Localization\ResourceMessage.cs" Link="Production\Localization\ResourceMessage.cs"/><Compile Include="..\HybridMount\Services\Localization\UiLanguageService.cs" Link="Production\Localization\UiLanguageService.cs"/><Compile Include="..\HybridMount\Services\Localization\UiText.cs" Link="Production\Localization\UiText.cs"/><EmbeddedResource Include="..\HybridMount\Resources\UiCatalog.json" LogicalName="HybridMount.Resources.UiCatalog.json"/></ItemGroup>
+  <ItemGroup><Compile Include="..\HybridMount\Helpers\UI\HeaderLayoutPolicy.cs" Link="Production\UI\HeaderLayoutPolicy.cs"/><Compile Include="..\HybridMount\Models\Diagnostics\LocalCalendarDay.cs" Link="Production\Diagnostics\LocalCalendarDay.cs"/><Compile Include="..\HybridMount\Services\Localization\ResourceMessage.cs" Link="Production\Localization\ResourceMessage.cs"/><Compile Include="..\HybridMount\Services\Localization\UiLanguageService.cs" Link="Production\Localization\UiLanguageService.cs"/><Compile Include="..\HybridMount\Services\Localization\UiText.cs" Link="Production\Localization\UiText.cs"/><EmbeddedResource Include="..\HybridMount\Resources\UiCatalog.json" LogicalName="HybridMount.Resources.UiCatalog.json"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\ViewModels\TaskListItem.cs" Link="Production\ViewModels\TaskListItem.cs"/>
     <Compile Include="..\HybridMount\ViewModels\PageStatusMessage.cs" Link="Production\ViewModels\PageStatusMessage.cs"/>
@@ -209,6 +213,7 @@
     <Compile Include="..\HybridMount\Models\Thumbnails\ThumbnailCacheStore.cs" Link="Production\Models\Thumbnails\ThumbnailCacheStore.cs"/>
     <Compile Include="..\HybridMount\Services\AppearanceSettingsService.cs" Link="Production\Services\AppearanceSettingsService.cs"/>
     <Compile Include="..\HybridMount\Services\ApplicationPaths.cs" Link="Production\Services\ApplicationPaths.cs"/>
+    <Compile Include="..\HybridMount\Services\SettingsResetScope.cs" Link="Production\Services\SettingsResetScope.cs"/>
     <Compile Include="..\HybridMount\Services\ApplicationPreferencesService.cs" Link="Production\Services\ApplicationPreferencesService.cs"/>
     <Compile Include="..\HybridMount\Services\IpcClient.cs" Link="Production\Services\IpcClient.cs"/>
     <Compile Include="..\HybridMount\Services\IpcProtocol.cs" Link="Production\Services\IpcProtocol.cs"/>

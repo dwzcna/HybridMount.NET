@@ -4,51 +4,51 @@
     <Grid MinWidth="360" MaxWidth="520" MaxHeight="640"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="12">
-                <TextBlock loc:Ui.TextKey="Text_8FD2EE522D59" TextWrapping="Wrap" />
+                <TextBlock TextWrapping="Wrap" x:Uid="/Strings/SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd"/>
             <UserControl x:Name="ConnectionFields"><StackPanel Spacing="12">
-                    <TextBox x:Name="NameField" loc:Ui.HeaderKey="Text_D44E9B3D3B31"/>
+                    <TextBox x:Name="NameField" x:Uid="/Strings/SynologyConfigurationContentDialogNameField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogNameField"/>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBox x:Name="PathField" loc:Ui.HeaderKey="Text_4BB83F1A69F9" IsReadOnly="True"/>
-                        <Button x:Name="ChooseButton" Grid.Column="1" loc:Ui.ContentKey="Text_E5FE24CA742F" VerticalAlignment="Bottom" Click="ChooseFolder"/>
+                        <TextBox x:Name="PathField" IsReadOnly="True" x:Uid="/Strings/SynologyConfigurationContentDialogPathField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogPathField"/>
+                        <Button x:Name="ChooseButton" Grid.Column="1" VerticalAlignment="Bottom" Click="ChooseFolder" x:Uid="/Strings/SynologyConfigurationContentDialogChooseButton" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogChooseButton"/>
                     </Grid>
-                    <TextBox x:Name="EndpointField" loc:Ui.HeaderKey="Text_F745D52559D6" PlaceholderText="https://nas.example.com:5001" TextChanged="EndpointChanged"/>
-                    <CheckBox x:Name="HttpField" loc:Ui.ContentKey="Text_75604CC8C1A4" Checked="ConnectionChanged" Unchecked="ConnectionChanged"/>
-                    <InfoBar x:Name="HttpWarning" IsOpen="False" IsClosable="True" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" Severity="Warning" loc:Ui.TitleKey="Text_B8B974267CBE" loc:Ui.MessageKey="Text_63116F299742"/>
-                    <TextBox x:Name="UserField" loc:Ui.HeaderKey="Text_311BB313FDEC" TextChanged="CredentialsChanged"/>
-                    <PasswordBox x:Name="PasswordField" loc:Ui.HeaderKey="Text_A621AB606DB2" PasswordChanged="PasswordChanged"/>
-                    <PasswordBox x:Name="OtpField" loc:Ui.HeaderKey="Text_0A71879C4E40" Visibility="Collapsed"/>
-                    <TextBlock loc:Ui.TextKey="Text_D8510A0D488B" TextWrapping="Wrap"/>
-                    <ComboBox x:Name="ShareField" loc:Ui.HeaderKey="Text_8DF2FA80A06C" DisplayMemberPath="Name" HorizontalAlignment="Stretch" SelectionChanged="ShareChanged"/>
-                    <TextBox x:Name="SubfolderField" loc:Ui.HeaderKey="Text_DD44CB00BAD0" loc:Ui.PlaceholderTextKey="Text_E131031441CF" TextChanged="SubfolderChanged"/>
+                    <TextBox x:Name="EndpointField" PlaceholderText="https://nas.example.com:5001" TextChanged="EndpointChanged" x:Uid="/Strings/SynologyConfigurationContentDialogEndpointField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogEndpointField"/>
+                    <CheckBox x:Name="HttpField" Checked="ConnectionChanged" Unchecked="ConnectionChanged" x:Uid="/Strings/SynologyConfigurationContentDialogHttpField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogHttpField"/>
+                    <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="HttpWarning" IsOpen="False" IsClosable="True" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" Severity="Warning" x:Uid="/Strings/SynologyConfigurationContentDialogHttpWarning" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogHttpWarning"/>
+                    <TextBox x:Name="UserField" TextChanged="CredentialsChanged" x:Uid="/Strings/SynologyConfigurationContentDialogUserField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogUserField"/>
+                    <PasswordBox x:Name="PasswordField" PasswordChanged="PasswordChanged" x:Uid="/Strings/SynologyConfigurationContentDialogPasswordField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogPasswordField"/>
+                    <PasswordBox x:Name="OtpField" Visibility="Collapsed" x:Uid="/Strings/SynologyConfigurationContentDialogOtpField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogOtpField"/>
+                    <TextBlock TextWrapping="Wrap" x:Uid="/Strings/SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad"/>
+                    <ComboBox x:Name="ShareField" DisplayMemberPath="Name" HorizontalAlignment="Stretch" SelectionChanged="ShareChanged" x:Uid="/Strings/SynologyConfigurationContentDialogShareField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogShareField"/>
+                    <TextBox x:Name="SubfolderField" TextChanged="SubfolderChanged" x:Uid="/Strings/SynologyConfigurationContentDialogSubfolderField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSubfolderField"/>
                     <TextBlock x:Name="PinText" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-                    <Button x:Name="ClearPinButton" loc:Ui.ContentKey="Text_1558E3701CFB" Click="ClearPin" Visibility="Collapsed"/>
-                    <InfoBar x:Name="CertificateBar" IsOpen="False" IsClosable="False" Severity="Warning" loc:Ui.TitleKey="Text_7179375682A0">
-                        <InfoBar.ActionButton><Button loc:Ui.ContentKey="Text_EDCD0FE3A86E" Click="TrustCertificate"/></InfoBar.ActionButton>
+                    <Button x:Name="ClearPinButton" Click="ClearPin" Visibility="Collapsed" x:Uid="/Strings/SynologyConfigurationContentDialogClearPinButton" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogClearPinButton"/>
+                    <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="CertificateBar" IsOpen="False" IsClosable="False" Severity="Warning" x:Uid="/Strings/SynologyConfigurationContentDialogCertificateBar" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogCertificateBar">
+                        <InfoBar.ActionButton><Button Click="TrustCertificate" x:Uid="/Strings/SynologyConfigurationContentDialogButtonFingerprintVerifiedTrustForThisMount" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogButtonFingerprintVerifiedTrustForThisMount"/></InfoBar.ActionButton>
                     </InfoBar>
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_499B2ECC88CD"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" loc:Ui.AutomationNameKey="Text_499B2ECC88CD"/></controls:SettingRow>
+                    <controls:SettingRow x:Uid="/Strings/SynologyConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" x:Uid="/Strings/SynologyConfigurationContentDialogAutoConnectField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogAutoConnectField"/></controls:SettingRow>
                 </StackPanel></UserControl>
-                <Expander loc:Ui.HeaderKey="Text_9A0F126A843B" HorizontalAlignment="Stretch"><UserControl x:Name="SettingsFields"><StackPanel Spacing="12">
-                    <controls:SettingRow loc:Ui.HeaderKey="Text_0B0898C3FDB7"><ToggleSwitch x:Name="RemoteAuto" IsOn="True" Toggled="RemoteAutoChanged" loc:Ui.AutomationNameKey="Text_0B0898C3FDB7"/></controls:SettingRow>
-                    <NumberBox x:Name="IncrementalField" loc:Ui.HeaderKey="Text_9F2D27D64F39" Minimum="10" Maximum="86400" Value="60" SpinButtonPlacementMode="Compact"/>
-                    <NumberBox x:Name="FullField" loc:Ui.HeaderKey="Text_750F712B33B8" Minimum="30" Maximum="604800" Value="300" SpinButtonPlacementMode="Compact"/>
-                    <TextBlock loc:Ui.TextKey="Text_5148506BD02C" TextWrapping="Wrap"/>
-                    <Button x:Name="SaveIntervalsButton" loc:Ui.ContentKey="Text_B85162F2AE16" Click="SaveIntervals" Visibility="Collapsed"/>
+                <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/SynologyConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced"><UserControl x:Name="SettingsFields"><StackPanel Spacing="12">
+                    <controls:SettingRow x:Uid="/Strings/SynologyConfigurationContentDialogSettingRowAutomaticRemoteDetectionFullFolderPolling" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSettingRowAutomaticRemoteDetectionFullFolderPolling"><ToggleSwitch x:Name="RemoteAuto" IsOn="True" Toggled="RemoteAutoChanged" x:Uid="/Strings/SynologyConfigurationContentDialogRemoteAuto" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogRemoteAuto"/></controls:SettingRow>
+                    <NumberBox x:Name="IncrementalField" Minimum="10" Maximum="86400" Value="60" SpinButtonPlacementMode="Compact" x:Uid="/Strings/SynologyConfigurationContentDialogIncrementalField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogIncrementalField"/>
+                    <NumberBox x:Name="FullField" Minimum="30" Maximum="604800" Value="300" SpinButtonPlacementMode="Compact" x:Uid="/Strings/SynologyConfigurationContentDialogFullField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogFullField"/>
+                    <TextBlock TextWrapping="Wrap" x:Uid="/Strings/SynologyConfigurationContentDialogTextBlockSynologyDoesNotProvideAnIncremental" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogTextBlockSynologyDoesNotProvideAnIncremental"/>
+                    <Button x:Name="SaveIntervalsButton" Click="SaveIntervals" Visibility="Collapsed" x:Uid="/Strings/SynologyConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSaveIntervalsButton"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap"/>
                     <StackPanel x:Name="ExistingSettings" Spacing="12" Visibility="Collapsed">
-                        <controls:SettingRow loc:Ui.HeaderKey="Text_7F8906AE1654" Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityAutoChanged" loc:Ui.AutomationNameKey="Text_7F8906AE1654"/></controls:SettingRow>
-                        <TextBox x:Name="MaximumField" loc:Ui.HeaderKey="Text_B583ABBE6D7C"/>
-                        <Button x:Name="SaveCapacityButton" loc:Ui.ContentKey="Text_6B814AEC0BC3" Click="SaveCapacity"/>
-                        <Button x:Name="RecheckButton" loc:Ui.ContentKey="Text_B6FD03C2DB1D" Click="RecheckCapacity"/>
+                        <controls:SettingRow Visibility="{x:Bind CapacityAuto.Visibility,Mode=OneWay}" x:Uid="/Strings/SynologyConfigurationContentDialogSettingRowDetectVolumeCapacityAutomaticallyNotAccount" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSettingRowDetectVolumeCapacityAutomaticallyNotAccount"><ToggleSwitch x:Name="CapacityAuto" Toggled="CapacityAutoChanged" x:Uid="/Strings/SynologyConfigurationContentDialogCapacityAuto" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogCapacityAuto"/></controls:SettingRow>
+                        <TextBox x:Name="MaximumField" x:Uid="/Strings/SynologyConfigurationContentDialogMaximumField" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogMaximumField"/>
+                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" x:Uid="/Strings/SynologyConfigurationContentDialogSaveCapacityButton" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSaveCapacityButton"/>
+                        <Button x:Name="RecheckButton" Click="RecheckCapacity" x:Uid="/Strings/SynologyConfigurationContentDialogRecheckButton" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogRecheckButton"/>
                         <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap"/>
-                        <controls:SettingRow loc:Ui.HeaderKey="Text_2556F45FAF22" Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="SaveThumbnails" loc:Ui.AutomationNameKey="Text_2556F45FAF22"/></controls:SettingRow>
+                        <controls:SettingRow Visibility="{x:Bind ThumbnailToggle.Visibility,Mode=OneWay}" x:Uid="/Strings/SynologyConfigurationContentDialogSettingRowThumbnailsExperimental" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogSettingRowThumbnailsExperimental"><ToggleSwitch x:Name="ThumbnailToggle" Toggled="SaveThumbnails" x:Uid="/Strings/SynologyConfigurationContentDialogThumbnailToggle" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogThumbnailToggle"/></controls:SettingRow>
                     </StackPanel>
                 </StackPanel></UserControl></Expander>
             </StackPanel>
         </ScrollViewer>
         <ScrollViewer Grid.Row="1" MaxHeight="160" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" Visibility="{x:Bind helpers:TextVisibility.ForOpenFeedback(ProbeBar.IsOpen,ErrorBar.IsOpen,OperationBar.IsOpen),Mode=OneWay}"><StackPanel Spacing="8">
-                <InfoBar x:Name="ProbeBar" IsOpen="False" IsClosable="True" loc:Ui.TitleKey="Text_17D7F8B86E5F"/>
-                <InfoBar x:Name="ErrorBar" IsOpen="False" IsClosable="True" Severity="Error" loc:Ui.TitleKey="Text_73555A93A314"/>
-                <InfoBar x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="ProbeBar" IsOpen="False" IsClosable="True" x:Uid="/Strings/SynologyConfigurationContentDialogProbeBar" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogProbeBar"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="ErrorBar" IsOpen="False" IsClosable="True" Severity="Error" x:Uid="/Strings/SynologyConfigurationContentDialogErrorBar" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogErrorBar"/>
+                <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="OperationBar" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
         </StackPanel></ScrollViewer>
     </Grid>
 </ContentDialog>

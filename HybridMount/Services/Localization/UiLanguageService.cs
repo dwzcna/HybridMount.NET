@@ -69,10 +69,16 @@ public sealed class UiLanguageService:IDisposable
         lock(_missing)if(_missing.Add(pair.Item1+"/"+pair.Item2))System.Diagnostics.Trace.TraceWarning("Language resource missing: {0}/{1}",pair.Item1,pair.Item2);
         return UiCatalog.Templates.TryGetValue(pair.Item2,out var fallback)?fallback.Source:pair.Item2;
     });
+    /// <summary>内部UID登记只读取资源属性，不影响消息目录或持久配置。</summary>
+    internal IReadOnlyDictionary<string,string> PropertyResources(string id)=>_texts is IUiPropertyProvider provider?provider.PropertyResources(id):new Dictionary<string,string>();
     internal string Format(string key,object?[] args)
     {
         var values=args.Select(x=>x is ResourceMessage message?message.Render():x).ToArray();try{return string.Format(CultureInfo.CurrentCulture,Template(Current.Effective,key),values);}
-        catch(FormatException){return string.Format(CultureInfo.CurrentCulture,UiCatalog.Templates[key].Source,values);}
+        catch(FormatException)
+        {
+            var fallback=UiCatalog.Templates.TryGetValue(key,out var item)?item.Source:Template("zh-CN",key);
+            try{return string.Format(CultureInfo.CurrentCulture,fallback,values);}catch(FormatException){return fallback;}
+        }
     }
     private sealed record Pattern(string Key,Regex Regex,int[] Indices,int LiteralLength);
     /// <summary>旧业务反馈的兼容适配：仅匹配随包的完整固定模板，将其保存为键＋原始参数。未知原文保持Raw，不扫描或翻译参数正文。</summary>
@@ -105,6 +111,37 @@ public sealed class UiLanguageService:IDisposable
     }
     public void Dispose(){lock(_gate){if(_disposed)return;_disposed=true;}Changed=null;}
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)][return:MarshalAs(UnmanagedType.Bool)]private static extern bool GetUserPreferredUILanguages(uint flags,ref uint count,[Out]char[]? buffer,ref uint size);
+}
+/// <summary>同步隔离包专用语言覆盖和原生摘要发布；不保留委托，不改线程区域格式，一侧失败不阻断另一侧。</summary>
+internal static class UiLanguagePublication
+{
+    /// <summary>先查询真实包身份再调用包API；两侧均尝试后分别记录安全诊断，未知身份错误不会被解释为无包。</summary>
+    /// <param name="selection">已确定并保存的语言快照。</param>
+    /// <param name="isPackaged">原生包身份查询；仅明确返回true才允许语言覆盖。</param>
+    /// <param name="applyOverride">包专用WinRT语言覆盖，接收有效语言。</param>
+    /// <param name="publishNative">同部署原生摘要，所有运行模式均尝试。</param>
+    /// <param name="reportFailure">隔离测试可观察阶段及原异常；生产留空，仅记录阶段和HRESULT。</param>
+    internal static void Publish(UiLanguageSelection selection,Func<bool> isPackaged,Action<string> applyOverride,
+        Action<UiLanguageSelection> publishNative,Action<string,Exception>? reportFailure=null)
+    {
+        Exception? applicationFailure=null,nativeFailure=null;
+        var applicationStage="Language package identity";
+        try
+        {
+            if(isPackaged()){applicationStage="Language override";applyOverride(selection.Effective);}
+        }
+        catch(Exception error){applicationFailure=error;}
+        try{publishNative(selection);}catch(Exception error){nativeFailure=error;}
+        // 两侧执行完成后再报告，诊断监听器故障也不能阻断另一发布动作。
+        if(applicationFailure is not null)Report(applicationStage,applicationFailure,reportFailure);
+        if(nativeFailure is not null)Report("Native language summary",nativeFailure,reportFailure);
+    }
+    /// <summary>默认只输出固定阶段及HRESULT；测试接收原异常但不更改生产诊断内容。</summary>
+    private static void Report(string stage,Exception error,Action<string,Exception>? reportFailure)
+    {
+        if(reportFailure is not null)reportFailure(stage,error);
+        else System.Diagnostics.Trace.TraceWarning("{0}: 0x{1:X8}",stage,error.HResult);
+    }
 }
 /// <summary>同现有HKCU／打包隔离作用域保存REG_SZ，不改配置／备份／SQLite格式。</summary>
 internal sealed class RegistryUiLanguageStore(string path):IUiLanguageStore

@@ -1,13 +1,31 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using HybridMount.Models.Diagnostics;
 namespace HybridMount.Services;
 
 /// <summary>早于WinUI的维护／Shell／解码宿主只写安全小记录；不创建Logger、托盘、挂载或公共管道。</summary>
 internal static class HostDiagnosticStore
 {
-    internal sealed record Entry(Guid Id,DateTimeOffset Utc,string Role,string Type,int HResult,int? ExitCode,string? ExpectedBuild=null,string? ActualBuild=null);
+    internal sealed record Entry([property:JsonConverter(typeof(EvidenceIdConverter))] Guid Id,DateTimeOffset Utc,string Role,string Type,int HResult,int? ExitCode,string? ExpectedBuild=null,string? ActualBuild=null);
+    /// <summary>仅转换宿主证据Id：兼容原生旧N格式及标准D格式；其他字段和公共协议继续使用各自转换规则。</summary>
+    internal sealed class EvidenceIdConverter:JsonConverter<Guid>
+    {
+        /// <summary>供JsonConverter属性通过公共无参构造创建，不持有外部状态。</summary>
+        public EvidenceIdConverter() { }
+        /// <summary>在日志导入线程读取Id；只接受32／36位GUID字符串，无效值抛出JsonException，由导入方保留原文件。</summary>
+        public override Guid Read(ref Utf8JsonReader reader,Type typeToConvert,JsonSerializerOptions options)
+        {
+            if(reader.TokenType!=JsonTokenType.String)throw new JsonException("宿主证据标识必须为GUID字符串。");
+            var value=reader.GetString();
+            if(value is {Length:32}&&Guid.TryParseExact(value,"N",out var compact))return compact;
+            if(value is {Length:36}&&Guid.TryParseExact(value,"D",out var standard))return standard;
+            throw new JsonException("宿主证据标识格式无效。");
+        }
+        /// <summary>同步写出标准D格式；文件名仍由证据存储使用N格式，不修改调用方序列化选项。</summary>
+        public override void Write(Utf8JsonWriter writer,Guid value,JsonSerializerOptions options)=>writer.WriteStringValue(value.ToString("D"));
+    }
     private static string? SafeBuild(string? build)=>build is {Length:>0 and <=64}&&build.All(c=>c is >= '0' and <= '9' or '.')?build:null;
     internal sealed record Captured(string Path,byte[] Bytes,Entry Value);
     /// <summary>按实际包身份定位同模式日志；仅用原生身份API，无WinRT应用初始化。</summary>

@@ -17,24 +17,27 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
     private string _query="",_severity="All";
     /// <summary>统计静默更新，显式刷新或操作错误重新打开消息。</summary>
     public PageStatusMessage StatusMessage {get;}=new();
-    private DateTimeOffset? _fromDate,_toDate;
+    private DateTimeOffset? _selectedDate;
+    private DiagnosticQuery _activeQuery=new();
     public ObservableCollection<DiagnosticEntry> Entries {get;}=[];
     public string Status=>StatusMessage.Text;
     private void PublishStatus(string text,bool reopen,PageMessageSeverity severity=PageMessageSeverity.Information){if(!_disposed&&(reopen?StatusMessage.Show(text,severity):StatusMessage.Update(text,severity)))OnPropertyChanged(nameof(Status));}
     public string Query {get=>_query;set{if(!_disposed&&SetProperty(ref _query,value??""))_=RefreshAsync();}}
-    public string Severity {get=>_severity;set{if(!_disposed&&(value is "All" or "Information" or "Warning" or "Error")&&SetProperty(ref _severity,value))_=RefreshAsync();}}
-    /// <summary>本地日历的开始日，转换为UTC下界；空表示不限。</summary>
-    public DateTimeOffset? FromDate {get=>_fromDate;set{if(!_disposed&&SetProperty(ref _fromDate,value))_=RefreshAsync();}}
-    /// <summary>本地日历的结束日，查询包含此整天；导出记录实际UTC排他上界。</summary>
-    public DateTimeOffset? ToDate {get=>_toDate;set{if(!_disposed&&SetProperty(ref _toDate,value))_=RefreshAsync();}}
+    public string Severity {get=>_severity;set{if(!_disposed&&(value is "All" or "Information" or "Warning" or "Error")&&SetProperty(ref _severity,value)){OnPropertyChanged(nameof(SelectedSeverityIndex));_=RefreshAsync();}}}
+    public int SelectedSeverityIndex {get=>Array.IndexOf(new[]{"All","Information","Warning","Error"},_severity);set{if(value is >=0 and <=3)Severity=new[]{"All","Information","Warning","Error"}[value];}}
+
+    /// <summary>可空的本地查询日期；清除只取消日期条件，保留搜索与等级。</summary>
+    public DateTimeOffset? SelectedDate {get=>_selectedDate;set{if(!_disposed&&SetProperty(ref _selectedDate,value)){OnPropertyChanged(nameof(HasSelectedDate));_=RefreshAsync();}}}
+    public bool HasSelectedDate=>_selectedDate.HasValue;
     /// <summary>查询期间显示独立加载状态，不改变消息的关闭状态。</summary>
     public bool IsReading=>_reading;
     public bool CanInteract=>!_disposed&&!_clearing&&!_dialogBusy;
     public bool CanLoadMore=>CanInteract&&!_reading&&_hasMore;
     public LogsViewModel(LoggerService logger,IUiDispatcher dispatcher){_logger=logger;_dispatcher=dispatcher;_logger.EntryWritten+=OnEntry;}
-    private static DateTimeOffset? Day(DateTimeOffset? value,bool after)=>value is {} date?new DateTimeOffset(DateTime.SpecifyKind(date.Date.AddDays(after?1:0),DateTimeKind.Local)).ToUniversalTime():null;
-    /// <summary>打开保存对话框前捕获筛选及截止ID，随后修改控件不改变本次导出。</summary>
-    public DiagnosticQuery CaptureExportQuery()=>new(_severity,_query,Day(_fromDate,false),Day(_toDate,true),ThroughId:_through==0?null:_through);
+    private DiagnosticQuery CaptureFilter()
+    {var range=LocalCalendarDay.Bounds(_selectedDate,TimeZoneInfo.Local);return new(_severity,_query,range.From,range.To);}
+    /// <summary>导出、分页和实时追加共用当前查询的日历边界；对话框打开后仍保留固定快照。</summary>
+    public DiagnosticQuery CaptureExportQuery()=>_activeQuery with{ThroughId=_through==0?null:_through};
     public Task<DiagnosticExport> ExportAsync(DiagnosticQuery query,CancellationToken token=default)=>_logger.ExportAsync(query,token);
     /// <summary>重新捕获数据库快照并返回首屏；正在完成的旧查询只丢弃展示结果。</summary>
     public Task RefreshAsync(bool reopenStatus=true)=>StartRead(false,reopenStatus);
@@ -44,6 +47,7 @@ public sealed class LogsViewModel : ObservableObject,IDisposable
     {
         if(_disposed||_clearing)return Task.CompletedTask;
         _readCancel?.Cancel();var owner=new CancellationTokenSource();_readCancel=owner;var generation=++_generation;
+        if(!older){_activeQuery=CaptureFilter();_through=0;_next=null;}
         _reading=true;NotifyActions();
         return _readWork=ReadCoreAsync(CaptureExportQuery() with{ThroughId=older?_through:null,BeforeId=older?_next:null},older,generation,owner,reopenStatus);
     }

@@ -1,23 +1,23 @@
 <ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.ConflictResolutionContentDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views"
-    Title="{x:Bind ViewModel.ConflictTitle,Mode=OneWay}" loc:Ui.PrimaryButtonTextKey="Text_45898B09954D" loc:Ui.SecondaryButtonTextKey="Text_77326E285D63" loc:Ui.CloseButtonTextKey="Text_9D2CA261281A" DefaultButton="Close"
+    Title="{x:Bind ViewModel.ConflictTitle,Mode=OneWay}" DefaultButton="Close"
     IsPrimaryButtonEnabled="{x:Bind ViewModel.CanResolveWithLocal,Mode=OneWay}" IsSecondaryButtonEnabled="{x:Bind ViewModel.CanResolveWithRemote,Mode=OneWay}"
-    PrimaryButtonClick="UseLocal" SecondaryButtonClick="UseRemote">
+    PrimaryButtonClick="UseLocal" SecondaryButtonClick="UseRemote" x:Uid="/Strings/ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote">
     <ContentDialog.Resources><x:Double x:Key="ContentDialogMaxWidth">820</x:Double></ContentDialog.Resources>
     <ScrollViewer MaxHeight="520" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="14" MinWidth="440" MaxWidth="720">
             <Grid ColumnSpacing="20">
                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                <StackPanel Spacing="8"><TextBlock loc:Ui.TextKey="Text_52778ABC35DC" FontWeight="SemiBold"/><TextBlock Text="{x:Bind ViewModel.ConflictLocalText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></StackPanel>
-                <StackPanel Grid.Column="1" Spacing="8"><TextBlock loc:Ui.TextKey="Text_BD426C35BB57" FontWeight="SemiBold"/><TextBlock Text="{x:Bind ViewModel.ConflictRemoteText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></StackPanel>
+                <StackPanel Spacing="8"><TextBlock FontWeight="SemiBold" x:Uid="/Strings/ConflictResolutionContentDialogTextBlockCurrentLocalVersion" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogTextBlockCurrentLocalVersion"/><TextBlock Text="{x:Bind ViewModel.ConflictLocalText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></StackPanel>
+                <StackPanel Grid.Column="1" Spacing="8"><TextBlock FontWeight="SemiBold" x:Uid="/Strings/ConflictResolutionContentDialogTextBlockCurrentRemoteVersion" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogTextBlockCurrentRemoteVersion"/><TextBlock Text="{x:Bind ViewModel.ConflictRemoteText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></StackPanel>
             </Grid>
             <TextBlock Text="{x:Bind ViewModel.ConflictBaselineText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-            <TextBlock loc:Ui.TextKey="Text_110EBEF0A692" TextWrapping="Wrap"/>
+            <TextBlock TextWrapping="Wrap" x:Uid="/Strings/ConflictResolutionContentDialogTextBlockUseLocalFreezeTheCurrentLocal" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogTextBlockUseLocalFreezeTheCurrentLocal"/>
             <TextBlock Text="{x:Bind ViewModel.ConflictLocalRestriction,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.ConflictLocalRestriction),Mode=OneWay}"/>
             <TextBlock Text="{x:Bind ViewModel.ConflictRemoteRestriction,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.ConflictRemoteRestriction),Mode=OneWay}"/>
             <TextBlock Text="{x:Bind ViewModel.ConflictRecoveryText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(ViewModel.ConflictRecoveryText),Mode=OneWay}"/>
             <TextBlock Text="{x:Bind ViewModel.ConflictStatus,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-            <Button loc:Ui.ContentKey="Text_710B1958F2AB" Click="RefreshComparison" IsEnabled="{x:Bind ViewModel.CanRefreshConflict,Mode=OneWay}"/>
+            <Button Click="RefreshComparison" IsEnabled="{x:Bind ViewModel.CanRefreshConflict,Mode=OneWay}" x:Uid="/Strings/ConflictResolutionContentDialogButtonCheckAgain" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogButtonCheckAgain"/>
         </StackPanel>
     </ScrollViewer>
 </ContentDialog>

@@ -23,8 +23,37 @@
   <Target Name="GenerateVersionHeader" BeforeTargets="ResourceCompile">
     <WriteLinesToFile File="$(IntDir)Version.h" Lines="#define HYBRIDMOUNT_VERSION $(BinaryVersion.Replace('.', ','))%0A#define HYBRIDMOUNT_VERSION_TEXT &quot;$(BinaryVersion)&quot;" Overwrite="true" WriteOnlyWhenDifferent="true"/>
   </Target>
-  <Target Name="BuildNativeLanguageResources" AfterTargets="Link">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\build\Build-NativeMUI.ps1&quot; -OutputDirectory &quot;$(OutDir).&quot; -Platform $(Platform)"/>
+  <!-- 标准Win32 MUI：资源DLL拆成LN与语言卫星，共享校验和，最终回退zh-CN；不修改代码DLL。 -->
+  <ItemGroup>
+    <_HybridMountMuiLanguage Include="zh-CN"><LanguageId>0x0804</LanguageId></_HybridMountMuiLanguage>
+    <_HybridMountMuiLanguage Include="en-US"><LanguageId>0x0409</LanguageId></_HybridMountMuiLanguage>
+    <_HybridMountMuiLanguage Include="zh-HK"><LanguageId>0x0c04</LanguageId></_HybridMountMuiLanguage>
+    <_HybridMountMuiLanguage Update="@(_HybridMountMuiLanguage)">
+      <Source>$(ProjectDir)Resources\%(Identity)\NativeStrings.rc</Source>
+      <Work>$(IntDir)mui\%(Identity)</Work>
+      <OutputDirectory>$(OutDir)%(Identity)</OutputDirectory>
+    </_HybridMountMuiLanguage>
+    <None Include="Resources\**\NativeStrings.rc"/>
+    <None Include="..\build\NativeMUI.rcconfig"/>
+  </ItemGroup>
+  <Target Name="BuildNativeLanguageResources" AfterTargets="Link" Inputs="@(_HybridMountMuiLanguage->'%(Source)');$(ProjectDir)..\build\NativeMUI.rcconfig;$(MSBuildProjectFullPath)" Outputs="$(OutDir)HybridMount.Ext.resources.dll;@(_HybridMountMuiLanguage->'%(OutputDirectory)\HybridMount.Ext.resources.dll.mui')">
+    <PropertyGroup>
+      <_MuiHost>x64</_MuiHost>
+      <_MuiHost Condition="'$(VCToolArchitecture)' == 'NativeARM64'">arm64</_MuiHost>
+      <_MuiHost Condition="'$(VCToolArchitecture)' == 'Native32Bit'">x86</_MuiHost>
+      <_MuiRc>$(WindowsSdkDir)bin\$(TargetPlatformVersion)\$(_MuiHost)\rc.exe</_MuiRc>
+      <_MuiTool>$(WindowsSdkDir)bin\$(TargetPlatformVersion)\$(_MuiHost)\muirct.exe</_MuiTool>
+      <_MuiLink>$(VCToolsInstallDir)bin\Host$(_MuiHost)\$(_MuiHost)\link.exe</_MuiLink>
+      <_MuiConfig>$(ProjectDir)..\build\NativeMUI.rcconfig</_MuiConfig>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_MuiRc)') or !Exists('$(_MuiTool)') or !Exists('$(_MuiLink)')" Text="当前VC工具链或Windows SDK的RC、MUIRCT、LINK资源工具不存在。"/>
+    <MakeDir Directories="@(_HybridMountMuiLanguage->'%(Work)');@(_HybridMountMuiLanguage->'%(OutputDirectory)')"/>
+    <Exec Command="&quot;$(_MuiRc)&quot; /nologo &quot;/fo%(_HybridMountMuiLanguage.Work)\full.res&quot; &quot;%(_HybridMountMuiLanguage.Source)&quot;"/>
+    <Exec Command="&quot;$(_MuiLink)&quot; /nologo /DLL /NOENTRY /MACHINE:$(Platform) &quot;/OUT:%(_HybridMountMuiLanguage.Work)\full.dll&quot; &quot;%(_HybridMountMuiLanguage.Work)\full.res&quot;"/>
+    <Exec Command="&quot;$(_MuiTool)&quot; -q &quot;$(_MuiConfig)&quot; -x 0x0804 -g 0x0804 &quot;$(IntDir)mui\zh-CN\full.dll&quot; &quot;$(OutDir)HybridMount.Ext.resources.dll&quot; &quot;$(OutDir)zh-CN\HybridMount.Ext.resources.dll.mui&quot;"/>
+    <Exec Command="&quot;$(_MuiTool)&quot; -q &quot;$(_MuiConfig)&quot; -x %(_HybridMountMuiLanguage.LanguageId) -g 0x0804 &quot;%(_HybridMountMuiLanguage.Work)\full.dll&quot; &quot;%(_HybridMountMuiLanguage.Work)\discard.dll&quot; &quot;%(_HybridMountMuiLanguage.OutputDirectory)\HybridMount.Ext.resources.dll.mui&quot;"/>
+    <Exec Command="&quot;$(_MuiTool)&quot; -c &quot;$(OutDir)HybridMount.Ext.resources.dll&quot; -e &quot;%(_HybridMountMuiLanguage.OutputDirectory)\HybridMount.Ext.resources.dll.mui&quot;"/>
+    <ItemGroup><FileWrites Include="$(OutDir)HybridMount.Ext.resources.dll;@(_HybridMountMuiLanguage->'%(OutputDirectory)\HybridMount.Ext.resources.dll.mui')"/></ItemGroup>
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
 </Project>

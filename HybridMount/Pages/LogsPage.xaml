@@ -1,40 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.LogsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:diagnostics="using:HybridMount.Models.Diagnostics">
-  <Grid Style="{StaticResource SharedPageGridStyle}">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <TextBlock loc:Ui.TextKey="Text_7DBAC1C20F23" Style="{ThemeResource TitleTextBlockStyle}"/>
-    <Grid Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="12" RowSpacing="8">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/></Grid.ColumnDefinitions>
+<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.LogsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:diagnostics="using:HybridMount.Models.Diagnostics" xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+  <Grid helpers:PageMessagePresentation.Message="{x:Bind ViewModel.StatusMessage}" Style="{StaticResource SharedPageGridStyle}">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/LogsPageTextBlockLogs" loc:Ui.ResourceId="/Strings/LogsPageTextBlockLogs"/>
+    <Grid x:Name="QueryHeader" Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="12" RowSpacing="8" SizeChanged="QueryHeaderSizeChanged">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <TextBox loc:Ui.PlaceholderTextKey="Text_1B9B75F51D20" Text="{x:Bind ViewModel.Query,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" loc:Ui.AutomationNameKey="Text_1B9B75F51D20" AccessKey="Q"/>
-      <ComboBox x:Name="SeverityBox" Grid.Column="1" SelectedIndex="0" SelectionChanged="SeverityChanged" HorizontalAlignment="Stretch" loc:Ui.AutomationNameKey="Text_DE0DA0AE8DA4">
-        <ComboBoxItem loc:Ui.ContentKey="Text_81F9B5554532" Tag="All"/><ComboBoxItem loc:Ui.ContentKey="Text_E7028601E7DA" Tag="Information"/><ComboBoxItem loc:Ui.ContentKey="Text_A8B7A4480407" Tag="Warning"/><ComboBoxItem loc:Ui.ContentKey="Text_0BC1FB72AE1B" Tag="Error"/>
-      </ComboBox>
-      <CommandBar Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource PageCommandBarStyle}" loc:Ui.AutomationNameKey="Text_66D6E64FB489">
-        <AppBarButton loc:Ui.AutomationNameKey="Text_AEE887434131" loc:Ui.ToolTipKey="Text_AEE887434131" loc:Ui.LabelKey="Text_AEE887434131" Icon="Refresh" AccessKey="R" Click="RefreshClicked"/>
-        <AppBarButton loc:Ui.AutomationNameKey="Text_63D90D977348" loc:Ui.ToolTipKey="Text_63D90D977348" loc:Ui.LabelKey="Text_63D90D977348" Icon="Copy" AccessKey="C" Click="CopyClicked"/>
-        <AppBarButton loc:Ui.AutomationNameKey="Text_76420433F22D" loc:Ui.ToolTipKey="Text_76420433F22D" loc:Ui.LabelKey="Text_76420433F22D" Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked"/>
-        <AppBarButton loc:Ui.AutomationNameKey="Text_BCE2377283C2" loc:Ui.ToolTipKey="Text_BCE2377283C2" loc:Ui.LabelKey="Text_BCE2377283C2" Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked"/>
-        <AppBarButton loc:Ui.AutomationNameKey="Text_0BD7CE0F30C6" loc:Ui.ToolTipKey="Text_0BD7CE0F30C6" loc:Ui.LabelKey="Text_0BD7CE0F30C6" Icon="Document" AccessKey="L" Click="LifecycleClicked"/>
+      <TextBox x:Name="LogSearch" MinWidth="160" Text="{x:Bind ViewModel.Query,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" AccessKey="Q" x:Uid="/Strings/LogsPageTextBoxSearchLogs" loc:Ui.ResourceId="/Strings/LogsPageTextBoxSearchLogs"/>
+      <StackPanel x:Name="DateFilter" SizeChanged="DateFilterSizeChanged" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
+        <DatePicker x:Name="SelectedDate" SelectedDate="{x:Bind ViewModel.SelectedDate,Mode=TwoWay}" x:Uid="/Strings/LogsPageSelectedDate" loc:Ui.ResourceId="/Strings/LogsPageSelectedDate"/>
+        <Button Click="ClearDateClicked" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasSelectedDate),Mode=OneWay}" VerticalAlignment="Center" x:Uid="/Strings/LogsPageClearDate" loc:Ui.ResourceId="/Strings/LogsPageClearDate"><SymbolIcon Symbol="Clear"/></Button>
+      </StackPanel>
+    </Grid>
+    <Grid x:Name="LogToolbar" Grid.Row="2" Margin="0,10,0,0" ColumnSpacing="12">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <toolkit:Segmented x:Name="LogFilters" SelectedIndex="{x:Bind ViewModel.SelectedSeverityIndex,Mode=TwoWay}" HorizontalAlignment="Left">
+        <toolkit:SegmentedItem x:Name="AllFilter" x:Uid="/Strings/LogsPageAllFilter" loc:Ui.ResourceId="/Strings/LogsPageAllFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="AllApps"/><TextBlock x:Name="AllFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/LogsPageAllFilterLabel" loc:Ui.ResourceId="/Strings/LogsPageAllFilterLabel"/></StackPanel></toolkit:SegmentedItem>
+        <toolkit:SegmentedItem x:Name="InformationFilter" x:Uid="/Strings/LogsPageInformationFilter" loc:Ui.ResourceId="/Strings/LogsPageInformationFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Message"/><TextBlock x:Name="InformationFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/LogsPageInformationFilterLabel" loc:Ui.ResourceId="/Strings/LogsPageInformationFilterLabel"/></StackPanel></toolkit:SegmentedItem>
+        <toolkit:SegmentedItem x:Name="WarningFilter" x:Uid="/Strings/LogsPageWarningFilter" loc:Ui.ResourceId="/Strings/LogsPageWarningFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Important"/><TextBlock x:Name="WarningFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/LogsPageWarningFilterLabel" loc:Ui.ResourceId="/Strings/LogsPageWarningFilterLabel"/></StackPanel></toolkit:SegmentedItem>
+        <toolkit:SegmentedItem x:Name="ErrorFilter" x:Uid="/Strings/LogsPageErrorFilter" loc:Ui.ResourceId="/Strings/LogsPageErrorFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Cancel"/><TextBlock x:Name="ErrorFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/LogsPageErrorFilterLabel" loc:Ui.ResourceId="/Strings/LogsPageErrorFilterLabel"/></StackPanel></toolkit:SegmentedItem>
+      </toolkit:Segmented>
+      <CommandBar x:Name="LogActions" Grid.Column="1" HorizontalContentAlignment="Right" Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/LogsPageCommandBarLogActions" loc:Ui.ResourceId="/Strings/LogsPageCommandBarLogActions">
+        <AppBarButton Icon="Download" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" x:Uid="/Strings/LogsPageAppBarButtonLoadEarlier" loc:Ui.ResourceId="/Strings/LogsPageAppBarButtonLoadEarlier"/>
+        <AppBarButton Icon="Refresh" AccessKey="R" Click="RefreshClicked" x:Uid="/Strings/LogsPageAppBarButtonRefresh" loc:Ui.ResourceId="/Strings/LogsPageAppBarButtonRefresh"/>
+        <AppBarButton Icon="Copy" AccessKey="C" Click="CopyClicked" x:Uid="/Strings/LogsPageAppBarButtonCopy" loc:Ui.ResourceId="/Strings/LogsPageAppBarButtonCopy"/>
+        <AppBarButton Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked" x:Uid="/Strings/LogsPageAppBarButtonExport" loc:Ui.ResourceId="/Strings/LogsPageAppBarButtonExport"/>
+        <AppBarButton Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked" x:Uid="/Strings/LogsPageAppBarButtonClear" loc:Ui.ResourceId="/Strings/LogsPageAppBarButtonClear"/>
+        <AppBarButton Icon="Document" AccessKey="L" Click="LifecycleClicked" x:Uid="/Strings/LogsPageAppBarButtonLifecycleRecords" loc:Ui.ResourceId="/Strings/LogsPageAppBarButtonLifecycleRecords"/>
       </CommandBar>
     </Grid>
-    <Grid Grid.Row="2" Margin="0,10,0,0" ColumnSpacing="10" RowSpacing="8">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <VisualStateManager.VisualStateGroups><VisualStateGroup>
-        <VisualState><VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="760"/></VisualState.StateTriggers><VisualState.Setters><Setter Target="EndDate.(Grid.Row)" Value="0"/><Setter Target="EndDate.(Grid.Column)" Value="1"/><Setter Target="StartDate.(Grid.ColumnSpan)" Value="1"/><Setter Target="EndDate.(Grid.ColumnSpan)" Value="1"/></VisualState.Setters></VisualState>
-      </VisualStateGroup></VisualStateManager.VisualStateGroups>
-      <CalendarDatePicker x:Name="StartDate" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" loc:Ui.PlaceholderTextKey="Text_9779595F3198" Date="{x:Bind ViewModel.FromDate,Mode=TwoWay}" loc:Ui.AutomationNameKey="Text_94766C908207"/>
-      <CalendarDatePicker x:Name="EndDate" Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" loc:Ui.PlaceholderTextKey="Text_0D98F46613AC" Date="{x:Bind ViewModel.ToDate,Mode=TwoWay}" loc:Ui.AutomationNameKey="Text_27E53EA275F9"/>
-    </Grid>
-    <ListView x:Name="LogList" Grid.Row="3" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Entries}" SelectionMode="None" loc:Ui.AutomationNameKey="Text_4FA7EB633C82">
+    <ListView x:Name="LogList" Grid.Row="3" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Entries}" SelectionMode="None" x:Uid="/Strings/LogsPageLogList" loc:Ui.ResourceId="/Strings/LogsPageLogList">
       <ListView.ItemTemplate><DataTemplate x:DataType="diagnostics:DiagnosticEntry"><Grid Padding="8" RowSpacing="6"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="{x:Bind DisplayTime}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/><TextBlock Text="{x:Bind DisplaySeverity}"/><TextBlock Text="{x:Bind Source}" FontWeight="SemiBold"/></StackPanel><TextBlock Grid.Row="1" Text="{x:Bind Message}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></Grid></DataTemplate></ListView.ItemTemplate>
     </ListView>
-    <ProgressRing Grid.Row="3" IsActive="{x:Bind ViewModel.IsReading,Mode=OneWay}" Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.IsReading),Mode=OneWay}" loc:Ui.AutomationNameKey="Text_AEFE72DC1317"/>
-    <TextBlock Grid.Row="3" loc:Ui.TextKey="Text_7DE8A6DFD5E0" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyAndIdle(ViewModel.Entries.Count,ViewModel.IsReading),Mode=OneWay}" AutomationProperties.LiveSetting="Polite"/>
-    <Grid Grid.Row="4" Margin="0,16,0,0" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Button loc:Ui.AutomationNameKey="Text_C3266E411EA3" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" VerticalAlignment="Top"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Download"/><TextBlock loc:Ui.TextKey="Text_C3266E411EA3" VerticalAlignment="Center"/></StackPanel></Button>
-    <InfoBar Grid.Column="1" Message="{x:Bind ViewModel.Status,Mode=OneWay}" IsOpen="{x:Bind ViewModel.StatusMessage.IsOpen,Mode=TwoWay}" IsClosable="True" Severity="{x:Bind helpers:PageMessagePresentation.Severity(ViewModel.StatusMessage.Severity),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.StatusMessage.IsOpen),Mode=OneWay}"/>
-    </Grid>
+    <ProgressRing Grid.Row="3" IsActive="{x:Bind ViewModel.IsReading,Mode=OneWay}" Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.IsReading),Mode=OneWay}" x:Uid="/Strings/LogsPageProgressRingLoadingLogs" loc:Ui.ResourceId="/Strings/LogsPageProgressRingLoadingLogs"/>
+    <TextBlock Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyAndIdle(ViewModel.Entries.Count,ViewModel.IsReading),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" x:Uid="/Strings/LogsPageTextBlockNoLogsMatchTheCurrentFilters" loc:Ui.ResourceId="/Strings/LogsPageTextBlockNoLogsMatchTheCurrentFilters"/>
   </Grid>
 </Page>
