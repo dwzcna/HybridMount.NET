@@ -9,11 +9,12 @@ public sealed class NativeExtensionTests
 {
     private sealed unsafe class NativeExtension : IDisposable
     {
-        private readonly nint _library;
+        private readonly nint _library;private readonly nint _mta;
         private nint _factory, _root;
         private static readonly Guid CommandId = new("59964FC1-D076-4DC1-9778-01F5833A5D4A");
         internal NativeExtension()
         {
+            Assert.Equal(0,CoIncrementMTAUsage(out _mta));using var apartment=new Apartment();
             _library = NativeLibrary.Load(NativePreviewInterop.LibraryPath);
             var create = (delegate* unmanaged[Stdcall]<Guid*, Guid*, nint*, int>)NativeLibrary.GetExport(_library, "DllGetClassObject");
             var id = CommandId; var factoryId = new Guid("00000001-0000-0000-C000-000000000046");
@@ -64,6 +65,7 @@ public sealed class NativeExtensionTests
         /// <summary>调用真实子命令，仅向生产格式的当前用户管道发消息。</summary>
         internal void Invoke(string path, bool keep,bool issues=false)
         {
+            using var apartment=new Apartment();
             var itemId = new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");
             var arrayId = new Guid("B63EA76D-1F85-456F-A19C-48159EFA858B");
             Assert.Equal(0, SHCreateItemFromParsingName(path, 0, in itemId, out var item));
@@ -81,17 +83,23 @@ public sealed class NativeExtensionTests
         /// <summary>使用真实Shell选择查询子菜单状态；只读查询不得触发水合或远端请求。</summary>
         internal uint State(string path,bool keep)
         {
+            using var apartment=new Apartment();
             var itemId=new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");var arrayId=new Guid("B63EA76D-1F85-456F-A19C-48159EFA858B");
             Assert.Equal(0,SHCreateItemFromParsingName(path,0,in itemId,out var item));nint array=0,command=0,enumerator=Enumerate();
-            try{Assert.Equal(0,SHCreateShellItemArrayFromShellItem(item,in arrayId,out array));command=Next(enumerator);if(keep){Release(command);command=Next(enumerator);}uint state=99;Assert.Equal(0,((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(command)[7])(command,array,1,&state));return state;}
+            try{Assert.Equal(0,SHCreateShellItemArrayFromShellItem(item,in arrayId,out array));command=Next(enumerator);if(keep){Release(command);command=Next(enumerator);}uint state=99;var end=Environment.TickCount64+6000;int code;do{code=((delegate* unmanaged[Stdcall]<nint,nint,int,uint*,int>)Table(command)[7])(command,array,1,&state);if(code==unchecked((int)0x8000000a))Thread.Sleep(2);}while(code==unchecked((int)0x8000000a)&&Environment.TickCount64<end);Assert.Equal(0,code);return state;}
             finally{Release(command);Release(enumerator);Release(array);Release(item);}
         }
         public void Dispose()
         {
-            Release(_root); Release(_factory); _root = _factory = 0;
-            Assert.Equal(0, ((delegate* unmanaged[Stdcall]<int>)NativeLibrary.GetExport(_library,"DllCanUnloadNow"))());
-            NativeLibrary.Free(_library);
+            using var apartment=new Apartment();Release(_root); Release(_factory); _root = _factory = 0;
+            var end=Environment.TickCount64+6000;var canUnload=(delegate* unmanaged[Stdcall]<int>)NativeLibrary.GetExport(_library,"DllCanUnloadNow");while(canUnload()!=0&&Environment.TickCount64<end)Thread.Sleep(2);Assert.Equal(0,canUnload());
+            NativeLibrary.Free(_library);CoDecrementMTAUsage(_mta);
         }
+        private sealed class Apartment:IDisposable{private readonly int _code=CoInitializeEx(0,0);public Apartment(){if(_code<0)Marshal.ThrowExceptionForHR(_code);}public void Dispose(){if(_code>=0)CoUninitialize();}}
+        [DllImport("ole32.dll")]private static extern int CoIncrementMTAUsage(out nint cookie);
+        [DllImport("ole32.dll")]private static extern int CoDecrementMTAUsage(nint cookie);
+        [DllImport("ole32.dll")]private static extern int CoInitializeEx(nint reserved,uint flags);
+        [DllImport("ole32.dll")]private static extern void CoUninitialize();
         [DllImport("shell32.dll", CharSet=CharSet.Unicode)] private static extern int SHCreateItemFromParsingName(string path, nint context, in Guid iid, out nint item);
         [DllImport("shell32.dll")] private static extern int SHCreateShellItemArrayFromShellItem(nint item, in Guid iid, out nint array);
     }

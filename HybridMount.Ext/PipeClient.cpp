@@ -124,7 +124,8 @@ namespace {
 		Check(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process) != FALSE);
 		CloseHandle(process.hThread); CloseHandle(process.hProcess);
 	}
-	struct Work { std::wstring operation; std::vector<std::wstring> paths; HMODULE module; };
+	std::atomic<unsigned> MenuRequests{};
+	struct Work { std::wstring operation; std::vector<std::wstring> paths; HMODULE module;~Work(){--MenuRequests;} };
 	/// <summary>只执行命名管道通信；响应必须匹配版本和请求 ID，不读写所选文件。</summary>
 	void Send(const Work& work) {
 		const auto pipeName = PipeName();
@@ -188,16 +189,17 @@ namespace {
 }
 /// <summary>复制固定操作和路径，后台线程持有模块引用；所有菜单命令共用同一有界IPC传输。</summary>
 static HRESULT QueueMenuRequest(const wchar_t* operation, std::vector<std::wstring> paths) noexcept {
-	HMODULE hold = nullptr;
-	if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&QueueMenuRequest), &hold)) return HRESULT_FROM_WIN32(GetLastError());
-	try {
-		auto work = std::make_unique<Work>(operation, std::move(paths), hold);
+    auto count=MenuRequests.load();while(count<16&&!MenuRequests.compare_exchange_weak(count,count+1)){}if(count>=16)return HRESULT_FROM_WIN32(ERROR_BUSY);
+    HMODULE hold=nullptr;bool transferred=false;
+    if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,reinterpret_cast<LPCWSTR>(&QueueMenuRequest),&hold)){--MenuRequests;return HRESULT_FROM_WIN32(GetLastError());}
+    try {
+		auto work = std::make_unique<Work>(operation, std::move(paths), hold);transferred=true;
 		Handle thread(CreateThread(nullptr, 0, RunWork, work.get(), 0, nullptr));
 		if (!thread.value) { const auto error = HRESULT_FROM_WIN32(GetLastError()); FreeLibrary(hold); return error; }
 		work.release();
 		return S_OK;
 	}
-	catch (...) { FreeLibrary(hold); return E_OUTOFMEMORY; }
+	catch (...) { if(!transferred)--MenuRequests;FreeLibrary(hold);return E_OUTOFMEMORY; }
 }
 
 HRESULT QueuePlaceholderRequest(bool keepOnDevice, std::vector<std::wstring> paths) noexcept { return QueueMenuRequest(keepOnDevice ? L"keepOnDevice" : L"freeSpace", std::move(paths)); }

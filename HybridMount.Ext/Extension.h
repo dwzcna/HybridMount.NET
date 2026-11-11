@@ -26,6 +26,14 @@ inline void TraceShellProbe(const wchar_t* stage) noexcept {
     UNREFERENCED_PARAMETER(stage);
 #endif
 }
+/// <summary>仅私有Shell探针记录纯数值，生产无注册表操作；诊断不含选择路径。</summary>
+inline void TraceShellProbeNumber(const wchar_t* name,unsigned long long value)noexcept{
+#ifdef HYBRIDMOUNT_SHELL_PROBE_TAG
+    HKEY key{};if(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\HybridMount.NET.Tests\\ShellProbe\\" HM_PWIDE(HM_PSTRING(HYBRIDMOUNT_SHELL_PROBE_TAG)),0,nullptr,0,KEY_SET_VALUE,nullptr,&key,nullptr)==ERROR_SUCCESS){RegSetValueExW(key,name,0,REG_QWORD,reinterpret_cast<const BYTE*>(&value),sizeof(value));RegCloseKey(key);}
+#else
+    UNREFERENCED_PARAMETER(name);UNREFERENCED_PARAMETER(value);
+#endif
+}
 extern HMODULE g_module;
 extern std::atomic<long> g_objects;
 /// <summary>所有 COM 对象共享模块存活计数，后台线程另外持有系统模块引用。</summary>

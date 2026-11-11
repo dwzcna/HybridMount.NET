@@ -3,6 +3,7 @@
 // THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
 // EITHER EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 #include "Extension.h"
+#include "MenuQuery.h"
 #include <shlguid.h>
 #include <new>
 #include <winternl.h>
@@ -25,101 +26,14 @@ using namespace Microsoft::WRL;
 HMODULE g_module = nullptr;
 std::atomic<long> g_objects{ 0 };
 namespace {
-	enum class Operation { Root, FreeSpace, KeepOnDevice, ShowSyncIssues };
-/// <summary>只读取本机 CFAPI 根身份；不访问服务或水合内容，未知或畸形信息隐藏菜单。</summary>
-bool OwnedRoot(const std::wstring& path, GUID& mount) {
-    if (path.size() < 3 || path[1] != L':' || PathIsUNCW(path.c_str())) return false;
-    const std::wstring drive = path.substr(0, 3);
-    if (GetDriveTypeW(drive.c_str()) == DRIVE_REMOTE) return false;
-    std::vector<BYTE> buffer(8192);
-    if (FAILED(CfGetSyncRootInfoByPath(path.c_str(), CF_SYNC_ROOT_INFO_STANDARD, buffer.data(), static_cast<DWORD>(buffer.size()), nullptr))) return false;
-    const auto info = reinterpret_cast<const CF_SYNC_ROOT_STANDARD_INFO*>(buffer.data());
-    if (info->SyncRootIdentityLength == 0 || info->SyncRootIdentityLength > 4096) return false;
-    const auto data = reinterpret_cast<const char*>(info->SyncRootIdentity);
-    const auto count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data, static_cast<int>(info->SyncRootIdentityLength), nullptr, 0);
-    if (count <= 0) return false;
-    std::wstring json(count, L'\0');
-    if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, data, static_cast<int>(info->SyncRootIdentityLength), json.data(), count)) return false;
-    const auto initialized = RoInitialize(RO_INIT_SINGLETHREADED);
-    struct RoScope { HRESULT status; ~RoScope() { if (SUCCEEDED(status)) RoUninitialize(); } } ro{ initialized };
-    ComPtr<ABI::Windows::Data::Json::IJsonObjectStatics> factory;
-    ComPtr<ABI::Windows::Data::Json::IJsonObject> root;
-    using Microsoft::WRL::Wrappers::HString;
-    using Microsoft::WRL::Wrappers::HStringReference;
-    if (FAILED(RoGetActivationFactory(HStringReference(RuntimeClass_Windows_Data_Json_JsonObject).Get(), IID_PPV_ARGS(&factory))) || FAILED(factory->Parse(HStringReference(json.c_str()).Get(), &root))) return false;
-    HString product, id;
-    double schema = 0;
-    if (FAILED(root->GetNamedString(HStringReference(L"Product").Get(), product.GetAddressOf())) || wcscmp(product.GetRawBuffer(nullptr), hm::ProductScope().c_str()) != 0 ||
-        FAILED(root->GetNamedNumber(HStringReference(L"Schema").Get(), &schema)) || schema != 1 ||
-        FAILED(root->GetNamedString(HStringReference(L"MountId").Get(), id.GetAddressOf()))) return false;
-    HString owner;
-    if (FAILED(root->GetNamedString(HStringReference(L"Owner").Get(), owner.GetAddressOf()))) return false;
-    HANDLE rawToken = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &rawToken)) return false;
-    struct TokenScope { HANDLE value; ~TokenScope() { CloseHandle(value); } } token{ rawToken };
-    DWORD tokenSize = 0;
-    GetTokenInformation(token.value, TokenUser, nullptr, 0, &tokenSize);
-    std::vector<BYTE> user(tokenSize);
-    if (!GetTokenInformation(token.value, TokenUser, user.data(), tokenSize, &tokenSize)) return false;
-    LPWSTR sid = nullptr;
-    if (!ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid, &sid)) return false;
-    const auto sameUser = wcscmp(sid, owner.GetRawBuffer(nullptr)) == 0;
-    LocalFree(sid);
-    if (!sameUser) return false;
-    auto guid = std::wstring(L"{") + id.GetRawBuffer(nullptr) + L"}";
-    return SUCCEEDED(CLSIDFromString(guid.c_str(), &mount));
-}
-    /// <summary>仅元数据查询本产品排除图标；冷文件暂缓原生Pin时菜单仍隐藏。失败保守隐藏，不读正文或联网。</summary>
-    bool ExclusionVisible(const std::wstring& path) {
-        ComPtr<IPropertyStore> source,memory;
-        PROPERTYKEY key{};
-        if(FAILED(SHGetPropertyStoreFromParsingName(path.c_str(),nullptr,GPS_DEFAULT,IID_PPV_ARGS(&source)))||
-           FAILED(PSGetPropertyKeyFromName(L"System.StorageProviderCustomStates",&key)))return true;
-        struct Value { PROPVARIANT Data{};~Value(){PropVariantClear(&Data);} } container,ids;
-        if(FAILED(source->GetValue(key,&container.Data)))return true;
-        if(container.Data.vt==VT_EMPTY)return false;
-        if(container.Data.vt!=(VT_VECTOR|VT_UI1)||container.Data.caub.cElems==0||container.Data.caub.cElems>1048576||!container.Data.caub.pElems)return true;
-        if(FAILED(PSCreateMemoryPropertyStore(IID_PPV_ARGS(&memory))))return true;
-        ComPtr<IPersistSerializedPropStorage> persistence;
-        if(FAILED(memory.As(&persistence))||FAILED(persistence->SetPropertyStorage(reinterpret_cast<PCUSERIALIZEDPROPSTORAGE>(container.Data.caub.pElems),container.Data.caub.cElems)))return true;
-        const PROPERTYKEY idsKey={{0xfceff153,0xe839,0x4cf3,{0xa9,0xe7,0xea,0x22,0x83,0x20,0x94,0xb8}},121};
-        if(FAILED(memory->GetValue(idsKey,&ids.Data)))return true;
-        if(ids.Data.vt==VT_EMPTY)return false;
-        if(ids.Data.vt!=(VT_VECTOR|VT_LPWSTR)||ids.Data.calpwstr.cElems>256||!ids.Data.calpwstr.pElems)return true;
-        for(ULONG i=0;i<ids.Data.calpwstr.cElems;++i)if(ids.Data.calpwstr.pElems[i]&&wcscmp(ids.Data.calpwstr.pElems[i],L"2")==0)return true;
-        return false;
-    }
-    /// <summary>只读属性句柄确认完整缓存；排除或无法确认的文件不暴露缓存动作，不读取正文。</summary>
-    DWORD CacheActions(const std::wstring& path) {
-        if(ExclusionVisible(path))return 0;
-        auto raw=CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_BACKUP_SEMANTICS,nullptr);
-        if(raw==INVALID_HANDLE_VALUE)return 0;
-        struct Handle{HANDLE Value;~Handle(){CloseHandle(Value);}} handle{raw};
-        FILE_STANDARD_INFO standard{};if(!GetFileInformationByHandleEx(raw,FileStandardInfo,&standard,sizeof(standard)))return 0;
-        std::vector<BYTE> buffer(8192);DWORD returned=0;
-        const auto status=CfGetPlaceholderInfo(raw,CF_PLACEHOLDER_INFO_STANDARD,buffer.data(),static_cast<DWORD>(buffer.size()),&returned);
-        if(SUCCEEDED(status)){
-            if(returned<offsetof(CF_PLACEHOLDER_STANDARD_INFO,FileIdentity))return 0;
-            const auto info=reinterpret_cast<const CF_PLACEHOLDER_STANDARD_INFO*>(buffer.data());
-            if(info->PinState==CF_PIN_STATE_EXCLUDED)return 0;
-        }else if(!standard.Directory)return 0;
-        // 目录可能同时含有完整和联机条目；仅显示命令，不在菜单查询中递归枚举。
-        if(standard.Directory)return 3;
-        if(standard.EndOfFile.QuadPart==0)return 1;
-        std::vector<CF_FILE_RANGE> ranges(4096);returned=0;
-        const auto rangeStatus=CfGetPlaceholderRangeInfo(raw,CF_PLACEHOLDER_RANGE_INFO_ONDISK,LARGE_INTEGER{},standard.EndOfFile,ranges.data(),static_cast<DWORD>(ranges.size()*sizeof(CF_FILE_RANGE)),&returned);
-        if(FAILED(rangeStatus)||returned>ranges.size()*sizeof(CF_FILE_RANGE)||returned%sizeof(CF_FILE_RANGE))return 0;
-        LONGLONG end=0;
-        for(DWORD index=0;index<returned/sizeof(CF_FILE_RANGE);++index){const auto& range=ranges[index];if(range.StartingOffset.QuadPart>end)return 2;if(range.StartingOffset.QuadPart<0||range.Length.QuadPart<0||range.StartingOffset.QuadPart>MAXLONGLONG-range.Length.QuadPart)return 0;end=std::max(end,range.StartingOffset.QuadPart+range.Length.QuadPart);}
-        return end>=standard.EndOfFile.QuadPart?1:2;
-    }
+	using Operation=hm::menu::Action;
 	class Command;
 	/// <summary>每次枚举拥有独立游标；Clone 复制位置但不共享可变枚举状态。</summary>
 	class CommandEnumerator final : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IEnumExplorerCommand>, private ModuleLifetime {
 		ULONG _index = 0;
-		ComPtr<IUnknown> _site;
+		ComPtr<IUnknown> _site;std::shared_ptr<hm::menu::Context> _context;
 	public:
-		CommandEnumerator(IUnknown* site, ULONG index = 0) : _index(index), _site(site) {}
+		CommandEnumerator(IUnknown* site,std::shared_ptr<hm::menu::Context> context,ULONG index=0):_index(index),_site(site),_context(std::move(context)){}
 		IFACEMETHODIMP Next(ULONG count, IExplorerCommand** commands, ULONG* fetched) override;
 		IFACEMETHODIMP Skip(ULONG count) override {
 			const auto available = 3 - _index;
@@ -130,39 +44,16 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		IFACEMETHODIMP Clone(IEnumExplorerCommand** result) override {
 			if (!result) return E_POINTER;
 			*result = nullptr;
-			auto clone = Make<CommandEnumerator>(_site.Get(), _index);
+			auto clone = Make<CommandEnumerator>(_site.Get(),_context,_index);
 			return clone ? clone.CopyTo(result) : E_OUTOFMEMORY;
 		}
 	};
-	/// <summary>从目录背景的视图站点取得真实文件系统目录；不枚举内容、不访问管道。</summary>
-	HRESULT BackgroundPath(IUnknown* site, std::wstring& result) {
-		if (!site) return E_FAIL;
-		ComPtr<IFolderView> view;
-		auto status = IUnknown_QueryService(site, SID_SFolderView, IID_PPV_ARGS(&view));
-		if (FAILED(status)) {
-			ComPtr<IShellBrowser> browser;
-			ComPtr<IShellView> shellView;
-			if (FAILED(IUnknown_QueryService(site, SID_STopLevelBrowser, IID_PPV_ARGS(&browser)))
-				|| FAILED(browser->QueryActiveShellView(&shellView)) || FAILED(shellView.As(&view))) return E_FAIL;
-		}
-		ComPtr<IPersistFolder2> folder;
-		status = view->GetFolder(IID_PPV_ARGS(&folder));
-		if (FAILED(status)) return status;
-		PIDLIST_ABSOLUTE pidl = nullptr;
-		status = folder->GetCurFolder(&pidl);
-		if (FAILED(status)) return status;
-		PWSTR path = nullptr;
-		status = SHGetNameFromIDList(pidl, SIGDN_FILESYSPATH, &path);
-		CoTaskMemFree(pidl);
-		if (SUCCEEDED(status)) { result = path; CoTaskMemFree(path); }
-		return status;
-	}
 	/// <summary>根菜单与缓存和问题定位子命令；所有文件系统目标只在 Invoke 中复制。</summary>
 	class Command final : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>, private ModuleLifetime {
 		Operation _operation;
-		ComPtr<IUnknown> _site;
+		ComPtr<IUnknown> _site;std::shared_ptr<hm::menu::Context> _context;
 	public:
-		Command(Operation operation, IUnknown* site = nullptr) : _operation(operation), _site(site) {}
+		Command(Operation operation,IUnknown* site=nullptr,std::shared_ptr<hm::menu::Context> context={}):_operation(operation),_site(site),_context(context?std::move(context):std::make_shared<hm::menu::Context>()){}
 		IFACEMETHODIMP GetTitle(IShellItemArray*, PWSTR* title) override {
 			if (!title) return E_POINTER;
 			return SHStrDupW(_operation == Operation::Root ? L"HybridMount.NET" : _operation == Operation::FreeSpace ? L"释放空间" : _operation == Operation::KeepOnDevice ? L"始终保留在此设备上" : L"查看同步问题", title);
@@ -190,56 +81,10 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 			name->Data4[7] += static_cast<BYTE>(_operation);
 			return S_OK;
 		}
-		IFACEMETHODIMP GetState(IShellItemArray* selection, BOOL slow, EXPCMDSTATE* state) override {
-        if (!state) return E_POINTER;
-        *state = ECS_HIDDEN;
-        if (!slow) return E_PENDING;
-        try {
-            std::vector<std::wstring> paths;
-            DWORD count = 0;
-            if (selection && FAILED(selection->GetCount(&count))) return S_OK;
-            if (count > 1024) return S_OK;
-            for (DWORD index = 0; index < count; ++index) {
-                ComPtr<IShellItem> item; PWSTR raw = nullptr;
-                if (FAILED(selection->GetItemAt(index, &item)) || FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &raw))) return S_OK;
-                paths.emplace_back(raw); CoTaskMemFree(raw);
-            }
-            if (paths.empty()) { std::wstring background; if (FAILED(BackgroundPath(_site.Get(), background))) return S_OK; paths.push_back(std::move(background)); }
-            GUID expected{}; bool first = true;
-            DWORD actions=0;
-            for (const auto& path : paths) { GUID current{}; if (!OwnedRoot(path, current) || (!first && current != expected)) return S_OK; expected = current; first = false; if(_operation==Operation::FreeSpace||_operation==Operation::KeepOnDevice)actions|=CacheActions(path); }
-            if((_operation==Operation::FreeSpace&&!(actions&1))||(_operation==Operation::KeepOnDevice&&!(actions&2)))return S_OK;
-            *state = ECS_ENABLED;
-        } catch (...) { *state = ECS_HIDDEN; }
-        return S_OK;
-    }
-    IFACEMETHODIMP Invoke(IShellItemArray* selection, IBindCtx*) override {
-			if (_operation == Operation::Root) return S_OK;
-			try {
-				std::vector<std::wstring> paths;
-				DWORD count = 0;
-				if (selection && FAILED(selection->GetCount(&count))) return E_FAIL;
-				if (count > 1024) return HRESULT_FROM_WIN32(ERROR_BUFFER_OVERFLOW);
-				for (DWORD index = 0; index < count; ++index) {
-					ComPtr<IShellItem> item;
-					PWSTR path = nullptr;
-					if (FAILED(selection->GetItemAt(index, &item)) || FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) return E_INVALIDARG;
-					paths.emplace_back(path);
-					CoTaskMemFree(path);
-				}
-				if (paths.empty()) {
-					std::wstring background;
-					const auto status = BackgroundPath(_site.Get(), background);
-					if (FAILED(status)) return status;
-					paths.push_back(std::move(background));
-				}
-                GUID expected{};bool first=true;
-                for(const auto& path:paths){GUID current{};if(!OwnedRoot(path,current)||(!first&&current!=expected))return E_ACCESSDENIED;expected=current;first=false;}
-                if(_operation!=Operation::ShowSyncIssues){const auto mask=_operation==Operation::FreeSpace?1u:2u;paths.erase(std::remove_if(paths.begin(),paths.end(),[&](const auto& path){return !(CacheActions(path)&mask);}),paths.end());if(paths.empty())return S_FALSE;}
-                return _operation == Operation::ShowSyncIssues ? QueueSyncIssuesRequest(std::move(paths)) : QueuePlaceholderRequest(_operation == Operation::KeepOnDevice, std::move(paths));
-			}
-			catch (...) { return E_OUTOFMEMORY; }
-		}
+        /// <summary>同步调用只读内存摘要；未知返回E_PENDING，后台核验不使用借用的COM接口。</summary>
+        IFACEMETHODIMP GetState(IShellItemArray* selection,BOOL slow,EXPCMDSTATE* state)override{return _context->State(_operation,selection,_site.Get(),slow,state);}
+        /// <summary>排入独立有界工作，执行前重新核验完整集合，不能靠菜单缓存授权变更。</summary>
+        IFACEMETHODIMP Invoke(IShellItemArray* selection,IBindCtx*)override{return _context->Invoke(_operation,selection,_site.Get());}
 		IFACEMETHODIMP GetFlags(EXPCMDFLAGS* flags) override {
 			if (!flags) return E_POINTER;
 			*flags = _operation == Operation::Root ? ECF_HASSUBCOMMANDS : ECF_DEFAULT;
@@ -249,10 +94,10 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 			if (!result) return E_POINTER;
 			*result = nullptr;
 			if (_operation != Operation::Root) return E_NOTIMPL;
-			auto enumerator = Make<CommandEnumerator>(_site.Get());
+			auto enumerator = Make<CommandEnumerator>(_site.Get(),_context);
 			return enumerator ? enumerator.CopyTo(result) : E_OUTOFMEMORY;
 		}
-		IFACEMETHODIMP SetSite(IUnknown* site) override { _site = site; return S_OK; }
+		IFACEMETHODIMP SetSite(IUnknown* site) override { _site = site;_context->Invalidate();return S_OK; }
 		IFACEMETHODIMP GetSite(REFIID iid, void** site) override {
 			if (!site) return E_POINTER;
 			*site = nullptr;
@@ -265,7 +110,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 		for (ULONG index = 0; index < count; ++index) commands[index] = nullptr;
 		ULONG written = 0;
 		while (written < count && _index < 3) {
-			auto command = Make<Command>(_index == 0 ? Operation::FreeSpace : _index == 1 ? Operation::KeepOnDevice : Operation::ShowSyncIssues, _site.Get());
+			auto command = Make<Command>(_index == 0 ? Operation::FreeSpace : _index == 1 ? Operation::KeepOnDevice : Operation::ShowSyncIssues,_site.Get(),_context);
 			if (!command) {
 				for (ULONG index = 0; index < written; ++index) { commands[index]->Release(); commands[index] = nullptr; }
 				_index -= written;
@@ -287,8 +132,7 @@ bool OwnedRoot(const std::wstring& path, GUID& mount) {
 			*result = nullptr;
 			if (outer) return CLASS_E_NOAGGREGATION;
             if(_thumbnail){TraceShellProbe(L"CreateInstance");return CreateThumbnailHandler(iid,result);}
-			auto command = Make<Command>(Operation::Root);
-			return command ? command.CopyTo(iid, result) : E_OUTOFMEMORY;
+			try{auto command=Make<Command>(Operation::Root);return command?command.CopyTo(iid,result):E_OUTOFMEMORY;}catch(...){return E_OUTOFMEMORY;}
 		}
 		IFACEMETHODIMP LockServer(BOOL lock) override { if (lock) ++g_objects; else --g_objects; return S_OK; }
 	};
@@ -307,12 +151,8 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** result) {
 	return factory ? factory.CopyTo(iid, result) : E_OUTOFMEMORY;
 }
 
-bool IsOwnedMountPath(const std::wstring& path,GUID& mount) noexcept {
-    try{return OwnedRoot(path,mount);}catch(...){return false;}
-}
-
 HRESULT CreateMenuHandler(REFIID iid,void** result) noexcept {
     TraceShellProbe(L"CreateMenuHandler");
     if(!result)return E_POINTER;*result=nullptr;
-    auto command=Make<Command>(Operation::Root);return command?command.CopyTo(iid,result):E_OUTOFMEMORY;
+    try{auto command=Make<Command>(Operation::Root);return command?command.CopyTo(iid,result):E_OUTOFMEMORY;}catch(...){return E_OUTOFMEMORY;}
 }
