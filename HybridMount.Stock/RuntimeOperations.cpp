@@ -5,6 +5,7 @@
 #include "CloudFileOperations.h"
 #include "CloudProperties.h"
 #include "LocalReadLeases.h"
+#include "LocalReadIo.h"
 #include "RootRegistryGuard.h"
 #include "NativeDiagnostics.h"
 #include "PreviewObserver.h"
@@ -125,7 +126,7 @@ RuntimeOperations::~RuntimeOperations()=default;
 Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
     if(operation=="notificationDiagnostics")return _impl->Host.CallbackStatistics();
-    if(operation=="thumbnailDiagnostics")return {{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
+    if(operation=="thumbnailDiagnostics")return {{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"reads",LocalReadStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
     if(operation=="testCallbackMailbox"){
@@ -213,6 +214,7 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
         if(data.contains("sessionId"))session=_impl->Session(data);else if(data.contains("mountId")){std::lock_guard lock(_impl->Gate);for(auto& [_,candidate]:_impl->Sessions)if(GuidN(candidate->Root().at("mountId"))==GuidN(data.at("mountId"))){session=candidate;break;}}
         bool handled{};auto result=ExecuteCloudFile(_impl->Host,command,session.get(),handled);if(handled)return result;
     }
+    if(operation=="localReadDiagnostics")return _impl->Reads.Execute(command);
     if(operation=="ping")return {{"ready",true},{"scope",Utf8(ProductScope())},{"aumid",Utf8(ApplicationId())}};
     throw Failure(E_NOTIMPL);
 }

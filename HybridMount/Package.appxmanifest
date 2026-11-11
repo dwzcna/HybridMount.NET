@@ -10,7 +10,7 @@
  xmlns:virtualization="http://schemas.microsoft.com/appx/manifest/virtualization/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
  IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap uap10 virtualization">
-	<Identity Name="dwzcn.HybridMount.NativePreview" Publisher="CN=dwzcn" Version="0.0.9.66" />
+	<Identity Name="dwzcn.HybridMount.NativePreview" Publisher="CN=dwzcn" Version="0.0.9.67" />
 	<Properties>
 		<DisplayName>HybridMount.NativePreview</DisplayName>
 		<PublisherDisplayName>dwzcn</PublisherDisplayName>

@@ -1,4 +1,5 @@
 #include "LocalThumbnail.h"
+#include "LocalReadIo.h"
 #include "LocalThumbnailQueue.h"
 #include "NativeFile.h"
 #include "NativeWire.h"
@@ -23,7 +24,7 @@ std::optional<Placeholder> Persisted(HANDLE file) {
 std::string ContentStamp(const FileState& stamp){return stamp.Identity+":"+std::to_string(stamp.Usn)+":"+std::to_string(stamp.Length)+":"+std::to_string(stamp.LastWrite)+":"+std::to_string(stamp.Usn?0:stamp.Change);}
 /// <summary>本地保护引用始终留在解码进程；普通文件用共享读取，云文件核验完整后持有oplock。</summary>
 struct Content {
-    Handle Ordinary;HANDLE Protected{},Raw{};bool Referenced{},Closed{};FileState Before;std::mutex Gate;int Requests{};long long Bytes{};std::map<long long,std::vector<BYTE>> Windows;const char* ReadStage{};Json Evidence=Json::object();std::optional<Placeholder> Cloud;
+    std::shared_ptr<LocalReadFile> File;std::atomic<bool> Closed{};ULONGLONG Deadline=GetTickCount64()+10000;FileState Before;std::mutex Gate;int Requests{};long long Bytes{};std::map<long long,std::shared_ptr<const std::vector<BYTE>>> Windows;std::atomic<const char*> ReadStage{};Json Evidence=Json::object();std::optional<Placeholder> Cloud;
     explicit Content(const std::wstring& path,const Json& grant) {
         ValidatePath(grant,path);auto probe=OpenAttributes(path);auto stamp=InspectFile(probe.Value);Require(!stamp.Directory&&stamp.Links==1,E_ACCESSDENIED);
         FILE_ATTRIBUTE_TAG_INFO tag{};WinCheck(GetFileInformationByHandleEx(probe.Value,FileAttributeTagInfo,&tag,sizeof(tag)));
@@ -31,24 +32,27 @@ struct Content {
         if(cloud) {
             auto info=InspectPlaceholder(probe.Value);auto marker=Parse(std::string(info.Identity.begin(),info.Identity.end()),4096);Require(GuidN(marker.at("MountId"))==GuidN(grant.at("MountId")),E_ACCESSDENIED);
             Require(HasFullContent(probe.Value,stamp.Length),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));
-            Check(CfOpenFileWithOplock(path.c_str(),CF_OPEN_FILE_FLAG_EXCLUSIVE,&Protected));
-            Referenced=CfReferenceProtectedHandle(Protected)!=FALSE;if(!Referenced){CfCloseHandle(Protected);Protected=nullptr;throw Failure(HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));}
-            Raw=CfGetWin32HandleFromProtectedHandle(Protected);
-        } else {
-            Require((tag.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)==0,E_ACCESSDENIED);
-            Ordinary.Value=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_OVERLAPPED,nullptr);WinCheck(Ordinary.Value!=INVALID_HANDLE_VALUE);Raw=Ordinary.Value;
-        }
-        try{Before=InspectFile(Raw);if(ContentStamp(Before)!=ContentStamp(stamp))throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-open-stamp");if(cloud){Require(HasFullContent(Raw,Before.Length),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));Cloud=InspectPlaceholder(Raw);}}
+        } else Require((tag.FileAttributes&FILE_ATTRIBUTE_REPARSE_POINT)==0,E_ACCESSDENIED);
+        File=std::make_shared<LocalReadFile>(path,cloud);
+        try{Before=InspectFile(File->Raw);if(ContentStamp(Before)!=ContentStamp(stamp))throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-open-stamp");if(cloud){Require(HasFullContent(File->Raw,Before.Length),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));Cloud=InspectPlaceholder(File->Raw);}}
         catch(...){Close();throw;}
     }
     /// <summary>保护引用阻止外部正文变更；读取可推进访问元数据USN，只核验受保护正文及真实CFAPI状态。</summary>
     FileState Verify() {
-        Require(!Closed&&Raw!=nullptr,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));auto current=InspectFile(Raw);Require(current.Identity==Before.Identity&&current.Length==Before.Length&&current.LastWrite==Before.LastWrite&&!current.Directory&&current.Links==Before.Links,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
-        if(Cloud){Require(Referenced,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));auto info=InspectPlaceholder(Raw);Require(info.Identity==Cloud->Identity&&info.InSync==Cloud->InSync&&info.Pin==Cloud->Pin&&info.Modified==Cloud->Modified&&info.OnDisk==Cloud->OnDisk&&HasFullContent(Raw,current.Length),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));}
-        return current;
+        std::shared_ptr<LocalReadFile> file;{std::lock_guard lock(Gate);Require(!Closed&&File!=nullptr,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));file=File;}
+        Require(!file->Broken(),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));auto current=InspectFile(file->Raw);Require(current.Identity==Before.Identity&&current.Length==Before.Length&&current.LastWrite==Before.LastWrite&&!current.Directory&&current.Links==Before.Links,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        if(Cloud){auto info=InspectPlaceholder(file->Raw);Require(info.Identity==Cloud->Identity&&info.InSync==Cloud->InSync&&info.Pin==Cloud->Pin&&info.Modified==Cloud->Modified&&info.OnDisk==Cloud->OnDisk&&HasFullContent(file->Raw,current.Length),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));}Require(!Closed,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));return current;
     }
-    /// <summary>解码结束主动关闭正文租约；编解码器可能保留IStream，迟到读取只返回取消，不能继续占用普通句柄或oplock。</summary>
-    void Close(){std::lock_guard lock(Gate);if(Closed)return;Closed=true;Raw=nullptr;Windows.clear();if(Referenced){CfReleaseProtectedHandle(Protected);Referenced=false;}if(Protected){CfCloseHandle(Protected);Protected=nullptr;}if(Ordinary.Value&&Ordinary.Value!=INVALID_HANDLE_VALUE){CloseHandle(Ordinary.Value);Ordinary.Value=INVALID_HANDLE_VALUE;}}
+    /// <summary>缓存查询／预算只持短锁；I/O、oplock及最终戳核验均在锁外。迟到读取不能恢复已关闭窗口。</summary>
+    std::shared_ptr<const std::vector<BYTE>> Window(long long offset){
+        std::shared_ptr<LocalReadFile> file;const auto length=static_cast<DWORD>(std::min<long long>(256*1024,Before.Length-offset));
+        {std::lock_guard lock(Gate);Require(!Closed,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));auto found=Windows.find(offset);if(found!=Windows.end())return found->second;Require(++Requests<=512&&(Bytes+=length)<=128LL*1024*1024,HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_QUOTA));file=File;}
+        ReadStage="local-stream-before";Verify();ReadStage="local-stream-read";auto bytes=std::make_shared<const std::vector<BYTE>>(ReadLocalFile(file,offset,length,nullptr,nullptr,Deadline));ReadStage="local-stream-after";Verify();
+        {std::lock_guard lock(Gate);Require(!Closed,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));auto found=Windows.emplace(offset,bytes);ReadStage=nullptr;return found.first->second;}
+    }
+    /// <summary>关闭不等待内容锁内的I/O；未完成操作保留独立所有者直到内核完成，编解码器迟到读取返回取消。</summary>
+    void Close(){std::shared_ptr<LocalReadFile> file;{std::lock_guard lock(Gate);if(Closed.exchange(true))return;file=std::move(File);Windows.clear();}if(file){file->RequestClose();file->Drain(250);}}
+
     ~Content(){Close();}
 };
 /// <summary>本地有界随机读取；不接受URL、不借用Shell项目内容流，所有Clone共用128MiB和512次预算。</summary>
@@ -59,19 +63,9 @@ public:
     IFACEMETHODIMP Read(void* buffer,ULONG count,ULONG* read)override {
         if(read)*read=0;if(!buffer&&count)return STG_E_INVALIDPOINTER;
         try {
-            std::lock_guard lock(_content->Gate);auto take=static_cast<DWORD>(std::min<long long>(count,_content->Before.Length-_position));if(!take)return count?S_FALSE:S_OK;
-            _content->ReadStage="local-stream-before";_content->Verify();DWORD copied{};
-            while(copied<take) {
-                auto position=_position+copied;auto offset=position/(256*1024)*(256*1024);auto found=_content->Windows.find(offset);
-                if(found==_content->Windows.end()) {
-                    auto length=static_cast<DWORD>(std::min<long long>(256*1024,_content->Before.Length-offset));
-                    Require(++_content->Requests<=512&&(_content->Bytes+=length)<=128LL*1024*1024,HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_QUOTA));
-                    std::vector<BYTE> window(length);Handle event(CreateEventW(nullptr,TRUE,FALSE,nullptr));WinCheck(event.Value!=nullptr);OVERLAPPED io{};io.Offset=static_cast<DWORD>(offset);io.OffsetHigh=static_cast<DWORD>(static_cast<unsigned long long>(offset)>>32);io.hEvent=reinterpret_cast<HANDLE>(reinterpret_cast<ULONG_PTR>(event.Value)|1);
-                    _content->ReadStage="local-stream-read";DWORD done{};if(!ReadFile(_content->Raw,window.data(),length,&done,&io)){auto error=GetLastError();Require(error==ERROR_IO_PENDING,HRESULT_FROM_WIN32(error));WinCheck(GetOverlappedResult(_content->Raw,&io,&done,TRUE));}Require(done==length,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
-                    found=_content->Windows.emplace(offset,std::move(window)).first;
-                }
-                const auto begin=static_cast<size_t>(position-offset);auto length=std::min(take-copied,static_cast<DWORD>(found->second.size()-begin));memcpy(static_cast<BYTE*>(buffer)+copied,found->second.data()+begin,length);copied+=length;
-            }
+            Require(!_content->Closed,HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED));auto take=static_cast<DWORD>(std::min<long long>(count,_content->Before.Length-_position));if(!take)return count?S_FALSE:S_OK;
+            _content->Verify();DWORD copied{};
+            while(copied<take){auto position=_position+copied;auto offset=position/(256*1024)*(256*1024);auto window=_content->Window(offset);const auto begin=static_cast<size_t>(position-offset);auto length=std::min(take-copied,static_cast<DWORD>(window->size()-begin));memcpy(static_cast<BYTE*>(buffer)+copied,window->data()+begin,length);copied+=length;}
             _content->ReadStage="local-stream-after";_content->Verify();_content->ReadStage=nullptr;_position+=copied;if(read)*read=copied;return copied==count?S_OK:S_FALSE;
         }catch(const Failure& error){return error.Code;}catch(...){return E_FAIL;}
     }
@@ -211,7 +205,7 @@ int RunLocalThumbnailWorker(const std::wstring& path,UINT size,HANDLE acknowledg
         if(content->Cloud){auto file=OpenAttributes(path);auto info=InspectPlaceholder(file.Value);Require(info.Identity==content->Cloud->Identity&&info.InSync==content->Cloud->InSync&&info.Pin==content->Cloud->Pin&&info.Modified==content->Cloud->Modified&&HasFullContent(file.Value,closed.Length),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));}
         final=closed;if(ReadBackgroundThumbnailGrant(path)!=grant)throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"local-worker-validation");
         WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","localResult"},{"png",frames.at("256")},{"frames",frames},{"decodeMs",decodeMilliseconds},{"initial",ContentStamp(content->Before)},{"stamp",ContentStamp(final)}});if(acknowledged)WaitForSingleObject(acknowledged,2500);return 0;
-    }catch(const Failure& error){if(content)content->Close();try{WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","unavailable"},{"decodeMs",decodeMilliseconds},{"hresult",error.Code},{"stage",content&&content->ReadStage?content->ReadStage:error.Stage},{"evidence",content?content->Evidence:Json::object()}});}catch(...){}return 1;}
+    }catch(const Failure& error){if(content)content->Close();try{WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","unavailable"},{"decodeMs",decodeMilliseconds},{"hresult",error.Code},{"stage",content&&content->ReadStage.load()?content->ReadStage.load():error.Stage},{"evidence",content?content->Evidence:Json::object()}});}catch(...){}return 1;}
     catch(...){if(content)content->Close();try{WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),{{"kind","unavailable"},{"hresult",E_FAIL}});}catch(...){}return 1;}
 }
 int RunLocalThumbnailService()noexcept{

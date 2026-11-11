@@ -140,7 +140,9 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         if(!string.Equals(child.MainModule?.FileName,Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe"),StringComparison.OrdinalIgnoreCase))throw new IOException("原生对端部署路径不匹配。");
     }
     /// <summary>调用者取消时通知原生端并等实际终态；已经开始的写入仍由其安全收尾。</summary>
-    public async Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default)
+    public Task<JsonElement> InvokeAsync(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default)=>InvokeCoreAsync(operation,data,checkpoint,token);
+    /// <summary>本地正文的成功终态须先排空数据帧，再观察调用方取消；其他操作保留原有取消语义。</summary>
+    private async Task<JsonElement> InvokeCoreAsync(string operation,object data,Func<string,JsonElement,CancellationToken,Task<object?>>? checkpoint=null,CancellationToken token=default,bool observeSuccessfulCancellation=true)
     {
         token.ThrowIfCancellationRequested();ObjectDisposedException.ThrowIf(_stop.IsCancellationRequested,this);var payload=NativeRuntimeProtocol.Element(data);
         Guid? mount=payload.TryGetProperty("mountId",out var mountValue)&&Guid.TryParse(mountValue.GetString(),out var parsedMount)?parsedMount:null;
@@ -155,7 +157,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
             try{result=await pending.Completion.Task.ConfigureAwait(false);}
             catch(COMException error)when(token.IsCancellationRequested&&error.HResult==unchecked((int)0x800703e3)){throw new OperationCanceledException(token);}
             if(mount is {} mounted){if(operation=="connectRoot"){_generations[mounted]=payload.GetProperty("sessionId").GetString()!;}else if(operation=="disconnectRoot")_generations.TryRemove(mounted,out _);}
-            if(pending.Irreversible==0)token.ThrowIfCancellationRequested();return result;
+            if(pending.Irreversible==0&&observeSuccessfulCancellation)token.ThrowIfCancellationRequested();return result;
         }
         finally{_pending.TryRemove(id,out _);}
     }
@@ -195,7 +197,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     {
         if(!data.TryGetProperty("failureStage",out var value)||value.ValueKind!=JsonValueKind.String)return "operation";
         var stage=value.GetString();
-        return stage is "root-enumeration" or "root-native-query" or "root-register" or "orphan-inspect" or "orphan-register" or "orphan-connect" or "orphan-clear" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
+        return stage is "local-read-canceled" or "local-read-close-pending" or "root-enumeration" or "root-native-query" or "root-register" or "orphan-inspect" or "orphan-register" or "orphan-connect" or "orphan-clear" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
     }
     private async Task EventLoopAsync()
     {
@@ -272,7 +274,13 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     internal async Task<byte[]> ReadLocalRangeAsync(Guid mount,Guid lease,long offset,int count,CancellationToken token)
     {
         var id=Guid.NewGuid();var completion=new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);_blocks[id]=new(lease,offset,count,completion);
-        try{token.ThrowIfCancellationRequested();await InvokeAsync("readLocalRange",new{mountId=mount,leaseId=lease,readId=id,offset,count}).ConfigureAwait(false);var bytes=await completion.Task.WaitAsync(_stop.Token).ConfigureAwait(false);token.ThrowIfCancellationRequested();return bytes;}
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            // 单独捕获取消信号，避免Invoke在成功应答后提前抛出而移除尚在数据通道的请求。
+            await InvokeCoreAsync("readLocalRange",new{mountId=mount,leaseId=lease,readId=id,offset,count},token:token,observeSuccessfulCancellation:false).ConfigureAwait(false);
+            var bytes=await completion.Task.WaitAsync(_stop.Token).ConfigureAwait(false);token.ThrowIfCancellationRequested();return bytes;
+        }
         finally{_blocks.TryRemove(id,out _);}
     }
     public async Task<NativeFileSnapshot> InspectAsync(string path,bool persisted=false,bool ranges=false,string? expectedIdentity=null,CancellationToken token=default)=>NativeRuntimeProtocol.Read<NativeFileSnapshot>(await InvokeAsync("queryFile",new{path,persisted,ranges,expectedIdentity},token:token).ConfigureAwait(false));

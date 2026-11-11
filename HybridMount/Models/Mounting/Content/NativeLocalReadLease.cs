@@ -24,7 +24,7 @@ internal sealed class NativeLocalReadLease:IAsyncDisposable
     }
     internal async ValueTask<PreviewRangeResult> ReadAsync(long offset,Memory<byte> buffer,CancellationToken token)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _closed)!=0,this);var bytes=await _runtime.ReadLocalRangeAsync(_mount,_id,offset,buffer.Length,token).ConfigureAwait(false);bytes.CopyTo(buffer);return new(true,bytes.Length);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _closed)!=0,this);var bytes=await _runtime.ReadLocalRangeAsync(_mount,_id,offset,buffer.Length,token).ConfigureAwait(false);ObjectDisposedException.ThrowIf(Volatile.Read(ref _closed)!=0,this);bytes.CopyTo(buffer);return new(true,bytes.Length);
     }
     /// <summary>关闭成功才提供最终戳；通道丢失或业务校验失败不能作为可发布图片的成功释放。</summary>
     public async ValueTask DisposeAsync(){if(Interlocked.Exchange(ref _closed,1)!=0)return;if(!_runtime.IsAvailable)throw new IOException("本地预览租约最终状态未确认，禁止发布。");var result=await _runtime.InvokeAsync("closeLocalRead",new{mountId=_mount,leaseId=_id}).ConfigureAwait(false);Stamp=NativeRuntimeArguments.Stamp(result);}
