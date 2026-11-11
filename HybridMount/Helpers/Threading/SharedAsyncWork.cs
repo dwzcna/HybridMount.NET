@@ -2,7 +2,7 @@ namespace HybridMount.Helpers.Threading;
 
 /// <summary>仅合并重叠中的同键工作；每位等待者独立取消，最后一位离开或宿主停止时取消底层工作。</summary>
 /// <remarks>不缓存已完成的结果。工作使用自己的令牌，不能捕获首位调用者的令牌或借用其资源。</remarks>
-public sealed class SharedAsyncWork<TKey,TValue> : IAsyncDisposable where TKey : notnull
+public sealed class SharedAsyncWork<TKey,TValue>(int capacity=int.MaxValue) : IAsyncDisposable where TKey : notnull
 {
     private sealed class Job
     {
@@ -10,11 +10,15 @@ public sealed class SharedAsyncWork<TKey,TValue> : IAsyncDisposable where TKey :
         public Task<TValue> Work=null!;
         public int Waiters;
     }
+    private readonly int _capacity=capacity>0?capacity:throw new ArgumentOutOfRangeException(nameof(capacity));
     private readonly object _gate=new();
     private readonly Dictionary<TKey,Job> _jobs=new();
     private readonly HashSet<Job> _running=[];
     private Task? _shutdown;
     private bool _stopping;
+    /// <summary>只读在途数量，包含取消后尚未收尾的旧工作；用于容量核验，不启动任务。</summary>
+    internal int RunningCount{get{lock(_gate)return _running.Count;}}
+    internal void ThrowIfStopping(){lock(_gate)ObjectDisposedException.ThrowIf(_stopping,this);}
 
     /// <summary>领取共享结果；resource 的所有权总是转入此方法，合并时立即释放，否则在工作结束后释放。</summary>
     public async Task<TValue> RunAsync(TKey key,Func<CancellationToken,Task<TValue>> factory,CancellationToken token,IDisposable? resource=null)
@@ -27,6 +31,7 @@ public sealed class SharedAsyncWork<TKey,TValue> : IAsyncDisposable where TKey :
                 token.ThrowIfCancellationRequested();ObjectDisposedException.ThrowIf(_stopping,this);
                 if(!_jobs.TryGetValue(key,out job!))
                 {
+                    if(_running.Count>=_capacity)throw new SharedWorkCapacityException();
                     job=new();_jobs.Add(key,job);_running.Add(job);
                     var owned=resource;resource=null;
                     var captured=job;
@@ -83,3 +88,7 @@ public sealed class SharedAsyncWork<TKey,TValue> : IAsyncDisposable where TKey :
         try{await Task.WhenAll(jobs.Select(job=>job.Work)).ConfigureAwait(false);}catch(Exception){/* 失败由调用者报告，停止只负责资源归还。 */}
     }
 }
+
+/// <summary>共享工作已达到有界容量；不占用新执行位，由协议层决定退避。</summary>
+internal sealed class SharedWorkCapacityException:IOException
+{internal SharedWorkCapacityException():base("共享工作数量已达到上限，请稍后重试。") { }}

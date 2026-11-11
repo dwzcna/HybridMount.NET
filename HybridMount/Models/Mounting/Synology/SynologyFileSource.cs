@@ -189,7 +189,7 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
     public void RestoreObservations(IEnumerable<RemoteShadowEntry> entries) { }
     public bool HasReliableVersion(SourceEntry entry)=>entry.IsDirectory||entry.Version.Contains(";md5:",StringComparison.Ordinal);
     string IMountSourceRuntime.RemoteScope(long revision)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("Synology:"+_endpoint.AbsoluteUri+"\0"+_root+"\0"+Number(revision))));
-    string? IMountSourceRuntime.ConnectionDiagnostics=>"群晖：完整摘要快照；仅联机预览不支持；覆盖、删除、移动不支持；认证"+(_authenticationFailure is null?"有效或未登录":"需用户处理");
+    string? IMountSourceRuntime.ConnectionDiagnostics=>"群晖：完整摘要快照；仅联机预览不支持；覆盖、删除、移动不支持；认证"+(_authenticationFailure is null?"有效或未登录":"需用户处理")+$"；快照在途={_cache.VerifiedWorkCount}／排队={_cache.VerifiedQueuedCount}；整文件下载={_snapshotMetrics.GetValueOrDefault("downloads")}／发布={_snapshotMetrics.GetValueOrDefault("published")}／命中={_snapshotMetrics.GetValueOrDefault("cacheHits")}／超时={_snapshotMetrics.GetValueOrDefault("timeouts")}；排队ms={_snapshotMetrics.GetValueOrDefault("queueMs")}／元数据ms={_snapshotMetrics.GetValueOrDefault("metadataMs")}／正文ms={_snapshotMetrics.GetValueOrDefault("bodyMs")}／验证ms={_snapshotMetrics.GetValueOrDefault("verificationMs")}／总ms={_snapshotMetrics.GetValueOrDefault("totalMs")}／字节={_snapshotMetrics.GetValueOrDefault("bytes")}";
     void IMountSourceRuntime.AttachRuntime(MountDefinition mount,MountRepository repository)
     {_saveCredentials=credentials=>new CredentialStore(repository.DataDirectory).Save(mount.Id,credentials);}
     MountQueueBinding? IMountNetworkSource.QueueBinding=>_queueBinding;

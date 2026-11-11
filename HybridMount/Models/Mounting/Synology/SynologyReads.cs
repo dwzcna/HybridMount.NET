@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -7,6 +9,18 @@ namespace HybridMount.Models.Mounting.Synology;
 /// <summary>先完整核验、后提供本地分块；没有服务器条件快照时绝不直接拼接远端范围。</summary>
 public sealed partial class SynologyFileSource
 {
+    internal TimeSpan SnapshotTotalDeadline {get;set;}=TimeSpan.FromMinutes(30);
+    internal TimeSpan SnapshotIdleDeadline {get;set;}=TimeSpan.FromSeconds(120);
+    private readonly ConcurrentDictionary<string,long> _snapshotMetrics=new(StringComparer.Ordinal);
+    internal IReadOnlyDictionary<string,long> SnapshotMetrics=>new Dictionary<string,long>(_snapshotMetrics);
+    /// <summary>阶段诊断仅累计固定名称和数值，不记录路径、会话或正文，不触发生成或网络。</summary>
+    private void SnapshotMetric(string stage,long value)=>_snapshotMetrics.AddOrUpdate(stage,value,(_,previous)=>previous+value);
+    private Func<int> SnapshotPriority()
+    {
+        var binding=_queueBinding;var task=TasksQueueService.CurrentTask;
+        return binding is not null&&task is not null&&task.MountId==binding.MountId&&task.Generation==binding.Generation
+            ?()=> (int)binding.Queue.EffectivePriority(task):()=> (int)MountingPriority.Observation;
+    }
     private async Task<HttpResponseMessage> DownloadAsync(SourceEntry entry,CancellationToken token)
     {
         for(var attempt=0;;attempt++)
@@ -41,8 +55,13 @@ public sealed partial class SynologyFileSource
     {
         token.ThrowIfCancellationRequested();ValidateRange(entry,offset);var count=(int)Math.Min(buffer.Length,entry.Size-offset);if(count==0)return 0;
         _=ContentMd5(entry);using var shared=Share("snapshot:"+entry.Path+":"+entry.Version);
-        return await _cache.ReadAsync(_endpoint.AbsoluteUri+_root,entry,offset,buffer[..count],
-            (output,cancel)=>DownloadSnapshotAsync(entry,output,cancel),token,Share("snapshot:"+entry.Path+":"+entry.Version)).ConfigureAwait(false);
+        try
+        {
+            return await _cache.ReadVerifiedAsync(_endpoint.AbsoluteUri+_root,entry,offset,buffer[..count],
+                (output,cancel)=>DownloadSnapshotAsync(entry,output,cancel),token,SnapshotTotalDeadline,SnapshotPriority(),SnapshotMetric,Share("snapshot:"+entry.Path+":"+entry.Version)).ConfigureAwait(false);
+        }
+        catch(TimeoutException){throw Failure("完整快照",ConnectionFailureKind.Timeout,"群晖整文件读取超过总期限，未返回正文。",transient:true);}
+        catch(SharedWorkCapacityException){throw Failure("快照排队",ConnectionFailureKind.Network,"群晖整文件读取队列已满，请稍后重试。",transient:true);}
     }
     /// <summary>严格预览直接返回不支持；不登录、不做 MD5、不下载，也不触发水合。</summary>
     public ValueTask<PreviewRangeResult> TryReadPreviewRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default)
@@ -108,8 +127,9 @@ public sealed partial class SynologyFileSource
     }
     private async Task DownloadSnapshotAsync(SourceEntry entry,Stream output,CancellationToken token)
     {
-        var expected=ContentMd5(entry);var before=await GetMetadataAsync(entry.Path,token).ConfigureAwait(false);
+        var started=Stopwatch.GetTimestamp();var expected=ContentMd5(entry);var before=await GetMetadataAsync(entry.Path,token).ConfigureAwait(false);SnapshotMetric("metadataMs",(long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         if(!IsSameVersion(entry.Version,before.Version))throw new SourceConflictException("群晖远端内容版本已变化，请刷新后重试。");
+        var downloading=Stopwatch.GetTimestamp();SnapshotMetric("downloads",1);
         using var md5=IncrementalHash.CreateHash(HashAlgorithmName.MD5);using var sha256=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using(var response=await DownloadAsync(entry,token).ConfigureAwait(false))
         {
@@ -124,13 +144,15 @@ public sealed partial class SynologyFileSource
             }
             if(await ReadIdleAsync(stream,bytes.AsMemory(0,1),token).ConfigureAwait(false)!=0)throw new IOException("群晖整文件响应过长。");
         }
+        SnapshotMetric("bodyMs",(long)Stopwatch.GetElapsedTime(downloading).TotalMilliseconds);SnapshotMetric("bytes",entry.Size);var verifying=Stopwatch.GetTimestamp();
         if(Convert.ToHexString(md5.GetHashAndReset())!=expected||!IsSameVersion(entry.Version,(await GetMetadataAsync(entry.Path,token).ConfigureAwait(false)).Version))
             throw new SourceConflictException("群晖文件下载期间内容发生变化，未发布快照。");
+        SnapshotMetric("verificationMs",(long)Stopwatch.GetElapsedTime(verifying).TotalMilliseconds);
         token.ThrowIfCancellationRequested();PublishBaseline(new(entry.Path,entry.Version,Convert.ToHexString(sha256.GetHashAndReset())));
     }
-    private static async ValueTask<int> ReadIdleAsync(Stream stream,Memory<byte> buffer,CancellationToken token)
+    private async ValueTask<int> ReadIdleAsync(Stream stream,Memory<byte> buffer,CancellationToken token)
     {
-        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(SnapshotIdleDeadline);
         try{return await stream.ReadAsync(buffer,deadline.Token).ConfigureAwait(false);}
         catch(OperationCanceledException)when(!token.IsCancellationRequested){throw Failure("文件读取",ConnectionFailureKind.Timeout,"群晖文件读取长时间没有进展。",transient:true);}
     }

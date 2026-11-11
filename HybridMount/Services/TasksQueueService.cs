@@ -129,6 +129,8 @@ public sealed partial class TasksQueueService : IAsyncDisposable
             if(Priority(parent,seen) is var priority&&priority>result)result=priority;
         return result;
     }
+    /// <summary>仅内存查询共享依赖提升后的优先级，供有界整文件队列调度；不读库或启动网络。</summary>
+    internal MountingPriority EffectivePriority(MountingTask task){lock(_sync)return Priority(task);}
     private bool DependenciesReady(MountingTask task)=>task.Dependencies.All(id=>_completed.Contains((task.MountId,id)));
     /// <summary>只能在短调度锁内调用；名额仅交给可运行任务，冲突、依赖和退避不会占用全局执行位。</summary>
     private void Pump()
