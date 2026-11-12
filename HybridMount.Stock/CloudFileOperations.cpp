@@ -170,8 +170,16 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
         auto path=EntryPath(data);ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE|CF_OPEN_FILE_FLAG_WRITE_ACCESS);auto before=InspectFile(file.Raw);const auto& proof=data.at("proofStamp");Require(!before.Directory&&before.Identity==data.at("fileId").get<std::string>()&&before.Identity==proof.at("identity").get<std::string>()&&before.Length==Number(proof,"length")&&before.LastWrite==Number(proof,"lastWriteTime")&&(before.Usn==Number(proof,"usn")||(before.Reasons&0x77)==0)&&before.Links==1,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
         auto info=Maybe(file.Raw);if(info){auto marker=Parse(std::string(info->Identity.begin(),info->Identity.end()),4096);Require(GuidN(marker.at("MountId"))==GuidN(data.at("mountId"))&&(marker.at("EntryId")==data.at("entryId")||marker.at("EntryId")==data.at("uploadId")),E_ACCESSDENIED);Require(HasFullContent(file.Raw,before.Length));Check(CfRevertPlaceholder(file.Value,CF_REVERT_FLAG_NONE,nullptr));}auto after=InspectFile(file.Raw);SameContent(before,after);Require(!Maybe(file.Raw).has_value());return {{"stamp",FileJson(after)}};
     }
-    if(operation=="requestPin"){
-        auto path=EntryPath(data);auto file=OpenAttributes(path,FILE_READ_ATTRIBUTES|FILE_WRITE_ATTRIBUTES);auto before=InspectFile(file.Value);auto info=InspectPlaceholder(file.Value);Identity(data,info);Require(info.Pin!=CF_PIN_STATE_EXCLUDED,E_ACCESSDENIED);Check(CfSetPinState(file.Value,CF_PIN_STATE_PINNED,CF_SET_PIN_FLAG_NONE,nullptr));SameContent(before,InspectFile(file.Value));return Json::object();
+    // 取消固定只写单文件属性；UNSPECIFIED保留已水合范围，不调用CfDehydratePlaceholder。
+    if(operation=="cancelPin"){
+        auto path=EntryPath(data);auto file=OpenAttributes(path,FILE_READ_ATTRIBUTES|FILE_WRITE_ATTRIBUTES);auto before=InspectFile(file.Value);auto info=InspectPlaceholder(file.Value);Identity(data,info);
+        Require(!before.Directory&&before.Identity==data.at("fileId").get<std::string>(),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        Require(info.Pin!=CF_PIN_STATE_EXCLUDED,E_ACCESSDENIED);command.CheckCancel();
+        if(info.Pin==CF_PIN_STATE_PINNED)Check(CfSetPinState(file.Value,CF_PIN_STATE_UNSPECIFIED,CF_SET_PIN_FLAG_NONE,nullptr));
+        SameContent(before,InspectFile(file.Value));return {{"stamp",FileJson(InspectFile(file.Value))}};
+    }
+    if(operation=="requestPin"||operation=="requestUnpin"){
+        auto path=EntryPath(data);auto file=OpenAttributes(path,FILE_READ_ATTRIBUTES|FILE_WRITE_ATTRIBUTES);auto before=InspectFile(file.Value);auto info=InspectPlaceholder(file.Value);Identity(data,info);Require(info.Pin!=CF_PIN_STATE_EXCLUDED,E_ACCESSDENIED);Check(CfSetPinState(file.Value,operation=="requestPin"?CF_PIN_STATE_PINNED:CF_PIN_STATE_UNPINNED,CF_SET_PIN_FLAG_NONE,nullptr));SameContent(before,InspectFile(file.Value));return Json::object();
     }
     if(operation=="refreshPlaceholder"){
         auto path=EntryPath(data);Require(session!=nullptr);Require(!session->Active(data.at("entryId")),HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE);auto info=InspectPlaceholder(file.Raw);Identity(data,info);Clean(info);Require(info.Pin==CF_PIN_STATE_UNSPECIFIED||info.Pin==CF_PIN_STATE_UNPINNED,HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));UpdateMetadata(file,data);return {{"stamp",FileJson(InspectFile(file.Raw))}};

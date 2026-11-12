@@ -29,7 +29,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly string _sessionId=Guid.NewGuid().ToString("N");
     private sealed record NativeFetch(string FetchId,string EntryId,long Offset,long Length,byte Priority,bool Explicit,uint ProcessId,string Image);
     internal event Action<Exception>? RuntimeFailed;
-    internal event Action<IReadOnlyList<string>>? PreviewDemandReceived;
+    internal event Action<PreviewBrowseDemand>? PreviewDemandReceived;
     private string _previewObservation="尚未收到目录观察结果";
     /// <summary>最近一次观察的有界计数快照；不枚举Shell或读取源，供完整诊断直接查询。</summary>
     internal string PreviewObservationDescription=>Volatile.Read(ref _previewObservation);
@@ -43,7 +43,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         var failure="";if(value.TryGetProperty("failures",out var failures)&&failures.ValueKind==JsonValueKind.Array)foreach(var item in failures.EnumerateArray().Take(16))if(item.TryGetProperty("hresult",out var raw)&&raw.TryGetInt32(out var code))failure=$"；最近采样HRESULT=0x{code:X8}";
         return $"策略={strategy}；范围={(value.TryGetProperty("scope",out var scope)&&scope.GetString()=="foreground"?"仅前台挂载视图":"旧观察器")}；事件={Count(value,"events",int.MaxValue)}；窗口映射={Count(value,"mappings",int.MaxValue)}；目录查询={Count(value,"locationQueries",int.MaxValue)}；根查询={Count(value,"rootQueries",int.MaxValue)}；父级根核验={Count(value,"parentRootChecks",int.MaxValue)}；窗口={Count(value,"windows",32)}；已匹配目录={Count(value,"accepted",16)}；候选={Count(value,"candidates",4096)}；目录识别累计ms={Count(value,"directoryMs",int.MaxValue)}；采样累计ms={Count(value,"sampleMs",int.MaxValue)}；超时={Count(value,"timeouts",int.MaxValue)}；迟到={Count(value,"late",int.MaxValue)}；排队={Count(value,"queued",32)}；活动={Count(value,"active",1)}{failure}；UTC={DateTimeOffset.UtcNow:O}";
     }
-    private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work);
+    private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work,bool Owned);
     private readonly ConcurrentDictionary<string,FetchRequest> _fetches=new();
 
     private Task? _dispose,_cancellation;
@@ -102,7 +102,11 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(message.Event=="previewDemand")
         {
             if(_clearing||_stop.IsCancellationRequested)return;
-            try{if(data.TryGetProperty("observation",out var observation)&&observation.ValueKind==JsonValueKind.Object){Volatile.Write(ref _previewObservation,DescribePreviewObservation(observation));}if(data.TryGetProperty("complete",out var complete)&&complete.ValueKind==JsonValueKind.False)return;var paths=data.GetProperty("paths");if(paths.ValueKind!=JsonValueKind.Array||paths.GetArrayLength()>128)throw new IOException("预览提示数量无效。");var items=paths.EnumerateArray().Select(x=>x.GetString()??throw new IOException("预览提示为空。")).ToArray();if(items.Any(x=>x.Length>4096))throw new IOException("预览路径过长。");PreviewDemandReceived?.Invoke(items);}
+            try{if(data.TryGetProperty("observation",out var observation)&&observation.ValueKind==JsonValueKind.Object){Volatile.Write(ref _previewObservation,DescribePreviewObservation(observation));}if(data.TryGetProperty("complete",out var complete)&&complete.ValueKind==JsonValueKind.False)return;var paths=data.GetProperty("paths");if(paths.ValueKind!=JsonValueKind.Array||paths.GetArrayLength()>512)throw new IOException("预览提示数量无效。");var items=paths.EnumerateArray().Select(x=>x.GetString()??throw new IOException("预览提示为空。")).ToArray();if(items.Any(x=>x.Length>4096))throw new IOException("预览路径过长。");var foreground=data.TryGetProperty("foregroundPaths",out var active)?active.EnumerateArray().Select(item=>item.GetString()??"").ToHashSet(StringComparer.OrdinalIgnoreCase):items.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if(foreground.Count>64&&data.TryGetProperty("foregroundPaths",out _))throw new IOException("前台预览提示数量无效。");
+                var window=data.TryGetProperty("foregroundWindow",out var frame)?checked((nint)frame.GetUInt64()):0;
+                var view=data.TryGetProperty("viewWindow",out var viewValue)?checked((nint)viewValue.GetUInt64()):0;
+                PreviewDemandReceived?.Invoke(new(items,foreground,window,view));}
             catch(Exception error){_logger.QueueException("缩略图","Warning","目录预览提示未处理",error,_mount.Id.ToString("N"));}
             return;
         }
@@ -121,7 +125,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 if(_metadataUpdating.Contains(fetch.EntryId)){var rejected=Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});_notifications.Add(rejected);_ = rejected.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{using var cancelOwner=_queueBinding?.Queue.RegisterCancellation("read:"+fetch.FetchId,()=>{if(!cancel.IsCancellationRequested)_=cancel.CancelAsync();return true;});await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
-                _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work);if(_clearing)cancel.Cancel();start.SetResult();
+                _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work,(fetch.ProcessId==(uint)Runtime.ProcessId||fetch.ProcessId==(uint)Environment.ProcessId)&&_downloadTasks.TryGetValue(fetch.EntryId,out var owner)&&owner.Operation=="keepOnDevice");if(_clearing||_cancelingPins.ContainsKey(fetch.EntryId)&&_fetches[fetch.FetchId].Owned)cancel.Cancel();start.SetResult();
             }return;
         }
         if(message.Event=="cancelFetch")
@@ -206,9 +210,11 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         {
             if(_queueBinding is null)lease=await _reads.EnterAsync(info.Priority,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
             var entry=_repository.EntryById(_mount.Id,id);if(entry is null||entry.Deleted||entry.RemotePresence==RemotePresence.Deleted)throw new FileNotFoundException("占位身份不存在。");
-            var ownedHydration=info.Explicit||info.ProcessId==(uint)Runtime.ProcessId||info.ProcessId==(uint)Environment.ProcessId;
+            var ownedHydration=info.ProcessId==(uint)Runtime.ProcessId||info.ProcessId==(uint)Environment.ProcessId;
             var parent=ownedHydration?_downloadTasks.GetValueOrDefault(id):null; // 外部普通打开保持P0，不因同文件正在固定而降级。
             using var queueTask=_queueBinding?.Queue.Enter(_queueBinding,parent??new("read:"+info.FetchId,_mount.Id,_queueBinding.Generation,MountingPriority.Demand,DateTimeOffset.UtcNow,"download",entry.SourcePath,entry.Id,entry.Version));
+            using var parentCancellation=parent is not null&&_queueBinding is not null?_queueBinding.Queue.RegisterCancellation(parent.Id,()=>
+            {if(_fetches.TryGetValue(info.FetchId,out var active)&&!active.Cancel.IsCancellationRequested){_=active.Cancel.CancelAsync();return true;}return false;}):null;
             var source=_source??throw new IOException("清空期间不提供内容读取。");_remoteSnapshots.TryGetValue(id,out var staged);
             if(staged is null&&_repository.HasPendingRemote(_mount.Id,entry.SourcePath))throw new SourceConflictException("远端更新待提交，暂缓旧版本水合。");
             using var workflow=staged is null&&_queueBinding is not null?await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false):null;

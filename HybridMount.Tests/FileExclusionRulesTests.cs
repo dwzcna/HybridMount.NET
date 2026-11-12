@@ -36,6 +36,28 @@ public sealed class FileExclusionRulesTests
         Assert.Single(rules!);Assert.False(FileExclusionRules.Matches(rules,"file.bak"));Assert.True(FileExclusionRules.Matches(rules,"~file"));
         Assert.DoesNotContain("\"Enabled\"",JsonSerializer.Serialize(rules));
     }
+    [Theory]
+    [InlineData(false,"enabled")][InlineData(true,"enabled")][InlineData(false,"Enabled")][InlineData(true,"Enabled")]
+    public void LegacyEnabledIsConsumedBeforeStrictCamelCaseModelValidation(bool backup,string legacyName)
+    {
+        var options=new JsonSerializerOptions(JsonSerializerDefaults.Web){UnmappedMemberHandling=System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow};
+        var definition=new MountDefinition(Guid.NewGuid(),"test","D:/test");var item=new MountBackupItem("test","D:/test",new(FileSourceKind.WebDav,"https://example.test/dav/"),new("u","p"));
+        var node=System.Text.Json.Nodes.JsonNode.Parse(backup?JsonSerializer.Serialize(item,options):JsonSerializer.Serialize(definition,options))!;
+        node["exclusionRules"]=System.Text.Json.Nodes.JsonNode.Parse("[{\"match\":2,\"text\":\".bak\",\""+legacyName+"\":false},{\"match\":0,\"text\":\"~\",\""+legacyName+"\":true}]");
+        var rules=backup?JsonSerializer.Deserialize<MountBackupItem>(node.ToJsonString(),options)!.ExclusionRules:JsonSerializer.Deserialize<MountDefinition>(node.ToJsonString(),options)!.ExclusionRules;
+        Assert.Single(rules!);Assert.False(FileExclusionRules.Matches(rules,"file.bak"));Assert.True(FileExclusionRules.Matches(rules,"~file"));
+        Assert.DoesNotContain("enabled",JsonSerializer.Serialize(rules,options),StringComparison.OrdinalIgnoreCase);
+    }
+    [Theory]
+    [InlineData("{\"match\":2,\"text\":\".bak\",\"enabled\":1}")]
+    [InlineData("{\"match\":2,\"text\":\".bak\",\"enabled\":null}")]
+    [InlineData("{\"match\":2,\"text\":\".bak\",\"enabled\":false,\"unexpected\":true}")]
+    [InlineData("{\"match\":2,\"text\":\".bak\",\"enabled\":false,\"Enabled\":true}")]
+    public void LegacyCompatibilityStillRejectsInvalidAndUnknownFields(string rule)
+    {
+        var options=new JsonSerializerOptions(JsonSerializerDefaults.Web){UnmappedMemberHandling=System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow};options.Converters.Add(new FileExclusionRuleListConverter());
+        Assert.Throws<JsonException>(()=>JsonSerializer.Deserialize<IReadOnlyList<FileExclusionRule>>("["+rule+"]",options));
+    }
     [Fact]
     public void DuplicateRulesAreCaseInsensitive()=>Assert.Throws<ArgumentException>(()=>FileExclusionRules.Validate([new(FileExclusionMatchKind.Suffix,".bak"),new(FileExclusionMatchKind.Suffix,".BAK")]));
     [Theory]

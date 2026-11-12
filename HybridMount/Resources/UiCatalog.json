@@ -2759,5 +2759,29 @@
   "CloudWaitingChannel": {
     "Source": "等待通道或路径：{0}",
     "LocalizableArguments": []
-  }
+  },
+"TaskCanceling": {"Source": "取消中", "LocalizableArguments": []},
+"TaskDeferred": {"Source": "暂缓", "LocalizableArguments": []},
+"TaskAlreadyCompleted": {"Source": "任务已经完成。", "LocalizableArguments": []},
+"TaskChangedSelectAgain": {"Source": "任务状态已变化，请重新选择。", "LocalizableArguments": []},
+"FileReleaseLocalProtected": {"Source": "文件被本地修改或排除规则保护。", "LocalizableArguments": []},
+"FileReleaseUploadPending": {"Source": "等待本地上传完成。", "LocalizableArguments": []},
+"FileReleaseRemotePending": {"Source": "等待远端变更核对。", "LocalizableArguments": []},
+"FileReleaseReadActive": {"Source": "文件仍有活动读取，等待占用释放。", "LocalizableArguments": []},
+"FileReleaseIntentChanged": {"Source": "文件的固定或释放意图已改变。", "LocalizableArguments": []},
+"FileReleaseGuardPending": {"Source": "等待释放保护条件就绪。", "LocalizableArguments": []},
+"FileReleaseRecheck": {"Source": "等待重新核验释放条件。", "LocalizableArguments": []},
+"FileReleaseQueued": {"Source": "等待本地释放核验。", "LocalizableArguments": []},
+"FileReleaseCompleted": {"Source": "释放已完成。", "LocalizableArguments": []},
+"FileReleaseChanged": {"Source": "释放意图已改变。", "LocalizableArguments": []},
+"FilePinCancelPending": {"Source": "固定下载正在取消，请等待收尾后重新固定。", "LocalizableArguments": []}
+,
+"FileTaskFailure": {"Source": "阶段：{0}；HRESULT={1}；{2}", "LocalizableArguments": [2]},
+"FileCancelSessionChanged": {"Source": "取消前下载连接已变化。", "LocalizableArguments": []},
+"FileCancelVersionChanged": {"Source": "取消固定前文件身份或内容版本已变化。", "LocalizableArguments": []},
+"FileCancelInProgress": {"Source": "固定取消已在处理。", "LocalizableArguments": []},
+"FileReleaseOwnershipMismatch": {"Source": "释放意图不属于此文件，已保留内容。", "LocalizableArguments": []},
+"FileReleaseIdentityChanged": {"Source": "释放文件身份已变化。", "LocalizableArguments": []},
+"FileReleaseVersionChanged": {"Source": "释放内容版本已变化，请重新核对。", "LocalizableArguments": []},
+"FileReleaseIdentityBefore": {"Source": "释放前文件身份已变化，保留内容。", "LocalizableArguments": []}
 }

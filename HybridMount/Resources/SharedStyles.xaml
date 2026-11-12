@@ -86,7 +86,7 @@
                 <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
             </Style>
             <!-- 页面命令统一显示图标和右侧文字，宽度不足时使用系统溢出菜单。 -->
-            <Style x:Key="PageCommandBarStyle" TargetType="CommandBar">
+            <Style x:Key="PageCommandBarStyle" TargetType="CommandBar" BasedOn="{StaticResource DefaultCommandBarStyle}">
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
                 <Setter Property="DefaultLabelPosition" Value="Right"/>
                 <Setter Property="IsDynamicOverflowEnabled" Value="True"/>

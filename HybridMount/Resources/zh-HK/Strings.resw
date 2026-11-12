@@ -2411,4 +2411,27 @@
   <data name="SettingsCloudSave.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>儲存雲端操作執行緒數</value></data>
   <data name="CloudWorkflowPhase" xml:space="preserve"><value>檔案工作流程</value></data>
   <data name="CloudWaitingChannel" xml:space="preserve"><value>等候通道或路徑：{0}</value></data>
+  <data name="TaskCanceling" xml:space="preserve"><value>正在取消</value></data>
+  <data name="TaskDeferred" xml:space="preserve"><value>暫緩</value></data>
+  <data name="TaskAlreadyCompleted" xml:space="preserve"><value>工作已經完成。</value></data>
+  <data name="TaskChangedSelectAgain" xml:space="preserve"><value>工作狀態已變更，請重新選擇。</value></data>
+  <data name="FileReleaseLocalProtected" xml:space="preserve"><value>檔案受本機修改或排除規則保護。</value></data>
+  <data name="FileReleaseUploadPending" xml:space="preserve"><value>正在等候本機上載完成。</value></data>
+  <data name="FileReleaseRemotePending" xml:space="preserve"><value>正在等候遠端變更核對。</value></data>
+  <data name="FileReleaseReadActive" xml:space="preserve"><value>檔案仍有進行中的讀取，正在等候解除佔用。</value></data>
+  <data name="FileReleaseIntentChanged" xml:space="preserve"><value>檔案的釘選或釋放意圖已變更。</value></data>
+  <data name="FileReleaseGuardPending" xml:space="preserve"><value>正在等候釋放保護條件就緒。</value></data>
+  <data name="FileReleaseRecheck" xml:space="preserve"><value>正在等候重新核驗釋放條件。</value></data>
+  <data name="FileReleaseQueued" xml:space="preserve"><value>正在等候本機釋放核驗。</value></data>
+  <data name="FileReleaseCompleted" xml:space="preserve"><value>釋放已完成。</value></data>
+  <data name="FileReleaseChanged" xml:space="preserve"><value>釋放意圖已變更。</value></data>
+  <data name="FilePinCancelPending" xml:space="preserve"><value>正在取消釘選下載，請等候完成後重新釘選。</value></data>
+  <data name="FileTaskFailure" xml:space="preserve"><value>階段：{0}；HRESULT={1}；{2}</value></data>
+  <data name="FileCancelSessionChanged" xml:space="preserve"><value>取消前下載連線已變更。</value></data>
+  <data name="FileCancelVersionChanged" xml:space="preserve"><value>取消固定前檔案身分或內容版本已變更。</value></data>
+  <data name="FileCancelInProgress" xml:space="preserve"><value>固定取消正在處理。</value></data>
+  <data name="FileReleaseOwnershipMismatch" xml:space="preserve"><value>釋放意圖不屬於此檔案，已保留內容。</value></data>
+  <data name="FileReleaseIdentityChanged" xml:space="preserve"><value>釋放檔案身分已變更。</value></data>
+  <data name="FileReleaseVersionChanged" xml:space="preserve"><value>釋放內容版本已變更，請重新核對。</value></data>
+  <data name="FileReleaseIdentityBefore" xml:space="preserve"><value>釋放前檔案身分已變更，保留內容。</value></data>
 </root>

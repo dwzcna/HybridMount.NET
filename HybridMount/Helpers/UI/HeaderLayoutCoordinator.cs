@@ -29,7 +29,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
         Invalidate();
     }
     private void Loaded(object sender,RoutedEventArgs args)=>Invalidate();
-    private void Unloaded(object sender,RoutedEventArgs args){++_generation;_pending=false;}
+    private void Unloaded(object sender,RoutedEventArgs args){_actions.IsOpen=false;++_generation;_pending=false;}
     private void Resized(object sender,SizeChangedEventArgs args)=>Queue();
     /// <summary>语言、文字或可见项变化后重测实际宽度；合并低优先级更新并屏蔽卸载后的迟到调用。</summary>
     internal void Invalidate(){_dirty=true;Queue();}
@@ -45,6 +45,8 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     }
     private void Arrange()
     {
+        // 弹出层先关闭再移动命令，避免旧测量和阴影层引用已转移的按钮。
+        _actions.IsOpen=false;
         if(_dirty)
         {
             _dirty=false;
@@ -61,7 +63,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
         _previous=choice;_setCompact(!choice.ShowLabels);
         var visible=_commands.Where(x=>x.Visibility==Visibility.Visible).ToArray();
         var primary=visible.Take(choice.Count).ToArray();
-        var secondary=_commands.Except(primary).ToArray();
+        var secondary=visible.Except(primary).ToArray();
         if(!_actions.PrimaryCommands.SequenceEqual(primary)||!_actions.SecondaryCommands.SequenceEqual(secondary))
         {
             _actions.PrimaryCommands.Clear();_actions.SecondaryCommands.Clear();
@@ -73,7 +75,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     }
     public void Dispose()
     {
-        if(_disposed)return;_disposed=true;++_generation;
+        if(_disposed)return;_actions.IsOpen=false;_disposed=true;++_generation;
         _root.Loaded-=Loaded;_root.Unloaded-=Unloaded;_root.SizeChanged-=Resized;
         foreach(var item in _tokens)item.Button.UnregisterPropertyChangedCallback(item.Property,item.Token);
         _tokens.Clear();

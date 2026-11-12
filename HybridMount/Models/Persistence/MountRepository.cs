@@ -97,13 +97,24 @@ public sealed partial class MountRepository
             return command.ExecuteNonQuery();
         }
     }
+    /// <summary>内部文件任务恢复读取完整相关历史，不受页面一百条终态限制；只读既有JSON字段，不改变表结构。</summary>
+    internal IReadOnlyList<MountOperationSnapshot> LoadFileOperations(Guid mount)
+    {
+        lock(_gate)
+        {
+            using var db=Open();using var query=db.CreateCommand();
+            query.CommandText="SELECT rowid,json FROM operations WHERE json_extract(json,'$.MountId')=$mount AND json_extract(json,'$.OperationEntryId') IS NOT NULL";query.Parameters.AddWithValue("$mount",mount.ToString());
+            using var reader=query.ExecuteReader();var result=new List<MountOperationSnapshot>();
+            while(reader.Read())result.Add(JsonSerializer.Deserialize<MountOperationSnapshot>(reader.GetString(1))! with{SubmissionOrder=reader.GetInt64(0)});return result;
+        }
+    }
     public IReadOnlyList<MountOperationSnapshot> LoadOperations()
     {
         lock (_gate)
         {
             using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT rowid,json FROM operations WHERE json_extract(json,'$.State') NOT IN ('Completed','Canceled','Ignored','Superseded','Failed','PartialFailure','Interrupted') OR rowid IN (SELECT rowid FROM operations WHERE json_extract(json,'$.State') IN ('Completed','Canceled','Ignored','Superseded','Failed','PartialFailure','Interrupted') ORDER BY rowid DESC LIMIT 100) ORDER BY rowid DESC";
             using var row = cmd.ExecuteReader(); var result = new List<MountOperationSnapshot>();
-            while (row.Read()) { var item = JsonSerializer.Deserialize<MountOperationSnapshot>(row.GetString(1))! with{SubmissionOrder=row.GetInt64(0)}; result.Add(item.State is "Queued" or "Running" ? item with { State = "Interrupted", Error = "上次进程已结束；修改操作未被自动重放。" } : item); }
+            while (row.Read()) { var item = JsonSerializer.Deserialize<MountOperationSnapshot>(row.GetString(1))! with{SubmissionOrder=row.GetInt64(0)}; result.Add(item.State is "Queued" or "Running" or "Canceling" ? item with { State = "Interrupted", Error = "上次进程已结束；修改操作未被自动重放。" } : item); }
             return result;
         }
     }

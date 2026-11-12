@@ -141,7 +141,7 @@ public sealed partial class MountManager : IAsyncDisposable
             _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,_repository.Uploads(root.Definition.Id).Count(UploadAttentionRules.NeedsAttention)+RenameIntents(root.Definition.Id).Count(x=>x.NeedsAttention)+(_renameErrors.ContainsKey(root.Definition.Id)?1:0));
     }
     /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
-    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).ToArray();
+    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).Concat(Operations.Where(row=>row.Operation is "freeSpace" or "keepOnDevice"&&row.State is "Failed" or "PartialFailure")).ToArray();
     public IReadOnlyList<MountOperationSnapshot> Operations
     {
         get
@@ -157,6 +157,8 @@ public sealed partial class MountManager : IAsyncDisposable
             foreach(var job in _jobs.Values)
                 if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))
                     history[job.Snapshot.Id]=job.Snapshot with{SubmissionOrder=history.GetValueOrDefault(job.Snapshot.Id)?.SubmissionOrder??0};
+            foreach(var task in _fileOperations.Values)
+                if(task.Snapshot.State is "Running" or "Canceling" or "Deferred"||history.ContainsKey(task.Snapshot.Id))history[task.Snapshot.Id]=task.Snapshot with{SubmissionOrder=history.GetValueOrDefault(task.Snapshot.Id)?.SubmissionOrder??0};
             return history.Values.ToArray();
         }
     }
@@ -613,13 +615,19 @@ public sealed partial class MountManager : IAsyncDisposable
                         if(FileExclusionRules.Matches(root.Definition.ExclusionRules,entry.LocalPath,entry.IsDirectory))
                         {Result(job,path,"Skipped","文件已排除；固定或释放空间前请先解除对应规则。");continue;}
                         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-                        if(info is null || _repository.HasPendingRemote(id,entry.SourcePath) || entry.RemotePresence==RemotePresence.Deleted || marker?.MountId!=id || marker.EntryId!=entry.Id || (operation=="freeSpace"&&(entry.Protected||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1||root.Session.IsActive(entry.Id))))
+                        if(info is null||marker?.MountId!=id||marker.EntryId!=entry.Id||operation=="keepOnDevice"&&(_repository.HasPendingRemote(id,entry.SourcePath)||entry.RemotePresence==RemotePresence.Deleted))
                         {Result(job,path,"Skipped","本地修改、普通文件、活动项或状态不明，已保留。");continue;}
                         job.Snapshot=job.Snapshot with{ItemPath=entry.LocalPath,IsDirectory=entry.IsDirectory,BytesTransferred=0,TotalBytes=entry.IsDirectory?0:new FileInfo(path).Length,DurationSeconds=0};Notify();
                         var itemStarted=System.Diagnostics.Stopwatch.GetTimestamp();
                         var session=root.Session;
-                        if(operation=="keepOnDevice")session.RequestPin(entry);
-                        else{await PreserveBeforeDehydrateAsync(root,entry,job.Cancel.Token).ConfigureAwait(false);session.Runtime.Invoke("releaseFile",session.EntryArgs(entry));}
+                        if(operation=="keepOnDevice"){if(root.Pins is {} pins)lock(pins.Sync)pins.Retry.Remove(entry.Id);session.RequestPin(entry);}
+                        else
+                        {
+                            root.Gate.Release();held=false;MountOperationSnapshot? release;
+                            try{release=await RequestReleaseAsync(root,entry,job.Cancel.Token).ConfigureAwait(false);}
+                            finally{await root.Gate.WaitAsync().ConfigureAwait(false);held=true;}
+                            if(release is not null&&release.State!="Completed"){Result(job,path,release.State=="Failed"?"Failed":release.State=="Superseded"?"Skipped":"Waiting",release.Error??"释放暂缓。");continue;}
+                        }
                         if(operation=="keepOnDevice"&&!entry.IsDirectory)
                         {
                             root.Gate.Release();held=false;
@@ -638,7 +646,8 @@ public sealed partial class MountManager : IAsyncDisposable
                     catch(OperationCanceledException){throw;}
                     catch(Exception error){Result(job,path,"Failed",error.Message);}
                 }
-                Update(job,job.Snapshot.Results.Any(item=>item.Status=="Failed")?"PartialFailure":"Completed");
+                Update(job,job.Snapshot.Results.Any(item=>item.Status=="Waiting")?"Waiting":job.Snapshot.Results.Any(item=>item.Status=="Failed")?"PartialFailure":"Completed");
+                if(operation=="freeSpace")RefreshReleaseParents(root);
             }
             catch(OperationCanceledException)when(job.Cancel.IsCancellationRequested){Update(job,"Canceled");}
             catch(Exception error)
@@ -766,10 +775,11 @@ public sealed partial class MountManager : IAsyncDisposable
     private void Update(Job job,string state,string? error=null)
     {var next=job.Snapshot with{State=state,Error=error};OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();}
     private void Save(Job job){_repository.SaveOperation(job.Snapshot);Notify();}
-    public MountOperationSnapshot? GetOperation(string id)=>RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_roots.Values.SelectMany(RemotePendingFor).FirstOrDefault(x=>x.Id==id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id));
+    public MountOperationSnapshot? GetOperation(string id)=>_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_roots.Values.SelectMany(RemotePendingFor).FirstOrDefault(x=>x.Id==id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id));
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
     public bool Cancel(string id)
     {
+        if(CancelFileOperation(id))return true;
         if(CancelExcludedRename(id) is {} renameCancel)return renameCancel;
         if(_repository.Upload(id) is not null)return CancelUpload(id);
         if(CancelRemoteChange(id))return true;

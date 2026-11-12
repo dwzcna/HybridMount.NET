@@ -32,7 +32,7 @@ public sealed partial class MountManager
     /// <summary>登记只读核对并由应用拥有；不得改写上传条件或重启已取消文件操作。目录证明只解除误依赖，真实冲突继续保留。</summary>
     public bool RecheckOperation(string id)
     {
-        if(IsStopping)return false;if(RenameIntent(id) is not null)return RecheckExcludedRename(id);
+        if(IsStopping)return false;if(RetryFileOperation(id))return true;if(RenameIntent(id) is not null)return RecheckExcludedRename(id);
         var upload=_repository.Upload(id);var pending=_roots.Values.SelectMany(RemotePendingFor).FirstOrDefault(x=>x.Id==id);
         var mount=upload?.MountId??pending?.MountId;
         if(mount is null||!_roots.TryGetValue(mount.Value,out var root)||root.RemovalRequested||root.Definition.RemovalPending||root.RemoteSync is not {} runtime||!_operationChecking.TryAdd(id,0))return false;

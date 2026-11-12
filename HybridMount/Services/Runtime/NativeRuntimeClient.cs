@@ -50,7 +50,9 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
     private readonly NativeEventInbox _events=new();
     internal string EventStatistics=>_events.Statistics;
     private Task _eventWorker=Task.CompletedTask,_previewWorker=Task.CompletedTask;
-    private readonly Channel<NativeRuntimeEvent> _previewEvents=Channel.CreateBounded<NativeRuntimeEvent>(new BoundedChannelOptions(16){FullMode=BoundedChannelFullMode.DropOldest,SingleReader=true,SingleWriter=true});
+    private readonly ConcurrentDictionary<string,NativeRuntimeEvent> _latestPreviews=new();
+    private readonly object _previewStateGate=new();
+    private readonly Channel<NativeRuntimeEvent> _previewEvents=Channel.CreateBounded<NativeRuntimeEvent>(new BoundedChannelOptions(256){FullMode=BoundedChannelFullMode.DropOldest,SingleReader=true,SingleWriter=true});
     internal event Action<NativeRuntimeEvent>? EventReceived;
     internal event Action<Exception>? Failed;
     internal int ProcessId=>_process.Id;
@@ -184,7 +186,7 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
                 }
                 else if(kind=="event")
                 {
-                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event is "previewDemand" or "renameRejected"){_previewEvents.Writer.TryWrite(value);continue;}if(!_events.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
+                    var value=NativeRuntimeProtocol.Read<NativeRuntimeEvent>(message);if(value.Event is "previewDemand" or "renameRejected"){EnqueuePreviewEvent(value);continue;}if(!_events.TryWrite(value))throw new IOException("原生事件队列已满，停止当前连接等待核对。");
                 }
                 else throw new IOException("原生消息类型无效。");
             }
@@ -204,10 +206,25 @@ internal sealed class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDisposable
         try{await foreach(var value in _events.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception error){Fail(error);}}
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
+    /// <summary>同挂载只保存最新完整需求；队列仅唤醒消费者，说明消息挤掉唤醒项也不能遗失最终撤销。</summary>
+    private void EnqueuePreviewEvent(NativeRuntimeEvent value)
+    {
+        if(value.Event=="previewDemand"){lock(_previewStateGate){var first=_latestPreviews.TryAdd(value.MountId,value);if(!first)_latestPreviews[value.MountId]=value;else _previewEvents.Writer.TryWrite(value);}}
+        else _previewEvents.Writer.TryWrite(value);
+    }
+#if HYBRIDMOUNT_HEADLESS_TEST
+    /// <summary>仅独立测试客户端可注入内部提示，验证饱和丢唤醒后最终需求仍可交付。</summary>
+    internal void PostPreviewForTests(NativeRuntimeEvent value)=>EnqueuePreviewEvent(value);
+#endif
     /// <summary>可丢弃预览及Shell说明独立消费；会话记录诊断，提示失败绝不停止挂载或关键事件。</summary>
     private async Task PreviewLoopAsync()
     {
-        try{await foreach(var value in _previewEvents.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception){/* 会话拥有预览业务诊断；其他根仍继续。 */}}
+        try{await foreach(var queued in _previewEvents.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))
+        {
+            NativeRuntimeEvent[] demands;lock(_previewStateGate){demands=_latestPreviews.Values.ToArray();_latestPreviews.Clear();}
+            foreach(var value in queued.Event=="previewDemand"?demands:demands.Append(queued))
+                if(EventReceived is {} listeners)foreach(Action<NativeRuntimeEvent> listener in listeners.GetInvocationList())try{listener(value);}catch(Exception){/* 会话拥有预览业务诊断；其他根仍继续。 */}
+        }}
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
     private async Task HandleCheckpointAsync(JsonElement message)

@@ -75,7 +75,15 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 Assert.Equal(0,provider.Thumbnail(80,out alpha,out bitmap));try{Assert.Equal(2u,alpha);Assert.Equal(80,NativePreviewInterop.BitmapWidth(bitmap));}finally{NativePreviewInterop.DeleteObject(bitmap);}
                 Assert.Equal(gets,fixture.Server.Requests.Count(request=>request.Method=="GET"));
                 output.WriteLine("warm cache ready; dehydrate begins");
-                var free=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"freeSpace",[path]));Assert.Equal("Completed",free.State);
+                var releaseEvidence=new ConcurrentQueue<string>();
+                manager.OperationSavingForTests=snapshot=>{if(snapshot.Operation=="freeSpace"&&snapshot.OperationEntryId is not null){var state=CloudFilesNative.ReadNative(path,ranges:true);releaseEvidence.Enqueue($"{snapshot.State}: onDisk={state.Placeholder?.OnDiskSize} full={state.Full} version={snapshot.OperationVersion}");}};
+                var releaseId=manager.Queue(mount.Id,"freeSpace",[path]);var free=await WebDavTests.Finished(manager,releaseId);
+                // 本地解码可能尚在归还oplock；新语义必须显示暂缓，并等真实范围释放后完成，不能以已接受意图代替结果。
+                var releaseDeadline=DateTime.UtcNow.AddSeconds(10);
+                while(free.State=="Waiting"&&DateTime.UtcNow<releaseDeadline){await Task.Delay(50);await manager.EnforceCacheLimitAsync();free=manager.GetOperation(releaseId)!;}
+                Assert.True(free.State=="Completed",free.Error+" "+string.Join(";",free.Results.Select(row=>row.Message)));
+                output.WriteLine("release verification: "+System.Text.Json.JsonSerializer.Serialize(new{Task=manager.GetOperation(releaseId),State=CloudFilesNative.ReadNative(path,ranges:true),Gets=fixture.Server.Requests.Count(request=>request.Method=="GET")}));
+                output.WriteLine("release publications: "+string.Join(" | ",releaseEvidence));manager.OperationSavingForTests=null;
                 Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));Assert.NotNull(manager.GetPreview(path,64));
                 Assert.Equal(0,provider.Thumbnail(128,out alpha,out bitmap));NativePreviewInterop.DeleteObject(bitmap);
                 Assert.Equal(gets,fixture.Server.Requests.Count(request=>request.Method=="GET"));

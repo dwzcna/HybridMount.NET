@@ -50,6 +50,13 @@ public sealed partial class TasksQueueService
     }
     internal Task<T> RunClientActionAsync<T>(Func<T> action)=>Backend.RunClientActionAsync(action);
     public MountOperationSnapshot? GetOperation(string id)=>Operations.FirstOrDefault(x=>x.Id==id)??Backend.GetOperation(id);
+    /// <summary>页面携带尝试证据，阻止旧行在重排后取消新的同名文件任务。</summary>
+    internal bool CancelSelected(MountOperationSnapshot selected)
+    {
+        var current=GetOperation(selected.Id);
+        if(selected.AttemptId is not null&&current?.AttemptId!=selected.AttemptId)return false;
+        return Backend.CancelDisplayedDownload(selected)||Cancel(selected.Id);
+    }
     public bool Cancel(string id)
     {
         if(_backend?.Cancel(id)==true)return true;

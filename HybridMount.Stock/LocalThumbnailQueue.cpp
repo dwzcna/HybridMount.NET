@@ -1,5 +1,6 @@
 #include "LocalThumbnailQueue.h"
 #include "LocalThumbnail.h"
+#include "PreviewObserver.h"
 #include "RemoteThumbnailHints.h"
 #include <shellapi.h>
 #include <deque>
@@ -16,7 +17,7 @@ namespace {
 class LocalQueue {
     struct Work {std::wstring Path;std::string Stamp,Key,FileKey;Json Grant;ULONGLONG Submitted{};};
     struct Result {std::vector<BYTE> Png;ULONGLONG Until{},Used{};};
-    struct Notice {std::wstring Path;std::string Stamp;Json Grant;ULONGLONG Due{};};
+    struct Notice {std::wstring Path;std::string Stamp;Json Grant;ULONGLONG Due{},Until{};};
     std::mutex Gate;std::condition_variable Changed;std::deque<Work> Waiting;std::set<std::string> Pending,PendingFiles;std::map<std::string,Work> Deferred;
     struct FailureMemo {ULONGLONG Until{},Used{};unsigned Attempts{};bool Unsupported{};};
     std::map<std::string,Result> Results;std::map<std::string,FailureMemo> Failed;std::map<std::wstring,Notice> Notices;
@@ -42,7 +43,7 @@ class LocalQueue {
     /// <summary>单文件通知前再次核验根授权及正文版本；不发目录刷新，不使用同步FLUSH。</summary>
     void Notify(Notice notice) noexcept {
         const auto started=GetTickCount64();bool sent=false;
-        try{if(WaitForSingleObject(Stopping.Value,0)==WAIT_TIMEOUT&&ReadBackgroundThumbnailGrant(notice.Path,Stopping.Value)==notice.Grant&&LocalThumbnailStamp(notice.Path)==notice.Stamp){SHChangeNotify(SHCNE_UPDATEITEM,SHCNF_PATHW|SHCNF_FLUSHNOWAIT,notice.Path.c_str(),nullptr);sent=true;}}catch(...){}
+        try{if(WaitForSingleObject(Stopping.Value,0)==WAIT_TIMEOUT&&ThumbnailNoticeForeground(notice.Path,notice.Grant)&&ReadBackgroundThumbnailGrant(notice.Path,Stopping.Value)==notice.Grant&&LocalThumbnailStamp(notice.Path)==notice.Stamp){SHChangeNotify(SHCNE_UPDATEITEM,SHCNF_PATHW|SHCNF_FLUSHNOWAIT,notice.Path.c_str(),nullptr);sent=true;}}catch(...){}
         std::lock_guard lock(Gate);NotifyMilliseconds+=GetTickCount64()-started;if(sent)++Notified;
     }
     /// <summary>工作线程单项解码；旧内容和关闭后的结果不能进入缓存或通知队列。</summary>
@@ -62,7 +63,7 @@ class LocalQueue {
                 memo.Until=memo.Unsupported?MAXULONGLONG:now+(memo.Attempts>=3?5*60*1000:memo.Attempts==1?2000:5000);}
             else{
                 const auto publishing=GetTickCount64();++Decoded;auto key=Key(finalStamp,work.Grant);auto old=Results.find(key);if(old!=Results.end())Bytes-=old->second.Png.size();Bytes+=png.size();Results[key]={std::move(png),now+2*60*1000,now};
-                if(Notices.size()<128||Notices.contains(work.Path))Notices[work.Path]={work.Path,finalStamp,work.Grant,now+250};PublishMilliseconds+=GetTickCount64()-publishing;
+                if(Notices.size()<128||Notices.contains(work.Path))Notices[work.Path]={work.Path,finalStamp,work.Grant,now+250,now+2*60*1000};PublishMilliseconds+=GetTickCount64()-publishing;
             }
             Trim(now);
         }
@@ -74,9 +75,11 @@ class LocalQueue {
         const auto initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
         while(true){
             RefreshCapabilities();std::unique_lock lock(Gate);if(Closed)break;const auto now=GetTickCount64();
-            auto notice=std::find_if(Notices.begin(),Notices.end(),[&](const auto& row){return row.second.Due<=now&&NextNotice<=now;});
+            // 后台通知不延长缓存有效期；过期即撤销，避免失焦窗口无限阻止宿主空闲退出。
+            for(auto item=Notices.begin();item!=Notices.end();)if(item->second.Until<=now||!Results.contains(Key(item->second.Stamp,item->second.Grant)))item=Notices.erase(item);else ++item;
+            auto notice=std::find_if(Notices.begin(),Notices.end(),[&](const auto& row){return row.second.Due<=now&&NextNotice<=now&&ThumbnailNoticeForeground(row.second.Path,row.second.Grant);});
             if(notice!=Notices.end()){auto current=std::move(notice->second);Notices.erase(notice);NextNotice=now+125;Active=true;lock.unlock();Notify(std::move(current));lock.lock();Active=false;continue;}
-            if(!Waiting.empty()){auto work=std::move(Waiting.front());Waiting.pop_front();Active=true;lock.unlock();Decode(std::move(work));continue;}
+            if(!Waiting.empty()){auto chosen=std::find_if(Waiting.begin(),Waiting.end(),[](const auto& work){return ThumbnailNoticeForeground(work.Path,work.Grant);});if(chosen==Waiting.end())chosen=Waiting.begin();auto work=std::move(*chosen);Waiting.erase(chosen);Active=true;lock.unlock();Decode(std::move(work));continue;}
             Changed.wait_for(lock,std::chrono::milliseconds(25));
         }
         if(SUCCEEDED(initialized))CoUninitialize();
@@ -93,7 +96,7 @@ public:
         Pending.insert(key);PendingFiles.insert(fileKey);Waiting.push_back({path,stamp,key,fileKey,grant,now});++Submitted;Changed.notify_one();return {};
     }
     bool Busy(){std::lock_guard lock(Gate);return Active||!Waiting.empty()||!Notices.empty();}
-    Json Statistics(){std::lock_guard lock(Gate);return {{"pending",Pending.size()},{"cached",Results.size()},{"bytes",Bytes},{"submitted",Submitted},{"decoded",Decoded},{"failed",Failures},{"negative",Failed.size()},{"hits",Hits},{"rejected",Rejected},{"notified",Notified},{"queueMs",QueueMilliseconds},{"decodeMs",DecodeMilliseconds},{"notifyMs",NotifyMilliseconds},{"started",Started},{"startupMs",StartupMilliseconds},{"workerDecodeMs",WorkerDecodeMilliseconds},{"publishMs",PublishMilliseconds},{"lastError",LastError},{"lastStage",LastStage}};}
+    Json Statistics(){std::lock_guard lock(Gate);return {{"pending",Pending.size()},{"cached",Results.size()},{"bytes",Bytes},{"submitted",Submitted},{"decoded",Decoded},{"failed",Failures},{"negative",Failed.size()},{"hits",Hits},{"rejected",Rejected},{"notified",Notified},{"pendingNotices",Notices.size()},{"queueMs",QueueMilliseconds},{"decodeMs",DecodeMilliseconds},{"notifyMs",NotifyMilliseconds},{"started",Started},{"startupMs",StartupMilliseconds},{"workerDecodeMs",WorkerDecodeMilliseconds},{"publishMs",PublishMilliseconds},{"lastError",LastError},{"lastStage",LastStage}};}
     void Stop(){
         {std::lock_guard lock(Gate);if(!Closed){Closed=true;SetEvent(Stopping.Value);Waiting.clear();Deferred.clear();Notices.clear();Changed.notify_all();}}
         if(Worker.joinable())Worker.join();
@@ -104,5 +107,5 @@ std::mutex QueueGate;std::unique_ptr<LocalQueue> Queue;bool QueueClosed{};
 std::vector<BYTE> QueueLocalThumbnail(const std::wstring& path,const std::string& stamp,const Json& grant){std::lock_guard lock(QueueGate);if(QueueClosed)return {};if(!Queue)Queue=std::make_unique<LocalQueue>();return Queue->Read(path,stamp,grant);}
 BOOL WINAPI LocalThumbnailWorkPending(void* context) noexcept{try{if(context&&WaitForSingleObject(static_cast<HANDLE>(context),0)==WAIT_OBJECT_0){StopLocalThumbnails();StopRemoteThumbnailHints();return FALSE;}std::lock_guard lock(QueueGate);return (Queue&&Queue->Busy())||RemoteThumbnailHintsPending();}catch(...){return FALSE;}}
 Json LocalThumbnailStatistics(){std::lock_guard lock(QueueGate);return Queue?Queue->Statistics():Json::object();}
-void StopLocalThumbnails() noexcept{try{std::unique_ptr<LocalQueue> current;{std::lock_guard lock(QueueGate);QueueClosed=true;current=std::move(Queue);}if(current)current->Stop();}catch(...) {}}
+void StopLocalThumbnails() noexcept{try{std::unique_ptr<LocalQueue> current;{std::lock_guard lock(QueueGate);QueueClosed=true;current=std::move(Queue);}if(current)current->Stop();StopThumbnailNoticeProbe();}catch(...) {}}
 }

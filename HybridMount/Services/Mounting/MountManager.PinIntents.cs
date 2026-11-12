@@ -114,8 +114,11 @@ public sealed partial class MountManager
     }
     private async Task DownloadPinIntentAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,CancellationToken token)
     {
+        var fileTask=FileTask(root,runtime.Session,entry,"keepOnDevice","pin:"+root.Definition.Id+":"+entry.Id,renew:true);
+        var downloadStop=runtime.DownloadStop;fileTask.StopDownload=()=>{if(downloadStop is not null)try{_=downloadStop.CancelAsync();}catch(ObjectDisposedException){}};
+        PublishFileTask(fileTask,"Running");
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,"pin:"+root.Definition.Id+":"+entry.Id,MountingPriority.User,"keepOnDevice",entry.SourcePath,entry.Id,entry.Version);
-        using var cancelOwner=TasksQueue.RegisterCancellation("pin:"+root.Definition.Id+":"+entry.Id,()=>{if(runtime.DownloadStop is {} stop&&!stop.IsCancellationRequested)_=stop.CancelAsync();return true;});
+        using var cancelOwner=TasksQueue.RegisterCancellation(fileTask.Snapshot.Id,()=>CancelFileOperation(fileTask.Snapshot.Id));
         string? changed=null;
         try
         {
@@ -131,10 +134,10 @@ public sealed partial class MountManager
             }
             finally{root.Gate.Release();}
         }
-        catch(OperationCanceledException)when(token.IsCancellationRequested){}
+        catch(OperationCanceledException)when(token.IsCancellationRequested){if(!fileTask.Canceling)PublishFileTask(fileTask,"Canceled");}
         catch(Exception error)
-        {lock(runtime.Sync)runtime.Retry[entry.Id]=(entry.Version,DateTimeOffset.UtcNow.AddSeconds(30));_logger.QueueException("固定下载","Warning","后台固定下载未完成",error,entry.Id);}
-        finally{if(changed is not null)NotifyFileState(changed);runtime.Wake();}
+        {if(!fileTask.Canceling)PublishFileTask(fileTask,"Failed","hydratePinned",error);lock(runtime.Sync)runtime.Retry[entry.Id]=(entry.Version,DateTimeOffset.UtcNow.AddSeconds(30));_logger.QueueException("固定下载","Warning","后台固定下载未完成",error,entry.Id);}
+        finally{if(changed is not null){PublishFileTask(fileTask,"Completed");NotifyFileState(changed);}runtime.Wake();}
     }
     /// <summary>原生保护句柄和根锁归还后发布实际状态；失败只影响Shell刷新，不重写同步标记。</summary>
     private void NotifyFileState(string path)

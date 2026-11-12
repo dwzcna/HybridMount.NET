@@ -19,16 +19,18 @@ public sealed partial class MountManager
     private bool PreviewObservationEnabled=>true;
 #endif
     /// <summary>浏览需求只查索引并进入有界队列；网络、解码和原生操作均不在事件读线程或UI执行。</summary>
-    private void ApplyPreviewDemand(Runtime root,CloudMountSession session,IReadOnlyList<string> paths)
+    private void ApplyPreviewDemand(Runtime root,CloudMountSession session,IReadOnlyList<string> paths)=>ApplyPreviewDemand(root,session,new PreviewBrowseDemand(paths,paths.ToHashSet(StringComparer.OrdinalIgnoreCase)));
+    private void ApplyPreviewDemand(Runtime root,CloudMountSession session,PreviewBrowseDemand demand)
     {
+        var paths=demand.Paths;
         if(!BrowseDrivenPreviews||!CustomPreviewsAvailable||IsStopping||root.RemovalRequested||!root.Definition.ThumbnailsEnabled||!ReferenceEquals(root.Session,session))return;
         var selected=paths.Where(path=>Path.IsPathFullyQualified(path)&&MountPathGuard.IsUnder(root.Definition.LocalPath,path)).Select(path=>Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var pathSignature=string.Join("|",selected.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase));
+        var pathSignature=string.Join("|",selected.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase))+"#"+string.Join("|",demand.ForegroundPaths.OrderBy(path=>path,StringComparer.OrdinalIgnoreCase))+"#"+demand.Window+":"+demand.View;
         lock(_previewDemandGate){if(_previewDemand.TryGetValue(root.Definition.Id,out var previous)&&previous.Signature==pathSignature)return;}
-        var entries=_repository.EntriesAtPaths(root.Definition.Id,selected).Where(entry=>!entry.Deleted&&!entry.IsDirectory&&entry.Materialized&&entry.RemotePresence!=RemotePresence.Deleted).OrderBy(x=>x.Id,StringComparer.Ordinal).Take(128).ToArray();
+        var entries=_repository.EntriesAtPaths(root.Definition.Id,selected).Where(entry=>!entry.Deleted&&!entry.IsDirectory&&entry.Materialized&&entry.RemotePresence!=RemotePresence.Deleted).OrderBy(x=>x.Id,StringComparer.Ordinal).Take(512).ToArray();
         var signature=pathSignature;
         lock(_previewDemandGate){if(_previewDemand.TryGetValue(root.Definition.Id,out var previous)&&previous.Signature==signature)return;_previewDemand[root.Definition.Id]=(signature,entries.Select(x=>x.Id).ToHashSet(StringComparer.Ordinal));}
-        _previews.SetBrowseDemand(root.Definition,entries,RemoteThumbnailsAllowed);
+        _previews.SetBrowseDemand(root.Definition,entries,RemoteThumbnailsAllowed,entries.Where(entry=>demand.ForegroundPaths.Contains(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath))).Select(entry=>entry.Id).ToHashSet(StringComparer.Ordinal),demand.Window,demand.View);
     }
     /// <summary>水合完成仅优先当前浏览项目；测试兼容路径仍可显式验证历史队列。</summary>
     private void QueueLocalPreview(Runtime root,MountEntry entry)
@@ -80,7 +82,7 @@ public sealed partial class MountManager
     {
         if(!CustomPreviewsAvailable)return "disabled";if(size is <16 or >256)return "unsupported";
         var target=PreviewTarget(path);if(target is null)return "unsupported";
-        _previews.Queue(target.Value.Root.Definition,target.Value.Entry,RemoteThumbnailsAllowed);return _previews.State(target.Value.Root.Definition,target.Value.Entry);
+        _previews.Queue(target.Value.Root.Definition,target.Value.Entry,RemoteThumbnailsAllowed,urgent:false);return _previews.State(target.Value.Root.Definition,target.Value.Entry);
     }
     /// <summary>新宿主只请求已完整的本地内容，不复用旧进程可能联网的requestPreview语义。</summary>
     public string RequestLocalPreview(string path,int size)

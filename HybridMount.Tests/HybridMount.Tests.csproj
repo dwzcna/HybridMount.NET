@@ -87,6 +87,7 @@
     <Compile Include="..\HybridMount\Models\Mounting\MountingTask.cs" Link="Production\Models\Mounting\MountingTask.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\CloudOperationChannel.cs" Link="Production\Models\Mounting\CloudOperationChannel.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\OperationDependencies.cs" Link="Production\Models\Mounting\Transactions\OperationDependencies.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.FileOperations.cs" Link="Production\Services\Mounting\MountManager.FileOperations.cs"/>
     <Compile Include="..\HybridMount\Services\TasksQueueService.Channels.cs" Link="Production\Services\TasksQueueService.Channels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\NetworkFailureLog.cs" Link="Production\Models\Mounting\NetworkFailureLog.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\OperationDisplayOrder.cs" Link="Production\Models\Mounting\OperationDisplayOrder.cs"/>

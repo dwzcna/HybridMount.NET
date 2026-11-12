@@ -2411,4 +2411,27 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="SettingsCloudSave.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Save cloud concurrency</value></data>
   <data name="CloudWorkflowPhase" xml:space="preserve"><value>File workflow</value></data>
   <data name="CloudWaitingChannel" xml:space="preserve"><value>Waiting for channel or path: {0}</value></data>
+  <data name="TaskCanceling" xml:space="preserve"><value>Canceling</value></data>
+  <data name="TaskDeferred" xml:space="preserve"><value>Deferred</value></data>
+  <data name="TaskAlreadyCompleted" xml:space="preserve"><value>The task has completed.</value></data>
+  <data name="TaskChangedSelectAgain" xml:space="preserve"><value>The task has changed. Select it again.</value></data>
+  <data name="FileReleaseLocalProtected" xml:space="preserve"><value>The file is protected by local changes or an exclusion rule.</value></data>
+  <data name="FileReleaseUploadPending" xml:space="preserve"><value>Waiting for the local upload to finish.</value></data>
+  <data name="FileReleaseRemotePending" xml:space="preserve"><value>Waiting for remote changes to be verified.</value></data>
+  <data name="FileReleaseReadActive" xml:space="preserve"><value>Waiting for active readers to release the file.</value></data>
+  <data name="FileReleaseIntentChanged" xml:space="preserve"><value>The pin or release request for this file has changed.</value></data>
+  <data name="FileReleaseGuardPending" xml:space="preserve"><value>Waiting for safe release conditions.</value></data>
+  <data name="FileReleaseRecheck" xml:space="preserve"><value>Waiting to recheck release conditions.</value></data>
+  <data name="FileReleaseQueued" xml:space="preserve"><value>Waiting for local release verification.</value></data>
+  <data name="FileReleaseCompleted" xml:space="preserve"><value>Space has been freed.</value></data>
+  <data name="FileReleaseChanged" xml:space="preserve"><value>The release request has changed.</value></data>
+  <data name="FilePinCancelPending" xml:space="preserve"><value>The pinned download is being canceled. Wait for cleanup before pinning again.</value></data>
+  <data name="FileTaskFailure" xml:space="preserve"><value>Stage: {0}; HRESULT={1}; {2}</value></data>
+  <data name="FileCancelSessionChanged" xml:space="preserve"><value>The download connection changed before cancellation.</value></data>
+  <data name="FileCancelVersionChanged" xml:space="preserve"><value>The file identity or content version changed before clearing the pin.</value></data>
+  <data name="FileCancelInProgress" xml:space="preserve"><value>Pin cancellation is already in progress.</value></data>
+  <data name="FileReleaseOwnershipMismatch" xml:space="preserve"><value>The release intent does not belong to this file. Its content was kept.</value></data>
+  <data name="FileReleaseIdentityChanged" xml:space="preserve"><value>The identity of the file to release changed.</value></data>
+  <data name="FileReleaseVersionChanged" xml:space="preserve"><value>The content version changed. Check the release request again.</value></data>
+  <data name="FileReleaseIdentityBefore" xml:space="preserve"><value>The file identity changed before release. Its content was kept.</value></data>
 </root>

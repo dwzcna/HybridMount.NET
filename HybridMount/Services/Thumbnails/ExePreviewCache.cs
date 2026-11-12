@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Threading.Channels;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Thumbnails;
@@ -24,10 +23,10 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private readonly object _configurationGate=new();
     private readonly Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? _enter;
     private readonly Action<string>? _diagnostic;
-    private sealed class Work(MountDefinition mount,MountEntry entry,bool remote,CancellationToken stopping,bool browse=false,string stamp="")
+    private sealed class Work(MountDefinition mount,MountEntry entry,bool remote,CancellationToken stopping,bool browse=false,string stamp="",bool urgent=true)
     {
         public readonly string Stamp=stamp;public readonly long Submitted=Stopwatch.GetTimestamp();
-        public readonly MountDefinition Mount=mount;public readonly MountEntry Entry=entry;public readonly bool Remote=remote,Browse=browse;
+        public readonly MountDefinition Mount=mount;public readonly MountEntry Entry=entry;public readonly bool Remote=remote;public bool Browse=browse,Explicit=!browse,Urgent=urgent&&!browse;
         public readonly CancellationTokenSource Cancel=CancellationTokenSource.CreateLinkedTokenSource(stopping);
         public readonly TaskCompletionSource Completion=new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly object Sync=new();public bool Disposed,UserCanceled;
@@ -35,6 +34,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
         public void Dispose(){lock(Sync){if(Disposed)return;Disposed=true;Cancel.Dispose();}}
     }
     private readonly ConcurrentDictionary<string,Work> _pending=new();
+    private readonly ConcurrentDictionary<string,string> _userCanceled=new();
     private readonly ConcurrentDictionary<Guid,SemaphoreSlim> _mounts=new();
     private readonly ConcurrentDictionary<Guid,byte> _blocked=new();
     private sealed record Outcome(string Stage,DateTimeOffset Utc,int? HResult);
@@ -58,8 +58,30 @@ public sealed class ExePreviewCache : IAsyncDisposable
     /// <summary>生产固定合并250ms；内部回归可拉长到期时间，确定性覆盖计时器提前唤醒。</summary>
     internal TimeSpan NotificationDebounce {get;set;}=TimeSpan.FromMilliseconds(250);
     private readonly object _schedule=new();
-    private readonly Dictionary<Guid,(MountDefinition Mount,Dictionary<string,MountEntry> Entries,bool Remote)> _browseDemand=new();
-    private readonly Channel<Work> _queue=Channel.CreateBounded<Work>(new BoundedChannelOptions(128){SingleReader=true,FullMode=BoundedChannelFullMode.Wait});
+    private sealed record BrowseDemand(MountDefinition Mount,Dictionary<string,MountEntry> Entries,bool Remote,HashSet<string> Foreground,nint Window,nint View);
+    private readonly Dictionary<Guid,BrowseDemand> _browseDemand=new();
+    private readonly List<Work> _waiting=[];
+    private readonly HashSet<string> _satisfiedDemand=[];
+    private readonly SemaphoreSlim _queueWake=new(0,1);
+    /// <summary>仅调度锁内使用；优先级按最新需求求值，已开始的单文件不因焦点来回切换而反复中止。</summary>
+    private int WorkPriority(Work work)=>work.Urgent||_browseDemand.TryGetValue(work.Mount.Id,out var demand)&&demand.Foreground.Contains(work.Entry.Id)?1:0;
+    private void WakeQueue(){if(_queueWake.CurrentCount==0)_queueWake.Release();}
+    /// <summary>仅保留当前视口版本的备忘；版本变化与视图淘汰后释放旧键，长时间浏览不会无限累积。</summary>
+    private void PruneDemandMemos()
+    {
+        var live=_browseDemand.Values.SelectMany(demand=>demand.Entries.Values.Select(entry=>CacheKey(demand.Mount,entry,256))).ToHashSet(StringComparer.Ordinal);
+        _satisfiedDemand.IntersectWith(live);
+        foreach(var key in _userCanceled.Keys)if(!live.Contains(key)&&!_pending.ContainsKey(key))_userCanceled.TryRemove(key,out _);
+    }
+    /// <summary>通知只读取最新焦点证据；不解析Shell、不查询目录或触发源读取。</summary>
+    private bool NoticeForeground(Work work)
+    {
+        if(!_browseDemand.TryGetValue(work.Mount.Id,out var demand))return _currentMount is null&&!work.Browse;
+        return demand.Foreground.Contains(work.Entry.Id)&&(demand.Window==0||GetForegroundWindow()==demand.Window&&IsWindowVisible(demand.Window)&&(demand.View==0||IsWindowVisible(demand.View)));
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll")]private static extern nint GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll")][return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]private static extern bool IsWindowVisible(nint window);
+
     private readonly CancellationTokenSource _stop=new();
     private readonly Task _worker,_retryWorker;
     private readonly Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? _render;
@@ -67,6 +89,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
 #if HYBRIDMOUNT_HEADLESS_TEST
     /// <summary>隔离Shell集成测试可观察或抑制本实例的发布通知，不改变正式构建行为。</summary>
     internal Action<string>? ThumbnailNotificationForTests{get;set;}
+    internal int PendingForTests=>_pending.Count;
 #endif
     public ExePreviewCache(string directory,Func<MountDefinition,MountEntry,CancellationToken,Task<IDisposable?>>? enter=null,Action<string>? diagnostic=null,
         Func<MountDefinition,MountEntry,bool,CancellationToken,Task<Dictionary<int,byte[]>?>>? render=null)
@@ -118,7 +141,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
     }
 
     /// <summary>普通完成通知只处理完整本地文件；仅显式预览请求可读取远端，队列与挂载设置均有界。</summary>
-    public void Queue(MountDefinition mount,MountEntry entry,bool allowRemote=false,bool fromBrowse=false)
+    public void Queue(MountDefinition mount,MountEntry entry,bool allowRemote=false,bool fromBrowse=false,bool urgent=true)
     {
         if(!_available()||_stop.IsCancellationRequested||!mount.ThumbnailsEnabled||mount.RemovalPending||entry.Deleted||entry.RemotePresence==RemotePresence.Deleted||entry.IsDirectory||!entry.Materialized||!PreviewWorker.Supports(entry.LocalPath)||_blocked.ContainsKey(mount.Id))return;
         if(!allowRemote)
@@ -126,20 +149,31 @@ public sealed class ExePreviewCache : IAsyncDisposable
             var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
             try{if(!File.Exists(path)||!CloudFilesNative.HasFullContent(path,new FileInfo(path).Length))return;}catch(IOException){return;}catch(UnauthorizedAccessException){return;}
         }
+        var requestedKey=CacheKey(mount,entry,256);
+        lock(_schedule)if(_pending.TryGetValue(requestedKey,out var active)){active.Explicit|=!fromBrowse;active.Urgent|=urgent&&!fromBrowse;active.Browse|=fromBrowse;WakeQueue();return;}
         var root=ConfigureMount(mount);if(root is null)return;var binding=ThumbnailCacheReader.Capture(root,entry);if(binding is null)return;
         var stamp=binding.ContentKey+"|"+binding.Stamp;var key=CacheKey(mount,entry,256);
+        if(_userCanceled.TryGetValue(key,out var canceledStamp)){if(canceledStamp==stamp)return;_userCanceled.TryRemove(key,out _);}
         if(_failed.TryGetValue(key,out var failure)){if(failure.Stamp==stamp&&failure.Until>DateTime.UtcNow)return;_failed.TryRemove(key,out _);}
         lock(_schedule)
         {
-            if(_stop.IsCancellationRequested||_pending.Count>=128||_pending.ContainsKey(key)||HasFrames(mount,entry))return;
-            if(_blocked.ContainsKey(mount.Id)||_removed.ContainsKey(mount.Id))return;
-            var work=new Work(mount,entry,allowRemote,_stop.Token,fromBrowse,stamp);if(!_pending.TryAdd(key,work)||!_queue.Writer.TryWrite(work)){_pending.TryRemove(key,out _);work.Dispose();}
+            if(_stop.IsCancellationRequested||_blocked.ContainsKey(mount.Id)||_removed.ContainsKey(mount.Id))return;
+            if(_pending.TryGetValue(key,out var existing)){existing.Explicit|=!fromBrowse;existing.Urgent|=urgent&&!fromBrowse;existing.Browse|=fromBrowse;WakeQueue();return;}
+            if(HasFrames(mount,entry)){if(fromBrowse)_satisfiedDemand.Add(key);return;}
+            var work=new Work(mount,entry,allowRemote,_stop.Token,fromBrowse,stamp,urgent);
+            if(_pending.Count>=128)
+            {
+                var displaced=WorkPriority(work)>0?_waiting.LastOrDefault(item=>WorkPriority(item)==0):null;
+                if(displaced is null){work.Dispose();return;}
+                _waiting.Remove(displaced);_pending.TryRemove(CacheKey(displaced.Mount,displaced.Entry,256),out _);displaced.Completion.TrySetResult();displaced.Dispose();
+            }
+            if(_pending.TryAdd(key,work)){_waiting.Add(work);WakeQueue();}else work.Dispose();
         }
     }
     /// <summary>正文／版本更新只替换可见项；取消旧版本后重新排队，保留其他窗口及显式任务。</summary>
     internal void UpdateBrowseEntry(MountDefinition mount,MountEntry entry,bool remote)
     {
-        Work[] obsolete;lock(_schedule){if(!_browseDemand.TryGetValue(mount.Id,out var current)||!current.Entries.ContainsKey(entry.Id))return;current.Entries[entry.Id]=entry;obsolete=_pending.Values.Where(x=>x.Mount.Id==mount.Id&&x.Browse&&x.Entry.Id==entry.Id&&x.Entry.Version!=entry.Version).ToArray();}
+        Work[] obsolete;lock(_schedule){if(!_browseDemand.TryGetValue(mount.Id,out var current)||!current.Entries.ContainsKey(entry.Id))return;current.Entries[entry.Id]=entry;obsolete=_pending.Values.Where(x=>x.Mount.Id==mount.Id&&x.Browse&&x.Entry.Id==entry.Id&&x.Entry.Version!=entry.Version).ToArray();PruneDemandMemos();}
         foreach(var work in obsolete)_=work.RequestCancel();Queue(mount,entry,remote,true);
     }
     internal bool HasFrames(MountDefinition mount,MountEntry entry)
@@ -194,23 +228,35 @@ public sealed class ExePreviewCache : IAsyncDisposable
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
     /// <summary>只取消离开当前视图的浏览任务；显式请求及已接受的本地内容通知保持各自所有权。</summary>
-    internal void SetBrowseDemand(MountDefinition mount,IReadOnlyList<MountEntry> entries,bool remote)
+    internal void SetBrowseDemand(MountDefinition mount,IReadOnlyList<MountEntry> entries,bool remote,IReadOnlySet<string>? foreground=null,nint window=0,nint view=0)
     {
-        entries=entries.DistinctBy(entry=>entry.Id).Take(128).ToArray();
-        Work[] canceled;lock(_schedule){var current=entries.ToDictionary(x=>x.Id,StringComparer.Ordinal);if(current.Count==0)_browseDemand.Remove(mount.Id);else _browseDemand[mount.Id]=(mount,current,remote);canceled=_pending.Values.Where(x=>x.Mount.Id==mount.Id&&x.Browse&&(!current.TryGetValue(x.Entry.Id,out var latest)||latest.LocalPath!=x.Entry.LocalPath||latest.Version!=x.Entry.Version)).ToArray();}
+        entries=entries.DistinctBy(entry=>entry.Id).Take(512).ToArray();
+        Work[] canceled;lock(_schedule){var current=entries.ToDictionary(x=>x.Id,StringComparer.Ordinal);if(current.Count==0)_browseDemand.Remove(mount.Id);else _browseDemand[mount.Id]=new(mount,current,remote,(foreground??current.Keys.ToHashSet(StringComparer.Ordinal)).ToHashSet(StringComparer.Ordinal),window,view);canceled=_pending.Values.Where(x=>x.Mount.Id==mount.Id&&x.Browse&&!x.Explicit&&(!current.TryGetValue(x.Entry.Id,out var latest)||latest.LocalPath!=x.Entry.LocalPath||latest.Version!=x.Entry.Version)).ToArray();PruneDemandMemos();}
         foreach(var work in canceled)_=work.RequestCancel();
-        foreach(var entry in entries)Queue(mount,entry,remote,true);
+        foreach(var entry in entries)if(foreground is null||foreground.Contains(entry.Id))_userCanceled.TryRemove(CacheKey(mount,entry,256),out _);
+        foreach(var entry in entries.OrderByDescending(entry=>foreground is null||foreground.Contains(entry.Id)))
+        {
+            Queue(mount,entry,remote,true);
+            // 后台通知被容量淘汰时，重获焦点可从持久缓存重建通知，不重复解码。
+            if((foreground is null||foreground.Contains(entry.Id))&&HasFrames(mount,entry)&&_configured.TryGetValue(mount.Id,out var configured)&&ThumbnailCacheReader.Capture(configured.Actual,entry) is {} binding)
+            {
+                var cached=new Work(mount,entry,remote,_stop.Token,true);
+                lock(_schedule){if(_notifications.Count<128||_notifications.ContainsKey(binding.Path))_notifications[binding.Path]=(cached,binding,DateTime.UtcNow.Add(NotificationDebounce));}
+                cached.Dispose();
+            }
+        }
+        lock(_schedule){WakeQueue();if(_notificationWake.CurrentCount==0)_notificationWake.Release();}
     }
     /// <summary>任务页取消当前单文件预览，不关闭根开关；同一工作不立即自行重排，后续浏览可重建瞬时需求。</summary>
     internal bool CancelEntry(Guid mount,string entry)
     {
         var pending=_pending.Values.Where(x=>x.Mount.Id==mount&&x.Entry.Id==entry).ToArray();
-        foreach(var work in pending){lock(work.Sync)work.UserCanceled=true;_=work.RequestCancel();}return pending.Length>0;
+        foreach(var work in pending){_userCanceled[CacheKey(work.Mount,work.Entry,256)]=work.Stamp;lock(work.Sync)work.UserCanceled=true;_=work.RequestCancel();}return pending.Length>0;
     }
     /// <summary>关闭／断开先阻止新任务，再取消并等待此挂载所有工作；不持有根锁等待其他挂载。</summary>
     public async Task CancelMountAsync(Guid mount)
     {
-        Work[] pending;lock(_schedule){_blocked[mount]=0;_browseDemand.Remove(mount);pending=_pending.Values.Where(work=>work.Mount.Id==mount).ToArray();}
+        Work[] pending;lock(_schedule){_blocked[mount]=0;_browseDemand.Remove(mount);PruneDemandMemos();pending=_pending.Values.Where(work=>work.Mount.Id==mount).ToArray();}
         await Task.WhenAll(pending.Select(work=>work.RequestCancel())).ConfigureAwait(false);
         await Task.WhenAll(pending.Select(work=>work.Completion.Task)).ConfigureAwait(false);
     }
@@ -223,11 +269,12 @@ public sealed class ExePreviewCache : IAsyncDisposable
     public void ResumeMount(Guid mount){_blocked.TryRemove(mount,out _);foreach(var row in _failed.Where(row=>row.Value.Mount==mount))_failed.TryRemove(row.Key,out _);}
     public string State(MountDefinition mount,MountEntry entry)=>!_available()||!mount.ThumbnailsEnabled?"disabled":_pending.ContainsKey(CacheKey(mount,entry,256))?"queued":_failed.TryGetValue(CacheKey(mount,entry,256),out var failed)&&failed.Until>DateTime.UtcNow?"unsupported":"notFound";
     /// <summary>只读队列和负缓存状态，诊断不排队、不读取远端。</summary>
-    internal string Describe(Guid mount)=>$"待处理={_pending.Values.Count(x=>x.Mount.Id==mount)}；暂缓={_failed.Values.Count(x=>x.Mount==mount&&x.Until>DateTime.UtcNow)}；停止接收={_blocked.ContainsKey(mount)}"
+    internal string Describe(Guid mount){lock(_schedule)return $"待处理={_pending.Values.Count(x=>x.Mount.Id==mount)}；暂缓={_failed.Values.Count(x=>x.Mount==mount&&x.Until>DateTime.UtcNow)}；停止接收={_blocked.ContainsKey(mount)}"
+        +$"；前台等待={_pending.Values.Count(work=>work.Mount.Id==mount&&WorkPriority(work)>0)}；后台等待={_pending.Values.Count(work=>work.Mount.Id==mount&&WorkPriority(work)==0)}"
         +$"\n生成统计：已发布={_publishedCount.GetValueOrDefault(mount)}；不可用={_unavailableCount.GetValueOrDefault(mount)}；已取消={_canceledCount.GetValueOrDefault(mount)}"
         +"\n阶段统计："+string.Join("；",_timings.Where(x=>x.Key.Mount==mount).OrderBy(x=>x.Key.Stage).Select(x=>$"{x.Key.Stage}={x.Value.Count}次/{x.Value.Milliseconds}ms"))
         +(_lastOutcome.TryGetValue(mount,out var latest)?"\n最近生成／缓存结果："+DescribeOutcome(latest):"")
-        +(_lastFailure.TryGetValue(mount,out var failure)?"\n最近失败："+DescribeOutcome(failure):"");
+        +(_lastFailure.TryGetValue(mount,out var failure)?"\n最近失败："+DescribeOutcome(failure):"");}
     /// <summary>有界本机查询；缓存不存在、失效或被回收均返回空值，不启动提取。</summary>
     public byte[]? Get(MountDefinition mount,MountEntry entry,int size)
     {
@@ -242,8 +289,32 @@ public sealed class ExePreviewCache : IAsyncDisposable
     }
     private async Task ProcessAsync()
     {
-        try{await foreach(var work in _queue.Reader.ReadAllAsync().ConfigureAwait(false))_ = ProcessWorkAsync(work);}
-        finally{await Task.WhenAll(_pending.Values.Select(work=>work.Completion.Task)).ConfigureAwait(false);}
+        try
+        {
+            while(true)
+            {
+                await _queueWake.WaitAsync(_stop.Token).ConfigureAwait(false);
+                while(true)
+                {
+                    Work? work;lock(_schedule){work=_waiting.OrderByDescending(WorkPriority).ThenBy(item=>item.Submitted).FirstOrDefault();if(work is not null)_waiting.Remove(work);}
+                    if(work is null)break;
+                    await ProcessWorkAsync(work).ConfigureAwait(false);
+                    (MountDefinition Mount,MountEntry Entry,bool Remote)[] refill;
+                    lock(_schedule)refill=_browseDemand.Values.SelectMany(demand=>demand.Entries.Values.OrderByDescending(entry=>demand.Foreground.Contains(entry.Id)).Select(entry=>(demand.Mount,entry,demand.Remote))).ToArray();
+                    foreach(var next in refill)
+                    {
+                        if(_stop.IsCancellationRequested)break;var key=CacheKey(next.Mount,next.Entry,256);
+                        lock(_schedule){if(_pending.Count>=128)break;if(_pending.ContainsKey(key)||_satisfiedDemand.Contains(key)||_failed.TryGetValue(key,out var failure)&&failure.Until>DateTime.UtcNow)continue;}
+                        Queue(next.Mount,next.Entry,next.Remote,true);
+                    }
+                }
+            }
+        }
+        catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
+        finally
+        {
+            lock(_schedule){foreach(var work in _waiting){_pending.TryRemove(CacheKey(work.Mount,work.Entry,256),out _);work.Completion.TrySetResult();work.Dispose();}_waiting.Clear();}
+        }
     }
     private async Task ProcessWorkAsync(Work work)
     {
@@ -291,9 +362,9 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private bool PublishCurrent(Work work,ThumbnailCacheBinding binding,IReadOnlyDictionary<int,byte[]> frames)
     {
         lock(_schedule){if(work.Cancel.IsCancellationRequested||_blocked.ContainsKey(work.Mount.Id)||_removed.ContainsKey(work.Mount.Id))return false;
-            if(work.Browse&&(!_browseDemand.TryGetValue(work.Mount.Id,out var current)||!current.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.LocalPath!=work.Entry.LocalPath||latest.Version!=work.Entry.Version))return false;
+            if(work.Browse&&!work.Explicit&&(!_browseDemand.TryGetValue(work.Mount.Id,out var current)||!current.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.LocalPath!=work.Entry.LocalPath||latest.Version!=work.Entry.Version))return false;
             var published=Stopwatch.GetTimestamp();if(!_store.Publish(binding,frames))return false;RecordTiming(work.Mount.Id,"发布",(long)Stopwatch.GetElapsedTime(published).TotalMilliseconds);
-            _publishedCount.AddOrUpdate(work.Mount.Id,1,(_,count)=>count+1);RecordOutcome(work.Mount.Id,"缓存已发布");
+            if(work.Browse)_satisfiedDemand.Add(CacheKey(work.Mount,work.Entry,256));_publishedCount.AddOrUpdate(work.Mount.Id,1,(_,count)=>count+1);RecordOutcome(work.Mount.Id,"缓存已发布");
             if(_notifications.Count>=128&&!_notifications.ContainsKey(binding.Path))_notifications.Remove(_notifications.First().Key);
             _notifications[binding.Path]=(work,binding,DateTime.UtcNow.Add(NotificationDebounce));if(_notificationWake.CurrentCount==0)_notificationWake.Release();return true;}
     }
@@ -310,7 +381,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
                     _stop.Token.ThrowIfCancellationRequested();var started=Stopwatch.GetTimestamp();Guid mount=Guid.Empty;TimeSpan? remaining=null;
                     lock(_schedule)
                     {
-                        if(_notifications.Count==0)break;var first=_notifications.MinBy(item=>item.Value.Due);
+                        if(_notifications.Count==0)break;var eligible=_notifications.Where(item=>NoticeForeground(item.Value.Work)).ToArray();if(eligible.Length==0)break;var first=eligible.MinBy(item=>item.Value.Due);
                         var delay=first.Value.Due-DateTime.UtcNow;
                         if(delay>TimeSpan.Zero)remaining=delay;
                         else
@@ -318,7 +389,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
                             _notifications.Remove(first.Key);var (work,binding,_)=first.Value;mount=work.Mount.Id;
                             if(work.Cancel.IsCancellationRequested||_blocked.ContainsKey(mount)||_removed.ContainsKey(mount)||!_available()||!_configured.TryGetValue(mount,out var root)||root.Actual!=binding.Root)continue;
                             if(_currentMount is not null&&(_currentMount(mount) is not {} current||ThumbnailCacheReader.RootFor(current)!=root.Requested))continue;
-                            if(work.Browse&&(!_browseDemand.TryGetValue(mount,out var demand)||!demand.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.Version!=work.Entry.Version||latest.LocalPath!=work.Entry.LocalPath))continue;
+                            if(work.Browse&&!work.Explicit&&(!_browseDemand.TryGetValue(mount,out var demand)||!demand.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.Version!=work.Entry.Version||latest.LocalPath!=work.Entry.LocalPath))continue;
                             if(!ThumbnailCacheReader.Valid(binding))continue;
 #if HYBRIDMOUNT_HEADLESS_TEST
                             if(ThumbnailNotificationForTests is {} notify)notify(binding.Path);else
@@ -351,7 +422,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
     /// <summary>后台统一回收数据库BLOB，不散落图片文件或手工删除WAL。</summary>
     public long Trim(long needed){lock(_configurationGate){if(_store.UsageBytes==0)return 0;try{return _store.Trim(needed);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException){return 0;}}}
     /// <summary>只发信号；宿主同时取消其他工作之后再等待本队列结束。</summary>
-    public Task RequestStop(){lock(_schedule){_queue.Writer.TryComplete();return _cancellation??=_stop.CancelAsync();}}
+    public Task RequestStop(){lock(_schedule){return _cancellation??=_stop.CancelAsync();}}
     public ValueTask DisposeAsync(){lock(_schedule)return new(_dispose??=StopAsync());}
-    private async Task StopAsync(){await RequestStop().ConfigureAwait(false);await _worker.ConfigureAwait(false);await _notificationWorker.ConfigureAwait(false);await _retryWorker.ConfigureAwait(false);_notificationWake.Dispose();_slots.Dispose();foreach(var gate in _mounts.Values)gate.Dispose();_stop.Dispose();}
+    private async Task StopAsync(){await RequestStop().ConfigureAwait(false);await _worker.ConfigureAwait(false);await _notificationWorker.ConfigureAwait(false);await _retryWorker.ConfigureAwait(false);_notificationWake.Dispose();_slots.Dispose();_queueWake.Dispose();foreach(var gate in _mounts.Values)gate.Dispose();_stop.Dispose();}
 }

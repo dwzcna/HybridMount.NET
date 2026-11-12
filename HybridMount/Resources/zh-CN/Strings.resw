@@ -2411,4 +2411,27 @@
   <data name="SettingsCloudSave.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存云操作线程数</value></data>
   <data name="CloudWorkflowPhase" xml:space="preserve"><value>文件工作流</value></data>
   <data name="CloudWaitingChannel" xml:space="preserve"><value>等待通道或路径：{0}</value></data>
+  <data name="TaskCanceling" xml:space="preserve"><value>取消中</value></data>
+  <data name="TaskDeferred" xml:space="preserve"><value>暂缓</value></data>
+  <data name="TaskAlreadyCompleted" xml:space="preserve"><value>任务已经完成。</value></data>
+  <data name="TaskChangedSelectAgain" xml:space="preserve"><value>任务状态已变化，请重新选择。</value></data>
+  <data name="FileReleaseLocalProtected" xml:space="preserve"><value>文件被本地修改或排除规则保护。</value></data>
+  <data name="FileReleaseUploadPending" xml:space="preserve"><value>等待本地上传完成。</value></data>
+  <data name="FileReleaseRemotePending" xml:space="preserve"><value>等待远端变更核对。</value></data>
+  <data name="FileReleaseReadActive" xml:space="preserve"><value>文件仍有活动读取，等待占用释放。</value></data>
+  <data name="FileReleaseIntentChanged" xml:space="preserve"><value>文件的固定或释放意图已改变。</value></data>
+  <data name="FileReleaseGuardPending" xml:space="preserve"><value>等待释放保护条件就绪。</value></data>
+  <data name="FileReleaseRecheck" xml:space="preserve"><value>等待重新核验释放条件。</value></data>
+  <data name="FileReleaseQueued" xml:space="preserve"><value>等待本地释放核验。</value></data>
+  <data name="FileReleaseCompleted" xml:space="preserve"><value>释放已完成。</value></data>
+  <data name="FileReleaseChanged" xml:space="preserve"><value>释放意图已改变。</value></data>
+  <data name="FilePinCancelPending" xml:space="preserve"><value>固定下载正在取消，请等待收尾后重新固定。</value></data>
+  <data name="FileTaskFailure" xml:space="preserve"><value>阶段：{0}；HRESULT={1}；{2}</value></data>
+  <data name="FileCancelSessionChanged" xml:space="preserve"><value>取消前下载连接已变化。</value></data>
+  <data name="FileCancelVersionChanged" xml:space="preserve"><value>取消固定前文件身份或内容版本已变化。</value></data>
+  <data name="FileCancelInProgress" xml:space="preserve"><value>固定取消已在处理。</value></data>
+  <data name="FileReleaseOwnershipMismatch" xml:space="preserve"><value>释放意图不属于此文件，已保留内容。</value></data>
+  <data name="FileReleaseIdentityChanged" xml:space="preserve"><value>释放文件身份已变化。</value></data>
+  <data name="FileReleaseVersionChanged" xml:space="preserve"><value>释放内容版本已变化，请重新核对。</value></data>
+  <data name="FileReleaseIdentityBefore" xml:space="preserve"><value>释放前文件身份已变化，保留内容。</value></data>
 </root>

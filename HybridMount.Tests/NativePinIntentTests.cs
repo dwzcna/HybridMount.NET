@@ -121,7 +121,7 @@ public sealed class NativePinIntentTests
             SetPin(path,1);await held.Task.WaitAsync(TimeSpan.FromSeconds(5));Assert.True(CloudFilesNative.HasFullContent(path,test.Dav.Objects["文件.bin"].Bytes.Length));
             SetPin(path,2);await Task.Delay(300);Assert.True(CloudFilesNative.Inspect(path)!.Value.Info.OnDiskSize>0);
             release.TrySetResult();
-            await Eventually(()=>CloudFilesNative.Inspect(path)!.Value.Info.OnDiskSize==0&&CloudShellState.Read(path).ProviderState==1,"水合资源归还后未立即重新完成释放。");
+            await Eventually(()=>CloudFilesNative.Inspect(path)!.Value.Info.OnDiskSize==0&&CloudShellState.Read(path).ProviderState==1,"水合资源归还后未立即重新完成释放。 "+System.Text.Json.JsonSerializer.Serialize(test.Manager.Operations));
         }
         finally{release.TrySetResult();}
         Assert.DoesNotContain(test.Dav.Server.Requests,r=>r.Method=="PUT");

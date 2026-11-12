@@ -27,6 +27,23 @@ public sealed class ForegroundObserverTests
         }finally{if(!process.HasExited){process.Kill(true);await process.WaitForExitAsync();}}
     }
     [Fact(Timeout=15000)]
+    public async Task RetainedViewsEvictOldestBackgroundAtEightAndKeepCurrentView()
+    {
+        var steps=new List<object>();
+        for(var i=1;i<=9;i++){steps.Add(Focus(i,i*10));steps.Add(Step("retain",i*10+1,("value",new{owned=true,complete=true,directory=@"D:\isolated",paths=new[]{@$"D:\isolated\{i}.bmp"},viewId="tab-"+i,viewWindow=i+100})));}
+        steps.Add(Step("retainedFrame",100));var result=await Run(steps.ToArray());var views=At(result,steps.Count-1).GetProperty("retainedFrame").GetProperty("views").EnumerateArray().ToArray();
+        Assert.Equal(8,views.Length);Assert.DoesNotContain(views,view=>view.GetProperty("viewId").GetString()=="tab-1");Assert.Single(views,view=>view.GetProperty("foreground").GetBoolean());
+    }
+    [Fact(Timeout=15000)]
+    public async Task RetainedViewportDemotesWithoutRootQueryAndNavigationRemovesOnlyThatView()
+    {
+        var value=new{owned=true,complete=true,directory=@"D:\isolated",paths=new[]{@"D:\isolated\a.bmp"},viewId="tab-a",viewWindow=11};
+        var result=await Run([Focus(1),Step("retain",1,("value",value)),Step("retainedFrame",2),Focus(0,3),Step("retainedFrame",4),Step("forgetView",5,("id","tab-a")),Step("retainedFrame",6)]);
+        var before=At(result,2).GetProperty("retainedFrame").GetProperty("views");Assert.Single(before.EnumerateArray());Assert.True(before[0].GetProperty("foreground").GetBoolean());
+        var background=At(result,4).GetProperty("retainedFrame").GetProperty("views");Assert.Single(background.EnumerateArray());Assert.False(background[0].GetProperty("foreground").GetBoolean());
+        Assert.Equal(1,At(result,4).GetProperty("rootChecks").GetInt32());Assert.Empty(At(result,6).GetProperty("retainedFrame").GetProperty("views").EnumerateArray());
+    }
+    [Fact(Timeout=15000)]
     public async Task DiagnosticsDoNotStartObserverOrTouchShell()
     {
         await using var runtime=await HybridMount.Services.Runtime.NativeRuntimeClient.StartOwnedForTestsAsync();

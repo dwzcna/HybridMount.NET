@@ -17,6 +17,22 @@ public sealed class NativeRuntimeTransportTests
         Assert.Equal("operation",NativeRuntimeClient.FailureStage(NativeRuntimeProtocol.Element(new{})));
     }
     [Fact(Timeout=15000)]
+    public async Task DroppedPreviewWakeStillPublishesTheLatestWithdrawalAfterNoticeFlood()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var release=new ManualResetEventSlim();
+        var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var withdrawn=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var mount=Guid.NewGuid().ToString("N");
+        runtime.EventReceived+=value=>{if(value.Event=="renameRejected"&&value.Data.TryGetProperty("block",out _)){entered.TrySetResult();release.Wait(TimeSpan.FromSeconds(10));}else if(value.Event=="previewDemand"&&value.Data.GetProperty("paths").GetArrayLength()==0)withdrawn.TrySetResult();};
+        try
+        {
+            runtime.PostPreviewForTests(new(mount,"session","renameRejected",NativeRuntimeProtocol.Element(new{block=true})));await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            runtime.PostPreviewForTests(new(mount,"session","previewDemand",NativeRuntimeProtocol.Element(new{complete=true,paths=new[]{"old.bmp"}})));
+            for(var index=0;index<512;index++)runtime.PostPreviewForTests(new(mount,"session","renameRejected",NativeRuntimeProtocol.Element(new{sequence=index})));
+            runtime.PostPreviewForTests(new(mount,"session","previewDemand",NativeRuntimeProtocol.Element(new{complete=true,paths=Array.Empty<string>()})));
+            release.Set();await withdrawn.Task.WaitAsync(TimeSpan.FromSeconds(3));Assert.True(runtime.IsAvailable);
+        }
+        finally{release.Set();}
+    }
+    [Fact(Timeout=15000)]
     public async Task SlowMetadataPoolCannotOccupyCompletionOrOrdinaryWorkers()
     {
         await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();

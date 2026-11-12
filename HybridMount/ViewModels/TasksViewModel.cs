@@ -92,7 +92,8 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=true;_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));
         OnPropertyChanged(nameof(IssuesOnly));OnPropertyChanged(nameof(SelectedTaskFilter));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
     }
-    public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed)SetProperty(ref _selectedJob,value);}}
+    public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed&&SetProperty(ref _selectedJob,value))OnPropertyChanged(nameof(CanCancelSelected));}}
+    public bool CanCancelSelected=>!_disposed&&!_queue.IsStopping&&Selected is {State:not("Completed" or "Canceled" or "Failed" or "Superseded" or "Interrupted" or "Canceling")} selected&&selected.Operation!="freeSpace";
     public TaskListItem? SelectedRow=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
     public MountOperationSnapshot? Selected=>SelectedRow?.Snapshot;
     public string CopyPath {get=>_copyPath;set{if(!_disposed)SetProperty(ref _copyPath,value);}}
@@ -101,19 +102,19 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if(_disposed||_queue.IsStopping)return;
         if(Selected is not {} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_A1480CEA066A");return;}
-        try{var result=await _queue.RunClientActionAsync(()=>_queue.Cancel(selected.Id));if(!_disposed)Status=result?selected.Operation=="excludedRename"?global::HybridMount.Services.Localization.UiText.Text("Text_1D73995960A9"):global::HybridMount.Services.Localization.UiText.Text("Text_B868FAF07C8A"):global::HybridMount.Services.Localization.UiText.Text("Text_B0B8AFEBEAD6");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
+        try{var result=await _queue.RunClientActionAsync(()=>_queue.CancelSelected(selected));if(!_disposed)Status=result?selected.Operation=="excludedRename"?global::HybridMount.Services.Localization.UiText.Text("Text_1D73995960A9"):global::HybridMount.Services.Localization.UiText.Text("Text_B868FAF07C8A"):_queue.GetOperation(selected.Id)?.State=="Completed"?global::HybridMount.Services.Localization.UiText.Text("TaskAlreadyCompleted"):global::HybridMount.Services.Localization.UiText.Text("TaskChangedSelectAgain");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public async Task RetrySelectedAsync()
     {
         if(_disposed||_queue.IsStopping)return;
-        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_44C6E3CF9291");return;}
+        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename" or "freeSpace"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_44C6E3CF9291");return;}
         try{var result=await _queue.RunClientActionAsync(()=>_queue.RetryUpload(selected.Id));if(!_disposed)Status=result?global::HybridMount.Services.Localization.UiText.Text("Text_F8FFEB435E02"):global::HybridMount.Services.Localization.UiText.Text("Text_EA215D28117F");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     /// <summary>只读核对改名收尾，不授权再次删除或重新上传。</summary>
     public async Task RecheckSelectedAsync()
     {
         if(_disposed||_queue.IsStopping)return;
-        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_320256ADF69A");return;}
+        if(Selected is not {Operation:"upload" or "remoteUpdate" or "excludedRename" or "freeSpace"} selected){Status=global::HybridMount.Services.Localization.UiText.Text("Text_320256ADF69A");return;}
         try{var result=await _queue.RunClientActionAsync(()=>_queue.RecheckOperation(selected.Id));if(!_disposed)Status=result?global::HybridMount.Services.Localization.UiText.Text("Text_CB337BBDEC92"):global::HybridMount.Services.Localization.UiText.Text("Text_335625D8BF94");}catch(Exception error){PublishStatus(error.Message,PageMessageSeverity.Error);_queue.ReportDiagnosticException("任务页面","任务页面操作未完成",error);}
     }
     public bool BeginCopy()
@@ -210,7 +211,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         var structure=!Operations.Select(row=>row.Id).SequenceEqual(snapshot.Visible.Select(value=>value.Id),StringComparer.Ordinal);
         if(structure)Refreshing?.Invoke();TaskListItem.Reconcile(Operations,snapshot.Visible);
         if(_selectedJob is null&&HasIssueFilter)SelectedJobId=Operations.FirstOrDefault()?.Id;
-        NotifyClearState();OnPropertyChanged(nameof(Selected));if(structure)Refreshed?.Invoke();
+        NotifyClearState();OnPropertyChanged(nameof(Selected));OnPropertyChanged(nameof(CanCancelSelected));if(structure)Refreshed?.Invoke();
     }
     private void SnapshotFailed(Exception error)
     {

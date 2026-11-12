@@ -126,7 +126,7 @@ public partial class App:Application
             if(request.Operation=="getOperation")
             {
                 var job=Mounts.GetOperation(request.JobId!);
-                return new(2,request.RequestId,job is null?"notFound":"ok",global::HybridMount.Services.Localization.UiText.Text("Text_65C8EFD51BD1"),request.JobId,job is null?null:job with{Results=job.Results.Take(3).ToArray()});
+                return new(2,request.RequestId,job is null?"notFound":"ok",global::HybridMount.Services.Localization.UiText.Text("Text_65C8EFD51BD1"),request.JobId,job is null?null:job.WithoutLocalEvidence() with{Results=job.Results.Take(3).ToArray()});
             }
             if(request.Operation=="cancelOperation")return new(2,request.RequestId,Mounts.Cancel(request.JobId!)?"accepted":"notFound",global::HybridMount.Services.Localization.UiText.Text("Text_234B77A1E2E0"),request.JobId);
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);

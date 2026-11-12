@@ -4,8 +4,9 @@ namespace HybridMount.Helpers.Threading;
 /// <remarks>不缓存已完成的结果。工作使用自己的令牌，不能捕获首位调用者的令牌或借用其资源。</remarks>
 public sealed class SharedAsyncWork<TKey,TValue>(int capacity=int.MaxValue) : IAsyncDisposable where TKey : notnull
 {
-    private sealed class Job
+    private sealed class Job(TKey key)
     {
+        public readonly TKey Key=key;
         public readonly CancellationTokenSource Cancel=new();
         public Task<TValue> Work=null!;
         public int Waiters;
@@ -32,7 +33,7 @@ public sealed class SharedAsyncWork<TKey,TValue>(int capacity=int.MaxValue) : IA
                 if(!_jobs.TryGetValue(key,out job!))
                 {
                     if(_running.Count>=_capacity)throw new SharedWorkCapacityException();
-                    job=new();_jobs.Add(key,job);_running.Add(job);
+                    job=new(key);_jobs.Add(key,job);_running.Add(job);
                     var owned=resource;resource=null;
                     var captured=job;
                     job.Work=Task.Run(async()=>
@@ -69,6 +70,13 @@ public sealed class SharedAsyncWork<TKey,TValue>(int capacity=int.MaxValue) : IA
             }
             if(cancel)try{await job.Cancel.CancelAsync().ConfigureAwait(false);}catch(ObjectDisposedException){}
         }
+    }
+    /// <summary>业务所有者显式撤销同键生产者并等待资源收尾；普通等待者取消仍保持原独立语义。</summary>
+    internal async Task CancelAndDrainAsync(TKey key)
+    {
+        Job[] jobs;lock(_gate){jobs=_running.Where(job=>EqualityComparer<TKey>.Default.Equals(job.Key,key)).ToArray();_jobs.Remove(key);}
+        foreach(var job in jobs)try{await job.Cancel.CancelAsync().ConfigureAwait(false);}catch(ObjectDisposedException){}
+        foreach(var job in jobs)try{await job.Work.ConfigureAwait(false);}catch(Exception){/* 终态由原等待者观察，撤销者只等待资源。 */}
     }
     /// <summary>先禁止加入、取消所有工作，再等待资源归还；重复释放共享一次完成任务。</summary>
     public ValueTask DisposeAsync()

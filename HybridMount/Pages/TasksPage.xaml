@@ -73,7 +73,7 @@
                 </CommandBar>
             </StackPanel>
             <CommandBar x:Name="TaskActions" Grid.Column="1" HorizontalContentAlignment="Right" Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/TasksPageTaskActions" loc:Ui.ResourceId="/Strings/TasksPageTaskActions">
-                <AppBarButton Icon="Cancel" AccessKey="C" Click="CancelJob" x:Uid="/Strings/TasksPageAppBarButtonCancelSelectedTask" loc:Ui.ResourceId="/Strings/TasksPageAppBarButtonCancelSelectedTask"/>
+                <AppBarButton Icon="Cancel" AccessKey="C" Click="CancelJob" IsEnabled="{x:Bind ViewModel.CanCancelSelected,Mode=OneWay}" x:Uid="/Strings/TasksPageAppBarButtonCancelSelectedTask" loc:Ui.ResourceId="/Strings/TasksPageAppBarButtonCancelSelectedTask"/>
                 <AppBarButton Icon="Help" AccessKey="X" Click="ResolveConflict" x:Uid="/Strings/TasksPageAppBarButtonResolveConflict" loc:Ui.ResourceId="/Strings/TasksPageAppBarButtonResolveConflict"/>
                 <AppBarButton Icon="View" AccessKey="V" Click="ShowResults" x:Uid="/Strings/TasksPageAppBarButtonViewResults" loc:Ui.ResourceId="/Strings/TasksPageAppBarButtonViewResults"/>
                 <AppBarButton Icon="Refresh" AccessKey="R" Click="RetryUpload" x:Uid="/Strings/TasksPageAppBarButtonRetrySelected" loc:Ui.ResourceId="/Strings/TasksPageAppBarButtonRetrySelected"/>

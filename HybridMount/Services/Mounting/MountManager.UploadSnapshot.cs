@@ -149,7 +149,7 @@ public sealed partial class MountManager
             if(committedStamp is not null&&completed.State=="Completed")notifyPath=path;
             CompleteOwnUploadEcho(root,receipt);
             await UploadCheckpointAsync("Committed",completed).ConfigureAwait(false);
-            if(committedStamp is not null&&exists)_previews.Queue(root.Definition,entry);
+            if(committedStamp is not null&&exists)QueueLocalPreview(root,entry);
             PublishUpload(completed);DeleteUploadSnapshot(prepared.SnapshotPath);root.Uploads?.Wake();
         }
         finally
