@@ -127,12 +127,15 @@ foreach ($scale in @(100,125,150,200,400)) {
     New-LogoPng "HybridMountSplash.scale-$scale.png" (620*$scale/100) (300*$scale/100) (160*$scale/100)
     New-LogoPng "HybridMountStore.scale-$scale.png" (50*$scale/100) (50*$scale/100) (50*$scale/100)
 }
-$sizes = @(16,20,24,32,40,44,48,64,96,128,256)
-foreach ($size in $sizes) {
+$iconSizes = @(16,20,24,32,40,44,48,64,96,128,256)
+# 任务栏按实际像素尺寸选择图标；浅色主题也提供独立的透明无底板资源。
+$shellSizes = @(16,20,24,30,32,36,40,44,48,60,64,72,80,96,128,256)
+foreach ($size in $shellSizes) {
     New-LogoPng "HybridMountSquare44.targetsize-${size}_altform-unplated.png" $size $size $size
+    New-LogoPng "HybridMountSquare44.targetsize-${size}_altform-lightunplated.png" $size $size $size
 }
 New-LogoPng 'HybridMount.png' 256 256 256
 # 应用ICO继续复用同一导出器，保留托盘与高DPI所需帧。
-$frames=@(foreach($size in $sizes){[pscustomobject]@{Size=$size;Bytes=[IO.File]::ReadAllBytes((Join-Path $assetRoot "HybridMountSquare44.targetsize-${size}_altform-unplated.png"))}})
+$frames=@(foreach($size in $iconSizes){[pscustomobject]@{Size=$size;Bytes=[IO.File]::ReadAllBytes((Join-Path $assetRoot "HybridMountSquare44.targetsize-${size}_altform-unplated.png"))}})
 Write-Icon (Join-Path $assetRoot 'HybridMount.ico') $frames
 Write-Host 'HybridMount 骡子图标和 MSIX 资源已重新生成。'
