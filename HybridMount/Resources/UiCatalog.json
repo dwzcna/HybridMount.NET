@@ -711,7 +711,7 @@
     "LocalizableArguments": []
   },
   "Text_4438ABDEDD78": {
-    "Source": "HybridMount 加密配置",
+    "Source": "HybridMount JSON 配置备份",
     "LocalizableArguments": []
   },
   "Text_4465E830BDF6": {
@@ -2783,5 +2783,29 @@
 "FileReleaseOwnershipMismatch": {"Source": "释放意图不属于此文件，已保留内容。", "LocalizableArguments": []},
 "FileReleaseIdentityChanged": {"Source": "释放文件身份已变化。", "LocalizableArguments": []},
 "FileReleaseVersionChanged": {"Source": "释放内容版本已变化，请重新核对。", "LocalizableArguments": []},
-"FileReleaseIdentityBefore": {"Source": "释放前文件身份已变化，保留内容。", "LocalizableArguments": []}
+"FileReleaseIdentityBefore": {"Source": "释放前文件身份已变化，保留内容。", "LocalizableArguments": []},
+  "BackupPasswordMinimum": {
+    "Source": "启用密码保护时至少需要 8 个字符。",
+    "LocalizableArguments": []
+  },
+  "BackupInvalidFile": {
+    "Source": "配置备份格式无效或文件已损坏。",
+    "LocalizableArguments": []
+  },
+  "BackupUnsupportedFile": {
+    "Source": "仅支持 .hmxbk 配置备份；旧格式已停止支持。",
+    "LocalizableArguments": []
+  },
+  "BackupUnsupportedVersion": {
+    "Source": "不支持此配置备份格式或版本。",
+    "LocalizableArguments": []
+  },
+  "BackupPasswordRequired": {
+    "Source": "此配置备份需要密码。",
+    "LocalizableArguments": []
+  },
+  "BackupInvalidOptions": {
+    "Source": "配置备份包含无效连接参数或选项。",
+    "LocalizableArguments": []
+  }
 }

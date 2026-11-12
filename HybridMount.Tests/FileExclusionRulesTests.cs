@@ -86,13 +86,12 @@ public sealed class FileExclusionRulesTests
         Assert.Equal(definition,definition with{ExclusionRules=FileExclusionRules.Defaults()});
         Assert.NotEqual(definition,definition with{ExclusionRules=[]});
     }
-    [Theory] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)]
-    public void BackupVersionsPreserveOldEmptyAndNewExplicitRules(int version)
+    [Theory] [InlineData(false)] [InlineData(true)]
+    public void HmxbkPreservesEmptyAndExplicitRules(bool hasRules)
     {
-        var item=new MountBackupItem("test","D:/test",new(FileSourceKind.WebDav,"https://example.test/dav/"),new("u","p"),ExclusionRules:version==5?FileExclusionRules.Defaults():null);
-        var encoded=MountBackupCodec.Encode(new(version,DateTimeOffset.UtcNow,[item]),"long-test-password");
+        var item=new MountBackupItem("test","D:/test",new(FileSourceKind.WebDav,"https://example.test/dav/"),new("u","p"),ExclusionRules:hasRules?FileExclusionRules.Defaults():null);
+        var encoded=MountBackupCodec.Encode(new(1,DateTimeOffset.UtcNow,[item]),"long-test-password");
         var restored=MountBackupCodec.Decode(encoded,"long-test-password").Mounts[0];
         Assert.Equal(item,restored);Assert.Equal(item.ExclusionRules?.ToArray(),restored.ExclusionRules?.ToArray());
-        if(version<5)Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(new(version,DateTimeOffset.UtcNow,[item with{ExclusionRules=FileExclusionRules.Defaults()}]),"long-test-password"));
     }
 }

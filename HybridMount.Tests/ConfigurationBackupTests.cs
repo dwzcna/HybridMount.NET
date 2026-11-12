@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using HybridMount.Commons;
 using HybridMount.Models.Mounting;
 using HybridMount.Services.Mounting;
@@ -9,7 +10,7 @@ using Microsoft.Win32;
 
 namespace HybridMount.Tests;
 
-/// <summary>验证便携密文、零联网导入、每项提交及停止保护；全部目录和注册表均独立于用户挂载。</summary>
+/// <summary>验证便携 JSON／凭据密文、零联网导入、每项提交及停止保护；全部目录和注册表均独立于用户挂载。</summary>
 public sealed class ConfigurationBackupTests
 {
     private const string Password = "  中文备份密码不可修剪  ";
@@ -20,116 +21,209 @@ public sealed class ConfigurationBackupTests
         new(AccessKey: "access-secret", SecretKey: "key-secret", SessionToken: "token-secret"), false, false);
     private static MountConfigurationBackup Document(params MountBackupItem[] items) => new(1, DateTimeOffset.Parse("2026-11-02T12:00:00Z"), items);
 
-    [Fact]
-    public void EncryptedRoundTripPreservesUnicodeOptionsAndCredentialsWithoutRuntimeIdentity()
+    [Theory]
+    [InlineData(Password)][InlineData("")]
+    public void JsonRoundTripKeepsNonSensitiveSettingsReadableAndProtectsOnlyCredentials(string password)
     {
-        var document = Document(Dav(), S3()); var bytes = MountBackupCodec.Encode(document, Password);
-        var restored = MountBackupCodec.Decode(bytes, Password);
-        Assert.Equal(document.ExportedUtc, restored.ExportedUtc); Assert.Equal(document.Mounts, restored.Mounts);
-        var text = Encoding.UTF8.GetString(bytes);
-        foreach (var secret in new[] { "account-secret", "password-secret", "access-secret", "key-secret", "token-secret", "dav.example.test" }) Assert.DoesNotContain(secret, text);
-        Assert.Equal("挂载配置备份条目", restored.Mounts[0].ToString());
-        Assert.DoesNotContain(typeof(MountBackupItem).GetProperties(), property => property.Name is "Id" or "RootIdentity" or "RegistrationStage" or "RemovalPending");
+        var document = Document(Dav() with {ExclusionRules=FileExclusionRules.Defaults()}, S3());
+        var bytes = MountBackupCodec.Encode(document,password); var restored=MountBackupCodec.Decode(bytes,password);
+        Assert.Equal(document.ExportedUtc,restored.ExportedUtc);Assert.Equal(document.Mounts,restored.Mounts);
+        var text=Encoding.UTF8.GetString(bytes);using var json=JsonDocument.Parse(bytes);
+        Assert.Equal("hmxbk",json.RootElement.GetProperty("format").GetString());Assert.Equal(1,json.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(password.Length==0?"none":"password",json.RootElement.GetProperty("protection").GetProperty("mode").GetString());
+        Assert.Contains("dav.example.test",text);Assert.Contains("exclusionRules",text);Assert.Contains("中文 WebDAV",text);
+        foreach(var secret in new[]{"account-secret","password-secret","access-secret","key-secret","token-secret"})
+            if(password.Length==0)Assert.Contains(secret,text);else Assert.DoesNotContain(secret,text);
+        Assert.Equal("挂载配置备份条目",restored.Mounts[0].ToString());
+        Assert.DoesNotContain(typeof(MountBackupItem).GetProperties(),property=>property.Name is "Id" or "RootIdentity" or "RegistrationStage" or "RemovalPending");
+    }
+    [Fact]
+    public void CredentialBlockInteroperatesWithIndependentDotNetGcm()
+    {
+        var root=Node(MountBackupCodec.Encode(Document(Dav()),Password));var protection=root["protection"]!;var mount=root["mounts"]![0]!;var block=mount["protectedCredentials"]!;
+        var key=Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(Password),Convert.FromBase64String((string)protection["salt"]!),600000,HashAlgorithmName.SHA256,32);
+        var ciphertext=Convert.FromBase64String((string)block["ciphertext"]!);var plain=new byte[ciphertext.Length];
+        try
+        {
+            using var cipher=new AesGcm(key,16);
+            var aad=Encoding.UTF8.GetBytes($"hmxbk|1|{Guid.Parse((string)mount["backupEntryId"]!):D}|credentials");
+            cipher.Decrypt(Convert.FromBase64String((string)block["nonce"]!),ciphertext,Convert.FromBase64String((string)block["tag"]!),plain,aad);
+            using var payload=JsonDocument.Parse(plain);Assert.Equal("password-secret",payload.RootElement.GetProperty("credentials").GetProperty("password").GetString());
+            Assert.Null(mount["credentials"]);Assert.Null(mount["sqsCredentials"]);
+        }
+        finally {CryptographicOperations.ZeroMemory(key);CryptographicOperations.ZeroMemory(plain);}
+    }
+    [Fact]
+    public void EncryptedBackupAllowsEditingPublicOptionsAndReorderingWholeEntries()
+    {
+        var root=Node(MountBackupCodec.Encode(Document(Dav(),S3()),Password));var mounts=root["mounts"]!.AsArray();
+        mounts[0]!["source"]!["endpoint"]="https://new.example.test/中文/";mounts[0]!["localPath"]="D:/new";
+        mounts[0]!["exclusionRules"]=JsonNode.Parse("[{\"match\":\"suffix\",\"text\":\".tmp\"}]");
+        var first=mounts[0]!.DeepClone();mounts.RemoveAt(0);mounts.Add(first);
+        var result=MountBackupCodec.Decode(Bytes(root),Password);Assert.Equal(S3(),result.Mounts[0]);
+        Assert.Equal("https://new.example.test/中文/",result.Mounts[1].Source.Endpoint);Assert.Equal(Dav().Credentials,result.Mounts[1].Credentials);
+        Assert.Equal(".tmp",Assert.Single(result.Mounts[1].ExclusionRules!).Text);
+    }
+    [Theory]
+    [InlineData(1)][InlineData(2)][InlineData(3)][InlineData(4)][InlineData(5)][InlineData(6)]
+    public async Task OldBinaryVersionsAreRejectedEvenAfterRenaming(int version)
+    {
+        await using var test=new Area();var file=Path.Combine(test.Directory,"renamed.hmxbk");
+        var old=new byte[60];Encoding.ASCII.GetBytes("HMCONFIG").CopyTo(old,0);BinaryPrimitives.WriteInt32LittleEndian(old.AsSpan(8,4),version);
+        await File.WriteAllBytesAsync(file,old);
+        var error=await Assert.ThrowsAsync<InvalidDataException>(()=>test.Manager.ReadConfigurationBackupAsync(file,Password));
+        Assert.Contains("旧格式",error.Message);Assert.Equal(0,test.Factory.Created);
+    }
+    [Theory]
+    [InlineData(".hymcfg")][InlineData(".hmconfig")][InlineData(".json")]
+    public async Task OnlyNewExtensionIsAcceptedByReadAndWrite(string extension)
+    {
+        await using var test=new Area();var file=Path.Combine(test.Directory,"backup"+extension);var bytes=MountBackupCodec.Encode(Document(Dav()),"");
+        await File.WriteAllBytesAsync(file,bytes);
+        await Assert.ThrowsAsync<InvalidDataException>(()=>MountBackupCodec.ReadAsync(file,""));
+        await Assert.ThrowsAsync<InvalidDataException>(()=>MountBackupCodec.WriteAtomicAsync(file,bytes,default));
     }
     [Theory]
     [InlineData(Password)][InlineData("")]
-    public void ContainerInteroperatesWithIndependentDotNetGcmAndAuthenticatesHeader(string password)
+    public async Task ReadSessionDetectsProtectionAndKeepsOriginalSnapshotForPasswordRetries(string password)
     {
-        var bytes = MountBackupCodec.Encode(Document(Dav()), password);
-        Assert.Equal("HMCONFIG", Encoding.ASCII.GetString(bytes, 0, 8)); Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8,4)));
-        var key = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), bytes.AsSpan(12,16), 600000, HashAlgorithmName.SHA256, 32);
-        var plain = new byte[bytes.Length-60];
-        try
+        await using var test=new Area();var file=Path.Combine(test.Directory,"backup.hmxbk");await File.WriteAllBytesAsync(file,MountBackupCodec.Encode(Document(Dav()),password));
+        using var session=await test.Manager.OpenConfigurationBackupAsync(file);Assert.Equal(password.Length!=0,session.RequiresPassword);
+        await File.WriteAllBytesAsync(file,MountBackupCodec.Encode(Document(S3()),password));
+        if(session.RequiresPassword)await Assert.ThrowsAsync<InvalidDataException>(()=>test.Manager.DecodeConfigurationBackupAsync(session,"wrong-password"));
+        Assert.Equal(Dav(),Assert.Single((await test.Manager.DecodeConfigurationBackupAsync(session,password)).Mounts));
+        session.Dispose();session.Dispose();Assert.Throws<ObjectDisposedException>(()=>session.Decode(password));Assert.Equal(0,test.Factory.Created);
+    }
+    [Fact]
+    public async Task ReadSessionRejectsConcurrentWriterAndHonorsCancellation()
+    {
+        await using var test=new Area();var file=Path.Combine(test.Directory,"backup.hmxbk");await File.WriteAllBytesAsync(file,MountBackupCodec.Encode(Document(Dav()),""));
+        using(var writer=new FileStream(file,FileMode.Open,FileAccess.Write,FileShare.ReadWrite))
+            await Assert.ThrowsAsync<IOException>(()=>MountBackupCodec.OpenAsync(file));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>MountBackupCodec.OpenAsync(file,new CancellationToken(true)));
+        using var session=await MountBackupCodec.OpenAsync(file);Assert.ThrowsAny<OperationCanceledException>(()=>session.Decode("",new CancellationToken(true)));
+    }
+    [Fact]
+    public void ReadSessionDisposalClearsOwnedBytes()
+    {
+        var bytes=MountBackupCodec.Encode(Document(Dav()),"");var session=new MountBackupReadSession(bytes,false);
+        Assert.Equal(Dav(),session.Decode("").Mounts.Single());session.Dispose();Assert.All(bytes,value=>Assert.Equal((byte)0,value));
+    }
+    [Fact]
+    public void RepeatedExportsUseFreshSaltEntryIdsAndNonces()
+    {
+        var a=Node(MountBackupCodec.Encode(Document(Dav(),S3()),Password));var b=Node(MountBackupCodec.Encode(Document(Dav(),S3()),Password));
+        Assert.NotEqual((string)a["protection"]!["salt"]!,(string)b["protection"]!["salt"]!);
+        Assert.NotEqual((string)a["mounts"]![0]!["backupEntryId"]!,(string)b["mounts"]![0]!["backupEntryId"]!);
+        var nonces=new[]{a["mounts"]![0],a["mounts"]![1],b["mounts"]![0],b["mounts"]![1]}.Select(x=>(string)x!["protectedCredentials"]!["nonce"]!).ToArray();Assert.Equal(4,nonces.Distinct().Count());
+    }
+    [Theory]
+    [InlineData("salt")][InlineData("nonce")][InlineData("tag")][InlineData("ciphertext")]
+    public void CredentialTamperingReturnsOneSafeError(string field)
+    {
+        var root=Node(MountBackupCodec.Encode(Document(Dav()),Password));var owner=field=="salt"?root["protection"]!:root["mounts"]![0]!["protectedCredentials"]!;
+        var bytes=Convert.FromBase64String((string)owner[field]!);bytes[0]^=1;owner[field]=Convert.ToBase64String(bytes);
+        Assert.Equal("密码不正确或文件已损坏。",Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Bytes(root),Password)).Message);
+    }
+    [Theory]
+    [InlineData(false)][InlineData(true)]
+    public void ExchangingCredentialBlocksOrChangingEntryIdCannotChangeCredentialOwnership(bool changeId)
+    {
+        var root=Node(MountBackupCodec.Encode(Document(Dav(),S3()),Password));var mounts=root["mounts"]!;
+        if(changeId)mounts[0]!["backupEntryId"]=Guid.NewGuid().ToString("D");
+        else {var first=mounts[0]!["protectedCredentials"]!.DeepClone();mounts[0]!["protectedCredentials"]=mounts[1]!["protectedCredentials"]!.DeepClone();mounts[1]!["protectedCredentials"]=first;}
+        Assert.Equal("密码不正确或文件已损坏。",Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Bytes(root),Password)).Message);
+    }
+    [Theory]
+    [InlineData("version")][InlineData("format")][InlineData("iterations")][InlineData("algorithm")][InlineData("mode")][InlineData("length")][InlineData("mixed")][InlineData("missing")][InlineData("duplicateId")][InlineData("reusedNonce")]
+    public void InvalidEnvelopeAndMixedProtectionAreRejectedBeforePasswordWork(string kind)
+    {
+        var root=Node(MountBackupCodec.Encode(Document(Dav(),S3()),Password));var protection=root["protection"]!;var mounts=root["mounts"]!;
+        switch(kind)
         {
-            using var cipher = new AesGcm(key,16); cipher.Decrypt(bytes.AsSpan(28,12),bytes.AsSpan(60),bytes.AsSpan(44,16),plain,bytes.AsSpan(0,44));
-            using var json = JsonDocument.Parse(plain); var item = json.RootElement.GetProperty("mounts")[0];
-            Assert.Equal("password-secret",item.GetProperty("credentials").GetProperty("password").GetString());
-            Assert.False(item.TryGetProperty("id",out _)); Assert.False(item.TryGetProperty("rootIdentity",out _));
+            case "version":root["schemaVersion"]=2;break;case "format":root["format"]="HMCONFIG";break;
+            case "iterations":protection["iterations"]=int.MaxValue;break;case "algorithm":protection["cipher"]="AES-CBC";break;
+            case "mode":protection["mode"]="none";break;case "length":mounts[0]!["protectedCredentials"]!["nonce"]="AA==";break;
+            case "mixed":mounts[0]!["credentials"]=JsonNode.Parse("{}");break;case "missing":mounts[0]!.AsObject().Remove("protectedCredentials");break;
+            case "duplicateId":mounts[1]!["backupEntryId"]=mounts[0]!["backupEntryId"]!.DeepClone();break;
+            case "reusedNonce":mounts[1]!["protectedCredentials"]!["nonce"]=mounts[0]!["protectedCredentials"]!["nonce"]!.DeepClone();break;
         }
-        finally { CryptographicOperations.ZeroMemory(key); CryptographicOperations.ZeroMemory(plain); }
+        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Bytes(root),Password));
     }
     [Theory]
-    [InlineData(1)][InlineData(2)][InlineData(3)][InlineData(4)][InlineData(5)]
-    public async Task EmptyPasswordAndRenamedLegacyContainerUseUnchangedFormat(int version)
+    [InlineData("root")][InlineData("source")][InlineData("credentials")][InlineData("rule")][InlineData("protection")]
+    public void UnknownAndDuplicatePropertiesAtEveryLevelAreRejected(string level)
     {
-        await using var test=new Area();var document=Document(Dav()) with{SchemaVersion=version};
-        var encoded=MountBackupCodec.Encode(document,"");
-        Assert.Equal(version,BinaryPrimitives.ReadInt32LittleEndian(encoded.AsSpan(8,4)));
-        Assert.DoesNotContain("password-secret",Encoding.UTF8.GetString(encoded));
-        var path=Path.Combine(test.Directory,"old.hmconfig");await File.WriteAllBytesAsync(path,encoded);
-        var renamed=Path.ChangeExtension(path,".hymcfg");File.Move(path,renamed);
-        var restored=await test.Manager.ReadConfigurationBackupAsync(renamed,"");
-        Assert.Equal(document.Mounts,restored.Mounts);Assert.Equal(0,test.Factory.Created);
-        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(encoded,Password));
-        encoded[^1]^=1;Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(encoded,""));
+        var root=Node(MountBackupCodec.Encode(Document(Dav() with{ExclusionRules=FileExclusionRules.Defaults()}),""));
+        var owner=level switch{"source"=>root["mounts"]![0]!["source"]!,"credentials"=>root["mounts"]![0]!["credentials"]!,"rule"=>root["mounts"]![0]!["exclusionRules"]![0]!,"protection"=>root["protection"]!,_=>root};
+        owner["enabled"]=true;Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Bytes(root),""));owner.AsObject().Remove("enabled");
+        var pair=owner.AsObject().First();var raw=owner.ToJsonString();var duplicate=raw[..^1]+","+JsonSerializer.Serialize(pair.Key)+":"+pair.Value!.ToJsonString()+"}";
+        var text=root.ToJsonString().Replace(raw,duplicate,StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Encoding.UTF8.GetBytes(text),""));
     }
     [Fact]
-    public async Task EmptyPasswordAtomicExportReplacesOnlyOnSuccessfulCommit()
-    {
-        await using var test=new Area();var path=Path.Combine(test.Directory,"backup.hymcfg");
-        await File.WriteAllTextAsync(path,"original");var bytes=MountBackupCodec.Encode(Document(Dav()),"");
-        using var cancel=new CancellationTokenSource();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>MountBackupCodec.WriteAtomicAsync(path,bytes,cancel.Token,(_,_)=>{cancel.Cancel();cancel.Token.ThrowIfCancellationRequested();}));
-        Assert.Equal("original",await File.ReadAllTextAsync(path));
-        await MountBackupCodec.WriteAtomicAsync(path,bytes,CancellationToken.None);
-        Assert.Equal(Dav(),(await MountBackupCodec.ReadAsync(path,"")).Mounts.Single());
-        Assert.Empty(System.IO.Directory.GetFiles(test.Directory,"*.tmp"));
-    }
-    [Fact]
-    public void RepeatedExportsUseFreshSaltAndNonce()
-    {
-        var document = Document(Dav()); var a = MountBackupCodec.Encode(document,Password); var b = MountBackupCodec.Encode(document,Password);
-        Assert.False(a.SequenceEqual(b)); Assert.False(a.AsSpan(12,16).SequenceEqual(b.AsSpan(12,16))); Assert.False(a.AsSpan(28,12).SequenceEqual(b.AsSpan(28,12)));
-    }
-    [Theory]
-    [InlineData(12)][InlineData(28)][InlineData(44)][InlineData(60)]
-    public void SaltNonceTagAndCiphertextTamperingReturnsOneSafeError(int offset)
-    {
-        var bytes=MountBackupCodec.Encode(Document(Dav()),Password);bytes[offset]^=1;
-        var error=Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(bytes,Password));Assert.Equal("密码不正确或文件已损坏。",error.Message);
-    }
-    [Fact]
-    public void PasswordWhitespaceIsSignificantAndWrongPasswordDoesNotExposePayload()
+    public void PasswordWhitespaceIsSignificantAndPlainJsonDoesNotNeedAPassword()
     {
         var bytes=MountBackupCodec.Encode(Document(Dav()),Password);
         Assert.Equal("密码不正确或文件已损坏。",Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(bytes,Password.Trim())).Message);
         Assert.Equal("密码不正确或文件已损坏。",Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(bytes,"different-password")).Message);
-    }
-    [Theory]
-    [InlineData(0)][InlineData(8)][InlineData(40)]
-    public void InvalidMagicVersionAndLengthAreRejected(int offset)
-    {
-        var bytes=MountBackupCodec.Encode(Document(Dav()),Password);bytes[offset]^=1;Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(bytes,Password));
+        Assert.Contains("需要密码",Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(bytes,"")).Message);
+        var plain=MountBackupCodec.Encode(Document(Dav()),"");Assert.Equal(Dav(),MountBackupCodec.Decode(plain,"").Mounts.Single());
+        Assert.Equal(Dav(),MountBackupCodec.Decode(new byte[]{0xef,0xbb,0xbf}.Concat(plain).ToArray(),"").Mounts.Single());
     }
     [Fact]
-    public void TruncatedOversizedAndTooManyItemsAreRejected()
+    public void TruncatedOversizedTooDeepAndTooManyItemsAreRejected()
     {
-        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(new byte[59],Password));
+        var valid=MountBackupCodec.Encode(Document(Dav()),"");Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(valid[..^1],""));
         Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(new byte[MountBackupCodec.MaximumFileBytes+1],Password));
         Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(Document(Enumerable.Repeat(Dav(),1001).ToArray()),Password));
-        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(Document(Dav() with {Credentials=new(Password:new string('x',MountBackupCodec.MaximumFileBytes))}),Password));
+        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(Document(Dav() with{Credentials=new(Password:new string('x',MountBackupCodec.MaximumFileBytes))}),""));
+        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Encoding.UTF8.GetBytes(new string('[',20)+new string(']',20)),""));
     }
     [Fact]
     public void ShortPasswordAndCanceledEncodingProduceNoBackup()
     {
-        Assert.Throws<ArgumentException>(()=>MountBackupCodec.Encode(Document(Dav()),"1234567"));
-        Assert.Throws<ArgumentException>(()=>MountBackupCodec.Encode(Document(Dav()),null!));
+        Assert.Throws<ArgumentException>(()=>MountBackupCodec.Encode(Document(Dav()),"1234567"));Assert.Throws<ArgumentException>(()=>MountBackupCodec.Encode(Document(Dav()),null!));
         Assert.ThrowsAny<OperationCanceledException>(()=>MountBackupCodec.Encode(Document(Dav()),Password,new CancellationToken(true)));
     }
-    [Fact]
-    public async Task FailedAndCanceledAtomicReplacementKeepOriginalAndRemoveTemporaryCiphertext()
+    [Theory]
+    [InlineData(Password)][InlineData("")]
+    public async Task FailedAndCanceledAtomicReplacementKeepOriginalAndRemoveTemporaryBytes(string password)
     {
-        await using var test=new Area();var path=Path.Combine(test.Directory,"backup.hmconfig");await File.WriteAllTextAsync(path,"original");var bytes=MountBackupCodec.Encode(Document(Dav()),Password);
+        await using var test=new Area();var path=Path.Combine(test.Directory,"backup.hmxbk");await File.WriteAllTextAsync(path,"original");var bytes=MountBackupCodec.Encode(Document(Dav()),password);
         using(var blocker=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.None))
-        {
-            var failure=await Record.ExceptionAsync(()=>MountBackupCodec.WriteAtomicAsync(path,bytes,CancellationToken.None));
-            Assert.True(failure is IOException or UnauthorizedAccessException,failure?.GetType().Name);
-        }
+        {var failure=await Record.ExceptionAsync(()=>MountBackupCodec.WriteAtomicAsync(path,bytes,default));Assert.True(failure is IOException or UnauthorizedAccessException,failure?.GetType().Name);}
         Assert.Equal("original",await File.ReadAllTextAsync(path));Assert.Empty(System.IO.Directory.GetFiles(test.Directory,"*.tmp"));
         using var cancel=new CancellationTokenSource();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>MountBackupCodec.WriteAtomicAsync(path,bytes,cancel.Token,(_,_)=>{cancel.Cancel();cancel.Token.ThrowIfCancellationRequested();}));
         Assert.Equal("original",await File.ReadAllTextAsync(path));Assert.Empty(System.IO.Directory.GetFiles(test.Directory,"*.tmp"));
+        await MountBackupCodec.WriteAtomicAsync(path,bytes,default);Assert.Equal(Dav(),(await MountBackupCodec.ReadAsync(path,password)).Mounts.Single());
     }
+    [Fact]
+    public async Task ConcurrentSessionDisposeEitherPreventsDecodeOrLetsItFinishWithoutCorruptingSnapshot()
+    {
+        var encoded=MountBackupCodec.Encode(Document(Dav()),Password);
+        for(var attempt=0;attempt<8;attempt++)
+        {
+            var owned=encoded.ToArray();var session=new MountBackupReadSession(owned,true);
+            var decoding=Task.Run(()=>session.Decode(Password));
+            await Task.Delay(attempt);session.Dispose();
+            try {Assert.Equal(Dav(),Assert.Single((await decoding).Mounts));}
+            catch(ObjectDisposedException) { }
+            Assert.All(owned,value=>Assert.Equal((byte)0,value));
+        }
+    }
+    [Theory]
+    [InlineData("source")][InlineData("credentials")][InlineData("mounts")][InlineData("protection")]
+    public void MissingRequiredStructureFailsSafely(string field)
+    {
+        var root=Node(MountBackupCodec.Encode(Document(Dav()),""));
+        if(field is "source" or "credentials")root["mounts"]![0]![field]=null;else root[field]=null;
+        var error=Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Decode(Bytes(root),""));Assert.DoesNotContain("password-secret",error.Message);
+    }
+    private static JsonObject Node(byte[] bytes)=>JsonNode.Parse(bytes)!.AsObject();
+    private static byte[] Bytes(JsonNode node)=>Encoding.UTF8.GetBytes(node.ToJsonString());
+
     [Fact]
     public async Task ImportSavesFreshIdsDpapiAndOptionsWithoutSourceRegistrationIndexOrUpload()
     {
@@ -211,7 +305,7 @@ public sealed class ConfigurationBackupTests
     {
         await using var source=new Area();await using var target=new Area();
         var created=await source.Manager.ImportConfigurationsAsync([new(Dav(),source.Folder("a")),new(S3(defaults:true),source.Folder("b"))]);
-        var file=Path.Combine(source.Directory,"backup.hymcfg");await source.Manager.ExportConfigurationsAsync(created.Results.Select(item=>item.MountId!.Value).ToArray(),password,file);
+        var file=Path.Combine(source.Directory,"backup.hmxbk");await source.Manager.ExportConfigurationsAsync(created.Results.Select(item=>item.MountId!.Value).ToArray(),password,file);
         var document=await target.Manager.ReadConfigurationBackupAsync(file,password);Assert.Equal(new SourceCredentials(),document.Mounts[1].Credentials);
         var result=await target.Manager.ImportConfigurationsAsync(document.Mounts.Select((item,index)=>new MountImportItem(item,target.Folder("target"+index))).ToArray());
         Assert.All(result.Results,item=>Assert.Equal("Saved",item.State));Assert.Empty(created.Results.Select(item=>item.MountId).Intersect(result.Results.Select(item=>item.MountId)));Assert.Equal(0,source.Factory.Created+target.Factory.Created);
@@ -220,7 +314,7 @@ public sealed class ConfigurationBackupTests
     public async Task CorruptDpapiDoesNotCreateOrOverwriteBackup()
     {
         await using var test=new Area();var result=await test.Manager.ImportConfigurationsAsync([new(Dav(),test.Folder("a"))]);var id=result.Results[0].MountId!.Value;
-        await File.WriteAllBytesAsync(Path.Combine(test.Repository.DataDirectory,"Credentials",id.ToString("N")+".bin"),[1,2,3]);var file=Path.Combine(test.Directory,"backup.hmconfig");await File.WriteAllTextAsync(file,"original");
+        await File.WriteAllBytesAsync(Path.Combine(test.Repository.DataDirectory,"Credentials",id.ToString("N")+".bin"),[1,2,3]);var file=Path.Combine(test.Directory,"backup.hmxbk");await File.WriteAllTextAsync(file,"original");
         await Assert.ThrowsAnyAsync<CryptographicException>(()=>test.Manager.ExportConfigurationsAsync([id],Password,file));Assert.Equal("original",await File.ReadAllTextAsync(file));
     }
     [Fact]

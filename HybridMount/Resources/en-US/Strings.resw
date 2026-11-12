@@ -543,7 +543,7 @@ Current local content (may differ from the original upload snapshot)</value>
     <value>Decrypt and preview</value>
   </data>
   <data name="Text_4438ABDEDD78" xml:space="preserve">
-    <value>HybridMount encrypted configuration</value>
+    <value>HybridMount JSON configuration backup</value>
   </data>
   <data name="Text_4465E830BDF6" xml:space="preserve">
     <value>Could not save interface density.</value>
@@ -2095,7 +2095,7 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="MountBackupDialogContentDialogExportConfiguration.CloseButtonText" xml:space="preserve"><value>Cancel</value></data>
   <data name="MountBackupDialogContentDialogExportConfiguration.PrimaryButtonText" xml:space="preserve"><value>Export</value></data>
   <data name="MountBackupDialogContentDialogExportConfiguration.Title" xml:space="preserve"><value>Export configuration</value></data>
-  <data name="MountBackupDialogPasswordField.Header" xml:space="preserve"><value>Backup password (optional; at least 8 characters if set)</value></data>
+  <data name="MountBackupDialogPasswordField.Header" xml:space="preserve"><value>Backup password (at least 8 characters)</value></data>
   <data name="MountBackupDialogRowsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Mount configuration backup list</value></data>
   <data name="MountBackupDialogStatusBar.Title" xml:space="preserve"><value>Configuration backup</value></data>
   <data name="MountBackupDialogTextBlockLeavingThisBlankGivesNoPassword.Text" xml:space="preserve"><value>Leaving this blank gives no password protection. Anyone with the backup can read its credentials.</value></data>
@@ -2434,4 +2434,13 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="FileReleaseIdentityChanged" xml:space="preserve"><value>The identity of the file to release changed.</value></data>
   <data name="FileReleaseVersionChanged" xml:space="preserve"><value>The content version changed. Check the release request again.</value></data>
   <data name="FileReleaseIdentityBefore" xml:space="preserve"><value>The file identity changed before release. Its content was kept.</value></data>
+  <data name="BackupPasswordMinimum" xml:space="preserve"><value>Password protection requires at least 8 characters.</value></data>
+  <data name="BackupInvalidFile" xml:space="preserve"><value>The configuration backup format is invalid or the file is damaged.</value></data>
+  <data name="BackupUnsupportedFile" xml:space="preserve"><value>Only .hmxbk configuration backups are supported; legacy formats are no longer supported.</value></data>
+  <data name="BackupUnsupportedVersion" xml:space="preserve"><value>This configuration backup format or version is not supported.</value></data>
+  <data name="BackupPasswordRequired" xml:space="preserve"><value>This configuration backup requires a password.</value></data>
+  <data name="BackupInvalidOptions" xml:space="preserve"><value>The configuration backup contains invalid connection parameters or options.</value></data>
+  <data name="BackupProtectionToggle.Content" xml:space="preserve"><value>Use password protection</value></data>
+  <data name="BackupPlaintextNotice.Text" xml:space="preserve"><value>Password protection is off. The backup contains plaintext usernames, passwords, and access keys. Keep it secure.</value></data>
+  <data name="BackupProtectedNotice.Text" xml:space="preserve"><value>Only credentials are password-protected. Server addresses, folders, exclusion rules, and other settings remain readable and editable.</value></data>
 </root>

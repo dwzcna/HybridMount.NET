@@ -56,21 +56,21 @@ public sealed class SqsMountIntegrationTests
         Assert.Equal("Hydrating",repository.RemotePending(host.Id,"old").Single(x=>x.Id==recover.Id).State);
         repository.SaveRemotePending(recover with{State="Completed"});
     }
-    [Fact(Timeout=30000)]
-    public async Task BackupV3ImportsSeparateQueueSecretsWithoutConnectingAndLegacyFormatsExcludeThem()
+    [Theory(Timeout=30000)]
+    [InlineData("")][InlineData("long-password")]
+    public async Task HmxbkImportsSeparateQueueSecretsWithoutConnecting(string password)
     {
         await using var fixture=new S3Fixture();var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");var repository=new MountRepository(Path.Combine(fixture.Area,"backup"),registry);
         await using var logger=new LoggerService(Path.Combine(fixture.Area,"logs.db"));await using var manager=new MountManager(repository,logger,new NeverSource());
         var queueCreates=0;manager.SqsClientForTests=(_,_,_)=>{queueCreates++;throw new InvalidOperationException("导入不应创建队列客户端");};
         var keys=new SourceCredentials(AccessKey:"queue-access",SecretKey:"queue-secret",SessionToken:"queue-session");var item=new MountBackupItem("队列备份","old",SqsEventTests.Aws,S3Fixture.Credentials,
             Sqs:SqsEventTests.Queue with{CredentialMode=SqsCredentialMode.SeparateKeys},SqsCredentials:keys);
-        var bytes=MountBackupCodec.Encode(new(3,DateTimeOffset.UtcNow,[item]),"long-password");Assert.Equal(3,BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8,4)));
-        Assert.Equal(item,MountBackupCodec.Decode(bytes,"long-password").Mounts.Single());Assert.DoesNotContain("queue-secret",System.Text.Encoding.UTF8.GetString(bytes));
-        foreach(var version in new[]{1,2})Assert.Null(MountBackupCodec.Decode(MountBackupCodec.Encode(new(version,DateTimeOffset.UtcNow,[item]),"long-password"),"long-password").Mounts.Single().Sqs);
+        var bytes=MountBackupCodec.Encode(new(1,DateTimeOffset.UtcNow,[item]),password);
+        Assert.Equal(item,MountBackupCodec.Decode(bytes,password).Mounts.Single());if(password.Length>0)Assert.DoesNotContain("queue-secret",System.Text.Encoding.UTF8.GetString(bytes));else Assert.Contains("queue-secret",System.Text.Encoding.UTF8.GetString(bytes));
         var local=Path.Combine(fixture.Area,"import-view");Directory.CreateDirectory(local);var result=await manager.ImportConfigurationsAsync([new(item,local)]);
         var saved=Assert.Single(result.Results);Assert.Equal("Saved",saved.State);var definition=Assert.Single(repository.LoadDefinitions());Assert.Equal(item.Sqs,definition.Sqs);Assert.Equal(keys,manager.GetSqsCredentials(definition.Id));
         Assert.Equal(0,queueCreates);Assert.Null(MountPathGuard.ReadRoot(local));Assert.Empty(repository.Entries(definition.Id));Assert.Empty(repository.Uploads(definition.Id));
-        var file=Path.Combine(fixture.Area,"backup.hmconfig");await manager.ExportConfigurationsAsync([definition.Id],"long-password",file);var document=await manager.ReadConfigurationBackupAsync(file,"long-password");Assert.Equal(5,document.SchemaVersion);Assert.Empty(document.Mounts.Single().ExclusionRules??[]);Assert.Equal(keys,document.Mounts.Single().SqsCredentials);
+        var file=Path.Combine(fixture.Area,"backup.hmxbk");await manager.ExportConfigurationsAsync([definition.Id],password,file);var document=await manager.ReadConfigurationBackupAsync(file,password);Assert.Equal(1,document.SchemaVersion);Assert.Empty(document.Mounts.Single().ExclusionRules??[]);Assert.Equal(keys,document.Mounts.Single().SqsCredentials);
         var registryJson=System.Text.Json.JsonSerializer.Serialize(definition);Assert.DoesNotContain("queue-secret",registryJson);Assert.DoesNotContain("queue-access",registryJson);
         Assert.Equal("Completed",(await WebDavTests.Finished(manager,manager.Queue(definition.Id,"clearAndRemove"))).State);Assert.Equal(new SourceCredentials(),new CredentialStore(Path.Combine(repository.DataDirectory,"Sqs")).Load(definition.Id));
         Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);

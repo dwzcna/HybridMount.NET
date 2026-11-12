@@ -50,10 +50,10 @@ public sealed class SynologyWebDavHttpsTests
         Assert.False(WebDavFileSource.AcceptCertificate(null,SslPolicyErrors.None,pin));
     }
     [Fact]
-    public void Pinned_webdav_backup_uses_existing_v6_format()
+    public void PinnedWebDavBackupUsesHmxbk()
     {
         var item=new MountBackupItem("WebDAV(HTTPS)","old-path",Options with{PinnedCertificateSha256=new string('A',64)},new("user","password"));
-        var bytes=MountBackupCodec.Encode(new(6,DateTimeOffset.UtcNow,[item]),"test-password");
+        var bytes=MountBackupCodec.Encode(new(1,DateTimeOffset.UtcNow,[item]),"test-password");
         var decoded=MountBackupCodec.Decode(bytes,"test-password");
         Assert.Equal(item.Source,Assert.Single(decoded.Mounts).Source);
         Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(new(5,DateTimeOffset.UtcNow,[item]),"test-password"));

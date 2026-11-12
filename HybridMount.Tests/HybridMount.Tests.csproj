@@ -189,6 +189,7 @@
     <Compile Include="..\HybridMount\Models\Persistence\ExcludedRenameJournal.cs" Link="Production\Models\Persistence\ExcludedRenameJournal.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\FileExclusionMarkerStore.cs" Link="Production\Models\Persistence\FileExclusionMarkerStore.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountBackupCodec.cs" Link="Production\Models\Persistence\MountBackupCodec.cs"/>
+    <Compile Include="..\HybridMount\Models\Persistence\MountBackupReadSession.cs" Link="Production\Models\Persistence\MountBackupReadSession.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountDatabase.cs" Link="Production\Models\Persistence\MountDatabase.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountProtocolComposition.cs" Link="Production\Models\Persistence\MountProtocolComposition.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.Conflicts.cs" Link="Production\Models\Persistence\MountRepository.Conflicts.cs"/>

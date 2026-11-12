@@ -152,13 +152,11 @@ public sealed class RemoteCollectionSyncTests
         Assert.True(error.AuthenticationFailure);Assert.Empty(repo.RemoteCollections(mount,"auth"));Assert.Empty(repo.RemoteShadow(mount,"auth"));
     }
     [Fact]
-    public void BackupV2PreservesSettingsAndV1ReceivesDefaults()
+    public void HmxbkPreservesRemoteDetectionSettings()
     {
         var item=new MountBackupItem("DAV","old",new(FileSourceKind.WebDav,"https://example.test/dav/"),new("user","password"),RemoteAutoDetectEnabled:false,RemoteIncrementalSeconds:90,RemoteFullSeconds:600);
-        var encrypted=MountBackupCodec.Encode(new(2,DateTimeOffset.UtcNow,[item]),"password-long");Assert.Equal(2,BinaryPrimitives.ReadInt32LittleEndian(encrypted.AsSpan(8,4)));
-        Assert.Equal(item,MountBackupCodec.Decode(encrypted,"password-long").Mounts.Single());
-        var legacy=MountBackupCodec.Encode(new(1,DateTimeOffset.UtcNow,[item]),"password-long");var restored=MountBackupCodec.Decode(legacy,"password-long").Mounts.Single();
-        Assert.True(restored.RemoteAutoDetectEnabled);Assert.Equal(60,restored.RemoteIncrementalSeconds);Assert.Equal(300,restored.RemoteFullSeconds);
+        var bytes=MountBackupCodec.Encode(new(1,DateTimeOffset.UtcNow,[item]),"password-long");
+        Assert.Equal(item,MountBackupCodec.Decode(bytes,"password-long").Mounts.Single());
     }
 }
 

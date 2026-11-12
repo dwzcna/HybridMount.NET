@@ -1,15 +1,19 @@
 <ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.MountBackupDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:HybridMount.ViewModels"
-    DefaultButton="Primary" PrimaryButtonClick="Submit" Closing="OnClosing" Closed="OnClosed" x:Uid="/Strings/MountBackupDialogContentDialogExportConfiguration" loc:Ui.ResourceId="/Strings/MountBackupDialogContentDialogExportConfiguration">
+    DefaultButton="Primary" Loaded="OnLoaded" PrimaryButtonClick="Submit" Closing="OnClosing" Closed="OnClosed" x:Uid="/Strings/MountBackupDialogContentDialogExportConfiguration" loc:Ui.ResourceId="/Strings/MountBackupDialogContentDialogExportConfiguration">
     <Grid MinWidth="480" MaxHeight="660">
         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <UserControl x:Name="Form"><Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-            <StackPanel Spacing="12" Margin="0,0,0,12" Visibility="{x:Bind PasswordField.Visibility,Mode=OneWay}">
-                <PasswordBox x:Name="PasswordField" x:Uid="/Strings/MountBackupDialogPasswordField" loc:Ui.ResourceId="/Strings/MountBackupDialogPasswordField"/>
-                <PasswordBox x:Name="ConfirmPasswordField" x:Uid="/Strings/MountBackupDialogConfirmPasswordField" loc:Ui.ResourceId="/Strings/MountBackupDialogConfirmPasswordField"/>
-                <TextBlock TextWrapping="Wrap" MaxWidth="480" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/MountBackupDialogTextBlockLeavingThisBlankGivesNoPassword" loc:Ui.ResourceId="/Strings/MountBackupDialogTextBlockLeavingThisBlankGivesNoPassword"/>
+            <StackPanel Spacing="12" Margin="0,0,0,12">
+                <CheckBox x:Name="ProtectionToggle" IsChecked="False" Checked="ProtectionChanged" Unchecked="ProtectionChanged" x:Uid="/Strings/BackupProtectionToggle" loc:Ui.ResourceId="/Strings/BackupProtectionToggle"/>
+                <TextBlock x:Name="UnprotectedNotice" TextWrapping="Wrap" MaxWidth="480" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/BackupPlaintextNotice" loc:Ui.ResourceId="/Strings/BackupPlaintextNotice"/>
+                <StackPanel x:Name="PasswordPanel" Spacing="12" Visibility="Collapsed">
+                    <PasswordBox x:Name="PasswordField" PasswordChanged="PasswordChanged" x:Uid="/Strings/MountBackupDialogPasswordField" loc:Ui.ResourceId="/Strings/MountBackupDialogPasswordField"/>
+                    <PasswordBox x:Name="ConfirmPasswordField" PasswordChanged="PasswordChanged" x:Uid="/Strings/MountBackupDialogConfirmPasswordField" loc:Ui.ResourceId="/Strings/MountBackupDialogConfirmPasswordField"/>
+                    <TextBlock TextWrapping="Wrap" MaxWidth="480" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/BackupProtectedNotice" loc:Ui.ResourceId="/Strings/BackupProtectedNotice"/>
+                </StackPanel>
             </StackPanel>
             <ListView x:Name="RowsList" Grid.Row="1" SelectionMode="None" MaxHeight="440" HorizontalContentAlignment="Stretch" x:Uid="/Strings/MountBackupDialogRowsList" loc:Ui.ResourceId="/Strings/MountBackupDialogRowsList">
                 <ListView.ItemTemplate>

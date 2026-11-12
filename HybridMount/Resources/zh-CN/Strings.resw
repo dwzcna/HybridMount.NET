@@ -543,7 +543,7 @@
     <value>解密并预览</value>
   </data>
   <data name="Text_4438ABDEDD78" xml:space="preserve">
-    <value>HybridMount 加密配置</value>
+    <value>HybridMount JSON 配置备份</value>
   </data>
   <data name="Text_4465E830BDF6" xml:space="preserve">
     <value>界面密度保存失败。</value>
@@ -2095,7 +2095,7 @@
   <data name="MountBackupDialogContentDialogExportConfiguration.CloseButtonText" xml:space="preserve"><value>取消</value></data>
   <data name="MountBackupDialogContentDialogExportConfiguration.PrimaryButtonText" xml:space="preserve"><value>导出</value></data>
   <data name="MountBackupDialogContentDialogExportConfiguration.Title" xml:space="preserve"><value>导出配置</value></data>
-  <data name="MountBackupDialogPasswordField.Header" xml:space="preserve"><value>备份密码（可留空，设置时至少 8 个字符）</value></data>
+  <data name="MountBackupDialogPasswordField.Header" xml:space="preserve"><value>备份密码（至少 8 个字符）</value></data>
   <data name="MountBackupDialogRowsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>备份挂载配置列表</value></data>
   <data name="MountBackupDialogStatusBar.Title" xml:space="preserve"><value>配置备份</value></data>
   <data name="MountBackupDialogTextBlockLeavingThisBlankGivesNoPassword.Text" xml:space="preserve"><value>留空时无密码保护，任何获得备份的人均可读取其中的凭据。</value></data>
@@ -2434,4 +2434,13 @@
   <data name="FileReleaseIdentityChanged" xml:space="preserve"><value>释放文件身份已变化。</value></data>
   <data name="FileReleaseVersionChanged" xml:space="preserve"><value>释放内容版本已变化，请重新核对。</value></data>
   <data name="FileReleaseIdentityBefore" xml:space="preserve"><value>释放前文件身份已变化，保留内容。</value></data>
+  <data name="BackupPasswordMinimum" xml:space="preserve"><value>启用密码保护时至少需要 8 个字符。</value></data>
+  <data name="BackupInvalidFile" xml:space="preserve"><value>配置备份格式无效或文件已损坏。</value></data>
+  <data name="BackupUnsupportedFile" xml:space="preserve"><value>仅支持 .hmxbk 配置备份；旧格式已停止支持。</value></data>
+  <data name="BackupUnsupportedVersion" xml:space="preserve"><value>不支持此配置备份格式或版本。</value></data>
+  <data name="BackupPasswordRequired" xml:space="preserve"><value>此配置备份需要密码。</value></data>
+  <data name="BackupInvalidOptions" xml:space="preserve"><value>配置备份包含无效连接参数或选项。</value></data>
+  <data name="BackupProtectionToggle.Content" xml:space="preserve"><value>使用密码保护</value></data>
+  <data name="BackupPlaintextNotice.Text" xml:space="preserve"><value>未启用密码保护：备份包含明文用户名、密码和访问密钥，请妥善保管。</value></data>
+  <data name="BackupProtectedNotice.Text" xml:space="preserve"><value>仅凭据受到密码保护；服务器地址、目录和排除规则等设置保持明文，可直接编辑。</value></data>
 </root>

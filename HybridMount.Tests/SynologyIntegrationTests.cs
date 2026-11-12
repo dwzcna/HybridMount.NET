@@ -97,17 +97,12 @@ public sealed class SynologyIntegrationTests:IDisposable
     }
     [Theory]
     [InlineData("")][InlineData("password-123")]
-    public void VersionSixKeepsEncryptionAndOldVersionsRemainReadable(string password)
+    public void HmxbkPreservesSynologyPinInBothProtectionModes(string password)
     {
         var item=new MountBackupItem("NAS","old-path",SynologyTests.Options with{PinnedCertificateSha256=new string('A',64)},new("user","password"));
-        var bytes=MountBackupCodec.Encode(new(6,DateTimeOffset.UtcNow,[item]),password);var decoded=MountBackupCodec.Decode(bytes,password);
-        Assert.Equal(item,Assert.Single(decoded.Mounts));Assert.Equal(6,decoded.SchemaVersion);
-        Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(new(5,DateTimeOffset.UtcNow,[item]),password));
-        for(var version=1;version<=5;version++)
-        {
-            var old=item with{Source=new(FileSourceKind.WebDav,"https://example.test/")};
-            Assert.Equal(version,MountBackupCodec.Decode(MountBackupCodec.Encode(new(version,DateTimeOffset.UtcNow,[old]),password),password).SchemaVersion);
-        }
+        var bytes=MountBackupCodec.Encode(new(1,DateTimeOffset.UtcNow,[item]),password);var decoded=MountBackupCodec.Decode(bytes,password);
+        Assert.Equal(item,Assert.Single(decoded.Mounts));Assert.Equal(1,decoded.SchemaVersion);
+        for(var version=2;version<=6;version++)Assert.Throws<InvalidDataException>(()=>MountBackupCodec.Encode(new(version,DateTimeOffset.UtcNow,[item]),password));
     }
     [Fact]
     public void DeviceTokenIsNotImportedOrExportedAndNullPinDoesNotChangeOldJson()

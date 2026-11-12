@@ -1,103 +1,146 @@
-using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Models.Persistence;
 
-/// <summary>便携加密备份 v6（兼容读取 v1–v5）；只使用 .NET 密码学，工作由宿主在后台线程执行。</summary>
-/// <remarks>文件为 44 字节认证头、16 字节 GCM 标签及密文。头依次为 HMCONFIG、LE 版本、盐、nonce、LE 密文长度。</remarks>
+/// <summary>.hmxbk v1 的便携 JSON 编解码；后台执行，只加密凭据，不联网或依赖本机密钥。</summary>
+/// <remarks>非敏感选项允许编辑；GCM 认证绑定版本、备份条目标识及凭据用途，不认证服务器地址。</remarks>
 public static class MountBackupCodec
 {
+    public const int CurrentVersion = 1;
     public const int MaximumFileBytes = 8 * 1024 * 1024;
     public const int MaximumItems = 1000;
-    private const int HeaderBytes = 44, TagBytes = 16, PayloadOffset = HeaderBytes + TagBytes;
-    private const int Iterations = 600_000;
+    private const int Iterations = 600_000, TagBytes = 16;
+    private const string InvalidFile = "配置备份格式无效或文件已损坏。";
+    private const string AuthenticationFailed = "密码不正确或文件已损坏。";
     private static readonly JsonSerializerOptions Json = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = 16,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase, MaxDepth = 16, WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        Converters = { new JsonStringEnumConverter<FileSourceKind>(JsonNamingPolicy.CamelCase, allowIntegerValues: false) }
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) }
     };
 
-    /// <summary>在内存中加密整个载荷；不修剪密码，取消后不返回可写入结果。</summary>
+    /// <summary>序列化用户选项；空密码产生明文 JSON，否则随机盐派生密钥并逐项保护凭据。取消不返回结果。</summary>
     public static byte[] Encode(MountConfigurationBackup backup, string password, CancellationToken token = default)
     {
         ValidatePassword(password); ValidateDocument(backup); token.ThrowIfCancellationRequested();
-        byte[]? plain = null, passwordBytes = null, key = null;
+        byte[]? key = null;
         try
         {
-            plain = backup.SchemaVersion==1?
-                JsonSerializer.SerializeToUtf8Bytes(new LegacyBackup(1,backup.ExportedUtc,backup.Mounts.Select(x=>new LegacyItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled)).ToArray()),Json):
-                backup.SchemaVersion==2?JsonSerializer.SerializeToUtf8Bytes(new VersionTwoBackup(2,backup.ExportedUtc,backup.Mounts.Select(x=>new VersionTwoItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled,x.RemoteAutoDetectEnabled,x.RemoteIncrementalSeconds,x.RemoteFullSeconds)).ToArray()),Json):
-                backup.SchemaVersion==3?JsonSerializer.SerializeToUtf8Bytes(new VersionThreeBackup(3,backup.ExportedUtc,backup.Mounts.Select(x=>new VersionThreeItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled,x.RemoteAutoDetectEnabled,x.RemoteIncrementalSeconds,x.RemoteFullSeconds,x.Sqs,x.SqsCredentials)).ToArray()),Json):
-                backup.SchemaVersion==4?JsonSerializer.SerializeToUtf8Bytes(new VersionFourBackup(4,backup.ExportedUtc,backup.Mounts.Select(x=>new VersionFourItem(x.Name,x.LocalPath,x.Source,x.Credentials,x.AutoConnect,x.ThumbnailsEnabled,x.RemoteAutoDetectEnabled,x.RemoteIncrementalSeconds,x.RemoteFullSeconds,x.Sqs,x.SqsCredentials,x.CapacityAutoDetectEnabled,x.MaximumCapacityBytes)).ToArray()),Json):
-                JsonSerializer.SerializeToUtf8Bytes(backup, Json);
-            if (plain.Length > MaximumFileBytes - PayloadOffset) throw new InvalidDataException("配置备份超过 8 MiB 限制。");
-            var output = new byte[PayloadOffset + plain.Length]; "HMCONFIG"u8.CopyTo(output);
-            BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(8, 4), backup.SchemaVersion);
-            RandomNumberGenerator.Fill(output.AsSpan(12, 16)); RandomNumberGenerator.Fill(output.AsSpan(28, 12));
-            BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(40, 4), plain.Length);
-            passwordBytes = Encoding.UTF8.GetBytes(password);
-            key = Rfc2898DeriveBytes.Pbkdf2(passwordBytes, output.AsSpan(12, 16), Iterations, HashAlgorithmName.SHA256, 32);
+            var salt = password.Length == 0 ? null : RandomNumberGenerator.GetBytes(16);
+            var protection = salt is null ? new Protection("none") : new Protection("password", "PBKDF2-SHA256", Iterations, Convert.ToBase64String(salt), "AES-256-GCM");
+            if (salt is not null) key = DeriveKey(password, salt);
             token.ThrowIfCancellationRequested();
-            using var cipher = new AesGcm(key, TagBytes);
-            cipher.Encrypt(output.AsSpan(28, 12), plain, output.AsSpan(PayloadOffset), output.AsSpan(HeaderBytes, TagBytes), output.AsSpan(0, HeaderBytes));
-            token.ThrowIfCancellationRequested(); return output;
+            var entries = new List<BackupEntry>(); var nonces = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in backup.Mounts)
+            {
+                token.ThrowIfCancellationRequested(); var id = Guid.NewGuid(); EncryptedCredentials? encrypted = null;
+                if (key is not null)
+                {
+                    var plain = JsonSerializer.SerializeToUtf8Bytes(new CredentialPayload(item.Credentials, item.SqsCredentials), Json);
+                    try
+                    {
+                        byte[] nonce; string nonceText;
+                        do { nonce = RandomNumberGenerator.GetBytes(12); nonceText = Convert.ToBase64String(nonce); } while (!nonces.Add(nonceText));
+                        var ciphertext = new byte[plain.Length]; var tag = new byte[TagBytes];
+                        using var cipher = new AesGcm(key, TagBytes);
+                        cipher.Encrypt(nonce, plain, ciphertext, tag, AuthenticationData(id));
+                        encrypted = new(nonceText, Convert.ToBase64String(ciphertext), Convert.ToBase64String(tag));
+                    }
+                    finally { Clear(plain); }
+                }
+                entries.Add(new(id, item.Name, item.LocalPath, item.Source, item.AutoConnect, item.ThumbnailsEnabled,
+                    item.RemoteAutoDetectEnabled, item.RemoteIncrementalSeconds, item.RemoteFullSeconds, item.Sqs,
+                    item.CapacityAutoDetectEnabled, item.MaximumCapacityBytes, item.ExclusionRules,
+                    key is null ? item.Credentials : null, key is null ? item.SqsCredentials : null, encrypted));
+            }
+            var output = JsonSerializer.SerializeToUtf8Bytes(new BackupFile("hmxbk", CurrentVersion, backup.ExportedUtc, protection, entries), Json);
+            if (output.Length > MaximumFileBytes) { Clear(output); throw new InvalidDataException("配置备份超过 8 MiB 限制。"); }
+            if (token.IsCancellationRequested) { Clear(output); token.ThrowIfCancellationRequested(); }
+            return output;
         }
-        finally { Clear(plain); Clear(passwordBytes); Clear(key); }
+        finally { Clear(key); }
     }
 
-    /// <summary>验证固定头和有界长度后才派生密钥；认证及 JSON 错误不暴露明文或解析详情。</summary>
+    /// <summary>验证完整结构后解密凭据；错误密码和认证失败统一返回安全错误，不暴露正文。调用者须在后台执行。</summary>
     public static MountConfigurationBackup Decode(byte[] file, string password, CancellationToken token = default)
     {
-        ValidatePassword(password); token.ThrowIfCancellationRequested();
-        if (file.Length < PayloadOffset || file.Length > MaximumFileBytes || !file.AsSpan(0, 8).SequenceEqual("HMCONFIG"u8))
-            throw new InvalidDataException("不是有效的 HybridMount 配置备份，或文件大小超限。");
-        var format=BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(8,4));
-        if (format is not(1 or 2 or 3 or 4 or 5 or 6)) throw new InvalidDataException("不支持此配置备份版本。");
-        if (BinaryPrimitives.ReadInt32LittleEndian(file.AsSpan(40, 4)) != file.Length - PayloadOffset)
-            throw new InvalidDataException("配置备份长度无效。");
-        byte[]? plain = null, passwordBytes = null, key = null;
+        token.ThrowIfCancellationRequested(); var document = Parse(file); byte[]? key = null;
         try
         {
-            plain = new byte[file.Length - PayloadOffset]; passwordBytes = Encoding.UTF8.GetBytes(password);
-            key = Rfc2898DeriveBytes.Pbkdf2(passwordBytes, file.AsSpan(12, 16), Iterations, HashAlgorithmName.SHA256, 32);
-            token.ThrowIfCancellationRequested();
-            using var cipher = new AesGcm(key, TagBytes);
-            cipher.Decrypt(file.AsSpan(28, 12), file.AsSpan(PayloadOffset), file.AsSpan(HeaderBytes, TagBytes), plain, file.AsSpan(0, HeaderBytes));
-            var document = JsonSerializer.Deserialize<MountConfigurationBackup>(plain, Json) ?? throw new JsonException();
-            if(document.SchemaVersion!=format)throw new JsonException();
-            ValidateDocument(document); token.ThrowIfCancellationRequested(); return document;
+            if (document.Protection.Mode == "password")
+            {
+                if (string.IsNullOrEmpty(password)) throw new InvalidDataException("此配置备份需要密码。");
+                ValidatePassword(password); key = DeriveKey(password, Base64(document.Protection.Salt!, 16));
+            }
+            token.ThrowIfCancellationRequested(); var items = new List<MountBackupItem>();
+            foreach (var entry in document.Mounts)
+            {
+                token.ThrowIfCancellationRequested(); var credentials = entry.Credentials; var additional = entry.SqsCredentials;
+                if (key is not null)
+                {
+                    var encrypted = entry.ProtectedCredentials!; var ciphertext = Base64(encrypted.Ciphertext); var plain = new byte[ciphertext.Length];
+                    try
+                    {
+                        using var cipher = new AesGcm(key, TagBytes);
+                        cipher.Decrypt(Base64(encrypted.Nonce, 12), ciphertext, Base64(encrypted.Tag, TagBytes), plain, AuthenticationData(entry.BackupEntryId));
+                        using var json = StrictDocument(plain);
+                        var payload = json.RootElement.Deserialize<CredentialPayload>(Json) ?? throw new JsonException();
+                        credentials = payload.Credentials; additional = payload.SqsCredentials;
+                    }
+                    finally { Clear(plain); }
+                }
+                items.Add(ToItem(entry, credentials!, additional));
+            }
+            var result = new MountConfigurationBackup(CurrentVersion, document.ExportedUtc, items);
+            ValidateDocument(result); token.ThrowIfCancellationRequested(); return result;
         }
-        catch (CryptographicException) { throw new InvalidDataException("密码不正确或文件已损坏。"); }
-        catch (JsonException) { throw new InvalidDataException("密码不正确或文件已损坏。"); }
-        finally { Clear(plain); Clear(passwordBytes); Clear(key); }
+        catch (CryptographicException) { throw new InvalidDataException(AuthenticationFailed); }
+        catch (JsonException) { throw new InvalidDataException(AuthenticationFailed); }
+        finally { Clear(key); }
     }
 
-    /// <summary>稳定读取有界文件；文件正在写入时拒绝共享，读完再次检查完整长度。</summary>
+    /// <summary>从同一稳定文件读取有界快照；识别与后续密码重试都使用此快照，调用方负责释放会话。</summary>
+    internal static async Task<MountBackupReadSession> OpenAsync(string path, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested(); ValidatePath(path); byte[]? bytes = null;
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
+            if (stream.Length is < 2 or > MaximumFileBytes) throw new InvalidDataException("配置备份大小无效或超过 8 MiB。");
+            bytes = new byte[(int)stream.Length]; await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
+            if (stream.Length != bytes.Length) throw new InvalidDataException("配置备份读取期间发生变化。");
+            var requiresPassword = Parse(bytes).Protection.Mode == "password"; token.ThrowIfCancellationRequested();
+            var session = new MountBackupReadSession(bytes, requiresPassword); bytes = null; return session;
+        }
+        finally { Clear(bytes); }
+    }
+
+    /// <summary>后台一次性读取接口；使用可释放会话，不保留文件句柄或密码。</summary>
     public static async Task<MountConfigurationBackup> ReadAsync(string path, string password, CancellationToken token = default)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
-        if (stream.Length < PayloadOffset || stream.Length > MaximumFileBytes) throw new InvalidDataException("配置备份大小无效或超过 8 MiB。");
-        var bytes = new byte[(int)stream.Length]; await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
-        if (stream.Length != bytes.Length) throw new InvalidDataException("配置备份读取期间发生变化。");
-        return Decode(bytes, password, token);
+        using var session = await OpenAsync(path, token).ConfigureAwait(false);
+        return session.Decode(password, token);
     }
 
-    /// <summary>只落盘密文；同目录临时文件写完后原子替换，失败或取消保留原文件。</summary>
+    /// <summary>只写最终格式的字节；同目录临时文件完成后原子替换，取消或失败保留原文件并清理临时文件。</summary>
     /// <param name="commit">宿主可在停止锁内提交最终重命名；默认直接替换。</param>
-    internal static async Task WriteAtomicAsync(string path, byte[] encrypted, CancellationToken token, Action<string, string>? commit = null)
+    internal static async Task WriteAtomicAsync(string path, byte[] content, CancellationToken token, Action<string, string>? commit = null)
     {
-        token.ThrowIfCancellationRequested();
+        token.ThrowIfCancellationRequested(); ValidatePath(path);
         var destination = Path.GetFullPath(path); var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
             {
-                await stream.WriteAsync(encrypted, token).ConfigureAwait(false); await stream.FlushAsync(token).ConfigureAwait(false); stream.Flush(true);
+                await stream.WriteAsync(content, token).ConfigureAwait(false); await stream.FlushAsync(token).ConfigureAwait(false); stream.Flush(true);
             }
             token.ThrowIfCancellationRequested();
             if (commit is null) File.Move(temporary, destination, true); else commit(temporary, destination);
@@ -105,36 +148,118 @@ public static class MountBackupCodec
         finally { File.Delete(temporary); }
     }
 
-    /// <summary>验证安全的结构边界；路径和已实现协议的校验留给逐项导入预览。</summary>
+    /// <summary>仅接受新扩展名；文件内容仍独立验证，旧容器改名也不能导入。</summary>
+    internal static void ValidatePath(string path)
+    { if (!string.Equals(Path.GetExtension(path), ".hmxbk", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("仅支持 .hmxbk 配置备份；旧格式已停止支持。"); }
+
+    /// <summary>派生前验证算法、长度、每项身份及明密文互斥；所有解析错误转换为不含输入正文的错误。</summary>
+    private static BackupFile Parse(byte[] file)
+    {
+        if (file.Length is < 2 or > MaximumFileBytes) throw new InvalidDataException("配置备份大小无效或超过 8 MiB。");
+        if (file.AsSpan().StartsWith("HMCONFIG"u8)) throw new InvalidDataException("仅支持 .hmxbk 配置备份；旧格式已停止支持。");
+        try
+        {
+            using var json = StrictDocument(file);
+            var document = json.RootElement.Deserialize<BackupFile>(Json) ?? throw new JsonException();
+            if (document.Format != "hmxbk" || document.SchemaVersion != CurrentVersion) throw new InvalidDataException("不支持此配置备份格式或版本。");
+            if (document.ExportedUtc == default || document.Mounts is null || document.Mounts.Count is < 1 or > MaximumItems || document.Protection is not {} protection) throw new JsonException();
+            if (protection.Mode == "none")
+            {
+                if (protection.Kdf is not null || protection.Iterations is not null || protection.Salt is not null || protection.Cipher is not null) throw new JsonException();
+            }
+            else if (protection.Mode == "password")
+            {
+                if (protection.Kdf != "PBKDF2-SHA256" || protection.Iterations != Iterations || protection.Cipher != "AES-256-GCM" || protection.Salt is null) throw new JsonException();
+                Base64(protection.Salt, 16);
+            }
+            else throw new JsonException();
+            var ids = new HashSet<Guid>(); var nonces = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var entry in document.Mounts)
+            {
+                if (entry is null || entry.BackupEntryId == Guid.Empty || !ids.Add(entry.BackupEntryId)) throw new JsonException();
+                if (protection.Mode == "none")
+                { if (entry.Credentials is null || entry.ProtectedCredentials is not null) throw new JsonException(); }
+                else
+                {
+                    if (entry.Credentials is not null || entry.SqsCredentials is not null || entry.ProtectedCredentials is not {} encrypted) throw new JsonException();
+                    Base64(encrypted.Nonce, 12); Base64(encrypted.Tag, TagBytes); var payload = Base64(encrypted.Ciphertext);
+                    if (payload.Length == 0 || !nonces.Add(encrypted.Nonce)) throw new JsonException();
+                }
+                ValidateItem(ToItem(entry, entry.Credentials ?? new(), entry.SqsCredentials));
+            }
+            return document;
+        }
+        catch (JsonException) { throw new InvalidDataException(InvalidFile); }
+        catch (FormatException) { throw new InvalidDataException(InvalidFile); }
+        catch (ArgumentException) { throw new InvalidDataException(InvalidFile); }
+    }
+
+    /// <summary>严格 JSON：最大深度 16，任何层级的重复字段均拒绝，避免解析器覆盖导致模式歧义。</summary>
+    private static JsonDocument StrictDocument(byte[] bytes)
+    {
+        // 接受编辑器写入的 UTF-8 BOM，导出自身不写 BOM。
+        var memory = bytes.AsMemory(bytes.AsSpan().StartsWith(new byte[] { 0xef, 0xbb, 0xbf }) ? 3 : 0);
+        var document = JsonDocument.Parse(memory, new JsonDocumentOptions { MaxDepth = 16 });
+        try { CheckDuplicates(document.RootElement); return document; } catch { document.Dispose(); throw; }
+    }
+    private static void CheckDuplicates(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject()) { if (!names.Add(property.Name)) throw new JsonException(); CheckDuplicates(property.Value); }
+        }
+        else if (value.ValueKind == JsonValueKind.Array) foreach (var item in value.EnumerateArray()) CheckDuplicates(item);
+    }
+    private static byte[] Base64(string value, int? length = null)
+    {
+        if (value is null) throw new JsonException();
+        var bytes = Convert.FromBase64String(value);
+        if ((length is not null && bytes.Length != length) || Convert.ToBase64String(bytes) != value) throw new JsonException();
+        return bytes;
+    }
+    private static byte[] AuthenticationData(Guid id) => Encoding.UTF8.GetBytes($"hmxbk|1|{id:D}|credentials");
+    private static byte[] DeriveKey(string password, byte[] salt)
+    {
+        var bytes = Encoding.UTF8.GetBytes(password);
+        try { return Rfc2898DeriveBytes.Pbkdf2(bytes, salt, Iterations, HashAlgorithmName.SHA256, 32); }
+        finally { Clear(bytes); }
+    }
+    private static MountBackupItem ToItem(BackupEntry entry, SourceCredentials credentials, SourceCredentials? additional)
+        => new(entry.Name, entry.LocalPath, entry.Source, credentials, entry.AutoConnect, entry.ThumbnailsEnabled,
+            entry.RemoteAutoDetectEnabled, entry.RemoteIncrementalSeconds, entry.RemoteFullSeconds, entry.Sqs, additional,
+            entry.CapacityAutoDetectEnabled, entry.MaximumCapacityBytes, entry.ExclusionRules);
     private static void ValidateDocument(MountConfigurationBackup backup)
     {
-        if (backup.SchemaVersion is not(1 or 2 or 3 or 4 or 5 or 6) || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
+        if (backup.SchemaVersion != CurrentVersion || backup.ExportedUtc == default || backup.Mounts is null || backup.Mounts.Count is < 1 or > MaximumItems)
             throw new InvalidDataException("配置备份载荷版本或条目数量无效。");
-        foreach (var item in backup.Mounts)
-        {
-            if(item is not null&&(item.RemoteIncrementalSeconds is <10 or >86400||item.RemoteFullSeconds is <30 or >604800))throw new InvalidDataException("配置备份包含无效检测间隔。");
-            if (item is null || item.Name is null || item.LocalPath is null || item.Source is not {} source || item.Credentials is not {} secrets ||
-                source.Endpoint is null || source.Bucket is null || source.Prefix is null || source.Region is null ||
-                secrets.UserName is null || secrets.Password is null || secrets.AccessKey is null || secrets.SecretKey is null || secrets.SessionToken is null)
-                throw new InvalidDataException("配置备份包含不完整条目。");
-            try{CapacityRules.Validate(source.Kind,item.CapacityAutoDetectEnabled,item.MaximumCapacityBytes);FileExclusionRules.Validate(item.ExclusionRules);}
-            catch(ArgumentException){throw new InvalidDataException("配置备份包含无效容量设置。");}
-            if(backup.SchemaVersion<4&&(item.CapacityAutoDetectEnabled||item.MaximumCapacityBytes is not null))throw new InvalidDataException("旧版备份不能包含容量设置。");
-            if(backup.SchemaVersion<5&&item.ExclusionRules is {Count:>0})throw new InvalidDataException("旧版备份不能包含排除规则。");
-            if(backup.SchemaVersion<6&&(source.Kind==FileSourceKind.Synology||source.PinnedCertificateSha256 is not null))throw new InvalidDataException("群晖及固定证书指纹需要 v6 配置备份。");
-            FileSourceFactory.ValidateBackupFields(item);
-        }
+        foreach (var item in backup.Mounts) ValidateItem(item);
     }
-    // v1 生成只供兼容回归使用，不能在 v1 容器中悄悄写入新版选项。
-    private sealed record VersionFourItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled,bool RemoteAutoDetectEnabled,int RemoteIncrementalSeconds,int RemoteFullSeconds,SqsConfiguration? Sqs,SourceCredentials? SqsCredentials,bool CapacityAutoDetectEnabled,long? MaximumCapacityBytes);
-    private sealed record VersionFourBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<VersionFourItem> Mounts);
-    private sealed record LegacyItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled);
-    private sealed record VersionThreeItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled,bool RemoteAutoDetectEnabled,int RemoteIncrementalSeconds,int RemoteFullSeconds,SqsConfiguration? Sqs,SourceCredentials? SqsCredentials);
-    private sealed record VersionThreeBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<VersionThreeItem> Mounts);
-    private sealed record VersionTwoItem(string Name,string LocalPath,FileSourceConfiguration Source,SourceCredentials Credentials,bool AutoConnect,bool ThumbnailsEnabled,bool RemoteAutoDetectEnabled,int RemoteIncrementalSeconds,int RemoteFullSeconds);
-    private sealed record VersionTwoBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<VersionTwoItem> Mounts);
-    private sealed record LegacyBackup(int SchemaVersion,DateTimeOffset ExportedUtc,IReadOnlyList<LegacyItem> Mounts);
+    private static void ValidateItem(MountBackupItem item)
+    {
+        if (item is null || item.Name is null || item.LocalPath is null || item.Source is not {} source || item.Credentials is not {} secrets ||
+            source.Kind is not (FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology) ||
+            source.Endpoint is null || source.Bucket is null || source.Prefix is null || source.Region is null ||
+            secrets.UserName is null || secrets.Password is null || secrets.AccessKey is null || secrets.SecretKey is null || secrets.SessionToken is null ||
+            item.SqsCredentials is {} extra && (extra.UserName is null || extra.Password is null || extra.AccessKey is null || extra.SecretKey is null || extra.SessionToken is null))
+            throw new InvalidDataException("配置备份包含不完整条目。");
+        if (item.RemoteIncrementalSeconds is < 10 or > 86400 || item.RemoteFullSeconds is < 30 or > 604800) throw new InvalidDataException("配置备份包含无效检测间隔。");
+        try { CapacityRules.Validate(source.Kind, item.CapacityAutoDetectEnabled, item.MaximumCapacityBytes); FileExclusionRules.Validate(item.ExclusionRules); FileSourceFactory.ValidateBackupFields(item); }
+        catch (Exception error) when (error is ArgumentException or InvalidDataException or NotSupportedException) { throw new InvalidDataException("配置备份包含无效连接参数或选项。"); }
+    }
     private static void ValidatePassword(string password)
-    { if (password is null || password.Length is > 0 and < 8) throw new ArgumentException("备份密码可留空；设置时至少需要 8 个字符。"); }
+    { if (password is null || password.Length is > 0 and < 8) throw new ArgumentException("启用密码保护时至少需要 8 个字符。"); }
     private static void Clear(byte[]? bytes) { if (bytes is not null) CryptographicOperations.ZeroMemory(bytes); }
+
+    // 仅属于外部备份的白名单；不复用本机旧字段迁移转换器，所有未知字段由 Json 严格拒绝。
+    private sealed record Protection(string Mode, string? Kdf = null, int? Iterations = null, string? Salt = null, string? Cipher = null);
+    private sealed record EncryptedCredentials(string Nonce, string Ciphertext, string Tag);
+    private sealed record CredentialPayload([property: JsonRequired] SourceCredentials Credentials, SourceCredentials? SqsCredentials);
+    private sealed record BackupFile(string Format, int SchemaVersion, DateTimeOffset ExportedUtc, Protection Protection, IReadOnlyList<BackupEntry> Mounts);
+    private sealed record BackupEntry([property: JsonRequired] Guid BackupEntryId, [property: JsonRequired] string Name,
+        [property: JsonRequired] string LocalPath, [property: JsonRequired] FileSourceConfiguration Source,
+        [property: JsonRequired] bool AutoConnect, [property: JsonRequired] bool ThumbnailsEnabled, [property: JsonRequired] bool RemoteAutoDetectEnabled,
+        [property: JsonRequired] int RemoteIncrementalSeconds, [property: JsonRequired] int RemoteFullSeconds, SqsConfiguration? Sqs,
+        [property: JsonRequired] bool CapacityAutoDetectEnabled, long? MaximumCapacityBytes, IReadOnlyList<FileExclusionRule>? ExclusionRules,
+        SourceCredentials? Credentials, SourceCredentials? SqsCredentials, EncryptedCredentials? ProtectedCredentials);
 }

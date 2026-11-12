@@ -1,7 +1,7 @@
 namespace HybridMount.Models.Mounting;
 
 /// <summary>可迁移的挂载配置；只保存用户选项，不包含挂载 ID、同步根身份或运行索引。</summary>
-/// <remarks>凭据仅供加密编解码及重新保存到 DPAPI；不得记录整个对象。</remarks>
+/// <remarks>凭据仅供用户选择的明文／加密备份及重新保存到 DPAPI；不得记录整个对象。</remarks>
 public sealed record MountBackupItem(string Name, string LocalPath, FileSourceConfiguration Source,
     SourceCredentials Credentials, bool AutoConnect = true, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, SqsConfiguration? Sqs = null, SourceCredentials? SqsCredentials = null, bool CapacityAutoDetectEnabled = false, long? MaximumCapacityBytes = null, IReadOnlyList<FileExclusionRule>? ExclusionRules = null)
 {
@@ -13,7 +13,7 @@ public sealed record MountBackupItem(string Name, string LocalPath, FileSourceCo
     public override string ToString() => "挂载配置备份条目";
 }
 
-/// <summary>加密载荷的版本化白名单；SchemaVersion 与容器版本分别验证。</summary>
+/// <summary>.hmxbk 的版本化业务载荷；只支持当前 JSON 格式，不携带运行身份。</summary>
 public sealed record MountConfigurationBackup(int SchemaVersion, DateTimeOffset ExportedUtc, IReadOnlyList<MountBackupItem> Mounts);
 
 /// <summary>导入时的本机目录和选择状态；原目录只作为提示，不能用备份中的运行身份注册。</summary>

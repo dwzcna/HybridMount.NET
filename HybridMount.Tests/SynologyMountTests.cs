@@ -34,15 +34,15 @@ public sealed class SynologyMountTests
     }
     [Theory]
     [InlineData(false)][InlineData(true)]
-    public async Task ExportChoosesSchemaFromContentsAndImportClearsDeviceTokenWithoutConnecting(bool synology)
+    public async Task HmxbkExportAndImportClearDeviceTokenWithoutConnecting(bool synology)
     {
         await using var test=await Fixture.Create(connect:false);var source=synology?SynologyTests.Options:new(FileSourceKind.WebDav,"https://example.test/");
         var item=new MountBackupItem("imported","old-machine",source,new("user","password",SessionToken:synology?"device-secret":""));
         var target=Path.Combine(test.Area,"imported");Directory.CreateDirectory(target);
         var imported=await test.Manager.ImportConfigurationsAsync([new(item,target)]);Assert.Equal("Saved",Assert.Single(imported.Results).State);
         var definition=Assert.Single(test.Manager.Mounts).Definition;Assert.Empty(new CredentialStore(test.Repository.DataDirectory).Load(definition.Id).SessionToken);
-        var backup=Path.Combine(test.Area,"test.hymcfg");await test.Manager.ExportConfigurationsAsync([definition.Id],"",backup);
-        var decoded=MountBackupCodec.Decode(await File.ReadAllBytesAsync(backup),"");Assert.Equal(synology?6:5,decoded.SchemaVersion);
+        var backup=Path.Combine(test.Area,"test.hmxbk");await test.Manager.ExportConfigurationsAsync([definition.Id],"",backup);
+        var decoded=MountBackupCodec.Decode(await File.ReadAllBytesAsync(backup),"");Assert.Equal(1,decoded.SchemaVersion);
         Assert.Empty(test.Server.Logins);Assert.Empty(test.Server.Uploads);
     }
     private sealed class Definitions:IMountDefinitionStore

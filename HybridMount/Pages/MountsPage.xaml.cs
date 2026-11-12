@@ -103,16 +103,16 @@ public sealed partial class MountsPage : Page,IDisposable
     private async void CreateWebDavHttpsMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav,httpsOnly:true);
     private async void CreateS3Mount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.S3);
     private async void CreateSynologyMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.Synology);
-    /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与密文写入由应用服务执行。</summary>
+    /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与可选加密写入由应用服务执行。</summary>
     private async void ExportConfigurations(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {
         try { _backupDialog=new MountBackupDialog{XamlRoot=XamlRoot};await global::HybridMount.Helpers.UI.Ui.ShowAsync(_backupDialog);if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage; }
         finally { _backupDialog=null; }
     });
-    /// <summary>文件选择只接受加密配置；解密通过后先预览，保存不会自动连接。</summary>
+    /// <summary>文件选择只接受 .hmxbk；自动识别保护模式后预览，保存不会自动连接。</summary>
     private async void ImportConfigurations(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {
-        var picker=new global::Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hymcfg");picker.FileTypeFilter.Add(".hmconfig");
+        var picker=new global::Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hmxbk");
         WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
         var file=await picker.PickSingleFileAsync();if(file is null||App.Current.IsExiting)return;
         try

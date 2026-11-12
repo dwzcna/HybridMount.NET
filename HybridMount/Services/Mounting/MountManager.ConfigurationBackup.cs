@@ -6,12 +6,13 @@ public sealed partial class MountManager
 {
     private readonly SemaphoreSlim _configurationGate = new(1, 1);
 
-    /// <summary>按根锁捕获一致配置与 DPAPI 凭据，后台加密并原子写入；不探测远端。</summary>
+    /// <summary>按根锁捕获一致配置与 DPAPI 凭据，后台可选加密并原子写入 JSON；不探测远端。</summary>
     public Task ExportConfigurationsAsync(IReadOnlyList<Guid> ids, string password, string path, CancellationToken token = default)
     {
         ids = ids.ToArray();
         return OwnAsync(cancel => Task.Run(async () =>
         {
+            MountBackupCodec.ValidatePath(path);
             if (ids.Count is < 1 or > MountBackupCodec.MaximumItems || ids.Distinct().Count() != ids.Count) throw new ArgumentException("请选择要导出的挂载。");
             var items = new List<MountBackupItem>();
             foreach (var id in ids)
@@ -28,18 +29,29 @@ public sealed partial class MountManager
                 }
                 finally { root.Gate.Release(); }
             }
-            var schema=items.Any(item=>item.Source.Kind==FileSourceKind.Synology||item.Source.PinnedCertificateSha256 is not null)?6:5;
-            var bytes = MountBackupCodec.Encode(new(schema, DateTimeOffset.UtcNow, items), password, cancel);
-            await MountBackupCodec.WriteAtomicAsync(path, bytes, cancel, (temporary, destination) =>
+            var bytes = MountBackupCodec.Encode(new(MountBackupCodec.CurrentVersion, DateTimeOffset.UtcNow, items), password, cancel);
+            try
             {
-                lock (_lifetime) { ThrowIfStopping(); cancel.ThrowIfCancellationRequested(); File.Move(temporary, destination, true); }
-            }).ConfigureAwait(false);
+                await MountBackupCodec.WriteAtomicAsync(path, bytes, cancel, (temporary, destination) =>
+                {
+                    lock (_lifetime) { ThrowIfStopping(); cancel.ThrowIfCancellationRequested(); File.Move(temporary, destination, true); }
+                }).ConfigureAwait(false);
+            }
+            finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes); }
         }, cancel), token);
     }
 
-    /// <summary>只读解密；宿主退出会等待有界读取与密码派生结束，错误不输出秘密内容。</summary>
+    /// <summary>只读识别并按需解密；宿主退出会等待有界读取与密码派生结束，错误不输出秘密内容。</summary>
     public Task<MountConfigurationBackup> ReadConfigurationBackupAsync(string path, string password, CancellationToken token = default)
         => OwnAsync(cancel => Task.Run(() => MountBackupCodec.ReadAsync(path, password, cancel), cancel), token);
+
+    /// <summary>后台识别并保存有界快照；调用方负责释放，退出由应用所有权等待读取收尾。</summary>
+    internal Task<MountBackupReadSession> OpenConfigurationBackupAsync(string path, CancellationToken token = default)
+        => OwnAsync(cancel => Task.Run(() => MountBackupCodec.OpenAsync(path, cancel), cancel), token);
+
+    /// <summary>后台解密已识别快照；不重读文件，不在 UI 线程派生密码密钥。</summary>
+    internal Task<MountConfigurationBackup> DecodeConfigurationBackupAsync(MountBackupReadSession session, string password, CancellationToken token = default)
+        => OwnAsync(cancel => Task.Run(() => session.Decode(password, cancel), cancel), token);
 
     /// <summary>逐项预览目录与连接参数；选中的有效项目参与批内重叠检查，不修改配置。</summary>
     public Task<IReadOnlyList<MountImportResult>> PreviewImportConfigurationsAsync(IReadOnlyList<MountImportItem> items, CancellationToken token = default)
