@@ -16,9 +16,9 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
     private readonly FileSourceConfiguration _options;
     private readonly WholeFileCache _cache;
     private readonly string _connection=Guid.NewGuid().ToString("N");
-    private readonly SharedAsyncWork<int,string> _logins=new();
-    private readonly SharedAsyncWork<string,SourceEntry> _metadataQueries=new();
-    private readonly SharedAsyncWork<string,string> _hashes=new();
+    private readonly SharedAsyncWork<int,string> _logins=new(1);
+    private readonly SharedAsyncWork<string,SourceEntry> _metadataQueries=new(128);
+    private readonly SharedAsyncWork<string,string> _hashes=new(64);
     private readonly SemaphoreSlim _writes=new(1,1);
     private readonly ConcurrentDictionary<string,byte> _probePaths=new(StringComparer.Ordinal);
     private readonly HashSet<string> _verifiedParents=new(StringComparer.Ordinal);
@@ -116,8 +116,15 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
     {
         token.ThrowIfCancellationRequested();if(_probePaths.ContainsKey(path))throw new FileNotFoundException("本会话探测项尚未发布。");
         using var waiter=Share("metadata:"+path);
-        return await _metadataQueries.RunAsync(path,async cancel=>await FingerprintAsync(await GetRawMetadataAsync(path,cancel).ConfigureAwait(false),cancel).ConfigureAwait(false),
+        return await _metadataQueries.RunAsync(path,cancel=>ReadMetadataOwnerAsync(path,cancel),
             token,Share("metadata:"+path)).ConfigureAwait(false);
+    }
+    /// <summary>共享元数据生产者独立保留整个查询；调用者取消不撤销其他消费者所需的认证、MD5及最终版本复查。</summary>
+    private async Task<SourceEntry> ReadMetadataOwnerAsync(string path,CancellationToken token)
+    {
+        using var context=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Metadata,path);
+        using var flow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
+        return await FingerprintAsync(await GetRawMetadataAsync(path,token).ConfigureAwait(false),token).ConfigureAwait(false);
     }
     private async Task<SourceEntry> GetRawMetadataAsync(string path,CancellationToken token)
     {

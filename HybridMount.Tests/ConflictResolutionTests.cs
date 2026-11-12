@@ -104,7 +104,7 @@ public sealed class ConflictResolutionTests
     public async Task ViewModelCapturesOriginalTaskAndRejectsDuplicateOrLateSubmission()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);var item=await Conflict(test);using var vm=new TasksViewModel(test.Manager,new InlineDispatcher());
-        vm.ConflictsOnly=true;Assert.Contains(vm.Operations,x=>x.Id==item.Id);vm.SelectedJobId=item.Id;Assert.True(await vm.BeginConflictAsync());Assert.False(await vm.BeginConflictAsync());
+        vm.ConflictsOnly=true;await vm.SnapshotIdle;Assert.Contains(vm.Operations,x=>x.Id==item.Id);vm.SelectedJobId=item.Id;Assert.True(await vm.BeginConflictAsync());Assert.False(await vm.BeginConflictAsync());
         Assert.True(vm.CanResolveWithRemote);vm.SelectedJobId="unrelated";Assert.True(await vm.ResolveConflictAsync(false));Assert.False(await vm.ResolveConflictAsync(false));vm.EndDialog();
         Assert.Equal("Completed",test.Repository.Upload(item.Id)!.State);Assert.Contains("备份",vm.Status);
     }
@@ -180,7 +180,7 @@ public sealed class ConflictResolutionTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);var item=await Conflict(test);var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var handler=test.Dav.Server.Handler;
         test.Dav.Server.Handler=async request=>{if(request.Method=="PROPFIND"&&Uri.UnescapeDataString(request.Target).Contains("文件.bin")){entered.TrySetResult();await release.Task;}return await handler(request);};
-        using var vm=new TasksViewModel(test.Manager,new InlineDispatcher());vm.SelectedJobId=item.Id;var comparing=vm.BeginConflictAsync();
+        using var vm=new TasksViewModel(test.Manager,new InlineDispatcher());await vm.SnapshotIdle;vm.SelectedJobId=item.Id;var comparing=vm.BeginConflictAsync();
         try{await entered.Task.WaitAsync(TimeSpan.FromSeconds(15));vm.EndDialog();Assert.True(vm.BeginCopy());}
         finally{release.TrySetResult();}
         Assert.False(await comparing);Assert.False(vm.BeginCopy());vm.EndDialog();

@@ -153,6 +153,10 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
         for(int i=0;i<count;++i){command.CheckCancel();Require(_impl->Host.SendCallback({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",base},{"event","deleted"},{"data",{{"entryId",std::to_string(i)}}}},GetTickCount64()+45),HRESULT_FROM_WIN32(ERROR_NOT_ENOUGH_QUOTA));}return Json::object();
     }
     if(operation=="testDiscardableHints"){auto count=data.at("count").get<int>();Require(count>0&&count<=4096);for(int i=0;i<count;++i)_impl->Host.Send({{"kind","event"},{"mountId",GuidN(data.at("mountId"))},{"sessionId",GuidN(data.at("sessionId"))},{"event","renameRejected"},{"data",{{"sourcePath","sample.txt"},{"reason","outOfRoot"}}}},false);return Json::object();}
+    if(operation=="testPoolDelay"){
+        const auto milliseconds=data.at("milliseconds").get<DWORD>();Require(milliseconds<=5000);WaitForSingleObject(command.Cancel.Value,milliseconds);command.CheckCancel();return {{"completed",true}};
+    }
+    if(operation=="testCompletion")return {{"completed",true}};
     if(operation=="testCheckpoint")return _impl->Host.Checkpoint(command,"test",Json::object());
     if(operation=="testManagedCheckpoint"){if(data.value("irreversible",false))_impl->Host.Checkpoint(command,"beginWrite",Json::object(),true);return _impl->Host.Checkpoint(command,data.value("irreversible",false)?"commit":"test",Json::object(),false,data.value("irreversible",false));}
     if(operation=="testLocalReadStats")return _impl->Reads.Execute(command);

@@ -1,14 +1,16 @@
 # HybridMount.NET
 
-当前版本 **0.0.9.71 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.10.0 Native Preview**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-本分支 `codex/native-backend` 基于 .42，未包含 .43；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+当前 `master` 沿用原生实验基线，未恢复 discard 分支的 .72 工程改名或 daemon 设计；实验 MSIX 身份为 `dwzcn.HybridMount.NativePreview`，与正式安装及另一部署模式隔离，不接管原挂载。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份及现有挂载数据保持兼容。
 
 CFAPI通知使用独立有界邮箱；打开／关闭以带序号的绝对计数合并，关键改名／删除保持顺序，回调排队共享45毫秒预算。通知无法可靠交付时后台显式停止连接并保留注册与恢复记录，等待重新核对。
 
-挂载任务由应用级 TasksQueueService 调度，任务页经 TasksViewModel 读取状态与提交命令；每挂载的存储网络步骤串行，跨挂载最多两路。按需读取优先于用户操作、自动同步、目录检测、缩略图和维护；低优先级在范围块、分页或分片边界让路，已发送的完整写入先安全结束。冲突与依赖等待不占网络名额，任务页显示优先级、阶段、阻塞任务和重试时间；远端上传已确认而本地提交未完成时保留回执和不可变快照，只重试本地核验；同内容的元数据变化经稳定摘要证明后收尾，真实新正文才建立后续发送。三次本地核验未完成则保留证据，等待显式重试；同一任务的进度在常驻行上更新，选择和进度条保持；仅真实增删或分组改变时调整列表。每项以四行显示挂载及任务类型、相对路径与速度／状态、靠右可复制的任务ID和进度条。目录及应用远端更改不显示字节总量；上传／下载中显示实际采样速度，完成后按文件大小与本次耗时显示平均速度。左侧选中指示条和8%不透明度浅底分别使用绿色、同步问题红色及冲突黄色，文字沿用系统颜色；高对比度使用系统选择色。等待、错误、阶段和重试时间可在悬停／“查看结果”中查看，页面操作使用图标加文字，放不下的动作收入“…”菜单。任务页同一行左侧为全部／同步问题／冲突三段 Segmented、右侧为操作；先展开前三项操作，再显示筛选全部文字，之后展开其余操作，总数不足三项时先显示全部操作。宽度不足时筛选仅保留图标、提示和选中态，右侧其余操作收入“…”菜单；窄窗收缩立即生效，扩展留有余量以免反复跳动。日志页提供全部／信息／警告／错误四段筛选，搜索与单日 DatePicker 位于第一行，选择日期后显示清除按钮，加载更早和其他操作位于第二行右侧。
+挂载任务由应用级 TasksQueueService 调度，任务页经 TasksViewModel 读取状态与提交命令；所有挂载共享实际云请求并发额度，每挂载分别允许一路上传／修改、一路普通下载、一路独立元数据和一路缩略图远端读取。设置页“云操作线程数”可保存 1—128，默认 4，建议值为 CPU 逻辑处理器数的一半（向下取整，限制在 1—128）；实际使用异步任务和线程池，增加额度立即接纳，降低额度等待现有请求收尾。按需读取优先于用户操作、自动同步、目录检测、缩略图和维护；低优先级在范围块、分页或分片边界让路，已发送的完整写入先安全结束。冲突与依赖等待不占网络名额，任务页显示优先级、阶段、阻塞任务和重试时间；远端上传已确认而本地提交未完成时保留回执和不可变快照，只重试本地核验；同内容的元数据变化经稳定摘要证明后收尾，真实新正文才建立后续发送。三次本地核验未完成则保留证据，等待显式重试；同一任务的进度在常驻行上更新，选择和进度条保持；仅真实增删或分组改变时调整列表。每项以四行显示挂载及任务类型、相对路径与速度／状态、靠右可复制的任务ID和进度条。目录及应用远端更改不显示字节总量；上传／下载中显示实际采样速度，完成后按文件大小与本次耗时显示平均速度。左侧选中指示条和8%不透明度浅底分别使用绿色、同步问题红色及冲突黄色，文字沿用系统颜色；高对比度使用系统选择色。等待、错误、阶段和重试时间可在悬停／“查看结果”中查看，页面操作使用图标加文字，放不下的动作收入“…”菜单。任务页同一行左侧为全部／同步问题／冲突三段 Segmented、右侧为操作；先展开前三项操作，再显示筛选全部文字，之后展开其余操作，总数不足三项时先显示全部操作。宽度不足时筛选仅保留图标、提示和选中态，右侧其余操作收入“…”菜单；窄窗收缩立即生效，扩展留有余量以免反复跳动。日志页提供全部／信息／警告／错误四段筛选，搜索与单日 DatePicker 位于第一行，选择日期后显示清除按钮，加载更早和其他操作位于第二行右侧。
+
+菜单使用独立 STA，缩略图使用独立 MTA；菜单快速状态只读内存摘要。目录观察的心跳、Shell 目录识别与 UIA 采样分开执行，普通目录尽早过滤，单视图识别及采样共用 250 毫秒预算；无效样本保留原需求，超时退避并由拥有者清理不合作的隔离进程。任务快照在后台读取及排序，以 250 毫秒合并派发到 UI。
 
 界面随包提供中文（中国）、English (United States)、中文（香港特別行政區）；设置的外观卡片可选择语言或跟随Windows优先显示语言，保存成功后即时更新当前页面、菜单和对话框，保留草稿、选择、滚动及提示关闭状态。日期数字沿用Windows区域格式；用户名称、路径、服务器原始错误及已有日志保持原文。静态界面使用语义 x:Uid，三语言源文件位于 Resources/<语言代码>/Strings.resw，通过 Strings 资源映射读取实际 PRI；没有 Strings 目录。原生菜单使用标准 Win32 MUI 的语言中性资源模块、三语言卫星及 zh-CN 最终回退，后台读取后发布内存摘要，主程序退出后仍可使用；不改变 Explorer 进程语言。Windows安装名称与状态列标题的系统缓存需单独核验。
 
@@ -115,6 +117,9 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 # 依次构建扩展、原生后台和主程序，再执行 x64 测试
 .\build\Build.ps1 -Platform x64 -Configuration Debug -Deployment Unpackaged -Test
 
+# 可选定向回归；仍先构建同配置的隔离原生测试映像
+.\build\Build.ps1 -Platform x64 -Configuration Debug -Deployment Unpackaged -Test -TestFilter 'FullyQualifiedName~CloudConcurrencyTests'
+
 # 自包含 MSIX；-Package 默认选择 Packaged；不提供证书参数时输出未签名包
 .\build\Build.ps1 -Platform x64 -Configuration Release -Package
 .\build\Build.ps1 -Platform ARM64 -Configuration Release -Package
@@ -126,11 +131,13 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 .\build\Update-Assets.ps1
 ```
 
+自动测试最多并行运行4个测试集合；单个用例内的并发调度验证保持1／4／128，停止专项默认继续排除。
+
 本分支实验产物位于 `artifacts\packages\<架构>`，构建日志、TRX 与包哈希位于 `artifacts\validation`。实验构建默认 `-ShellProfile MenusAndThumbnails`，也支持仅菜单 `Menus` 或系统集成 `Native`。ARM64 可以交叉构建，测试运行必须在 ARM64 主机进行。直接构建主工程前，先构建同架构、同配置的扩展和原生后台；推荐使用脚本或 slnx。
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版验证细节及待测项目见 [docs/Validation-0.0.9.71.md](docs/Validation-0.0.9.71.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版交付源码和静态检查，尚未执行构建、回归或性能验收；记录及待测项目见 [docs/Validation-0.0.10.0.md](docs/Validation-0.0.10.0.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 真实自动同步验收为显式操作，可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

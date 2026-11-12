@@ -35,11 +35,23 @@ public sealed class UploadReceiptRetentionTests
         Assert.NotNull(pending);Assert.Equal("RemoteCommitted",pending.State);Assert.Equal(3,pending.TransientFailureCount);Assert.NotNull(pending.Receipt);Assert.NotNull(pending.SnapshotPath);Assert.True(File.Exists(pending.SnapshotPath));Assert.Equal(pending.Total,pending.Bytes);Assert.Equal(1,Writes(test,"pending.bin"));
         committer.Allow=true;Assert.True(test.Manager.RetryUpload(pending.Id));await test.Wait("pending.bin");Assert.Equal(1,Writes(test,"pending.bin"));
     }
+    [Fact(Timeout=60000)]
+    public async Task TemporaryLocalAccessDenialRetriesCommitWithoutUploadingAgain()
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);await test.Manager.DisposeAsync();
+        var committer=new SwitchCommitter{Allow=true,Denials=1};test.Manager=new(test.Repository,test.Logger,uploadCommitter:committer){LegacyPreviewsForTests=false};await test.Manager.ConnectAsync(test.Id);await test.Manager.SetSchedulingForTestsAsync(test.Id,true);
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"retry-local.bin"),"one remote write");var until=DateTime.UtcNow.AddSeconds(15);LocalUpload? pending=null;
+        while(DateTime.UtcNow<until){pending=test.Repository.Uploads(test.Id).FirstOrDefault(item=>item.LocalPath=="retry-local.bin");if(pending is {State:"RemoteCommitted",NextAttemptUtc:not null})break;await Task.Delay(20);}
+        Assert.NotNull(pending);
+        Assert.NotNull(pending.Receipt);Assert.NotNull(pending.SnapshotPath);Assert.NotNull(pending.NextAttemptUtc);Assert.Equal(1,pending.TransientFailureCount);Assert.Equal(1,Writes(test,"retry-local.bin"));
+        await test.Wait("retry-local.bin");Assert.Equal(1,Writes(test,"retry-local.bin"));
+    }
     private sealed class SwitchCommitter:ILocalUploadCommitter,IRecoveryUploadCommitter
     {
-        internal volatile bool Allow;private readonly CloudUploadCommitter _native=new();
-        public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)=>Allow?_native.Commit(mount,entry,prepared):null;
+        internal volatile bool Allow;internal int Denials;private readonly CloudUploadCommitter _native=new();
+        private void CheckAccess(){if(Interlocked.Decrement(ref Denials)>=0)throw new System.ComponentModel.Win32Exception(5);}
+        public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared){if(!Allow)return null;CheckAccess();return _native.Commit(mount,entry,prepared);}
         public bool NeedsRecovery(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp stamp)=>_native.NeedsRecovery(mount,entry,prepared,stamp);
-        public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp)=>Allow?_native.Commit(mount,entry,prepared,verifiedStamp):null;
+        public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp){if(!Allow)return null;CheckAccess();return _native.Commit(mount,entry,prepared,verifiedStamp);}
     }
 }

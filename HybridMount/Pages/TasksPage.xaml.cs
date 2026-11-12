@@ -45,18 +45,18 @@ public sealed partial class TasksPage : Page, IDisposable
     }
     private void ClearIssueFilter(object sender,RoutedEventArgs args)=>ViewModel.ClearIssueFilter();
     /// <summary>只读核对改名事务，界面不直接发送远端改名。</summary>
-    private void RecheckRename(object sender,RoutedEventArgs args)=>ViewModel.RecheckSelected();
+    private async void RecheckRename(object sender,RoutedEventArgs args)=>await ViewModel.RecheckSelectedAsync();
     /// <summary>文件存在时由Shell选中；已移除文件打开最近仍存在的父目录，不连接服务或自动上传。</summary>
     private async void OpenLocation(object sender,RoutedEventArgs args)
     {
-        if(ViewModel.SelectedLocation() is not {} path)return;
+        if(await ViewModel.SelectedLocationAsync() is not {} path)return;
         try
         {
-            var folder=Path.GetDirectoryName(path)!;while(!Directory.Exists(folder)&&Path.GetDirectoryName(folder) is {} parent)folder=parent;
+            var location=await Task.Run(()=>{var folder=Path.GetDirectoryName(path)!;while(!Directory.Exists(folder)&&Path.GetDirectoryName(folder) is {} parent)folder=parent;return(Folder:folder,File:File.Exists(path),Directory:Directory.Exists(path));});if(_disposed||App.Current.IsExiting)return;var folder=location.Folder;
             var storage=await global::Windows.Storage.StorageFolder.GetFolderFromPathAsync(folder);if(_disposed||App.Current.IsExiting)return;
             var options=new global::Windows.System.FolderLauncherOptions();
-            if(File.Exists(path))options.ItemsToSelect.Add(await global::Windows.Storage.StorageFile.GetFileFromPathAsync(path));
-            else if(Directory.Exists(path))options.ItemsToSelect.Add(await global::Windows.Storage.StorageFolder.GetFolderFromPathAsync(path));
+            if(location.File)options.ItemsToSelect.Add(await global::Windows.Storage.StorageFile.GetFileFromPathAsync(path));
+            else if(location.Directory)options.ItemsToSelect.Add(await global::Windows.Storage.StorageFolder.GetFolderFromPathAsync(path));
             if(!_disposed&&!App.Current.IsExiting)await global::Windows.System.Launcher.LaunchFolderAsync(storage,options);
         }
         catch(Exception error){if(!_disposed)ViewModel.ReportError(error.Message);}
@@ -69,8 +69,8 @@ public sealed partial class TasksPage : Page, IDisposable
         catch(Exception error){if(!_disposed)ViewModel.ReportError(error.Message);}
         finally{if(owned)ViewModel.EndDialog();}
     }
-    private void CancelJob(object sender,RoutedEventArgs args)=>ViewModel.CancelSelected();
-    private void RetryUpload(object sender,RoutedEventArgs args)=>ViewModel.RetrySelected();
+    private async void CancelJob(object sender,RoutedEventArgs args)=>await ViewModel.CancelSelectedAsync();
+    private async void RetryUpload(object sender,RoutedEventArgs args)=>await ViewModel.RetrySelectedAsync();
     /// <summary>以新相对路径安全创建远端副本，不改变原始冲突文件或远端旧项。</summary>
     private async void SaveUploadCopy(object sender,RoutedEventArgs args)
     {
@@ -82,7 +82,7 @@ public sealed partial class TasksPage : Page, IDisposable
             var content=new StackPanel{Spacing=12,MaxWidth=520};content.Children.Add(new TextBlock{Text=ViewModel.CopyContentNotice,TextWrapping=TextWrapping.Wrap});content.Children.Add(field);
             var dialog=global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=content,DefaultButton=ContentDialogButton.Close},("Title",global::HybridMount.Services.Localization.UiText.Message("Text_9867EF04D433")),("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_F66DF4636FF4")),("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
             if(await global::HybridMount.Helpers.UI.Ui.ShowAsync(dialog)!=ContentDialogResult.Primary)return;
-            ViewModel.SubmitCopy();RestoreSelection();
+            await ViewModel.SubmitCopyAsync();RestoreSelection();
         }
         catch(Exception error){ViewModel.ReportError(error.Message);}
         finally{ViewModel.EndDialog();}
@@ -93,7 +93,7 @@ public sealed partial class TasksPage : Page, IDisposable
     private async void ClearAll(object sender,RoutedEventArgs args)=>await ViewModel.ClearAllAsync();
     private async void ShowResults(object sender,RoutedEventArgs args)
     {
-        var job=ViewModel.BeginResults();if(job is null)return;
+        var job=await ViewModel.BeginResultsAsync();if(job is null)return;
         try
         {
             var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,MinWidth=400,SelectionMode=ListViewSelectionMode.None};

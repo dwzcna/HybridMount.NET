@@ -53,6 +53,8 @@ public sealed partial class SynologyFileSource
     /// <summary>首块需要完整快照；缓存版本包含摘要，后续分块只读同一不可变快照。</summary>
     public async ValueTask<int> ReadRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Download,entry.Path,entry.StableId,entry.Version);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();ValidateRange(entry,offset);var count=(int)Math.Min(buffer.Length,entry.Size-offset);if(count==0)return 0;
         _=ContentMd5(entry);using var shared=Share("snapshot:"+entry.Path+":"+entry.Version);
         try
@@ -95,6 +97,8 @@ public sealed partial class SynologyFileSource
 
     private async Task<string> Md5CoreAsync(string path,CancellationToken token)
     {
+        using var context=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Metadata,path);
+        using var flow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromMinutes(5));
         string? id=null;var completed=false;
         try
@@ -127,6 +131,7 @@ public sealed partial class SynologyFileSource
     }
     private async Task DownloadSnapshotAsync(SourceEntry entry,Stream output,CancellationToken token)
     {
+        using var snapshotWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         var started=Stopwatch.GetTimestamp();var expected=ContentMd5(entry);var before=await GetMetadataAsync(entry.Path,token).ConfigureAwait(false);SnapshotMetric("metadataMs",(long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         if(!IsSameVersion(entry.Version,before.Version))throw new SourceConflictException("群晖远端内容版本已变化，请刷新后重试。");
         var downloading=Stopwatch.GetTimestamp();SnapshotMetric("downloads",1);

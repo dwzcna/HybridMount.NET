@@ -40,21 +40,21 @@ public sealed class UploadIssueIntegrationTests
     {
         await using var area=new Area(kind);var row=area.Put("one");var ui=new Dispatcher();var navigation=new Navigation();var focus=new TaskFocusService(navigation);
         using var vm=new TasksViewModel(area.Manager,ui,focus);Assert.Empty(vm.Operations);
-        Assert.True(focus.ShowIssues(area.Id,["one.txt"]));ui.Drain();Assert.True(vm.IssuesOnly);Assert.Equal(row.Id,Assert.Single(vm.Operations).Id);
-        Assert.Equal("specific reason",vm.Selected!.DisplayIssueReason);vm.RetrySelected();ui.Drain();Assert.Contains("正在重试",vm.Selected!.DisplayState);Assert.Equal("specific reason",vm.Selected.DisplayIssueReason);Assert.Equal("等待挂载连接。",vm.Selected.WaitingReason);Assert.Equal("specific reason",vm.Selected.Attention!.Reason);
-        var queued=area.Repository.Upload(row.Id)!;vm.RetrySelected();Assert.Equal(queued,area.Repository.Upload(row.Id));
-        Assert.True(focus.ShowIssues(area.Id,["missing.txt"]));ui.Drain();Assert.Empty(vm.Operations);
-        focus.ShowIssues(area.Id);ui.Drain();Assert.Single(vm.Operations);vm.SelectedJobId=row.Id;vm.CancelSelected();ui.Drain();Assert.Empty(vm.Operations);Assert.Empty(area.Manager.UploadIssues);
+        Assert.True(focus.ShowIssues(area.Id,["one.txt"]));ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.True(vm.IssuesOnly);Assert.Equal(row.Id,Assert.Single(vm.Operations).Id);
+        Assert.Equal("specific reason",vm.Selected!.DisplayIssueReason);await vm.RetrySelectedAsync();ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.Contains("正在重试",vm.Selected!.DisplayState);Assert.Equal("specific reason",vm.Selected.DisplayIssueReason);Assert.Equal("等待挂载连接。",vm.Selected.WaitingReason);Assert.Equal("specific reason",vm.Selected.Attention!.Reason);
+        var queued=area.Repository.Upload(row.Id)!;await vm.RetrySelectedAsync();Assert.Equal(queued,area.Repository.Upload(row.Id));
+        Assert.True(focus.ShowIssues(area.Id,["missing.txt"]));ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.Empty(vm.Operations);
+        focus.ShowIssues(area.Id);ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.Single(vm.Operations);vm.SelectedJobId=row.Id;await vm.CancelSelectedAsync();ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.Empty(vm.Operations);Assert.Empty(area.Manager.UploadIssues);
         Assert.All(navigation.Requests,page=>Assert.Equal(ApplicationPage.Tasks,page));
-        vm.Dispose();focus.ShowIssues(area.Id);ui.Drain();focus.RequestStop();Assert.False(focus.ShowIssues(area.Id));
+        vm.Dispose();focus.ShowIssues(area.Id);ui.Drain();await vm.SnapshotIdle;ui.Drain();focus.RequestStop();Assert.False(focus.ShowIssues(area.Id));
     }
     [Fact]
     public async Task SegmentedSelectionIsExclusiveAndPreservesIssueFocusAcrossAll()
     {
         await using var area=new Area();var row=area.Put("one");var ui=new Dispatcher();var focus=new TaskFocusService(new Navigation());using var vm=new TasksViewModel(area.Manager,ui,focus);
-        Assert.Equal(0,vm.SelectedTaskFilter);focus.ShowIssues(area.Id,["one.txt"]);ui.Drain();Assert.Equal(1,vm.SelectedTaskFilter);Assert.True(vm.HasIssueFilter);
+        Assert.Equal(0,vm.SelectedTaskFilter);focus.ShowIssues(area.Id,["one.txt"]);ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.Equal(1,vm.SelectedTaskFilter);Assert.True(vm.HasIssueFilter);
         vm.SelectedTaskFilter=2;Assert.False(vm.IssuesOnly);Assert.True(vm.ConflictsOnly);vm.SelectedTaskFilter=0;Assert.False(vm.IssuesOnly);Assert.False(vm.ConflictsOnly);Assert.True(vm.HasIssueFilter);
-        vm.SelectedTaskFilter=1;Assert.Equal(row.Id,Assert.Single(vm.Operations).Id);vm.SelectedTaskFilter=-1;Assert.Equal(1,vm.SelectedTaskFilter);vm.SelectedTaskFilter=3;Assert.Equal(1,vm.SelectedTaskFilter);
+        vm.SelectedTaskFilter=1;await vm.SnapshotIdle;ui.Drain();Assert.Equal(row.Id,Assert.Single(vm.Operations).Id);vm.SelectedTaskFilter=-1;Assert.Equal(1,vm.SelectedTaskFilter);vm.SelectedTaskFilter=3;Assert.Equal(1,vm.SelectedTaskFilter);
         vm.ConflictsOnly=true;Assert.Equal(2,vm.SelectedTaskFilter);vm.ConflictsOnly=false;Assert.Equal(0,vm.SelectedTaskFilter);vm.Dispose();vm.SelectedTaskFilter=1;Assert.Equal(0,vm.SelectedTaskFilter);
     }
     [Fact(Timeout=30000)]

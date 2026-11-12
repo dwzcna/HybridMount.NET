@@ -55,6 +55,8 @@ public sealed class ExePreviewCache : IAsyncDisposable
     private readonly Dictionary<string,(Work Work,ThumbnailCacheBinding Binding,DateTime Due)> _notifications=new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _notificationWake=new(0,1);
     private readonly Task _notificationWorker;
+    /// <summary>生产固定合并250ms；内部回归可拉长到期时间，确定性覆盖计时器提前唤醒。</summary>
+    internal TimeSpan NotificationDebounce {get;set;}=TimeSpan.FromMilliseconds(250);
     private readonly object _schedule=new();
     private readonly Dictionary<Guid,(MountDefinition Mount,Dictionary<string,MountEntry> Entries,bool Remote)> _browseDemand=new();
     private readonly Channel<Work> _queue=Channel.CreateBounded<Work>(new BoundedChannelOptions(128){SingleReader=true,FullMode=BoundedChannelFullMode.Wait});
@@ -293,7 +295,7 @@ public sealed class ExePreviewCache : IAsyncDisposable
             var published=Stopwatch.GetTimestamp();if(!_store.Publish(binding,frames))return false;RecordTiming(work.Mount.Id,"发布",(long)Stopwatch.GetElapsedTime(published).TotalMilliseconds);
             _publishedCount.AddOrUpdate(work.Mount.Id,1,(_,count)=>count+1);RecordOutcome(work.Mount.Id,"缓存已发布");
             if(_notifications.Count>=128&&!_notifications.ContainsKey(binding.Path))_notifications.Remove(_notifications.First().Key);
-            _notifications[binding.Path]=(work,binding,DateTime.UtcNow.AddMilliseconds(250));if(_notificationWake.CurrentCount==0)_notificationWake.Release();return true;}
+            _notifications[binding.Path]=(work,binding,DateTime.UtcNow.Add(NotificationDebounce));if(_notificationWake.CurrentCount==0)_notificationWake.Release();return true;}
     }
     /// <summary>异步单文件刷新，250ms合并且每125ms最多一项；发送前重验绑定、启用状态和当前需求。</summary>
     private async Task NotifyAsync()
@@ -305,19 +307,27 @@ public sealed class ExePreviewCache : IAsyncDisposable
                 await _notificationWake.WaitAsync(_stop.Token).ConfigureAwait(false);await Task.Delay(250,_stop.Token).ConfigureAwait(false);
                 while(true)
                 {
-                    _stop.Token.ThrowIfCancellationRequested();var started=Stopwatch.GetTimestamp();Guid mount;
+                    _stop.Token.ThrowIfCancellationRequested();var started=Stopwatch.GetTimestamp();Guid mount=Guid.Empty;TimeSpan? remaining=null;
                     lock(_schedule)
                     {
-                        if(_notifications.Count==0)break;var first=_notifications.First();if(first.Value.Due>DateTime.UtcNow)break;_notifications.Remove(first.Key);var (work,binding,_)=first.Value;mount=work.Mount.Id;
-                        if(work.Cancel.IsCancellationRequested||_blocked.ContainsKey(mount)||_removed.ContainsKey(mount)||!_available()||!_configured.TryGetValue(mount,out var root)||root.Actual!=binding.Root)continue;
-                        if(_currentMount is not null&&(_currentMount(mount) is not {} current||ThumbnailCacheReader.RootFor(current)!=root.Requested))continue;
-                        if(work.Browse&&(!_browseDemand.TryGetValue(mount,out var demand)||!demand.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.Version!=work.Entry.Version||latest.LocalPath!=work.Entry.LocalPath))continue;
-                        if(!ThumbnailCacheReader.Valid(binding))continue;
+                        if(_notifications.Count==0)break;var first=_notifications.MinBy(item=>item.Value.Due);
+                        var delay=first.Value.Due-DateTime.UtcNow;
+                        if(delay>TimeSpan.Zero)remaining=delay;
+                        else
+                        {
+                            _notifications.Remove(first.Key);var (work,binding,_)=first.Value;mount=work.Mount.Id;
+                            if(work.Cancel.IsCancellationRequested||_blocked.ContainsKey(mount)||_removed.ContainsKey(mount)||!_available()||!_configured.TryGetValue(mount,out var root)||root.Actual!=binding.Root)continue;
+                            if(_currentMount is not null&&(_currentMount(mount) is not {} current||ThumbnailCacheReader.RootFor(current)!=root.Requested))continue;
+                            if(work.Browse&&(!_browseDemand.TryGetValue(mount,out var demand)||!demand.Entries.TryGetValue(work.Entry.Id,out var latest)||latest.Version!=work.Entry.Version||latest.LocalPath!=work.Entry.LocalPath))continue;
+                            if(!ThumbnailCacheReader.Valid(binding))continue;
 #if HYBRIDMOUNT_HEADLESS_TEST
-                        if(ThumbnailNotificationForTests is {} notify)notify(binding.Path);else
+                            if(ThumbnailNotificationForTests is {} notify)notify(binding.Path);else
 #endif
-                        CloudFilesNative.NotifyThumbnailUpdated(binding.Path);
+                            CloudFilesNative.NotifyThumbnailUpdated(binding.Path);
+                        }
                     }
+                    // 提前唤醒或同路径更新到期时间时，当前拥有者继续等待；不能遗失已消耗的唯一信号。
+                    if(remaining is {} wait){await Task.Delay(wait,_stop.Token).ConfigureAwait(false);continue;}
                     RecordTiming(mount,"通知",(long)Stopwatch.GetElapsedTime(started).TotalMilliseconds);await Task.Delay(125,_stop.Token).ConfigureAwait(false);
                 }
             }

@@ -230,10 +230,10 @@ public sealed class PageViewModelTests
     {
         await using var area=new Area();
         foreach(var state in new[]{"Completed","Failed","PartialFailure","Canceled","Running","Waiting","Conflict","OutcomeUnknown"})area.Repository.SaveOperation(new(state,"refresh",state,0,0,[],null));
-        using var vm=new TasksViewModel(area.Manager,area.Ui);Assert.True(vm.CanClearCompleted);Assert.True(vm.CanClearFailed);Assert.True(vm.CanClearAll);
-        await vm.ClearFailedAsync();Assert.False(vm.CanClearFailed);Assert.True(vm.CanClearCompleted);Assert.DoesNotContain(vm.Operations,row=>row.State is "Failed" or "PartialFailure");
-        await vm.ClearCompletedAsync();Assert.False(vm.CanClearCompleted);await vm.ClearAllAsync();Assert.False(vm.CanClearAll);Assert.Equal(3,vm.Operations.Count);Assert.All(vm.Operations,row=>Assert.Contains(row.State,new[]{"Waiting","Conflict","OutcomeUnknown"}));
-        vm.Dispose();area.Repository.SaveOperation(new("late","refresh","Failed",0,0,[],null));await vm.ClearFailedAsync();Assert.Contains(area.Repository.LoadOperations(),row=>row.Id=="late");
+        using var vm=new TasksViewModel(area.Manager,area.Ui);await vm.SnapshotIdle;area.Ui.Drain();Assert.True(vm.CanClearCompleted);Assert.True(vm.CanClearFailed);Assert.True(vm.CanClearAll);
+        await vm.ClearFailedAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.False(vm.CanClearFailed);Assert.True(vm.CanClearCompleted);Assert.DoesNotContain(vm.Operations,row=>row.State is "Failed" or "PartialFailure");
+        await vm.ClearCompletedAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.False(vm.CanClearCompleted);await vm.ClearAllAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.False(vm.CanClearAll);Assert.Equal(3,vm.Operations.Count);Assert.All(vm.Operations,row=>Assert.Contains(row.State,new[]{"Waiting","Conflict","OutcomeUnknown"}));
+        vm.Dispose();area.Repository.SaveOperation(new("late","refresh","Failed",0,0,[],null));await vm.ClearFailedAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.Contains(area.Repository.LoadOperations(),row=>row.Id=="late");
     }
     private sealed class AppearanceStore : IAppearancePreferenceStore
     {
@@ -314,7 +314,7 @@ public sealed class PageViewModelTests
     {
         await using var area=new Area();var mount=area.A.Id;
         foreach(var id in new[]{"first","second"}){var item=new LocalUpload(id,mount,id+".txt",id+".txt",false,"stamp",1,"Conflict",DateTimeOffset.UtcNow);area.Repository.SaveUpload(item);area.Repository.SaveOperation(item.ToSnapshot());}
-        using var vm=new TasksViewModel(area.Manager,area.Ui);vm.SelectedJobId="first";Assert.True(vm.BeginCopy());Assert.False(vm.BeginCopy());vm.CopyPath="新副本.txt";vm.SelectedJobId="second";vm.SubmitCopy();vm.SubmitCopy();vm.EndDialog();
+        using var vm=new TasksViewModel(area.Manager,area.Ui);await vm.SnapshotIdle;area.Ui.Drain();vm.SelectedJobId="first";Assert.True(vm.BeginCopy());Assert.False(vm.BeginCopy());vm.CopyPath="新副本.txt";vm.SelectedJobId="second";await vm.SubmitCopyAsync();await vm.SubmitCopyAsync();vm.EndDialog();
         var copy=Assert.Single(area.Repository.Uploads(mount),x=>x.IsCopy);Assert.Equal("first.txt",copy.LocalPath);Assert.Equal("新副本.txt",copy.SourcePath);Assert.Equal(copy.Id,vm.SelectedJobId);
         area.Ui.Drain();Assert.Equal(copy.Id,vm.SelectedJobId);Assert.Equal("Conflict",area.Repository.Upload("first")!.State);
     }
@@ -322,11 +322,11 @@ public sealed class PageViewModelTests
     public async Task Task_storage_fault_is_reported_without_escaping_ui_command_or_sticking_dialog_guard()
     {
         await using var area=new Area();area.Repository.SaveOperation(new("history","upload","Completed",1,1,[],null));
-        using var vm=new TasksViewModel(area.Manager,area.Ui);vm.SelectedJobId="history";
+        using var vm=new TasksViewModel(area.Manager,area.Ui);await vm.SnapshotIdle;area.Ui.Drain();vm.SelectedJobId="history";
         var directory=area.Repository.DataDirectory;var held=directory+"-held";Directory.Move(directory,held);Directory.CreateDirectory(Path.Combine(directory,"mounts.db"));
-        try{Assert.Null(vm.BeginResults());Assert.Null(Record.Exception(vm.CancelSelected));Assert.Null(Record.Exception(vm.RetrySelected));Assert.NotEmpty(vm.Status);}
+        try{Assert.Null(await vm.BeginResultsAsync());Assert.Null(await Record.ExceptionAsync(vm.CancelSelectedAsync));Assert.Null(await Record.ExceptionAsync(vm.RetrySelectedAsync));Assert.NotEmpty(vm.Status);}
         finally{Directory.Delete(directory,true);Directory.Move(held,directory);}
-        Assert.NotNull(vm.BeginResults());vm.EndDialog();
+        Assert.NotNull(await vm.BeginResultsAsync());vm.EndDialog();
     }
     [Fact]
     public async Task Settings_startup_is_not_submitted_twice_and_dispose_waits_without_late_notifications()

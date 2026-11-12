@@ -23,7 +23,7 @@ public sealed class SynologySnapshotSchedulingTests:IDisposable
             if(fields["api"]=="SYNO.FileStation.List"&&fields["method"]=="getinfo"&&body.Ended){finalStarted.TrySetResult();await finalRelease.Task.WaitAsync(token);}
             return null;
         };
-        await using var source=Source(server);var entry=await source.GetMetadataAsync("file.bin");using var cancel=new CancellationTokenSource();
+        await using var source=Source(server);var entry=await source.GetMetadataAsync("file.bin");await using var queue=new TasksQueueService(4);((IMountNetworkSource)source).BindQueue(queue.StartMount(Guid.NewGuid()));using var cancel=new CancellationTokenSource();
         var a=Enumerable.Repeat((byte)0xCC,8).ToArray();var b=Enumerable.Repeat((byte)0xCC,8).ToArray();
         var first=source.ReadRangeAsync(entry,0,a,cancel.Token).AsTask();await body.Started.Task;
         var second=source.ReadRangeAsync(entry,0,b).AsTask();cancel.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>first);
@@ -98,7 +98,10 @@ public sealed class SynologySnapshotSchedulingTests:IDisposable
         Task<int> Read(SourceEntry entry,string id,MountingPriority priority)
         {using var scope=queue.Enter(binding,new(id,binding.MountId,binding.Generation,priority,DateTimeOffset.UtcNow,"download",entry.Path,Version:entry.Version));return source.ReadRangeAsync(entry,0,new byte[8]).AsTask();}
         var first=Read(a,"active",MountingPriority.Demand);await body.Started.Task;
-        var low=Read(b,"low",MountingPriority.Observation);var medium=Read(c,"medium",MountingPriority.User);await Until(()=>cache.VerifiedWorkCount==3&&cache.VerifiedQueuedCount==2);
+        var low=Read(b,"low",MountingPriority.Observation);var medium=Read(c,"medium",MountingPriority.User);
+        // 不同文件在下载通道等待；只有已就绪的文件工作流可以进入整文件缓存队列。
+        await Until(()=>queue.QueueSnapshots.Count(x=>x.Workflow&&x.WaitingReason is not null)==2);
+        Assert.Equal(1,cache.VerifiedWorkCount);Assert.Equal(0,cache.VerifiedQueuedCount);
         var high=Read(b,"high",MountingPriority.Demand);body.Release.TrySetResult();await Task.WhenAll(first,low,medium,high);
         Assert.Equal(3,started.Count);Assert.Contains("low.bin",started[1]);Assert.Contains("medium.bin",started[2]);Assert.Equal(3,source.SnapshotMetrics["downloads"]);
     }

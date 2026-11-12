@@ -119,6 +119,8 @@ public sealed partial class WebDavFileSource
     /// <summary>发送前按连接验证条件写与所需回退能力；可取消，探测失败保留用户目标和原上传意图。</summary>
     public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         path=NonRoot(path);var strong=condition.ExpectedVersion is not null&&Strong(System.Text.Json.JsonSerializer.Deserialize<VersionInfo>(condition.ExpectedVersion)?.ETag);
         if(condition.ExpectedVersion is not null&&!strong&&string.IsNullOrEmpty(condition.BaselineSha256))throw new SourceConflictException("缺少原始远端内容基线，已保留本地修改；请另存副本。");
         var parent=RelativePaths.Parent(path);await VerifyPutCapabilitiesAsync(parent,token).ConfigureAwait(false);

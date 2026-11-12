@@ -203,6 +203,8 @@ public sealed partial class S3FileSource
     }
     public async Task<SourceEntry> CreateDirectoryAsync(string path, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true).ConfigureAwait(false);
         path = NonRoot(path); await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);RequirePut(true);
         if(await TryGetMetadataAsync(path,token).ConfigureAwait(false) is not null)throw new SourceConflictException("S3 名称或前缀已存在。");
         await PutAsync(Key(path) + "/", Stream.Null, null, token).ConfigureAwait(false);
@@ -210,6 +212,8 @@ public sealed partial class S3FileSource
     }
     public async Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true).ConfigureAwait(false);
         path = NonRoot(path); await VerifyDeleteAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);
         var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 删除版本变化。");

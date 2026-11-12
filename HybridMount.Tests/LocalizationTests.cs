@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using HybridMount.Services.Localization;
 namespace HybridMount.Tests;
 
@@ -39,6 +40,14 @@ public sealed class LocalizationTests
     {
         using var service=new UiLanguageService(new Store("zh-CN"),new TextProvider());using var current=UiText.Use(service);var message=UiText.Describe("完整诊断 · 设置");Assert.Equal(Key("完整诊断 · {0}"),message.Key);Assert.Equal("设置",message.Arguments[0]);
         Assert.True(service.TrySave("en-US",out _));Assert.Equal("Full diagnostics · 设置",message.Render());Assert.Equal("设置",ResourceMessage.Raw("设置").Render());Assert.Equal("server original / 原文",ResourceMessage.Raw("server original / 原文").Render());
+    }
+    [Fact]
+    public void LegacyPatternTimeoutDoesNotEscapeIntoBusinessPersistence()
+    {
+        var regex=new Regex("(a+)+$",RegexOptions.CultureInvariant,TimeSpan.FromMilliseconds(1));
+        Assert.False(UiLanguageService.MatchLegacyPattern(regex,new string('a',100000)+"!").Success);
+        using var service=new UiLanguageService(new Store("zh-CN"),new TextProvider());using var installed=UiText.Use(service);
+        Assert.Equal("server original / 原文",UiText.Describe("server original / 原文").Render());
     }
     [Fact]
     public void SystemRecheckChangesOnlyEffectiveLanguageAndDoesNotRewriteChoice()

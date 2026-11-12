@@ -61,7 +61,7 @@ public sealed partial class S3FileSource
             HttpResponseMessage? response=null;
             try
             {
-            token.ThrowIfCancellationRequested();
+            token.ThrowIfCancellationRequested();networkLease?.Validate();
             // SDK内部再次进入HTTP管线也不能重放同一修改；每个CallCore独立拥有发送边界。
             if(Hints.Value is {Mutation:true} attempt&&request.Method.Method is not("GET" or "HEAD" or "OPTIONS")&&Interlocked.Exchange(ref attempt.MutationSends,1)!=0)
                 throw new HttpRequestException("S3修改已进入发送阶段，拒绝内部重发；结果由持久事务只读核对。");
@@ -72,7 +72,7 @@ public sealed partial class S3FileSource
                 request.Headers.ExpectContinue=false;
             }
             owner.HttpAttemptForTests?.Invoke($"{request.Method.Method};content={request.Content?.GetType().Name};length={request.Content?.Headers.ContentLength};expect={request.Headers.ExpectContinue};version={request.Version}");
-            using var idle=CancellationTokenSource.CreateLinkedTokenSource(token);idle.CancelAfter(owner.InactivityTimeout);
+            using var idle=CancellationTokenSource.CreateLinkedTokenSource(token,networkLease?.StopToken??CancellationToken.None);idle.CancelAfter(owner.InactivityTimeout);
             if(request.Content is {} content)request.Content=new S3IdleContent(content,()=>owner.InactivityTimeout,()=>idle.CancelAfter(owner.InactivityTimeout));
             try { response=await base.SendAsync(request,idle.Token).ConfigureAwait(false); }
             catch(HttpRequestException error)

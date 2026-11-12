@@ -16,6 +16,22 @@ public sealed class NativeRuntimeTransportTests
         var data=NativeRuntimeProtocol.Element(new{failureStage=value});Assert.Equal(expected,NativeRuntimeClient.FailureStage(data));
         Assert.Equal("operation",NativeRuntimeClient.FailureStage(NativeRuntimeProtocol.Element(new{})));
     }
+    [Fact(Timeout=15000)]
+    public async Task SlowMetadataPoolCannotOccupyCompletionOrOrdinaryWorkers()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();using var cancel=new CancellationTokenSource();
+        var slow=Enumerable.Range(0,4).Select(_=>runtime.InvokeAsync("testPoolDelay",new{pool="metadata",milliseconds=5000},token:cancel.Token)).ToArray();
+        try
+        {
+            var deadline=Environment.TickCount64+3000;System.Text.Json.JsonElement diagnostics;
+            do{diagnostics=await runtime.InvokeAsync("runtimeSchedulingDiagnostics",new{});if(diagnostics.GetProperty("metadata").GetProperty("active").GetInt32()==4)break;await Task.Delay(5);}while(Environment.TickCount64<deadline);
+            Assert.Equal(4,diagnostics.GetProperty("metadata").GetProperty("active").GetInt32());
+            Assert.Equal(8,diagnostics.GetProperty("ordinary").GetProperty("threads").GetInt32());Assert.Equal(4,diagnostics.GetProperty("long").GetProperty("threads").GetInt32());Assert.Equal(2,diagnostics.GetProperty("completion").GetProperty("threads").GetInt32());
+            Assert.True((await runtime.InvokeAsync("testCompletion",new{}).WaitAsync(TimeSpan.FromMilliseconds(500))).GetProperty("completed").GetBoolean());
+            Assert.True((await runtime.InvokeAsync("ping",new{}).WaitAsync(TimeSpan.FromMilliseconds(500))).GetProperty("ready").GetBoolean());
+        }
+        finally{cancel.Cancel();foreach(var task in slow)try{await task;}catch(OperationCanceledException){} }
+    }
     [Fact(Timeout=30000)]
     public async Task QueriesPreserveExactFileStampAndConcurrentResponsesStayCorrelated()
     {

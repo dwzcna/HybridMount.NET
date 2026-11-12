@@ -3,27 +3,33 @@ using HybridMount.Models.Mounting;
 using HybridMount.Services.Mounting;
 namespace HybridMount.Services;
 
-/// <summary>应用拥有的三线协调服务；每挂载至多一个存储网络步骤，全局默认两路。所有等待为异步，不占固定系统线程。</summary>
+/// <summary>应用拥有的异步协调服务；四种每挂载工作流与全局实际网络额度分离，等待不占固定系统线程。</summary>
 public sealed partial class TasksQueueService : IAsyncDisposable
 {
-    private sealed class Pending(MountingTask task,long sequence,SemaphoreSlim backlog)
+    private sealed class Pending(MountingTask task,long sequence,SemaphoreSlim backlog,bool workflow)
     {
         public readonly MountingTask Task=task;
+        public readonly bool Workflow=workflow;
+        public readonly long Submitted=System.Diagnostics.Stopwatch.GetTimestamp();
         public readonly SemaphoreSlim Backlog=backlog;
         public readonly long Sequence=sequence;
         public readonly TaskCompletionSource<NetworkLease> Ready=new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
     private readonly object _sync=new();
     private readonly List<Pending> _pending=[];
-    private readonly Dictionary<Guid,NetworkLease> _active=[];
+    private readonly Dictionary<long,NetworkLease> _active=[];
+    private readonly Dictionary<(MountingPriority,Guid),long> _turns=[];
+    private long _turn,_granted,_waitTicks,_maximumWaitTicks;
     private readonly Dictionary<Guid,long> _generations=[];
+    private readonly Dictionary<Guid,CancellationTokenSource> _mountStops=[];
     private readonly HashSet<(Guid,string)> _completed=[];
     private readonly Dictionary<(Guid,string),MountingTask> _workflows=[];
     private readonly List<ScopeState> _demandScopes=[];
     private readonly List<CancelRegistration> _cancelActions=[];
     private readonly List<SharedResource> _sharedResources=[];
     private readonly IReadOnlyDictionary<MountingPriority,SemaphoreSlim> _backlogs;
-    private readonly int _parallelism;
+    private readonly IReadOnlyDictionary<MountingPriority,SemaphoreSlim> _workflowBacklogs,_ownedBacklogs;
+    private int _parallelism;
     private long _sequence;
     private bool _stopping,_disposed;
     private readonly CancellationTokenSource _observerStop=new();
@@ -32,21 +38,29 @@ public sealed partial class TasksQueueService : IAsyncDisposable
     private TaskCompletionSource _drained=CompletedSignal();
     private Task? _dispose;
     private static readonly AsyncLocal<ScopeState?> Ambient=new();
-    private static readonly AsyncLocal<NetworkLease?> StepLease=new();
     private sealed record ScopeState(MountQueueBinding Binding,MountingTask? Task);
     private sealed class Scope(TasksQueueService owner,ScopeState current,ScopeState? before):IDisposable
     {
         private int _disposed;
         public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Ambient.Value=before;lock(owner._sync){var index=owner._demandScopes.FindIndex(value=>ReferenceEquals(value,current));if(index>=0)owner._demandScopes.RemoveAt(index);owner.Pump();}owner.RaiseChanged();}
     }
-    private sealed class SharedResource(TasksQueueService owner,MountingTask task,string resource):IDisposable
+    private sealed class SharedResource(TasksQueueService owner,MountingTask task,string resource,NetworkLease? retained):IDisposable
     {
-        internal MountingTask Task {get;}=task;internal string Resource {get;}=resource;
-        public void Dispose(){lock(owner._sync){owner._sharedResources.Remove(this);owner.Pump();}owner.RaiseChanged();}
+        internal MountingTask Task {get;}=task;internal string Resource {get;}=resource;private int _disposed;
+        public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;lock(owner._sync){owner._sharedResources.Remove(this);owner.Pump();}retained?.Dispose();owner.RaiseChanged();}
     }
     /// <summary>跨挂载共享配额等必要资源继承等待者优先级；仅内存调度关系，不记录账户或授权远端写入。</summary>
     internal IDisposable ShareResource(MountingTask task,string resource)
-    {var value=new SharedResource(this,task,resource);lock(_sync){_sharedResources.Add(value);Pump();}RaiseChanged();return value;}
+    {
+        SharedResource value;
+        lock(_sync)
+        {
+            // 在共享Task.Run接纳前同步保留流程；首个等待者取消，不能让后续同通道流程反向堵住共享生产者。
+            var retained=_active.Values.FirstOrDefault(x=>x.IsWorkflow&&SameFlow(x.Task,task))?.Borrow();
+            value=new(this,task,resource,retained);_sharedResources.Add(value);Pump();
+        }
+        RaiseChanged();return value;
+    }
     private sealed class CancelRegistration(TasksQueueService owner,string id,Func<bool> cancel):IDisposable
     {
         internal string Id {get;}=id;internal Func<bool> Cancel {get;}=cancel;
@@ -55,10 +69,22 @@ public sealed partial class TasksQueueService : IAsyncDisposable
     /// <summary>业务所有者登记自身取消源；服务不伪造回滚，也不取消同挂载的其他文件。</summary>
     internal IDisposable RegisterCancellation(string id,Func<bool> cancel)
     {var value=new CancelRegistration(this,id,cancel);lock(_sync)_cancelActions.Add(value);return value;}
-    /// <summary>全局执行位与等待队列有界；测试可缩小容量，生产默认两路；每优先级最多1024个已接纳等待，低优先级不能耗尽高优先级入口。</summary>
-    public TasksQueueService(int parallelism=2,int capacity=1024)
-    {ArgumentOutOfRangeException.ThrowIfNegativeOrZero(parallelism);ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);_parallelism=parallelism;_backlogs=Enum.GetValues<MountingPriority>().ToDictionary(value=>value,_=>new SemaphoreSlim(capacity,capacity));}
+    /// <summary>全局默认四路、最高128；每优先级最多1024个已接纳等待，低优先级不能耗尽高优先级入口。</summary>
+    public TasksQueueService(int parallelism=4,int capacity=1024)
+    {if(parallelism is <1 or >128)throw new ArgumentOutOfRangeException(nameof(parallelism));ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);_parallelism=parallelism;_backlogs=Backlogs();_workflowBacklogs=Backlogs();_ownedBacklogs=Backlogs();
+        IReadOnlyDictionary<MountingPriority,SemaphoreSlim> Backlogs()=>Enum.GetValues<MountingPriority>().ToDictionary(value=>value,_=>new SemaphoreSlim(capacity,capacity));}
     public event Action? Changed;
+    /// <summary>动态上限只改变下一次授予；降低时不取消已有正文所有者。</summary>
+    internal void SetConcurrency(int value)
+    {
+        if(value is <1 or >128)throw new ArgumentOutOfRangeException(nameof(value));
+        lock(_sync){ObjectDisposedException.ThrowIf(_disposed,this);_parallelism=value;Pump();}RaiseChanged();
+    }
+    internal int Concurrency {get{lock(_sync)return _parallelism;}}
+    /// <summary>只读内存诊断，不访问源或启动生成；累计等待同时包含通道及路径等待。</summary>
+    internal (int Limit,int ActiveRequests,int ActiveWorkflows,int Queued,long Granted,double WaitMs,double MaximumWaitMs) SchedulingDiagnostics
+    {get{lock(_sync)return(_parallelism,_active.Values.Count(x=>!x.IsWorkflow),_active.Values.Count(x=>x.IsWorkflow),_pending.Count,_granted,
+        (double)_waitTicks/System.Diagnostics.Stopwatch.Frequency*1000,(double)_maximumWaitTicks/System.Diagnostics.Stopwatch.Frequency*1000);}}
     internal static MountQueueBinding? CurrentBinding=>Ambient.Value?.Binding;
     internal static MountingTask? CurrentTask=>Ambient.Value?.Task;
     private static TaskCompletionSource CompletedSignal(){var value=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);value.SetResult();return value;}
@@ -69,15 +95,24 @@ public sealed partial class TasksQueueService : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed,this);
             if(_stopping)throw new OperationCanceledException("任务服务正在停止。",new CancellationToken(true));
-            if(_active.ContainsKey(mount)||_pending.Any(x=>x.Task.MountId==mount))throw new InvalidOperationException("上一连接的网络步骤尚未结束。");
-            var generation=_generations.GetValueOrDefault(mount)+1;_generations[mount]=generation;return new(this,mount,generation);
+            if(_mountStops.ContainsKey(mount)||_active.Values.Any(x=>x.Task.MountId==mount)||_pending.Any(x=>x.Task.MountId==mount))throw new InvalidOperationException("上一连接的网络步骤尚未结束。");
+            _completed.RemoveWhere(x=>x.Item1==mount);var generation=_generations.GetValueOrDefault(mount)+1;_generations[mount]=generation;_mountStops[mount]=new();return new(this,mount,generation);
         }
     }
+    /// <summary>只读当前连接的停止令牌；旧绑定恒返回已取消令牌，不访问已释放的取消源。</summary>
+    internal CancellationToken GenerationToken(MountQueueBinding binding)
+    {lock(_sync)return _disposed||_generations.GetValueOrDefault(binding.MountId)!=binding.Generation?new CancellationToken(true):_mountStops.TryGetValue(binding.MountId,out var stop)?stop.Token:CancellationToken.None;}
     internal bool IsCurrent(MountQueueBinding binding){lock(_sync)return !_disposed&&_generations.GetValueOrDefault(binding.MountId)==binding.Generation;}
     internal IDisposable Enter(MountQueueBinding binding,MountingTask? task=null)
     {
+        if(task is not null&&task.FlowId==Guid.Empty)task=task with{FlowId=Guid.NewGuid(),Channel=ChannelFor(task.Operation)};
         var previous=Ambient.Value;var current=new ScopeState(binding,task);Ambient.Value=current;
-        if(task is not null)lock(_sync){_demandScopes.Add(current);Pump();}
+        if(task is not null)lock(_sync)
+        {
+            if(!IsCurrent(binding)||_stopping&&!_active.Values.Any(x=>x.IsWorkflow&&SameFlow(x.Task,task)))
+            {Ambient.Value=previous;throw new OperationCanceledException("挂载代次已退役或任务服务停止接纳。",new CancellationToken(true));}
+            _demandScopes.Add(current);Pump();
+        }
         return new Scope(this,current,previous);
     }
     /// <summary>业务作用域只传身份及优先级，不占执行位；CFAPI父水合等待其子读取时不会形成名额互等。</summary>
@@ -85,21 +120,46 @@ public sealed partial class TasksQueueService : IAsyncDisposable
     {
         MountQueueBinding binding;lock(_sync)binding=new(this,mount,_generations.GetValueOrDefault(mount));
         var parent=CurrentTask;var submitted=submitTime??(parent?.MountId==mount&&parent.Id==id?parent.SubmitTime:DateTimeOffset.UtcNow);
-        return Enter(binding,new(id,mount,binding.Generation,priority,submitted.ToUniversalTime(),operation,path,entry,version));
+        var task=new MountingTask(id,mount,binding.Generation,priority,submitted.ToUniversalTime(),operation,path,entry,version);
+        if(parent?.MountId==mount&&parent.Id==id)task=task with{FlowId=parent.FlowId,Channel=parent.Channel,ExclusivePath=parent.ExclusivePath,Subtree=parent.Subtree};
+        return Enter(binding,task);
     }
     /// <summary>按优先级、UTC提交时间、稳定序号取得一个网络步骤；取消仅撤出尚未开始的等待，不推断写入回滚。</summary>
-    internal async Task<NetworkLease> AcquireAsync(MountQueueBinding binding,MountingTask task,CancellationToken token)
+    internal Task<NetworkLease> AcquireAsync(MountQueueBinding binding,MountingTask task,CancellationToken token)=>AcquireCoreAsync(binding,task,false,token);
+    /// <summary>完整文件工作流租约；不占全局网络额度。调用者必须在根锁外等待，并在进入作用域后调用。</summary>
+    internal Task<NetworkLease> AcquireWorkflowAsync(MountQueueBinding binding,MountingTask task,CancellationToken token)=>AcquireCoreAsync(binding,task,true,token);
+    internal Task<NetworkLease> AcquireCurrentWorkflowAsync(CancellationToken token,bool exclusive=false,bool subtree=false,string? destination=null)
+    {
+        var scope=Ambient.Value??throw new InvalidOperationException("缺少业务执行上下文。");
+        var task=scope.Task??throw new InvalidOperationException("缺少业务身份。");
+        return AcquireWorkflowAsync(scope.Binding,task with{ExclusivePath=exclusive||task.Channel==CloudOperationChannel.Upload,Subtree=subtree,DestinationPath=destination},token);
+    }
+    private async Task<NetworkLease> AcquireCoreAsync(MountQueueBinding binding,MountingTask task,bool workflow,CancellationToken token)
     {
         if(task.MountId!=binding.MountId||task.Generation!=binding.Generation||task.SubmitTime.Offset!=TimeSpan.Zero||!Enum.IsDefined(task.Priority))throw new ArgumentException("任务身份、UTC提交时间或优先级无效。");
         if(!IsCurrent(binding))throw new OperationCanceledException("挂载连接代次已经失效。",new CancellationToken(true));
-        if(StepLease.Value is {} step&&step.Owner==this&&step.Task.MountId==task.MountId&&step.Task.Generation==task.Generation)return await step.BorrowAsync(token).ConfigureAwait(false);
-        using var admission=CancellationTokenSource.CreateLinkedTokenSource(token,_admissionStop.Token);
-        token=admission.Token;var backlog=_backlogs[task.Priority];await backlog.WaitAsync(token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if(workflow)lock(_sync)
+        {
+            var parent=_active.Values.FirstOrDefault(x=>x.IsWorkflow&&SameFlow(x.Task,task));
+            if(parent is not null)return parent.Borrow();
+        }
+        using var admission=CancellationTokenSource.CreateLinkedTokenSource(token,_admissionStop.Token,GenerationToken(binding));
+        token=admission.Token;bool owned;
+        lock(_sync)
+        {
+            owned=_active.Values.Any(x=>x.IsWorkflow&&SameFlow(x.Task,task));
+            if(_stopping&&!owned)throw new OperationCanceledException("任务服务已停止接纳新工作流。",new CancellationToken(true));
+        }
+        // 已就绪工作流的请求有独立有界入口；不能被等待同通道的未来工作流填满队列后反向堵死。
+        var backlog=(workflow?_workflowBacklogs:owned?_ownedBacklogs:_backlogs)[task.Priority];await backlog.WaitAsync(token).ConfigureAwait(false);
         Pending pending;
         lock(_sync)
         {
             if(!IsCurrent(binding)){backlog.Release();throw new OperationCanceledException("挂载连接代次已经失效。",new CancellationToken(true));}
-            pending=new(task,++_sequence,backlog);_pending.Add(pending);Pump();
+            if(workflow&&_active.Values.FirstOrDefault(x=>x.IsWorkflow&&SameFlow(x.Task,task)) is {} parent)
+            {backlog.Release();return parent.Borrow();}
+            pending=new(task,++_sequence,backlog,workflow);_pending.Add(pending);Pump();
         }
         RaiseChanged();
         try{return await pending.Ready.Task.WaitAsync(token).ConfigureAwait(false);}
@@ -135,14 +195,22 @@ public sealed partial class TasksQueueService : IAsyncDisposable
     /// <summary>只能在短调度锁内调用；名额仅交给可运行任务，冲突、依赖和退避不会占用全局执行位。</summary>
     private void Pump()
     {
-        while(_active.Count<_parallelism)
+        while(!_disposed)
         {
-            var selected=_pending.Where(x=>!_active.ContainsKey(x.Task.MountId)&&DependenciesReady(x.Task))
-                .OrderByDescending(x=>Priority(x.Task)).ThenBy(x=>x.Task.SubmitTime).ThenBy(x=>x.Sequence).FirstOrDefault();
-            if(selected is null)break;
+            var requests=_active.Values.Count(x=>!x.IsWorkflow);
+            var ready=_pending.Where(x=>(x.Workflow||requests<_parallelism)&&DependenciesReady(x.Task)&&CanRun(x.Task,x.Workflow)).ToArray();
+            if(ready.Length==0)break;
+            var priority=ready.Max(x=>Priority(x.Task));
+            var selected=ready.Where(x=>Priority(x.Task)==priority).GroupBy(x=>x.Task.MountId)
+                .OrderBy(group=>_turns.GetValueOrDefault((priority,group.Key)))
+                .ThenBy(group=>group.Min(x=>x.Sequence))
+                .First().OrderBy(x=>x.Task.SubmitTime).ThenBy(x=>x.Sequence).First();
+            _turns[(priority,selected.Task.MountId)]=++_turn;
             _pending.Remove(selected);selected.Backlog.Release();
             if(_active.Count==0)_drained=new(TaskCreationOptions.RunContinuationsAsynchronously);
-            var lease=new NetworkLease(this,selected.Task,selected.Sequence);_active.Add(selected.Task.MountId,lease);selected.Ready.SetResult(lease);
+            var waited=System.Diagnostics.Stopwatch.GetTimestamp()-selected.Submitted;_granted++;_waitTicks+=waited;_maximumWaitTicks=Math.Max(_maximumWaitTicks,waited);
+            var workflowOwner=selected.Workflow?null:_active.Values.FirstOrDefault(x=>x.IsWorkflow&&SameFlow(x.Task,selected.Task));
+            var lease=new NetworkLease(this,selected.Task,selected.Sequence,selected.Workflow,workflowLease:workflowOwner?.Borrow());_active.Add(selected.Sequence,lease);selected.Ready.SetResult(lease);
         }
         if(_active.Count==0)_drained.TrySetResult();
     }
@@ -150,15 +218,16 @@ public sealed partial class TasksQueueService : IAsyncDisposable
     {
         lock(_sync)
         {
-            if(!_active.TryGetValue(lease.Task.MountId,out var active)||!ReferenceEquals(active,lease))return;
-            _active.Remove(lease.Task.MountId);Pump();
+            if(!_active.TryGetValue(lease.Sequence,out var active)||!ReferenceEquals(active,lease))return;
+            _active.Remove(lease.Sequence);Pump();
         }
         RaiseChanged();
     }
     /// <summary>执行一个可恢复业务任务；每个步骤完成即归还名额，false重新排队让路，异常由原业务执行器保留证据。</summary>
     public async Task RunAsync(IMountingTask description,IMountingTaskStep executor,CancellationToken token=default)
     {
-        var task=new MountingTask(description.Id,description.MountId,description.Generation,description.Priority,description.SubmitTime,description.Operation,description.Path,description.EntryId,description.Version){Dependencies=description.Dependencies.ToArray()};
+        var task=(description as MountingTask??new MountingTask(description.Id,description.MountId,description.Generation,description.Priority,description.SubmitTime,description.Operation,description.Path,description.EntryId,description.Version)) with{Dependencies=description.Dependencies.ToArray()};
+        if(task.FlowId==Guid.Empty)task=task with{FlowId=Guid.NewGuid(),Channel=ChannelFor(task.Operation)};
         using var request=CancellationTokenSource.CreateLinkedTokenSource(token);token=request.Token;
         using var cancelOwner=RegisterCancellation(task.Id,()=>{if(!request.IsCancellationRequested)_=request.CancelAsync();return true;});
         MountQueueBinding binding;lock(_sync)
@@ -172,11 +241,10 @@ public sealed partial class TasksQueueService : IAsyncDisposable
         {
             while(true)
             {
-                token.ThrowIfCancellationRequested();var lease=await AcquireAsync(binding,task,token).ConfigureAwait(false);var complete=false;
-                var previous=StepLease.Value;StepLease.Value=lease;
+                token.ThrowIfCancellationRequested();var lease=await AcquireWorkflowAsync(binding,task,token).ConfigureAwait(false);var complete=false;
                 using var scope=Enter(binding,task);
                 try{complete=await executor.ExecuteStepAsync(token).ConfigureAwait(false);if(complete)lock(_sync)_completed.Add((task.MountId,task.Id));}
-                finally{StepLease.Value=previous;lease.Dispose();await lease.Finished.Task.ConfigureAwait(false);}
+                finally{lease.Dispose();await lease.Finished.Task.ConfigureAwait(false);}
                 if(complete)break;
             }
         }
@@ -205,12 +273,12 @@ public sealed partial class TasksQueueService : IAsyncDisposable
         {
             lock(_sync)
             {
-                var network=_active.Values.Select(x=>new MountingQueueSnapshot(x.Task,Priority(x.Task),"网络步骤",null,null,x.Sequence))
+                var network=_active.Values.Select(x=>new MountingQueueSnapshot(x.Task,Priority(x.Task),x.IsWorkflow?"文件工作流":"网络步骤",null,null,x.Sequence){Workflow=x.IsWorkflow})
                     .Concat(_pending.Select(x=>
                     {
                         var blocker=x.Task.Dependencies.FirstOrDefault(id=>!_completed.Contains((x.Task.MountId,id)));
-                        _active.TryGetValue(x.Task.MountId,out var current);
-                        return new MountingQueueSnapshot(x.Task,Priority(x.Task),"等待执行位",blocker is not null?"等待必要依赖："+blocker:current is not null?"等待当前安全步骤结束："+current.Task.Id:"等待全局网络执行位",blocker??current?.Task.Id,x.Sequence);
+                        var current=_active.Values.FirstOrDefault(lease=>Blocks(lease,x.Task,x.Workflow));
+                        return new MountingQueueSnapshot(x.Task,Priority(x.Task),"等待执行位",blocker is not null?"等待必要依赖："+blocker:current is not null?"等待通道或路径："+current.Task.Id:"等待全局网络执行位",blocker??current?.Task.Id,x.Sequence){Workflow=x.Workflow};
                     })).ToArray();
                 var represented=network.Select(x=>x.Task.Id).ToHashSet(StringComparer.Ordinal);
                 return network.Concat(_demandScopes.Select(x=>x.Task).OfType<MountingTask>().Where(x=>!represented.Contains(x.Id)).DistinctBy(x=>x.Id)
@@ -222,60 +290,62 @@ public sealed partial class TasksQueueService : IAsyncDisposable
     public void RequestStop(){lock(_sync){if(_stopping)return;_stopping=true;}_= _observerStop.CancelAsync();RaiseChanged();}
     internal async Task RetireMountAsync(MountQueueBinding binding)
     {
-        Task? active=null;
+        Task[] active;CancellationTokenSource? stop=null;
         lock(_sync)
         {
-            if(_generations.GetValueOrDefault(binding.MountId)!=binding.Generation)return;
-            _generations[binding.MountId]=binding.Generation+1;
-            foreach(var pending in _pending.Where(x=>x.Task.MountId==binding.MountId).ToArray())
-            {_pending.Remove(pending);pending.Backlog.Release();pending.Ready.TrySetCanceled(new CancellationToken(true));}
-            if(_active.TryGetValue(binding.MountId,out var lease))active=lease.Finished.Task;Pump();
+            if(_generations.GetValueOrDefault(binding.MountId)==binding.Generation)
+            {
+                _generations[binding.MountId]=binding.Generation+1;_mountStops.Remove(binding.MountId,out stop);
+                foreach(var pending in _pending.Where(x=>x.Task.MountId==binding.MountId&&x.Task.Generation==binding.Generation).ToArray())
+                {_pending.Remove(pending);pending.Backlog.Release();pending.Ready.TrySetCanceled(new CancellationToken(true));}
+            }
+            active=_active.Values.Where(x=>x.Task.MountId==binding.MountId&&x.Task.Generation==binding.Generation).Select(x=>x.Finished.Task).ToArray();Pump();
         }
-        if(active is not null)await active.ConfigureAwait(false);RaiseChanged();
+        try{if(stop is not null)await stop.CancelAsync().ConfigureAwait(false);await Task.WhenAll(active).ConfigureAwait(false);}
+        finally{stop?.Dispose();RaiseChanged();}
     }
     private void RaiseChanged(){if(Changed is {} handlers)foreach(Action handler in handlers.GetInvocationList())try{handler();}catch{/* UI诊断由订阅者负责，不能占用或破坏传输名额。 */}}
     public ValueTask DisposeAsync(){lock(_sync)return new(_dispose??=DisposeCoreAsync());}
     private async Task DisposeCoreAsync()
     {
-        RequestStop();await _admissionStop.CancelAsync().ConfigureAwait(false);Task[] observers;Task active;
+        RequestStop();await _admissionStop.CancelAsync().ConfigureAwait(false);Task[] observers;Task active;CancellationTokenSource[] mounts;
         lock(_sync)
         {
             _disposed=true;foreach(var pending in _pending){pending.Backlog.Release();pending.Ready.TrySetCanceled(new CancellationToken(true));}_pending.Clear();
-            observers=_observers.ToArray();active=_drained.Task;
+            observers=_observers.ToArray();active=_drained.Task;mounts=_mountStops.Values.ToArray();_mountStops.Clear();
         }
-        await Task.WhenAll(observers).ConfigureAwait(false);await active.ConfigureAwait(false);
+        await Task.WhenAll(mounts.Select(source=>source.CancelAsync())).ConfigureAwait(false);
+        await Task.WhenAll(observers).ConfigureAwait(false);await active.ConfigureAwait(false);foreach(var source in mounts)source.Dispose();
         if(_backend is {} backend)backend.Changed-=BackendChanged;_observerStop.Dispose();
         // 不释放可能仍有取消续体归还的backlog；它不创建WaitHandle且随服务一起回收。
     }
-    /// <summary>响应正文持有的执行位；只在消费完成、关闭或请求失败后归还，重复释放幂等。</summary>
+    /// <summary>文件工作流或实际响应正文的所有权；借用仅针对同工作流，不借用全局网络位。</summary>
     internal sealed class NetworkLease:IDisposable
     {
         internal TasksQueueService Owner {get;}
         internal MountingTask Task {get;}
         internal long Sequence {get;}
+        internal bool IsWorkflow {get;}
+        internal CancellationToken StopToken {get;}
         internal TaskCompletionSource Finished {get;}=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly NetworkLease? _parent;
-        private readonly SemaphoreSlim _children=new(1,1);
+        private readonly NetworkLease? _parent,_workflowLease;
         private readonly object _gate=new();
         private int _references=1,_released;
-        internal NetworkLease(TasksQueueService owner,MountingTask task,long sequence,NetworkLease? parent=null)
-        {Owner=owner;Task=task;Sequence=sequence;_parent=parent;}
-        /// <summary>已登记业务步骤内部仍串行请求；借用引用保证遗失等待的子请求也不能在正文未结束前释放父名额。</summary>
-        internal async Task<NetworkLease> BorrowAsync(CancellationToken token)
+        internal NetworkLease(TasksQueueService owner,MountingTask task,long sequence,bool workflow,NetworkLease? parent=null,NetworkLease? workflowLease=null)
+        {Owner=owner;Task=task;Sequence=sequence;IsWorkflow=workflow;_parent=parent;_workflowLease=workflowLease;StopToken=parent?.StopToken??owner.GenerationToken(new(owner,task.MountId,task.Generation));}
+        /// <summary>返回及交付正文前重新核验连接代次；旧请求的字节不得发布到新连接。</summary>
+        internal void Validate()
+        {if(!Owner.IsCurrent(new(Owner,Task.MountId,Task.Generation)))throw new OperationCanceledException("挂载连接代次已退役。",new CancellationToken(true));}
+        internal NetworkLease Borrow()
         {
-            await _children.WaitAsync(token).ConfigureAwait(false);
             lock(_gate)
             {
-                if(_released!=0){_children.Release();throw new OperationCanceledException("业务步骤已经结束。",new CancellationToken(true));}
-                _references++;return new(Owner,Task,Sequence,this);
+                if(!IsWorkflow||_references==0)throw new OperationCanceledException("业务工作流已经结束。",new CancellationToken(true));
+                _references++;return new(Owner,Task,Sequence,true,this);
             }
         }
-        private void ChildFinished()
-        {
-            bool finished;lock(_gate)finished=--_references==0;
-            _children.Release();if(finished)Finish();
-        }
-        private void Finish(){Owner.Release(this);Finished.TrySetResult();}
+        private void ChildFinished(){bool finished;lock(_gate)finished=--_references==0;if(finished)Finish();}
+        private void Finish(){Owner.Release(this);_workflowLease?.Dispose();Finished.TrySetResult();}
         public void Dispose()
         {
             bool finished;lock(_gate){if(_released!=0)return;_released=1;finished=--_references==0;}

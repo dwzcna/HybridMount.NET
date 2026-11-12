@@ -72,10 +72,11 @@ public static partial class LiveWebDavRunner
                 Capabilities=_source?.Capabilities,WriteCapabilities=_source?.WriteCapabilities,ExpectedRefreshConflicts=_expectedRefreshConflicts.ToArray(),KnownPaths=_known.Order(StringComparer.Ordinal).ToArray(),Results=_results};
             var temporary=Path.Combine(_work,"live-report.json.tmp");File.WriteAllText(temporary,JsonSerializer.Serialize(report,new JsonSerializerOptions{WriteIndented=true}));
             // 外部读取仪表文件可能产生短暂重命名竞争；有界等待，真实访问失败仍向外报告。
-            for(var attempt=0;;attempt++)
+            var writeWait=Stopwatch.StartNew();
+            while(true)
             {
                 try{File.Move(temporary,Path.Combine(_work,"live-report.json"),true);break;}
-                catch(Exception error)when(error is IOException or UnauthorizedAccessException&&attempt<8){Thread.Sleep(20);}
+                catch(Exception error)when(error is IOException or UnauthorizedAccessException&&writeWait.Elapsed<TimeSpan.FromSeconds(2)){Thread.Sleep(20);}
             }
         }
         private static string Failure(Exception error)=>error is UnauthorizedAccessException?error.ToString():error is IOException?error.Message:error.GetType().Name;

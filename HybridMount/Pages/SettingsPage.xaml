@@ -37,6 +37,16 @@
               <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings" loc:Ui.ResourceId="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings"><AppBarButton Icon="Setting" Click="OpenStartupSettings" x:Uid="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings"/></CommandBar>
             </StackPanel>
           </Border>
+          <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.CloudMessage}">
+            <StackPanel Spacing="16">
+              <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsCloudHeading" loc:Ui.ResourceId="/Strings/SettingsCloudHeading"/>
+              <TextBlock Text="{x:Bind ViewModel.CloudRecommendation,Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+              <TextBox Text="{x:Bind ViewModel.CloudConcurrency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" InputScope="Number" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" MaxLength="10" HorizontalAlignment="Left" Width="200" x:Uid="/Strings/SettingsCloudInput" loc:Ui.ResourceId="/Strings/SettingsCloudInput"/>
+              <Button Style="{StaticResource SubtleButtonStyle}" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" Click="SaveCloudConcurrency" x:Uid="/Strings/SettingsCloudSave" loc:Ui.ResourceId="/Strings/SettingsCloudSave">
+                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74E;"/><TextBlock x:Uid="/Strings/SettingsCloudSaveText" loc:Ui.ResourceId="/Strings/SettingsCloudSaveText"/></StackPanel>
+              </Button>
+            </StackPanel>
+          </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.CacheMessage}">
             <StackPanel Spacing="16">
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockOfflineCache" loc:Ui.ResourceId="/Strings/SettingsPageTextBlockOfflineCache"/>

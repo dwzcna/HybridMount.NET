@@ -34,6 +34,6 @@ internal sealed class CloudUploadCommitter : ILocalUploadCommitter,IRecoveryUplo
 {
     public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared)=>CloudUploadState.Commit(mount,entry,prepared);
     public bool NeedsRecovery(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp stamp)
-        =>!entry.IsDirectory&&stamp.Identity==prepared.SnapshotIdentity&&(stamp.Key!=prepared.SnapshotStamp||prepared.Generation!=prepared.SnapshotGeneration)&&CloudFilesNative.HasFullContent(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath),stamp.Length);
+        =>!entry.IsDirectory&&(stamp.Key!=prepared.SnapshotStamp||prepared.Generation!=prepared.SnapshotGeneration)&&CloudFilesNative.HasFullContent(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath),stamp.Length);
     public LocalFileStamp? Commit(MountDefinition mount,MountEntry entry,LocalUpload prepared,LocalFileStamp? verifiedStamp)=>CloudUploadState.Commit(mount,entry,prepared,verifiedStamp);
 }

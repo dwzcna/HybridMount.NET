@@ -116,8 +116,9 @@ public sealed class RemoteDeletionTests
         {
             await File.WriteAllTextAsync(path,"edited during deletion");await entered.Task.WaitAsync(TimeSpan.FromSeconds(25));test.Dav.Objects.TryRemove("racing.txt",out _);
             var refresh=test.Manager.Queue(test.Id,"refresh");var queuedDeadline=DateTime.UtcNow.AddSeconds(10);
-            while(!test.Manager.TasksQueue.QueueSnapshots.Any(x=>x.Task.Id==refresh&&x.WaitingReason is not null)&&DateTime.UtcNow<queuedDeadline)await Task.Delay(20);
-            Assert.Contains(test.Manager.TasksQueue.QueueSnapshots,x=>x.Task.Id==refresh&&x.WaitingReason is not null);
+            // 元数据扫描可与上传并行；真正修改同一路径的远端应用必须等待文件屏障。
+            while(!test.Manager.TasksQueue.QueueSnapshots.Any(x=>x.Task.Operation=="remoteUpdate"&&x.Task.Path=="racing.txt"&&x.WaitingReason is not null)&&DateTime.UtcNow<queuedDeadline)await Task.Delay(20);
+            Assert.Contains(test.Manager.TasksQueue.QueueSnapshots,x=>x.Task.Operation=="remoteUpdate"&&x.Task.Path=="racing.txt"&&x.WaitingReason is not null);
             Assert.Equal("edited during deletion",await File.ReadAllTextAsync(path));release.TrySetResult();
             var result=await WebDavTests.Finished(test.Manager,refresh);Assert.Equal("PartialFailure",result.State);
             var deadline=DateTime.UtcNow.AddSeconds(20);

@@ -8,9 +8,11 @@
 #include <mutex>
 #include <optional>
 #include <map>
+#include <atomic>
 using Microsoft::WRL::ComPtr;
 namespace hm {
 namespace {
+std::atomic<ULONGLONG> SamplingSince{};
 bool MediaName(const std::wstring& name){auto dot=name.find_last_of(L'.');if(dot==std::wstring::npos)return false;auto extension=name.substr(dot);for(auto& value:extension)value=static_cast<wchar_t>(towlower(value));for(auto item:{L".jpg",L".jpeg",L".png",L".bmp",L".gif",L".tif",L".tiff",L".heic",L".heif",L".webp",L".avif",L".mp4",L".exe"})if(extension==item)return true;return false;}
 /// <summary>名称只作为根内单层本地提示；隐藏扩展名时最多检查八个同名候选，歧义不猜测。</summary>
 std::wstring ResolveVisibleName(const std::wstring& directory,const std::wstring& name){
@@ -22,10 +24,10 @@ std::wstring ResolveVisibleName(const std::wstring& directory,const std::wstring
 
 /// <summary>UIA客户端只属于专用MTA线程；至多一项请求，调用方250ms到期后丢弃迟到结果。</summary>
 class ViewSampler {
-    struct Request {HWND Window{};RECT Viewport{};std::wstring Directory;std::promise<PreviewViewItems> Result;};
+    struct Request {HWND Window{};RECT Viewport{};std::wstring Directory;ULONGLONG Deadline{};std::promise<PreviewViewItems> Result;};
     std::mutex Gate;std::condition_variable Changed;std::shared_ptr<Request> Pending;bool Closed{},Active{};std::thread Worker;
     PreviewViewItems Sample(IUIAutomation2* automation,Request& request){
-        PreviewViewItems result;const auto started=GetTickCount64(),deadline=started+200;
+        PreviewViewItems result;const auto started=GetTickCount64(),deadline=std::min(request.Deadline,started+200);
         try{
             ComPtr<IUIAutomationCacheRequest> cache;Check(automation->CreateCacheRequest(&cache));Check(cache->put_TreeScope(TreeScope_Element));
             for(auto property:{UIA_NamePropertyId,UIA_ControlTypePropertyId,UIA_IsOffscreenPropertyId,UIA_BoundingRectanglePropertyId})Check(cache->AddProperty(property));
@@ -62,31 +64,35 @@ class ViewSampler {
         ComPtr<IUIAutomation2> automation;auto status=FAILED(initialized)?initialized:CoCreateInstance(CLSID_CUIAutomation8,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&automation));
         if(SUCCEEDED(status))status=automation->put_ConnectionTimeout(100);if(SUCCEEDED(status))status=automation->put_TransactionTimeout(50);
         while(true){
-            std::unique_lock lock(Gate);Changed.wait(lock,[&]{return Closed||Pending!=nullptr;});if(Closed)break;auto request=std::move(Pending);Active=true;lock.unlock();
+            std::unique_lock lock(Gate);Changed.wait(lock,[&]{return Closed||Pending!=nullptr;});if(Closed)break;auto request=std::move(Pending);Active=true;SamplingSince=GetTickCount64();lock.unlock();
             PreviewViewItems result;if(FAILED(status))result.Error=status;else result=Sample(automation.Get(),*request);try{request->Result.set_value(std::move(result));}catch(...){}
-            lock.lock();Active=false;
+            SamplingSince=0;lock.lock();Active=false;
         }
         automation.Reset();if(SUCCEEDED(initialized))CoUninitialize();
     }
 public:
     ViewSampler():Worker([this]{Run();}){}
     ~ViewSampler(){{std::lock_guard lock(Gate);Closed=true;Changed.notify_all();}if(Worker.joinable())Worker.join();}
-    PreviewViewItems Read(HWND window,const RECT& viewport,const std::wstring& directory){
-        auto request=std::make_shared<Request>();request->Window=window;request->Viewport=viewport;request->Directory=directory;auto result=request->Result.get_future();
+    PreviewViewItems Read(HWND window,const RECT& viewport,const std::wstring& directory,ULONGLONG deadline){
+        auto request=std::make_shared<Request>();request->Window=window;request->Viewport=viewport;request->Directory=directory;request->Deadline=deadline;auto result=request->Result.get_future();
         {std::lock_guard lock(Gate);if(Active||Pending){PreviewViewItems busy;busy.Error=HRESULT_FROM_WIN32(ERROR_BUSY);return busy;}Pending=request;Changed.notify_one();}
-        if(result.wait_for(std::chrono::milliseconds(250))!=std::future_status::ready){PreviewViewItems timeout;timeout.Error=HRESULT_FROM_WIN32(ERROR_TIMEOUT);timeout.Milliseconds=250;return timeout;}
+        const auto now=GetTickCount64();
+        if(result.wait_for(std::chrono::milliseconds(deadline>now?deadline-now:0))!=std::future_status::ready){PreviewViewItems timeout;timeout.Error=HRESULT_FROM_WIN32(ERROR_TIMEOUT);timeout.Milliseconds=deadline>now?deadline-now:0;return timeout;}
         return result.get();
     }
 };
 }
-PreviewViewItems ReadVisiblePreviewItems(IShellView* view,IFolderView2* folder,const std::wstring& directory){
+bool PreviewSamplerUncooperative()noexcept{const auto started=SamplingSince.load();return started&&GetTickCount64()-started>=1000;}
+PreviewViewItems ReadVisiblePreviewItems(IShellView* view,IFolderView2* folder,const std::wstring& directory,ULONGLONG deadline){
+    if(!deadline)deadline=GetTickCount64()+250;
     UNREFERENCED_PARAMETER(folder);PreviewViewItems result;
     struct Retry {std::wstring Directory;ULONGLONG After{};unsigned Failures{};};static std::map<HWND,Retry> retries;static ViewSampler sampler;
     try{
         HWND window{};Check(view->GetWindow(&window));Require(window&&IsWindowVisible(window)&&!IsIconic(window));RECT viewport{};WinCheck(GetClientRect(window,&viewport));MapWindowPoints(window,nullptr,reinterpret_cast<POINT*>(&viewport),2);
         if(retries.size()>32)retries.clear();auto& retry=retries[window];if(retry.Directory!=directory)retry={directory,0,0};const auto now=GetTickCount64();
         if(retry.After>now){result.Error=HRESULT_FROM_WIN32(ERROR_RETRY);return result;}
-        result=sampler.Read(window,viewport,directory);
+        if(GetTickCount64()>=deadline){result.Error=HRESULT_FROM_WIN32(ERROR_TIMEOUT);return result;}
+        result=sampler.Read(window,viewport,directory,deadline);
         if(result.Complete)retry={directory,0,0};else{++retry.Failures;retry.After=now+(retry.Failures>=2?30000:5000);}
     }catch(const Failure& error){result.Error=error.Code;}catch(...){result.Error=E_FAIL;}
     return result;

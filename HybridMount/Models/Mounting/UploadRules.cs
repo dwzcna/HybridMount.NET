@@ -35,6 +35,16 @@ public static class UploadRules
         return item with{State="Waiting",TransientFailureCount=item.TransientFailureCount==int.MaxValue?int.MaxValue:item.TransientFailureCount+1,
             LastCheckedUtc=now,NextAttemptUtc=next,Error=error.Message+$" 下次重试 {next.ToLocalTime():HH:mm:ss}。"};
     }
+    /// <summary>成功回执后的临时本地访问／共享拒绝最多重验三次；始终保留RemoteCommitted和原快照，不授权重发正文。</summary>
+    internal static LocalUpload WaitForLocalCommit(LocalUpload item,Exception error,DateTimeOffset now)
+    {
+        var code=error is System.ComponentModel.Win32Exception native?native.NativeErrorCode:error.HResult&0xffff;
+        var retryable=item.Receipt is not null&&(code is 5 or 32 or 33)&&
+            error is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException;
+        var attempts=retryable?Math.Min(3,Math.Clamp(item.TransientFailureCount,0,3)+1):item.TransientFailureCount;
+        return item with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=now,TransientFailureCount=attempts,
+            NextAttemptUtc=retryable&&attempts<3?now+TimeSpan.FromSeconds(3*attempts):null};
+    }
     /// <summary>综合稳定期、旧记录检查间隔和新退避时间，返回本代次最早允许调度的时刻。</summary>
     public static DateTimeOffset AttemptUtc(LocalUpload item)
     {

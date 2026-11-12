@@ -14,12 +14,13 @@ public sealed class MountingResponsibilityTests
         throw new IOException("结构检查需要源码仓库。");
     }
     [Fact]
-    public void Shared_models_have_no_service_or_native_dependency_and_service_roots_are_classified()
+    public void Shared_models_only_use_localized_display_without_runtime_or_native_dependencies_and_service_roots_are_classified()
     {
         var root=RepositoryRoot();var model=Path.Combine(root,"HybridMount","Models","Mounting");
         foreach(var file in Directory.EnumerateFiles(model,"*.cs",SearchOption.TopDirectoryOnly))
         {
-            var text=File.ReadAllText(file);Assert.DoesNotContain("HybridMount.Services.",text);Assert.DoesNotContain("DllImport(",text);Assert.DoesNotContain("LibraryImport(",text);
+            // .71 的显示投影允许 UiText；其他运行服务和原生调用仍不得进入公共模型。
+            var text=File.ReadAllText(file).Replace("global::HybridMount.Services.Localization.UiText.","",StringComparison.Ordinal);Assert.DoesNotContain("HybridMount.Services.",text);Assert.DoesNotContain("DllImport(",text);Assert.DoesNotContain("LibraryImport(",text);
         }
         var services=Path.Combine(root,"HybridMount","Services","Mounting");
         foreach(var file in Directory.EnumerateFiles(services,"*.cs",SearchOption.TopDirectoryOnly))

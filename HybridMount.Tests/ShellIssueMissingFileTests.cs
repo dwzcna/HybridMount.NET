@@ -46,11 +46,13 @@ public sealed class ShellIssueMissingFileTests
     [InlineData(false)][InlineData(true)]
     public async Task BothPublicationDirectionsBackOffButChangedAttentionCanRunImmediately(bool resolved)
     {
-        await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"backoff.txt");await File.WriteAllTextAsync(path,"bytes");
+        await using var test=await UploadFlowTests.Fixture.Create(false);
+        // 退避用例保留真实注册根，停止自动扫描后再固定失败记录；连接中的代次竞争由独立用例覆盖。
+        await test.Manager.DisconnectAsync(test.Id);var path=Path.Combine(test.Local,"backoff.txt");await File.WriteAllTextAsync(path,"bytes");
         var row=Failed(test,"backoff.txt",LocalFileState.Read(path));if(resolved)test.Repository.UpdateUpload(row.Id,x=>x with{State="Canceled",CancelRequested=true});
         var calls=0;test.Manager.IssuePropertyWrittenForTests=(_,_)=>{calls++;throw new IOException("injected property failure");};
         await test.Manager.PublishUploadIssuesAsync();var failed=test.Repository.Upload(row.Id)!;await test.Manager.PublishUploadIssuesAsync();
-        Assert.Equal(1,calls);Assert.Equal(failed,test.Repository.Upload(row.Id));Assert.Contains("injected property failure",failed.Attention!.ShellError);
+        Assert.True(calls==1,System.Text.Json.JsonSerializer.Serialize(new{calls,failed}));Assert.Equal(failed,test.Repository.Upload(row.Id));Assert.Contains("injected property failure",failed.Attention!.ShellError);
         test.Repository.UpdateUpload(row.Id,x=>resolved?x with{Generation=x.Generation+1,State="Failed",CancelRequested=false,Error="new failure"}:x with{State="Canceled",CancelRequested=true});
         test.Manager.IssuePropertyWrittenForTests=(_,_)=>{calls++;return Task.CompletedTask;};await test.Manager.PublishUploadIssuesAsync();
         var saved=test.Repository.Upload(row.Id)!;Assert.Equal(2,calls);Assert.Equal(resolved?"Published":"Cleared",saved.Attention!.ShellState);Assert.Null(saved.Attention.ShellError);

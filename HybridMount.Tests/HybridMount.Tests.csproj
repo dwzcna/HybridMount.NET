@@ -8,6 +8,8 @@
     <PlatformTarget Condition="'$(Platform)' == 'ARM64'">ARM64</PlatformTarget>
     <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
   </PropertyGroup>
+  <!-- 各集合共享本机CFAPI／物理缓存资源；限制集合级并行，单个用例内的1／4／128并发保持真实执行。 -->
+  <ItemGroup><None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><PackageReference Include="Microsoft.NET.Test.Sdk"/><PackageReference Include="xunit"/><PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets></PackageReference><PackageReference Include="Microsoft.Data.Sqlite"/>
     <PackageReference Include="AWSSDK.S3"/><PackageReference Include="AWSSDK.SQS"/><PackageReference Include="WebDAVClient"/><PackageReference Include="CommunityToolkit.Mvvm"/></ItemGroup>
   <ItemGroup>
@@ -53,6 +55,7 @@
     <Compile Include="..\HybridMount\Helpers\IO\BorrowedStream.cs" Link="Production\Helpers\IO\BorrowedStream.cs"/>
     <Compile Include="..\HybridMount\Helpers\IO\UploadProgressStream.cs" Link="Production\Helpers\IO\UploadProgressStream.cs"/>
     <Compile Include="..\HybridMount\Helpers\Threading\PriorityReadQueue.cs" Link="Production\Helpers\Threading\PriorityReadQueue.cs"/>
+    <Compile Include="..\HybridMount\Helpers\Threading\BackgroundSnapshotPump.cs" Link="Production\Helpers\Threading\BackgroundSnapshotPump.cs"/>
     <Compile Include="..\HybridMount\Helpers\Threading\SharedAsyncWork.cs" Link="Production\Helpers\Threading\SharedAsyncWork.cs"/>
     <Compile Include="..\HybridMount\Helpers\Windows\RootRegistryLease.cs" Link="Production\Helpers\Windows\RootRegistryLease.cs"/>
     <Compile Include="..\HybridMount\Models\AppearancePreferences.cs" Link="Production\Models\AppearancePreferences.cs"/>
@@ -82,6 +85,9 @@
     <Compile Include="..\HybridMount\Models\Mounting\MountModels.cs" Link="Production\Models\Mounting\MountModels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountPresentation.cs" Link="Production\Models\Mounting\MountPresentation.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountingTask.cs" Link="Production\Models\Mounting\MountingTask.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\CloudOperationChannel.cs" Link="Production\Models\Mounting\CloudOperationChannel.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Transactions\OperationDependencies.cs" Link="Production\Models\Mounting\Transactions\OperationDependencies.cs"/>
+    <Compile Include="..\HybridMount\Services\TasksQueueService.Channels.cs" Link="Production\Services\TasksQueueService.Channels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\NetworkFailureLog.cs" Link="Production\Models\Mounting\NetworkFailureLog.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\OperationDisplayOrder.cs" Link="Production\Models\Mounting\OperationDisplayOrder.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\OrphanedMountModels.cs" Link="Production\Models\Mounting\OrphanedMountModels.cs"/>
@@ -215,6 +221,8 @@
     <Compile Include="..\HybridMount\Services\ApplicationPaths.cs" Link="Production\Services\ApplicationPaths.cs"/>
     <Compile Include="..\HybridMount\Services\SettingsResetScope.cs" Link="Production\Services\SettingsResetScope.cs"/>
     <Compile Include="..\HybridMount\Services\ApplicationPreferencesService.cs" Link="Production\Services\ApplicationPreferencesService.cs"/>
+    <Compile Include="..\HybridMount\Services\CloudOperationSettings.cs" Link="Production\Services\CloudOperationSettings.cs"/>
+    <Compile Include="..\HybridMount\ViewModels\SettingsViewModel.Cloud.cs" Link="Production\ViewModels\SettingsViewModel.Cloud.cs"/>
     <Compile Include="..\HybridMount\Services\IpcClient.cs" Link="Production\Services\IpcClient.cs"/>
     <Compile Include="..\HybridMount\Services\IpcProtocol.cs" Link="Production\Services\IpcProtocol.cs"/>
     <Compile Include="..\HybridMount\Services\IpcServerService.cs" Link="Production\Services\IpcServerService.cs"/>

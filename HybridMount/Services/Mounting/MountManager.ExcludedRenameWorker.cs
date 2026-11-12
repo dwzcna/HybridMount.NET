@@ -32,6 +32,7 @@ public sealed partial class MountManager
     private async Task RunExcludedRenameAsync(Runtime root,ExcludedRenameIntent initial,CancellationToken token)
     {
         using var queueTask=TasksQueue.EnterTask(initial.MountId,initial.Id,initial.RetryRequested||initial.ReadOnlyRequested?MountingPriority.User:MountingPriority.Transaction,"excludedRename",initial.SourcePath);
+        using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(token,exclusive:true,destination:initial.LocalPath).ConfigureAwait(false);
         var journal=RenameJournal(initial.MountId);var row=initial;var source=root.Source!;var session=root.Session!;var readingOutcome=false;
         try
         {

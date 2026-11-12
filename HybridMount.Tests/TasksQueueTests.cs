@@ -15,7 +15,7 @@ public sealed class TasksQueueTests
     [Fact(Timeout=15000)]
     public async Task SameMountSerialDifferentMountsParallelAndGlobalLimitTwo()
     {
-        await using var queue=new TasksQueueService();var a=queue.StartMount(Guid.NewGuid());var b=queue.StartMount(Guid.NewGuid());var c=queue.StartMount(Guid.NewGuid());
+        await using var queue=new TasksQueueService(2);var a=queue.StartMount(Guid.NewGuid());var b=queue.StartMount(Guid.NewGuid());var c=queue.StartMount(Guid.NewGuid());
         using var first=await queue.AcquireAsync(a,TaskFor(a,"first"),default);
         var same=queue.AcquireAsync(a,TaskFor(a,"same",MountingPriority.Demand),default);
         using var second=await queue.AcquireAsync(b,TaskFor(b,"second"),default);
@@ -215,8 +215,8 @@ public sealed class TasksQueueTests
             await output.WriteAsync(block,token);
             if(++blocks==1)
             {
-                // 正文消费结束后才调用sink，此时高优先级读取可取得同挂载执行位。
-                await Task.Run(async()=>{using var demand=queue.EnterTask(binding.MountId,"foreground",MountingPriority.Demand,"download");await source.GetMetadataAsync("large.bin",token);});
+                // 正文消费结束后才调用sink，独立元数据查询不借用另一个完整下载工作流。
+                await Task.Run(async()=>{using var demand=queue.EnterTask(binding.MountId,"foreground",MountingPriority.Demand,"metadata");await source.GetMetadataAsync("large.bin",token);});
             }
         });
         Assert.Equal(bytes,output.ToArray());Assert.Equal(4,blocks);scope.Dispose();Assert.Empty(queue.QueueSnapshots);

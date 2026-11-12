@@ -3,6 +3,8 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
+    /// <summary>页面存储动作由应用登记并在线程池执行；退出等待它们，不依赖页面生命周期。</summary>
+    internal Task<T> RunClientActionAsync<T>(Func<T> action)=>OwnAsync(cancel=>{cancel.ThrowIfCancellationRequested();return Task.FromResult(action());},_stop.Token);
     /// <summary>调用者必须持根锁；只把网络／队列等待移到锁外，异常和取消均先恢复原锁所有权。</summary>
     private static async Task<T> OutsideRootAsync<T>(Runtime root,Func<Task<T>> network)
     {root.Gate.Release();try{return await network().ConfigureAwait(false);}finally{await root.Gate.WaitAsync().ConfigureAwait(false);}}

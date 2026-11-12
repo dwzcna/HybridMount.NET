@@ -57,9 +57,9 @@ public sealed class SynologyIntegrationTests:IDisposable
         var metadata=server.RawRequests.First(x=>x["api"]=="SYNO.FileStation.List"&&x["method"]=="getinfo");Assert.Equal("[\"/share/file.bin\"]",metadata["path"]);
     }
     [Fact(Timeout=15000)]
-    public async Task SnapshotBodyRetainsNetworkSlotUntilConsumptionAndOtherMountCanRun()
+    public async Task SnapshotBodyRetainsOneGlobalSlotWhileMetadataAndOtherMountCanRun()
     {
-        await using var queue=new TasksQueueService();var binding=queue.StartMount(Guid.NewGuid());var other=queue.StartMount(Guid.NewGuid());
+        await using var queue=new TasksQueueService(2);var binding=queue.StartMount(Guid.NewGuid());var other=queue.StartMount(Guid.NewGuid());
         var started=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var server=new SynologyFakeDsm();server.Intercept=(request,fields,token)=>Task.FromResult(fields["api"]=="SYNO.FileStation.Download"?
             new HttpResponseMessage(HttpStatusCode.OK){Content=new StreamContent(new HeldStream(Encoding.UTF8.GetBytes("abcdefgh"),started,release))}:null);
@@ -67,11 +67,16 @@ public sealed class SynologyIntegrationTests:IDisposable
         Task reading;using(queue.Enter(binding,new("read",binding.MountId,binding.Generation,MountingPriority.Demand,DateTimeOffset.UtcNow,"download","file.bin",Version:entry.Version)))reading=source.ReadRangeAsync(entry,0,new byte[8]).AsTask();
         try
         {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));var logins=server.Requests.Count;
-            Task waiting;using(queue.Enter(binding,new("maintenance",binding.MountId,binding.Generation,MountingPriority.Maintenance,DateTimeOffset.UtcNow,"capacity")))waiting=source.GetRemoteCapacityAsync();
-            await Task.Delay(30);Assert.False(waiting.IsCompleted);Assert.Equal(logins,server.Requests.Count);
-            using(var independent=await queue.AcquireAsync(other,new("other",other.MountId,other.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"test"),default))Assert.False(waiting.IsCompleted);
-            release.TrySetResult();await Task.WhenAll(reading,waiting);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));var logins=server.Requests.Count;Task waiting;
+            using(var independent=await queue.AcquireAsync(other,new("other",other.MountId,other.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"test"),default))
+            {
+                using(queue.Enter(binding,new("maintenance",binding.MountId,binding.Generation,MountingPriority.Maintenance,DateTimeOffset.UtcNow,"capacity")))waiting=source.GetRemoteCapacityAsync();
+                await Task.Delay(30);Assert.False(waiting.IsCompleted);Assert.Equal(logins,server.Requests.Count);
+                Assert.Equal(2,queue.SchedulingDiagnostics.ActiveRequests);
+            }
+            // 正文仍占一个全局执行位；另一个归还后，同挂载元数据可以独立完成。
+            await waiting.WaitAsync(TimeSpan.FromSeconds(5));Assert.False(reading.IsCompleted);Assert.Equal(1,queue.SchedulingDiagnostics.ActiveRequests);
+            release.TrySetResult();await reading;
         }
         finally{release.TrySetResult();}
     }

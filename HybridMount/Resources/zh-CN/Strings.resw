@@ -2399,4 +2399,16 @@
   <data name="LogsPageInformationFilterLabel.Text" xml:space="preserve"><value>信息</value></data>
   <data name="LogsPageWarningFilterLabel.Text" xml:space="preserve"><value>警告</value></data>
   <data name="LogsPageErrorFilterLabel.Text" xml:space="preserve"><value>错误</value></data>
+  <data name="CloudRecommendation" xml:space="preserve"><value>建议值：{0}（CPU 逻辑处理器数 ÷ 2）。有效范围 1—128，默认 4；保存后生效。</value></data>
+  <data name="CloudReadFailed" xml:space="preserve"><value>云操作线程数读取失败，暂用 4；原设置未改写。</value></data>
+  <data name="CloudInvalid" xml:space="preserve"><value>请输入 1—128 的整数。</value></data>
+  <data name="CloudSaved" xml:space="preserve"><value>云操作线程数已保存并生效。现有传输将正常收尾。</value></data>
+  <data name="CloudSaveFailed" xml:space="preserve"><value>云操作线程数保存失败，保留原设置。</value></data>
+  <data name="SettingsCloudHeading.Text" xml:space="preserve"><value>云操作线程数</value></data>
+  <data name="SettingsCloudInput.Header" xml:space="preserve"><value>并发上限</value></data>
+  <data name="SettingsCloudInput.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>云操作线程数，1 到 128</value></data>
+  <data name="SettingsCloudSaveText.Text" xml:space="preserve"><value>保存</value></data>
+  <data name="SettingsCloudSave.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>保存云操作线程数</value></data>
+  <data name="CloudWorkflowPhase" xml:space="preserve"><value>文件工作流</value></data>
+  <data name="CloudWaitingChannel" xml:space="preserve"><value>等待通道或路径：{0}</value></data>
 </root>

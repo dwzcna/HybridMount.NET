@@ -122,8 +122,8 @@ public sealed partial class MountManager
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(UploadRules.DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
             {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});return;}
-            // 当前代次即使由元数据观察推进，也只能在完整同内容证明后被本次回执覆盖。
-            if(recovery.VerifiedStamp is not null)prepared=prepared with{SnapshotGeneration=recovery.Row.Generation};
+            // 完整同内容证明也覆盖同名替换对象；原生仍须在保护句柄内精确重验当前身份和验证戳。
+            if(recovery.VerifiedStamp is {} verified)prepared=prepared with{SnapshotGeneration=recovery.Row.Generation,SnapshotIdentity=verified.Identity};
             var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path)&&!RenamedUploadMissing(prepared);LocalFileStamp? committedStamp=null;
             UploadRules.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
             if(_repository.Upload(prepared.Id)?.Error==UploadRules.TypeConflictMessage)throw new SourceConflictException(UploadRules.TypeConflictMessage);

@@ -11,23 +11,6 @@ namespace hm::menu {
 std::array<std::atomic<unsigned long long>,14> Counters{};
 namespace {
 std::atomic<DWORD> TestDelay{};
-/// <summary>Shell数组可按值封送，接口地址不能作为跨进程选择身份；最多读取16个已有PIDL作观察签名。</summary>
-struct SelectionKey {
-    ComPtr<IUnknown> Identity,Site;DWORD Count{};unsigned long long Hash=1469598103934665603ULL;bool Pidls{},Valid=true;
-    bool Same(const SelectionKey& other)const{return Valid&&other.Valid&&Count==other.Count&&Site.Get()==other.Site.Get()&&((Pidls&&other.Pidls)?Hash==other.Hash:!Pidls&&!other.Pidls&&Identity.Get()==other.Identity.Get());}
-};
-SelectionKey Key(IShellItemArray* selection,IUnknown* site){
-    SelectionKey key;if(site&&FAILED(site->QueryInterface(IID_PPV_ARGS(&key.Site)))){key.Valid=false;return key;}
-    if(!selection)return key;if(FAILED(selection->QueryInterface(IID_PPV_ARGS(&key.Identity)))||FAILED(selection->GetCount(&key.Count))||key.Count>1024){key.Valid=false;return key;}
-    key.Pidls=true;size_t total{};
-    for(DWORD i=0;i<std::min<DWORD>(key.Count,16);++i){
-        ComPtr<IShellItem> item;PIDLIST_ABSOLUTE pidl{};
-        if(FAILED(selection->GetItemAt(i,&item))||FAILED(SHGetIDListFromObject(item.Get(),&pidl))||!pidl){key.Pidls=false;break;}
-        const auto size=ILGetSize(pidl);if(size>128*1024||(total+=size)>1024*1024){CoTaskMemFree(pidl);key.Pidls=false;break;}
-        for(UINT offset=0;offset<size;++offset){key.Hash^=reinterpret_cast<const BYTE*>(pidl)[offset];key.Hash*=1099511628211ULL;}key.Hash^=i;key.Hash*=1099511628211ULL;CoTaskMemFree(pidl);
-    }
-    return key;
-}
 struct Request {std::atomic<bool> Canceled{},Ready{};std::shared_ptr<const Summary> Value;ULONGLONG Completed{},Generation{};bool Actions{};};
 /// <summary>每份封送流只领取一次；取消的排队项也须在COM线程领取并归还其引用。</summary>
 struct Input {
@@ -78,25 +61,26 @@ HRESULT Queue(IShellItemArray* selection,IUnknown* site,const std::shared_ptr<Re
 struct StateTiming{LARGE_INTEGER Start{};StateTiming(){QueryPerformanceCounter(&Start);++Counters[0];}~StateTiming(){LARGE_INTEGER end{},frequency{};QueryPerformanceCounter(&end);QueryPerformanceFrequency(&frequency);auto elapsed=static_cast<unsigned long long>((end.QuadPart-Start.QuadPart)*1000000/frequency.QuadPart);auto high=Counters[12].load();while(high<elapsed&&!Counters[12].compare_exchange_weak(high,elapsed)){};}};
 }
 struct Context::Impl{
-    SRWLOCK Gate=SRWLOCK_INIT;SelectionKey KeyValue;ComPtr<IShellItemArray> Selection;ComPtr<IUnknown> Site;std::shared_ptr<Request> Current;ULONGLONG Generation{};
+    SRWLOCK Gate=SRWLOCK_INIT;ComPtr<IShellItemArray> Selection;ComPtr<IUnknown> Site;std::shared_ptr<Request> Current;ULONGLONG Generation{};
     ~Impl(){if(Current)Current->Canceled=true;}
 };
 Context::Context():_impl(std::make_unique<Impl>()){}Context::~Context()=default;
 void Context::Invalidate()noexcept{auto& p=*_impl;AcquireSRWLockExclusive(&p.Gate);if(p.Current)p.Current->Canceled=true;p.Current.reset();p.Selection.Reset();p.Site.Reset();++p.Generation;ReleaseSRWLockExclusive(&p.Gate);}
 HRESULT Context::State(Action action,IShellItemArray* selection,IUnknown* site,BOOL slow,EXPCMDSTATE* state)noexcept{
-    StateTiming timer;if(!state)return E_POINTER;*state=ECS_HIDDEN;if(!selection&&!site)return S_OK;auto& p=*_impl;auto key=Key(selection,site);if(!key.Valid)return S_OK;
+    // 快速路径只比较先前慢查询捕获的接口地址及250ms内存摘要；绝不调用Shell对象或封送。
+    StateTiming timer;if(!state)return E_POINTER;*state=ECS_HIDDEN;if(!selection&&!site)return S_OK;auto& p=*_impl;
     if(!TryAcquireSRWLockExclusive(&p.Gate)){++Counters[2];return E_PENDING;}
     std::shared_ptr<Request> request;
     try{
-        if(p.Current&&p.KeyValue.Same(key)){auto current=p.Current;if(current->Ready.load(std::memory_order_acquire)&&GetTickCount64()-current->Completed<250){auto value=current->Value;const auto basic=action==Action::Root||action==Action::ShowSyncIssues;const auto usable=basic?(value&&SUCCEEDED(value->Status)||!current->Actions):current->Actions;if(usable){if(value&&SUCCEEDED(value->Status)){const auto mask=action==Action::FreeSpace?1u:2u;if(basic||(value->Actions&mask))*state=ECS_ENABLED;}++Counters[1];ReleaseSRWLockExclusive(&p.Gate);return S_OK;}}if(!current->Ready){ReleaseSRWLockExclusive(&p.Gate);++Counters[2];return E_PENDING;}}
+        if(p.Current&&p.Selection.Get()==selection&&p.Site.Get()==site){auto current=p.Current;if(current->Ready.load(std::memory_order_acquire)&&GetTickCount64()-current->Completed<250){auto value=current->Value;const auto basic=action==Action::Root||action==Action::ShowSyncIssues;const auto usable=basic?(value&&SUCCEEDED(value->Status)||!current->Actions):current->Actions;if(usable){if(value&&SUCCEEDED(value->Status)){const auto mask=action==Action::FreeSpace?1u:2u;if(basic||(value->Actions&mask))*state=ECS_ENABLED;}++Counters[1];ReleaseSRWLockExclusive(&p.Gate);return S_OK;}}if(!current->Ready){ReleaseSRWLockExclusive(&p.Gate);++Counters[2];return E_PENDING;}}
         if(!slow){ReleaseSRWLockExclusive(&p.Gate);++Counters[2];return E_PENDING;}
-        request=std::make_shared<Request>();request->Generation=++p.Generation;if(p.Current)p.Current->Canceled=true;p.Current=request;p.KeyValue=std::move(key);p.Selection=selection;p.Site=site;ReleaseSRWLockExclusive(&p.Gate);
+        request=std::make_shared<Request>();request->Generation=++p.Generation;if(p.Current)p.Current->Canceled=true;p.Current=request;p.Selection=selection;p.Site=site;ReleaseSRWLockExclusive(&p.Gate);
         auto status=Queue(selection,site,request,action,false);if(FAILED(status)){auto value=std::make_shared<Summary>();value->Status=status;request->Value=std::move(value);request->Completed=GetTickCount64();request->Ready.store(true,std::memory_order_release);}++Counters[2];return E_PENDING;
     }catch(...){if(!request)ReleaseSRWLockExclusive(&p.Gate);else{request->Completed=GetTickCount64();request->Ready.store(true,std::memory_order_release);}return E_OUTOFMEMORY;}
 }
 HRESULT Context::Invoke(Action action,IShellItemArray* selection,IUnknown* site)noexcept{
     if(action==Action::Root)return S_OK;if(!selection&&!site)return E_INVALIDARG;
-    try{auto key=Key(selection,site);if(!key.Valid)return E_INVALIDARG;std::shared_ptr<const Summary> expected;auto& p=*_impl;if(!TryAcquireSRWLockShared(&p.Gate))return HRESULT_FROM_WIN32(ERROR_BUSY);{if(p.Current&&p.KeyValue.Same(key)&&p.Current->Ready.load(std::memory_order_acquire)&&p.Current->Value&&SUCCEEDED(p.Current->Value->Status))expected=p.Current->Value;ReleaseSRWLockShared(&p.Gate);}return Queue(selection,site,std::make_shared<Request>(),action,true,std::move(expected));}catch(...){return E_OUTOFMEMORY;}
+    try{std::shared_ptr<const Summary> expected;auto& p=*_impl;if(!TryAcquireSRWLockShared(&p.Gate))return HRESULT_FROM_WIN32(ERROR_BUSY);{if(p.Current&&p.Selection.Get()==selection&&p.Site.Get()==site&&p.Current->Ready.load(std::memory_order_acquire)&&p.Current->Value&&SUCCEEDED(p.Current->Value->Status))expected=p.Current->Value;ReleaseSRWLockShared(&p.Gate);}return Queue(selection,site,std::make_shared<Request>(),action,true,std::move(expected));}catch(...){return E_OUTOFMEMORY;}
 }
 DWORD ProbeDelay()noexcept{
 #ifdef HYBRIDMOUNT_ISOLATED_TEST_PIPE

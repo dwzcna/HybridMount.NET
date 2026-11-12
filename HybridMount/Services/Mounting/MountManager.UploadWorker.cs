@@ -6,7 +6,7 @@ namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
-    /// <summary>每根串行上传、全局两路；网络传输期间不持有根锁，窗口和读取不被队列阻塞。</summary>
+    /// <summary>每根串行上传、实际云请求遵循全局配置额度；网络传输期间不持有根锁，窗口和读取不被队列阻塞。</summary>
     private async Task UploadLoopAsync(Runtime root,UploadRuntime runtime)
     {
         var token=runtime.Stop.Token;
@@ -41,8 +41,14 @@ public sealed partial class MountManager
         catch(Exception error){_logger.QueueException("自动上传","Error","操作未完成",error);Status(root,root.Status,"自动上传监控已停止，请重新连接。" );}
     }
     /// <summary>与改名收尾共享同一可运行候选集，冲突和退避不会挡住其他文件。</summary>
-    private LocalUpload[] UploadCandidates(Runtime root)=>_repository.Uploads(root.Definition.Id).Where(x=>
-                    x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&(string.IsNullOrEmpty(x.Error)||x.NextAttemptUtc is not null)||(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+    private LocalUpload[] UploadCandidates(Runtime root)
+    {
+        var all=_repository.Uploads(root.Definition.Id);
+        return all.Where(x=>x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&(string.IsNullOrEmpty(x.Error)||x.NextAttemptUtc is not null)||
+            UploadDependenciesReady(all,x)&&(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+    }
+    /// <summary>父目录失败／取消／结果未知均保留子项屏障，重新启动从持久记录重建。</summary>
+    private static bool UploadDependenciesReady(IEnumerable<LocalUpload> all,LocalUpload item)=>OperationDependencies.UploadReady(all,item);
     private sealed class UploadReporter(Action<UploadProgress> action) : IProgress<UploadProgress>
     {public void Report(UploadProgress value)=>action(value);}
     /// <summary>发送前持久化快照及阶段；返回成功后先保存回执，再修改本地占位和索引。</summary>
@@ -56,10 +62,11 @@ public sealed partial class MountManager
         LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current),failure);
         try
         {
+            using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(token,subtree:selected.IsDirectory).ConfigureAwait(false);
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
             if(prepared.State=="OutcomeUnknown"){await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
             if(prepared.State=="RemoteCommitted"){await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
-            if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest))return;
+            if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest)||!UploadDependenciesReady(_repository.Uploads(root.Definition.Id),prepared))return;
             await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             await UploadCheckpointAsync("BeforePrepare",prepared).ConfigureAwait(false);
             prepared=await PrepareUploadAsync(root,prepared,token).ConfigureAwait(false);
@@ -79,7 +86,7 @@ public sealed partial class MountManager
             else
             {
                 var last=Environment.TickCount64;
-                var progress=new UploadReporter(value=>{var now=Environment.TickCount64;if(now-last<200&&value.Bytes!=value.Total)return;last=now;
+                var progress=new UploadReporter(value=>{var now=Environment.TickCount64;if(now-last<250&&value.Bytes!=value.Total)return;last=now;
                     ChangeUpload(prepared.Id,x=>x with{Bytes=value.Bytes,Total=value.Total});});
                 ValidateUploadSnapshot(prepared);
                 await using var content=new FileStream(prepared.SnapshotPath!,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
@@ -116,7 +123,7 @@ public sealed partial class MountManager
     {
         LocalUpload? Update(Func<LocalUpload,LocalUpload> update)=>change is null?ChangeUpload(id,update,error):change(update);
         var current=_repository.Upload(id);if(current is null||current.State=="Excluded")return;
-        if(current.State=="RemoteCommitted")Update(x=>x with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=DateTimeOffset.UtcNow});
+        if(current.State=="RemoteCommitted")Update(x=>UploadRules.WaitForLocalCommit(x,error,DateTimeOffset.UtcNow));
         else if(error is SourceRequestRejectedException)Update(x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
         else if(UploadRules.IsPermanentConnectionFailure(error)&&(error is not SourceOutcomeUnknownException||current.State!="Sending"))Update(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
         else if(current.State=="Sending")Update(x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});

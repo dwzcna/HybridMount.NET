@@ -31,6 +31,15 @@ public sealed partial class MountManager
         foreach(var rename in RenameIntents(id).Where(x=>!x.Finished))text.Append("改名排除收尾：").Append(rename.OldLocalPath).Append(" → ").Append(rename.LocalPath).Append("；远端旧路径：").Append(rename.SourcePath).Append(" → ").Append(rename.DestinationPath??rename.LocalPath).Append("；移动已确认：").Append(rename.RemoteMoved).Append("；阶段：").Append(rename.StageText).Append("；文件身份：").Append(rename.FileId).Append("；本地已独立：").Append(rename.LocalDetached).Append("；").AppendLine(rename.Error??"无错误");
         if(_renameErrors.TryGetValue(id,out var journalError))text.Append("改名日志错误：").AppendLine(journalError.Error);
         foreach(var step in TasksQueue.QueueSnapshots.Where(x=>x.Task.MountId==id))text.Append("统一任务队列：").Append(step.Task.Id).Append("；优先级：").Append(step.EffectivePriority).Append("；阶段：").Append(step.Phase).Append("；等待：").AppendLine(step.WaitingReason??"无");
+        var scheduling=TasksQueue.SchedulingDiagnostics;
+        text.Append("云请求调度：上限=").Append(scheduling.Limit).Append("；活动正文=").Append(scheduling.ActiveRequests).Append("；活动工作流=").Append(scheduling.ActiveWorkflows)
+            .Append("；排队=").Append(scheduling.Queued).Append("；已授予=").Append(scheduling.Granted).Append("；累计等待ms=").Append(scheduling.WaitMs.ToString("F1")).Append("；最长等待ms=").AppendLine(scheduling.MaximumWaitMs.ToString("F1"));
+        if(root.Session is {} session&&session.Runtime.IsAvailable)try
+        {
+            using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancel);timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            text.Append("原生固定池：").AppendLine(session.Runtime.Invoke("runtimeSchedulingDiagnostics",new{},token:timeout.Token).GetRawText());
+        }
+        catch(Exception error){text.Append("原生固定池诊断不可用：0x").AppendLine(error.HResult.ToString("X8"));}
         text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);
         text.Append("缩略图库：").AppendLine(ThumbnailCachePaths.ForMount(PreviewDirectory(_repository),id));
         text.Append("预览队列：").AppendLine(_previews.Describe(root.Definition.Id));

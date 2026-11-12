@@ -11,11 +11,11 @@ public sealed partial class MountManager
         foreach(var obsolete in _repository.RemotePending(root.Definition.Id,runtime.Engine.Scope).Where(x=>x.State=="Superseded"))DeleteRemoteSnapshot(obsolete.SnapshotPath);
         var pending=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope)
             .Where(x=>x.State is not("Completed" or "Superseded")&&(x.State!="Canceled"||x.Entry is {IsDirectory:true}&&!x.MetadataOnly))
-            .OrderBy(x=>x.Entry is null?1:0).ThenBy(x=>x.Path.Count(c=>c=='/')).ToArray();
+            .OrderBy(x=>x.Entry is null?1:0).ThenBy(x=>x.Entry is null?-x.Path.Count(c=>c=='/'):x.Path.Count(c=>c=='/')).ToArray();
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
-            if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path))continue;
+            if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path)||!RemoteDependenciesReady(root,prior))continue;
             var parentPriority=TasksQueueService.CurrentTask?.Priority;
             using var queueTask=TasksQueue.EnterTask(root.Definition.Id,prior.Id,parentPriority>=MountingPriority.User?parentPriority.Value:MountingPriority.Transaction,"remoteUpdate",prior.Path,prior.EntryId,prior.Entry?.Version);
             using var request=CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -23,6 +23,8 @@ public sealed partial class MountManager
             var current=prior;
             try
             {
+                using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(request.Token,exclusive:true,subtree:prior.Entry?.IsDirectory!=false).ConfigureAwait(false);
+                if(!RemoteDependenciesReady(root,prior))continue;
                 current=RequireRemotePending(prior.Id);
                 if(current.State=="Canceled"){await RecheckCanceledDirectoryAsync(root,runtime,current,request.Token).ConfigureAwait(false);continue;}
                 if(current.State is "Completed" or "Superseded")continue;
@@ -52,6 +54,8 @@ public sealed partial class MountManager
             finally{lock(runtime.Sync){runtime.Request=null;runtime.CurrentId=null;}}
         }
     }
+    /// <summary>从已有持久事件重建父子顺序；失败及取消保留屏障，重启不凭内存完成标记放行。</summary>
+    private bool RemoteDependenciesReady(Runtime root,RemotePendingChange item)=>OperationDependencies.RemoteReady(_repository.AllRemotePending(root.Definition.Id),item);
     /// <summary>迟到旧版本回显必须再读当前元数据；只消除确认已不存在的旧观测，重新出现的真实远端对象仍按正常同步处理。</summary>
     private async Task<bool> SuppressExcludedRenameEchoAsync(Runtime root,RemoteSyncRuntime runtime,RemotePendingChange pending,CancellationToken token)
     {
@@ -69,6 +73,7 @@ public sealed partial class MountManager
         try
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
+            pending=RequireRemotePending(pending.Id);if(pending.State is "Completed" or "Superseded" or "Canceled")return pending;
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(RenameBlocksSource(root.Definition.Id,pending.Path))return pending;
             entry=_repository.EntryBySource(root.Definition.Id,pending.Path);
@@ -77,6 +82,7 @@ public sealed partial class MountManager
             if(uploads.Any(UploadRules.InFlight))throw new IOException("同路径上传已发送，等待其回执或未知结果核对后再应用远端变化。");
             if(pending.Entry is not {} metadata)
             {
+                pending=SaveRemote(pending with{State="Committing"});if(pending.State!="Committing")return pending;
                 var missing=_repository.EntriesInSourceSubtree(root.Definition.Id,pending.Path);
                 var results=ApplyRemoteDeletions(root,missing,token);
                 if(results.Any(x=>x.Status!="Completed"))throw new SourceConflictException(string.Join("；",results.Where(x=>x.Status!="Completed").Select(x=>x.Message).Distinct()));
@@ -105,6 +111,7 @@ public sealed partial class MountManager
             _repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
             if(LocalMissing(path)&&!entry.Materialized)
             {
+                pending=SaveRemote(pending with{State="Committing",EntryId=entry.Id});if(pending.State!="Committing")return pending;
                 entry=entry with{Version=metadata.Version};_repository.SaveEntry(root.Definition.Id,entry);root.Session!.CreatePlaceholder(entry,metadata);
                 _repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
                 return SaveRemote(pending with{State="Completed",Error=null});
@@ -118,10 +125,11 @@ public sealed partial class MountManager
                 throw new SourceConflictException("本地内容或占位身份已变化，保留两端文件。");
             if(root.Session!.IsActive(entry.Id))throw new IOException("文件正在使用，待下次检测或重试。");
             if(metadata.IsDirectory)
-            {_repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});return SaveRemote(pending with{State="Completed",Error=null});}
+            {pending=SaveRemote(pending with{State="Committing",EntryId=entry.Id});if(pending.State!="Committing")return pending;_repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});return SaveRemote(pending with{State="Completed",Error=null});}
             pinned=info.Value.Info.PinState==1||pending.State is "Committing" or "Hydrating";
             if(!pinned)
             {
+                pending=SaveRemote(pending with{State="Committing",EntryId=entry.Id,OldVersion=entry.Version,PinState=info.Value.Info.PinState});if(pending.State!="Committing")return pending;
                 _previews.Invalidate(root.Definition,entry.Id);
                 if(!root.Session.RefreshPlaceholder(entry,metadata))throw new IOException("文件正被使用或无法原生刷新，保留旧版本。");
                 _repository.SaveEntry(root.Definition.Id,entry with{Version=metadata.Version});CloudFilesNative.NotifyItemUpdated(path);
@@ -156,7 +164,7 @@ public sealed partial class MountManager
                 {
                     checkpointToken.ThrowIfCancellationRequested();
                     var active=RequireRemotePending(change.Id);
-                    if(active.State=="Canceled"&&change.State=="Committing")throw new OperationCanceledException(token);
+                    if(active.State=="Superseded"||active.State=="Canceled"&&change.State=="Committing")throw new OperationCanceledException(token);
                     checkpointToken.ThrowIfCancellationRequested();
                     _repository.CommitRemotePlaceholder(change,updated);_repository.SaveOperation(RemoteTask(change,change.State=="Completed"?change.Entry!.Size:0));Notify();
                 }
@@ -201,6 +209,7 @@ public sealed partial class MountManager
             var current=_repository.EntryById(root.Definition.Id,original.Id);
             var active=RequireRemotePending(pending.Id);
             if(current is null||current.Version!=original.Version||active.State is "Canceled" or "Superseded"||_repository.Uploads(root.Definition.Id).Any(x=>x.SourcePath==pending.Path&&UploadRules.InFlight(x)))return false;
+            pending=SaveRemote(pending with{State="Committing",EntryId=original.Id});if(pending.State!="Committing")return false;
             _repository.SaveBaseline(root.Definition.Id,new(metadata.Path,metadata.Version,baseline));
             _repository.SaveEntry(root.Definition.Id,current with{Version=metadata.Version});
             foreach(var upload in _repository.Uploads(root.Definition.Id).Where(x=>x.SourcePath==pending.Path&&x.ExpectedVersion==original.Version&&!UploadRules.InFlight(x)))
@@ -215,14 +224,16 @@ public sealed partial class MountManager
         var path=Path.Combine(directory,pending.Id+".snapshot");
         // 先记路径，后落盘；中断的部分文件从零重建，不作为已验证快照使用。
         pending=SaveRemote(pending with{SnapshotPath=path,State="Downloading",Sha256=null});
+        if(pending.State is "Superseded" or "Canceled" or "Completed")return pending;
         try
         {
             ValidateRemoteSnapshot(pending);DeleteRemoteSnapshot(path);
             var last=DateTimeOffset.MinValue;
             var digest=await RemoteStaging.DownloadAsync(runtime.Source,metadata,path,token,offset=>
-            {if(DateTimeOffset.UtcNow-last>TimeSpan.FromMilliseconds(200)){_repository.SaveOperation(RemoteTask(pending,offset));Notify();last=DateTimeOffset.UtcNow;}}).ConfigureAwait(false);
+            {if(DateTimeOffset.UtcNow-last>TimeSpan.FromMilliseconds(250)){_repository.SaveOperation(RemoteTask(pending,offset));Notify();last=DateTimeOffset.UtcNow;}}).ConfigureAwait(false);
             _repository.SaveBaseline(root.Definition.Id,new(metadata.Path,metadata.Version,digest));
             pending=SaveRemote(pending with{Sha256=digest,State="Prepared"});
+            if(pending.State is "Superseded" or "Canceled")DeleteRemoteSnapshot(path);
             return pending;
         }
         catch{DeleteRemoteSnapshot(path);SaveRemote(pending with{SnapshotPath=null,Sha256=null});throw;}

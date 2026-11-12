@@ -82,12 +82,44 @@ public sealed partial class MountRepository
     {
         lock(_gate){using var db=Open();using var tx=db.BeginTransaction();SavePendingCore(db,tx,pending);tx.Commit();}
     }
+    /// <summary>扫描与应用并行时，在同一事务内检查终态再保存；迟到准备不得复活被取代的事件。</summary>
+    internal RemotePendingChange SaveRemotePendingCurrent(RemotePendingChange pending,bool retry=false)
+    {
+        lock(_gate)
+        {
+            using var db=Open();using var tx=db.BeginTransaction();var current=ReadPendingCore(db,tx,pending.Id)??throw new IOException("远端事件已丢失，未发布迟到结果。");
+            if(current is not null)
+            {
+                ValidatePendingIdentity(current,pending);
+                if(current.State is "Superseded" or "Completed"&&current.State!=pending.State)return current;
+                if(!retry&&current.State=="Canceled"&&pending.State is not("Completed" or "Superseded" or "Canceled"))return current;
+                // 仅刚进入不可逆阶段时重建依赖；已经提交的阶段仍须安全收尾。
+                if(pending.State=="Committing"&&current.State is not("Committing" or "Hydrating"))
+                {
+                    using var command=db.CreateCommand();command.Transaction=tx;command.CommandText="SELECT json FROM remote_pending WHERE mount=$m";command.Parameters.AddWithValue("$m",pending.MountId.ToString("N"));
+                    var all=new List<RemotePendingChange>();using(var rows=command.ExecuteReader())while(rows.Read())all.Add(JsonSerializer.Deserialize<RemotePendingChange>(rows.GetString(0))!);
+                    if(!OperationDependencies.RemoteReady(all,pending))throw new SourceConflictException("必要父项或子项尚未完成，未开始本地提交。");
+                }
+            }
+            SavePendingCore(db,tx,pending);tx.Commit();return pending;
+        }
+    }
+    private static RemotePendingChange? ReadPendingCore(SqliteConnection db,SqliteTransaction transaction,string id)
+    {
+        using var command=db.CreateCommand();command.Transaction=transaction;command.CommandText="SELECT json FROM remote_pending WHERE id=$id";command.Parameters.AddWithValue("$id",id);
+        return command.ExecuteScalar() is string json?JsonSerializer.Deserialize<RemotePendingChange>(json):null;
+    }
+    private static void ValidatePendingIdentity(RemotePendingChange current,RemotePendingChange proposed,bool content=false)
+    {if(current.MountId!=proposed.MountId||current.Scope!=proposed.Scope||current.Path!=proposed.Path||content&&current.Entry?.Version!=proposed.Entry?.Version)throw new SourceConflictException("远端事件身份或内容版本已变化，未提交旧结果。");}
     /// <summary>原生版本已切换后，将映射版本和恢复阶段一同提交，上传扫描始终看到屏障。</summary>
     public void CommitRemotePlaceholder(RemotePendingChange pending,MountEntry? entry)
     {
         lock(_gate)
         {
             using var db=Open();using var tx=db.BeginTransaction();
+            var current=ReadPendingCore(db,tx,pending.Id)??throw new IOException("远端提交事件已丢失。");ValidatePendingIdentity(current,pending,content:true);
+            if(current.State=="Superseded"||current.State=="Completed"&&pending.State!="Completed"||current.State=="Canceled"&&pending.State=="Committing")
+                throw new SourceConflictException("远端事件已结束或被新扫描取代，未提交旧版本。");
             if(entry is not null)
             {
                 using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="UPDATE entries SET version=$v WHERE mount=$m AND id=$id";

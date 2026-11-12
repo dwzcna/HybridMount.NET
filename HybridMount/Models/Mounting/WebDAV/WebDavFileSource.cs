@@ -44,6 +44,8 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     /// <summary>未知 Range 能力时共享首次探测和快照，所有等待者在发请求前加入；首位取消不影响其他等待者。</summary>
     public async ValueTask<int> ReadRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Download,entry.Path,entry.StableId,entry.Version);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         if(entry.IsDirectory||offset>entry.Size)throw new ArgumentException("文件读取范围无效。");
         var count=(int)Math.Min(buffer.Length,entry.Size-offset);if(count==0)return 0;
@@ -102,6 +104,8 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
     /// <summary>单个受版本约束的范围请求顺序交付分块；恢复仍验证版本，取消或消费者失败停止，不放宽严格预览。</summary>
     public async Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Download,entry.Path,entry.StableId,entry.Version);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         if(_queueBinding is not null)
         {await SequentialRangeTransfer.DefaultAsync(this,entry,offset,length,sink,Math.Min(chunk,262144),token).ConfigureAwait(false);return;}
         var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();if(length==0)return;

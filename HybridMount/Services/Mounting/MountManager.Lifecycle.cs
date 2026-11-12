@@ -22,7 +22,12 @@ public sealed partial class MountManager
         return RunAsync();
         async Task<T> RunAsync()
         {
-            try{cancel.Token.ThrowIfCancellationRequested();return await action(cancel.Token).ConfigureAwait(false);}
+            try
+            {
+                // 即使第一个信号量立即可用，云请求／目录扫描／数据库整理也不能在UI调用栈上继续执行。
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+                cancel.Token.ThrowIfCancellationRequested();return await action(cancel.Token).ConfigureAwait(false);
+            }
             catch(Exception error){ReportDiagnosticException("用户操作","用户操作未完成",error);throw;}
             finally{cancel.Dispose();lock(_lifetime){_foreground.Remove(completed.Task);completed.TrySetResult();}}
         }

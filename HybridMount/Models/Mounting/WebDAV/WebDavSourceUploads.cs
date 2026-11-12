@@ -26,6 +26,8 @@ public sealed partial class WebDavFileSource : IExcludedRenameSource
     }
     public async Task<SourceEntry> CreateDirectoryAsync(string path, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true).ConfigureAwait(false);
         path = NonRoot(path);
         using var request = new HttpRequestMessage(new HttpMethod("MKCOL"), Address(path, true)); Condition(request, null);
         using var response = await SendAsync(request, token, true).ConfigureAwait(false);
@@ -36,6 +38,8 @@ public sealed partial class WebDavFileSource : IExcludedRenameSource
     }
     public async Task<SourceEntry> MoveAsync(string path, string destination, string expectedVersion, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true,destination:destination).ConfigureAwait(false);
         path = NonRoot(path); destination = NonRoot(destination);
         if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移入自身。");
         await VerifyMutationAsync("MOVE",RelativePaths.Parent(destination),token).ConfigureAwait(false);
@@ -50,6 +54,8 @@ public sealed partial class WebDavFileSource : IExcludedRenameSource
     {var receipt=await MoveAsync(path,destination,version,token).ConfigureAwait(false);await saveReceipt(receipt).ConfigureAwait(false);return receipt;}
     public async Task DeleteAsync(string path, string expectedVersion, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true).ConfigureAwait(false);
         path = NonRoot(path); await VerifyMutationAsync("DELETE",RelativePaths.Parent(path),token).ConfigureAwait(false);
         var metadata = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (metadata.IsDirectory)

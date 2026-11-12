@@ -8,6 +8,7 @@
 #include <winrt/base.h>
 #include <exception>
 #include <new>
+#include <algorithm>
 
 namespace hm {
 namespace {
@@ -31,12 +32,21 @@ struct Pipe {
     Json Read(){DWORD size{};Transfer(&size,4,false);Require(size>0&&size<=1024*1024);std::string bytes(size,'\0');Transfer(bytes.data(),size,false);return Parse(bytes,1024*1024);}
     void Write(const Json& value){auto bytes=value.dump();Require(!bytes.empty()&&bytes.size()<=1024*1024);auto size=static_cast<DWORD>(bytes.size());Transfer(&size,4,true);Transfer(bytes.data(),size,true);}
 };
+/// <summary>固定规模的原生执行池；每池至多512项。统计只读内存，不查询文件或生成缩略图。</summary>
 class Pool {
-    std::mutex _gate;std::condition_variable _wake;std::deque<std::function<void()>> _queue;bool _stop{};std::vector<std::thread> _workers;
+    struct Item{std::function<void()> Work;ULONGLONG Queued;};
+    std::mutex _gate;std::condition_variable _wake;std::deque<Item> _queue;bool _stop{};std::vector<std::thread> _workers;
+    unsigned _active{};unsigned long long _accepted{},_rejected{},_completed{},_waitMs{},_runMs{},_maximumMs{},_slow{};
 public:
-    explicit Pool(int count=8){for(int i=0;i<count;++i)_workers.emplace_back([this]{while(true){std::function<void()> work;{std::unique_lock lock(_gate);_wake.wait(lock,[this]{return _stop||!_queue.empty();});if(_queue.empty()&&_stop)return;work=std::move(_queue.front());_queue.pop_front();}try{work();}catch(...){}}});}
-    bool Add(std::function<void()> value){std::lock_guard lock(_gate);if(_stop||_queue.size()>=512)return false;_queue.push_back(std::move(value));_wake.notify_one();return true;}
-    void Stop(){ {std::lock_guard lock(_gate);_stop=true;}_wake.notify_all();for(auto& thread:_workers)if(thread.joinable())thread.join();}
+    explicit Pool(int count=8){for(int i=0;i<count;++i)_workers.emplace_back([this]{while(true){Item item;{
+        std::unique_lock lock(_gate);_wake.wait(lock,[this]{return _stop||!_queue.empty();});if(_queue.empty()&&_stop)return;
+        item=std::move(_queue.front());_queue.pop_front();++_active;_waitMs+=GetTickCount64()-item.Queued;
+        }const auto started=GetTickCount64();try{item.Work();}catch(...){}
+        {std::lock_guard lock(_gate);--_active;++_completed;const auto elapsed=GetTickCount64()-started;_runMs+=elapsed;_maximumMs=std::max(_maximumMs,elapsed);if(elapsed>=250)++_slow;}
+    }});}
+    bool Add(std::function<void()> value){std::lock_guard lock(_gate);if(_stop||_queue.size()>=512){++_rejected;return false;}_queue.push_back({std::move(value),GetTickCount64()});++_accepted;_wake.notify_one();return true;}
+    Json Snapshot(){std::lock_guard lock(_gate);return {{"threads",_workers.size()},{"queued",_queue.size()},{"active",_active},{"accepted",_accepted},{"rejected",_rejected},{"completed",_completed},{"waitMs",_waitMs},{"runMs",_runMs},{"maximumMs",_maximumMs},{"slow",_slow}};}
+    void Stop(){{std::lock_guard lock(_gate);_stop=true;}_wake.notify_all();for(auto& thread:_workers)if(thread.joinable())thread.join();}
     ~Pool(){Stop();}
 };
 std::string GuidBytes(const BYTE* bytes){GUID id{};memcpy(&id,bytes,sizeof(id));wchar_t text[40]{};Require(StringFromGUID2(id,text,40)>0);return GuidN(Utf8(text));}
@@ -56,7 +66,7 @@ struct RuntimeHost::Impl {
 #endif
         return Callbacks.Pending()!=0;
     }
-    Pool Workers,Fast{4},Long{4};
+    Pool Workers,Fast{4},Long{4},Completion{2};
     void Close(const char* stage=nullptr,HRESULT code=S_OK){{std::lock_guard lock(OutGate);if(Closed.exchange(true))return;}if(stage&&code!=HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE)&&code!=HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED))RecordNativeFailure("NativeRuntime",code,stage);SetEvent(Stop.Value);Callbacks.Close();OutWake.notify_all();{std::lock_guard lock(CallsGate);for(auto& [_,call]:Calls)SetEvent(call->Cancel.Value);}std::lock_guard lock(ChecksGate);for(auto& [_,promise]:Checks)try{promise->set_exception(std::make_exception_ptr(Failure(HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE))));}catch(...){}Checks.clear();}
 };
 RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make_unique<Impl>()){
@@ -72,7 +82,7 @@ RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make
     auto response=p.Control->Read();authenticate(response.contains("kind")&&response.at("kind")=="helloAck"&&response.contains("version")&&response.at("version")==1&&response.contains("nonce")&&response.at("nonce")==Utf8(nonce),"HandshakeMismatch");
     if(!response.contains("build")||response.at("build")!=HYBRIDMOUNT_VERSION_TEXT){auto actual=response.contains("build")&&response.at("build").is_string()?response.at("build").get<std::string>():std::string();RecordNativeFailure("NativeRuntime",E_ACCESSDENIED,"BuildMismatch",HYBRIDMOUNT_VERSION_TEXT,actual);Require(false,E_ACCESSDENIED);}
 }
-RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();_impl->Long.Stop();}
+RuntimeHost::~RuntimeHost(){_impl->Close();_impl->Workers.Stop();_impl->Fast.Stop();_impl->Long.Stop();_impl->Completion.Stop();}
 DWORD RuntimeHost::ParentProcessId()const noexcept{return _impl->ParentId;}
 bool RuntimeHost::IsStopping()const noexcept{return _impl->Closed.load()||_impl->CallbackFailed.load();}
 HANDLE RuntimeHost::StopHandle()const noexcept{return _impl->Stop.Value;}
@@ -119,16 +129,21 @@ void RuntimeHost::Run(){
         if(kind=="cancel"){auto id=GuidN(frame.at("requestId"));std::lock_guard lock(p.CallsGate);auto found=p.Calls.find(id);if(found!=p.Calls.end())SetEvent(found->second->Cancel.Value);continue;}
         Require(kind=="command");auto command=std::make_shared<RuntimeCommand>();command->Id=GuidN(frame.at("requestId"));command->Operation=frame.at("operation").get<std::string>();command->Data=frame.at("data");Require(command->Operation.size()<=64&&command->Data.is_object());
         {std::lock_guard lock(p.CallsGate);Require(p.Calls.emplace(command->Id,command).second);}
-        const auto& op=command->Operation;const auto fast=op=="localReadDiagnostics"||op=="thumbnailDiagnostics"||op=="readShellState"||op=="readCustomState"||op=="queryFile"||op=="queryRoot"||op=="tagState"||op=="activity"||op=="blockEntry"||op=="finishFetch"||op=="clearRoot";
-        const auto longRunning=op=="renderLocalThumbnail"||op=="hydrateFile"||op=="hydratePinned"||op=="applyRemoteSnapshot";
-        const auto accepted=(fast?p.Fast:longRunning?p.Long:p.Workers).Add([&,command]{Json result=Json::object();HRESULT code=S_OK;try{command->CheckCancel();Require(Execute!=nullptr);result=Execute(*command);}catch(const Failure& error){code=error.Code;result["failureStage"]=error.Stage;}catch(const winrt::hresult_error& error){code=error.code();}catch(const Json::exception& error){code=E_INVALIDARG;result["failureStage"]="json:"+std::to_string(error.id);}catch(const std::bad_alloc&){code=E_OUTOFMEMORY;result["failureStage"]="out-of-memory";}catch(const std::exception&){code=E_FAIL;result["failureStage"]="std-exception";}catch(...){code=E_FAIL;}Send({{"kind","response"},{"requestId",command->Id},{"hresult",code},{"data",result}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);});
-        if(!accepted){Send({{"kind","response"},{"requestId",command->Id},{"hresult",HRESULT_FROM_WIN32(ERROR_BUSY)},{"data",Json::object()}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);}
+        const auto& op=command->Operation;bool completion=op=="runtimeSchedulingDiagnostics"||op=="finishFetch"||op=="closeLocalRead"||op=="clearRoot"||op=="blockEntry";bool fast=op=="localReadDiagnostics"||op=="thumbnailDiagnostics"||op=="readShellState"||op=="readCustomState"||op=="queryFile"||op=="queryRoot"||op=="tagState"||op=="activity";
+        bool longRunning=op=="renderLocalThumbnail"||op=="hydrateFile"||op=="hydratePinned"||op=="applyRemoteSnapshot";
+#ifdef HYBRIDMOUNT_NATIVE_TESTS
+        // 只在测试映像路由无文件的延迟命令，实际使用生产工作池及取消路径。
+        if(op=="testPoolDelay"){const auto pool=command->Data.value("pool",std::string());fast=pool=="metadata";longRunning=pool=="long";completion=pool=="completion";}
+        if(op=="testCompletion")completion=true;
+#endif
+        const auto accepted=(completion?p.Completion:fast?p.Fast:longRunning?p.Long:p.Workers).Add([&,command]{Json result=Json::object();HRESULT code=S_OK;try{command->CheckCancel();Require(Execute!=nullptr);result=command->Operation=="runtimeSchedulingDiagnostics"?Json{{"ordinary",p.Workers.Snapshot()},{"metadata",p.Fast.Snapshot()},{"long",p.Long.Snapshot()},{"completion",p.Completion.Snapshot()}}:Execute(*command);}catch(const Failure& error){code=error.Code;result["failureStage"]=error.Stage;}catch(const winrt::hresult_error& error){code=error.code();}catch(const Json::exception& error){code=E_INVALIDARG;result["failureStage"]="json:"+std::to_string(error.id);}catch(const std::bad_alloc&){code=E_OUTOFMEMORY;result["failureStage"]="out-of-memory";}catch(const std::exception&){code=E_FAIL;result["failureStage"]="std-exception";}catch(...){code=E_FAIL;}Send({{"kind","response"},{"requestId",command->Id},{"hresult",code},{"data",result}},true);std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);});
+        if(!accepted){if(!Send({{"kind","response"},{"requestId",command->Id},{"hresult",HRESULT_FROM_WIN32(ERROR_BUSY)},{"data",Json::object()}},false))p.Close("NativeReplyQueue",HRESULT_FROM_WIN32(ERROR_BUSY));std::lock_guard lock(p.CallsGate);p.Calls.erase(command->Id);}
     }}catch(const Failure& error){p.Close("NativeControlReader",error.Code);}
     catch(const Json::exception& error){auto stage="NativeControlReader.json:"+std::to_string(error.id);p.Close(stage.c_str(),E_INVALIDARG);}
     catch(const std::bad_alloc&){p.Close("NativeControlReader.out-of-memory",E_OUTOFMEMORY);}
     catch(const std::exception&){p.Close("NativeControlReader.std-exception",E_FAIL);}
     catch(...){p.Close("NativeControlReader",E_FAIL);}
-    p.Close();if(Stopping)Stopping();p.Workers.Stop();p.Fast.Stop();p.Long.Stop();writer.join();data.join();failure.join();
+    p.Close();if(Stopping)Stopping();p.Workers.Stop();p.Fast.Stop();p.Long.Stop();p.Completion.Stop();writer.join();data.join();failure.join();
 }
 int RunRuntime(DWORD parent,const std::wstring& nonce)noexcept{
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Code;~Scope(){if(SUCCEEDED(Code))CoUninitialize();}} scope{apartment};

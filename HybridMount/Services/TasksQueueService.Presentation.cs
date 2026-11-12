@@ -26,7 +26,7 @@ public sealed partial class TasksQueueService
             foreach(var group in steps.GroupBy(x=>x.Task.Id))
             {
                 if(persistent.ContainsKey(group.Key))continue;
-                var current=group.OrderBy(x=>x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).First();var task=current.Task;
+                var current=group.OrderBy(x=>x.Workflow?2:x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).First();var task=current.Task;
                 persistent[task.Id]=Enrich(new(task.Id,task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,task.MountId,task.Path){SubmissionOrder=task.SubmitTime.UtcTicks},steps,schedule,definitions);
             }
             return persistent.Values.ToArray();
@@ -38,7 +38,7 @@ public sealed partial class TasksQueueService
     private MountOperationSnapshot Enrich(MountOperationSnapshot snapshot,IReadOnlyList<MountingQueueSnapshot> queue,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> schedule,IReadOnlyDictionary<Guid,MountDefinition> definitions)
     {
         var steps=queue.Where(x=>x.Task.Id==snapshot.Id).ToArray();
-        var current=steps.OrderBy(x=>x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).FirstOrDefault();
+        var current=steps.OrderBy(x=>x.Workflow?2:x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).FirstOrDefault();
         schedule.TryGetValue(snapshot.Id,out var taskSchedule);
         var priority=current?.EffectivePriority??(schedule.ContainsKey(snapshot.Id)?taskSchedule.Priority:snapshot.Operation is "upload" or "remoteUpdate" or "excludedRename"?MountingPriority.Transaction:MountingPriority.User);
         definitions.TryGetValue(snapshot.MountId??Guid.Empty,out var definition);
@@ -48,6 +48,7 @@ public sealed partial class TasksQueueService
         snapshot=WithDownloadProgress(snapshot);
         return snapshot with{MountName=definition?.Name!,RelativeItemPath=snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
     }
+    internal Task<T> RunClientActionAsync<T>(Func<T> action)=>Backend.RunClientActionAsync(action);
     public MountOperationSnapshot? GetOperation(string id)=>Operations.FirstOrDefault(x=>x.Id==id)??Backend.GetOperation(id);
     public bool Cancel(string id)
     {
@@ -69,10 +70,10 @@ public sealed partial class TasksQueueService
     public string SyncIssueLocalPath(string id)=>Backend.SyncIssueLocalPath(id);
     public Task<int> ClearOperationHistoryAsync(TaskHistoryClearMode mode,CancellationToken token=default)=>Backend.ClearOperationHistoryAsync(mode,token);
     public void ReportDiagnosticException(string area,string message,Exception error)=>Backend.ReportDiagnosticException(area,message,error);
-    public Task<ConflictComparison> CompareConflictAsync(string id,CancellationToken token=default)
+    public async Task<ConflictComparison> CompareConflictAsync(string id,CancellationToken token=default)
     {
-        var item=Backend.GetOperation(id)??throw new IOException("冲突任务不存在。");
-        return new Conflict(this,id,item.MountId??throw new IOException("冲突缺少挂载身份。"),item.ItemPath).CompareAsync(token);
+        var item=await RunClientActionAsync(()=>Backend.GetOperation(id)).ConfigureAwait(false)??throw new IOException("冲突任务不存在。");
+        return await new Conflict(this,id,item.MountId??throw new IOException("冲突缺少挂载身份。"),item.ItemPath).CompareAsync(token).ConfigureAwait(false);
     }
     public Task<string> ResolveConflictAsync(ConflictComparison proof,bool useLocal,CancellationToken token=default)
         =>new Conflict(this,proof.TaskId,proof.Definition.Id,proof.Path).ResolveAsync(proof,useLocal,token);

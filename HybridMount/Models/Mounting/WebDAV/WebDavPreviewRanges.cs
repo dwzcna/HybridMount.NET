@@ -17,6 +17,8 @@ public sealed partial class WebDavFileSource : IPreviewReadDiagnostics
     /// <summary>验证过的单范围响应才可用于预览；200、弱／裸HTTP响应及缺失版本直接回退，不读取整文件。</summary>
     public async ValueTask<PreviewRangeResult> TryReadPreviewRangeAsync(SourceEntry entry,long offset,Memory<byte> buffer,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Thumbnail,entry.Path,entry.StableId,entry.Version);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);if(entry.IsDirectory||offset>entry.Size)throw new ArgumentException("预览范围无效。");
         var count=(int)Math.Min(buffer.Length,entry.Size-offset);if(count==0)return new(true,0);
         var tag=PreviewReadCandidate(Version(entry).ETag);if(tag is null){Volatile.Write(ref _previewRangeDiagnostic,"元数据没有可验证的预览版本");return new(false,0);}

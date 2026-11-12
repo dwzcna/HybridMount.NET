@@ -37,8 +37,9 @@ public sealed partial class MountManager
             },_stop.Token,root.CapacityStatus,query:async(force,cancel)=>
             {
                 var parent=TasksQueueService.CurrentTask;
-                using var queueTask=TasksQueue.EnterTask(definition.Id,parent?.Operation is "upload" or "capacityRefresh" or "capacity"?parent.Id:"capacity:"+definition.Id,parent?.Operation is "upload" or "capacityRefresh" or "capacity"?parent.Priority:MountingPriority.Maintenance,"capacity");
+                using var queueTask=TasksQueue.EnterTask(definition.Id,"capacity:"+definition.Id,parent?.Operation is "capacityRefresh" or "capacity"?parent.Priority:MountingPriority.Maintenance,"capacity");
                 using var lease=await _capacities.EnterAsync(FileSourceFactory.CapacityWriteScope(definition),cancel).ConfigureAwait(false);
+                using var flow=await TasksQueue.AcquireCurrentWorkflowAsync(cancel).ConfigureAwait(false);
                 return await ReadCapacityAsync(lease,definition,source,force,cancel).ConfigureAwait(false);
             },failed:error=>_logger.QueueException("配额查询","Warning","容量查询失败，保留上次值",error,definition.Id.ToString("N")));
             root.Capacity=capacity;

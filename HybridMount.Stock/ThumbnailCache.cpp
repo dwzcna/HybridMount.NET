@@ -5,6 +5,7 @@
 #endif
 #include "NativeDiagnostics.h"
 #include <atomic>
+#include <array>
 #include <map>
 #include <mutex>
 #include <memory>
@@ -16,6 +17,13 @@ thread_local const char* ThumbnailReadStage="start";
 thread_local Json ThumbnailEvidence=Json::object();
 namespace {
 std::atomic<ULONGLONG> QueryCount{},QueryMilliseconds{},BusyCount{},GateBusyCount{},SqliteBusyCount{},CapacityBusyCount{},ConnectionCount{},ConnectionReuse{},ConnectionEvictions{};
+std::array<std::atomic<unsigned long long>,8> StageMilliseconds{},StageCounts{};
+/// <summary>只累计固定阶段数值；即使错误早退也记录真实耗时，查询诊断不访问磁盘或源。</summary>
+struct StageTiming {
+    size_t Stage{};ULONGLONG Started=GetTickCount64();
+    void Next(size_t stage){StageMilliseconds[Stage]+=GetTickCount64()-Started;++StageCounts[Stage];Stage=stage;Started=GetTickCount64();}
+    ~StageTiming(){StageMilliseconds[Stage]+=GetTickCount64()-Started;++StageCounts[Stage];}
+};
 struct QueryTiming {ULONGLONG Started=GetTickCount64();~QueryTiming(){++QueryCount;QueryMilliseconds+=GetTickCount64()-Started;}};
 struct sqlite3;struct sqlite3_stmt;
 void SqliteCheck(int code,ULONGLONG deadline=0){if(code==9&&deadline&&GetTickCount64()>=deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}if(code==5||code==6){ThumbnailReadStage="sqlite-busy";++BusyCount;++SqliteBusyCount;}if(code!=0)throw Failure(HRESULT_FROM_WIN32(code==5||code==6?ERROR_BUSY:code==11||code==26?ERROR_FILE_CORRUPT:ERROR_INVALID_DATA));}
@@ -146,23 +154,23 @@ void StopThumbnailReadCache()noexcept{try{if(auto cache=CurrentCache.load())cach
 Json ReadThumbnailGrant(const std::wstring& path,bool background){Json grant;ReadThumbnailSnapshot(path,0,grant,background);return grant;}
 std::vector<BYTE> ReadCachedThumbnail(const std::wstring& path,UINT size){Require(size>0);Json grant;return ReadThumbnailSnapshot(path,size,grant);}
 std::vector<BYTE> ReadThumbnailSnapshot(const std::wstring& path,UINT size,Json& grant,bool background){
-    QueryTiming timing;
+    QueryTiming timing;StageTiming phases;
     ThumbnailReadStage="root";Require(size<=256);auto canonical=FullPath(path);auto marker=RootMarker(canonical);const auto mount=GuidN(marker.at("MountId"));
-    ThumbnailReadStage="database";ReadLease lease(PhysicalDataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db",background);auto& db=*lease.Value;
+    phases.Next(1);ThumbnailReadStage="database";ReadLease lease(PhysicalDataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db",background);auto& db=*lease.Value;
     {Statement schema(db,"PRAGMA user_version");Require(schema.Row()&&schema.Api.Int(schema.Value,0)==1);}
     {Statement count(db,"SELECT count(*) FROM roots");Require(count.Row()&&count.Api.Int(count.Value,0)==1);}
     {Statement row(db,"SELECT json FROM roots WHERE mount=?1 AND length(json)<=65536 LIMIT 2");row.Bind(1,mount);Require(row.Row(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));grant=Parse(row.Text(0));Require(!row.Row()&&grant.at("Enabled").get<bool>()&&GuidN(grant.at("MountId"))==mount&&Text(grant,"Owner")==CurrentSid(),E_ACCESSDENIED);ValidatePath(grant,canonical);}
     if(!size)return {};
-    ThumbnailReadStage="binding";Json binding,root;std::string key;
+    phases.Next(2);ThumbnailReadStage="binding";Json binding,root;std::string key;
     {Statement row(db,"SELECT b.json,b.content,r.json FROM bindings b JOIN roots r ON r.mount=b.mount WHERE b.path=?1 AND b.mount=?2 AND length(b.json)<=65536 AND length(r.json)<=65536 LIMIT 2");row.Bind(1,Utf8(canonical));row.Bind(2,mount);if(!row.Row())return {};binding=Parse(row.Text(0));key=row.Text(1);root=Parse(row.Text(2));Require(!row.Row());}
-    ThumbnailReadStage="identity";Require(root==grant&&binding.at("Root")==root&&GuidN(root.at("MountId"))==mount&&Valid(binding,canonical));
-    ThumbnailReadStage="content-key";const auto expected=Sha256(mount+"|"+root.at("Scope").get<std::string>()+"|"+std::to_string(Integer(root,"Epoch"))+"|"+binding.at("EntryId").get<std::string>()+"|"+binding.at("FileId").get<std::string>()+"|"+binding.at("Revision").get<std::string>()+"|v1");Require(expected==key);
-    ThumbnailReadStage="image";Statement image(db,"SELECT png FROM images WHERE content=?1 AND size IN (32,64,128,256) AND length(png) BETWEEN 33 AND 393216 ORDER BY (size<?2),CASE WHEN size>=?2 THEN size ELSE -size END LIMIT 1");image.Bind(1,key);image.Bind(2,static_cast<int>(size));if(!image.Row())return {};
+    phases.Next(3);ThumbnailReadStage="identity";Require(root==grant&&binding.at("Root")==root&&GuidN(root.at("MountId"))==mount&&Valid(binding,canonical));
+    phases.Next(4);ThumbnailReadStage="content-key";const auto expected=Sha256(mount+"|"+root.at("Scope").get<std::string>()+"|"+std::to_string(Integer(root,"Epoch"))+"|"+binding.at("EntryId").get<std::string>()+"|"+binding.at("FileId").get<std::string>()+"|"+binding.at("Revision").get<std::string>()+"|v1");Require(expected==key);
+    phases.Next(5);ThumbnailReadStage="image";Statement image(db,"SELECT png FROM images WHERE content=?1 AND size IN (32,64,128,256) AND length(png) BETWEEN 33 AND 393216 ORDER BY (size<?2),CASE WHEN size>=?2 THEN size ELSE -size END LIMIT 1");image.Bind(1,key);image.Bind(2,static_cast<int>(size));if(!image.Row())return {};
     const auto count=image.Api.Bytes(image.Value,0);const auto bytes=static_cast<const BYTE*>(image.Api.Blob(image.Value,0));Require(bytes&&count>=33&&count<=393216);const BYTE signature[]{137,80,78,71,13,10,26,10};Require(memcmp(bytes,signature,8)==0&&memcmp(bytes+12,"IHDR",4)==0);
     auto dimension=[](const BYTE* value){return (DWORD(value[0])<<24)|(DWORD(value[1])<<16)|(DWORD(value[2])<<8)|value[3];};auto width=dimension(bytes+16),height=dimension(bytes+20);Require(width>0&&height>0&&width<=256&&height<=256);
-    if(GetTickCount64()>=db.Deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}ThumbnailReadStage="final-state";Require(Valid(binding,canonical));return {bytes,bytes+count};
+    if(GetTickCount64()>=db.Deadline){ThumbnailReadStage="sqlite-timeout";throw Failure(HRESULT_FROM_WIN32(ERROR_TIMEOUT));}phases.Next(6);ThumbnailReadStage="final-state";Require(Valid(binding,canonical));return {bytes,bytes+count};
 }
-Json ThumbnailQueryStatistics(){return {{"count",QueryCount.load()},{"milliseconds",QueryMilliseconds.load()},{"busy",BusyCount.load()},{"gateBusy",GateBusyCount.load()},{"sqliteBusy",SqliteBusyCount.load()},{"capacityBusy",CapacityBusyCount.load()},{"opened",ConnectionCount.load()},{"reused",ConnectionReuse.load()},{"evicted",ConnectionEvictions.load()}};}
+Json ThumbnailQueryStatistics(){return {{"count",QueryCount.load()},{"milliseconds",QueryMilliseconds.load()},{"busy",BusyCount.load()},{"gateBusy",GateBusyCount.load()},{"sqliteBusy",SqliteBusyCount.load()},{"capacityBusy",CapacityBusyCount.load()},{"opened",ConnectionCount.load()},{"reused",ConnectionReuse.load()},{"evicted",ConnectionEvictions.load()},{"stages",{{"rootMs",StageMilliseconds[0].load()},{"queryMs",StageMilliseconds[1].load()},{"bindingMs",StageMilliseconds[2].load()},{"identityMs",StageMilliseconds[3].load()},{"keyMs",StageMilliseconds[4].load()},{"imageMs",StageMilliseconds[5].load()},{"revalidateMs",StageMilliseconds[6].load()},{"rootCount",StageCounts[0].load()},{"queryCount",StageCounts[1].load()}}}};}
 HRESULT WINAPI ReadThumbnail(void*,const wchar_t* path,UINT size,BYTE** png,DWORD* length)noexcept{
     if(!png||!length)return E_POINTER;*png=nullptr;*length=0;if(!path)return E_INVALIDARG;
     try{

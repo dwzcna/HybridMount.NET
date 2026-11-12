@@ -93,6 +93,8 @@ public sealed partial class SynologyFileSource
     }
     private async Task<string> LoginAsync(CancellationToken token)
     {
+        using var context=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Metadata);
+        using var flow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         lock(_authenticationSync){if(_authenticationFailure is {} failed)throw failed;if(_sid is {} current)return current;}
         if(_apis.Count==0)await DiscoverAsync(token).ConfigureAwait(false);
         var version=Descriptor("SYNO.API.Auth").Version;
@@ -149,7 +151,7 @@ public sealed partial class SynologyFileSource
     {
         token.ThrowIfCancellationRequested();
         try{return await MountingHttpScheduler.SendAsync(_queueBinding,MountingPriority.Observation,
-            cancel=>{cancel.ThrowIfCancellationRequested();return _http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token);},admission??token).ConfigureAwait(false);}
+            cancel=>{cancel.ThrowIfCancellationRequested();return _http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,cancel);},admission??token).ConfigureAwait(false);}
         catch(HttpRequestException)when(_rejectedCertificate is not null){throw Failure("TLS",ConnectionFailureKind.Certificate,"群晖 TLS 证书未通过验证，请核对本挂载证书指纹。");}
         catch(Exception error)when(error is HttpRequestException or OperationCanceledException)
         {

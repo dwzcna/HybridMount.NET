@@ -2731,5 +2731,33 @@
   "Text_542813A4B00F": {
     "Source": "后台服务未完整退出，已保留设置和数据目录。",
     "LocalizableArguments": []
-}
+},
+  "CloudRecommendation": {
+    "Source": "建议值：{0}（CPU 逻辑处理器数 ÷ 2）。有效范围 1—128，默认 4；保存后生效。",
+    "LocalizableArguments": []
+  },
+  "CloudReadFailed": {
+    "Source": "云操作线程数读取失败，暂用 4；原设置未改写。",
+    "LocalizableArguments": []
+  },
+  "CloudInvalid": {
+    "Source": "请输入 1—128 的整数。",
+    "LocalizableArguments": []
+  },
+  "CloudSaved": {
+    "Source": "云操作线程数已保存并生效。现有传输将正常收尾。",
+    "LocalizableArguments": []
+  },
+  "CloudSaveFailed": {
+    "Source": "云操作线程数保存失败，保留原设置。",
+    "LocalizableArguments": []
+  },
+  "CloudWorkflowPhase": {
+    "Source": "文件工作流",
+    "LocalizableArguments": []
+  },
+  "CloudWaitingChannel": {
+    "Source": "等待通道或路径：{0}",
+    "LocalizableArguments": []
+  }
 }

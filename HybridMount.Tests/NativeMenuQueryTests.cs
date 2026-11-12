@@ -7,6 +7,14 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class NativeMenuQueryTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    [Fact(Timeout=15000)]
+    public Task ColdFastStateDoesNotTouchEvenASlowShellSelection()=>Task.Run(()=>
+    {
+        using var menu=new Probe();using var selection=new Selection([@"C:\ordinary\unused.txt"]);selection.Value.DelayMilliseconds=250;
+        var before=menu.Stats();var sample=Measure(()=>menu.State(2,selection,false));
+        Assert.Equal(0,selection.Value.CountCalls);Assert.Equal(0,selection.Value.ItemCalls);Assert.Equal(before[3],menu.Stats()[3]);
+        Assert.True(sample.P95<=50&&sample.P99<=150);output.WriteLine(JsonSerializer.Serialize(new{sample.P95,sample.P99,sample.Max,selection.Value.CountCalls,selection.Value.ItemCalls}));
+    });
     [Fact(Timeout=30000)]
     public async Task SlowSamplingDoesNotEnterSynchronousCallsAndCachedOrPendingCallsMeetBudget()
     {
@@ -88,7 +96,7 @@ public sealed class NativeMenuQueryTests(Xunit.Abstractions.ITestOutputHelper ou
     }
     private sealed class Apartment:IDisposable{private readonly int _code=CoInitializeEx(0,0);public Apartment(){if(_code<0)Marshal.ThrowExceptionForHR(_code);}public void Dispose(){if(_code>=0)CoUninitialize();}}
     private sealed class Selection:IDisposable
-    {private readonly MenuSelection _value;internal nint Pointer{get;}internal Selection(string[] paths){using var apartment=new Apartment();_value=new(paths);Pointer=Marshal.GetComInterfaceForObject(_value,typeof(IMenuSelection));}public void Dispose(){using var apartment=new Apartment();Marshal.Release(Pointer);GC.KeepAlive(_value);}}
+    {private readonly MenuSelection _value;internal MenuSelection Value=>_value;internal nint Pointer{get;}internal Selection(string[] paths){using var apartment=new Apartment();_value=new(paths);Pointer=Marshal.GetComInterfaceForObject(_value,typeof(IMenuSelection));}public void Dispose(){using var apartment=new Apartment();Marshal.Release(Pointer);GC.KeepAlive(_value);}}
     [DllImport("ole32.dll")]private static extern int CoInitializeEx(nint reserved,uint flags);
     [DllImport("ole32.dll")]private static extern void CoUninitialize();
     [DllImport("ole32.dll")]private static extern int CoIncrementMTAUsage(out nint cookie);
@@ -110,11 +118,12 @@ public interface IMenuSelection
 [ComVisible(true),ClassInterface(ClassInterfaceType.None)]
 public sealed class MenuSelection(string[] paths):IMenuSelection
 {
+    public int CountCalls,ItemCalls,DelayMilliseconds;
     public int BindToHandler(nint context,in Guid handler,in Guid iid,out nint result){result=0;return unchecked((int)0x80004001);}
     public int GetPropertyStore(uint flags,in Guid iid,out nint result){result=0;return unchecked((int)0x80004001);}
     public int GetPropertyDescriptionList(in Guid key,in Guid iid,out nint result){result=0;return unchecked((int)0x80004001);}
     public int GetAttributes(uint flags,uint mask,out uint result){result=0;return unchecked((int)0x80004001);}
-    public int GetCount(out uint count){count=(uint)paths.Length;return 0;}
-    public int GetItemAt(uint index,out nint result){result=0;if(index>=paths.Length)return unchecked((int)0x80070057);result=Marshal.GetComInterfaceForObject(new IdentityShellItem(paths[index]),typeof(IIdentityShellItem));return 0;}
+    public int GetCount(out uint count){Interlocked.Increment(ref CountCalls);if(DelayMilliseconds>0)Thread.Sleep(DelayMilliseconds);count=(uint)paths.Length;return 0;}
+    public int GetItemAt(uint index,out nint result){Interlocked.Increment(ref ItemCalls);if(DelayMilliseconds>0)Thread.Sleep(DelayMilliseconds);result=0;if(index>=paths.Length)return unchecked((int)0x80070057);result=Marshal.GetComInterfaceForObject(new IdentityShellItem(paths[index]),typeof(IIdentityShellItem));return 0;}
     public int EnumItems(out nint result){result=0;return unchecked((int)0x80004001);}
 }

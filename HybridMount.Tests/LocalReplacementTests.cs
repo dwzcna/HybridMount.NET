@@ -90,8 +90,9 @@ public sealed class LocalReplacementTests
 
     /// <summary>远端回执到达后再次同名替换，必须先提交旧回执，再以新版本发送下一代。</summary>
     [Theory(Timeout=90000)]
-    [InlineData(FileSourceKind.WebDav)][InlineData(FileSourceKind.S3)]
-    public async Task ReplacementAfterRemoteCommitQueuesNextGeneration(FileSourceKind kind)
+    [InlineData(FileSourceKind.WebDav,false)][InlineData(FileSourceKind.S3,false)]
+    [InlineData(FileSourceKind.WebDav,true)][InlineData(FileSourceKind.S3,true)]
+    public async Task ReplacementAfterRemoteCommitOnlyQueuesDifferentContent(FileSourceKind kind,bool sameContent)
     {
         await using var test=await Fixture.Create(kind);const string name="文件.bin";var path=Path.Combine(test.Local,name);
         var original=test.Repository.Entries(test.Id).Single(x=>x.LocalPath==name);
@@ -100,11 +101,11 @@ public sealed class LocalReplacementTests
         test.Manager.UploadCheckpointForTests=async(stage,item)=>
         {
             if(stage!="RemoteCommitted"||item.LocalPath!=name||changed)return;changed=true;
-            File.Delete(path);await File.WriteAllTextAsync(path,"second replacement");await test.Manager.ScanUploadChangesAsync(test.Id);
+            File.Delete(path);await File.WriteAllTextAsync(path,sameContent?"first replacement":"second replacement");await test.Manager.ScanUploadChangesAsync(test.Id);
         };
         await test.Manager.SetSchedulingForTestsAsync(test.Id,true);var completed=await test.Wait(name,"Completed");
-        Assert.True(changed);Assert.True(completed.Generation>generation);Assert.Equal("second replacement",Encoding.UTF8.GetString(test.Remote(name)));
-        Assert.Equal(2,test.TargetWrites(name));Assert.Equal(original.Id,Assert.Single(test.Repository.Entries(test.Id),x=>x.SourcePath==name).Id);
+        Assert.True(changed);Assert.True(completed.Generation>generation);Assert.Equal(sameContent?"first replacement":"second replacement",Encoding.UTF8.GetString(test.Remote(name)));
+        Assert.Equal(sameContent?1:2,test.TargetWrites(name));Assert.Equal(original.Id,Assert.Single(test.Repository.Entries(test.Id),x=>x.SourcePath==name).Id);
     }
 
     [Theory(Timeout=90000)]

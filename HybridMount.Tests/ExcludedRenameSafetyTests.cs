@@ -47,12 +47,12 @@ public sealed partial class ExcludedRenameFlowTests
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var file=await Prepare(test,64,false);var handler=test.Dav.Server.Handler;
         test.Dav.Server.Handler=r=>r.Method=="GET"&&r.Target.EndsWith("/123.bak",StringComparison.Ordinal)?Task.FromResult(new HttpTestServer.Response(403,[])):handler(r);
         File.Move(file.Old,file.New);await test.Manager.ScanUploadChangesAsync(test.Id);await test.Manager.SetSchedulingForTestsAsync(test.Id,true);var failed=await Wait(test,"Failed");test.Dav.Server.Handler=handler;
-        using var vm=new TasksViewModel(test.Manager,new Dispatcher()){IssuesOnly=true};vm.SelectedJobId=failed.Id;Assert.Equal(file.New,vm.SelectedLocation());await vm.ClearAllAsync();Assert.Contains(vm.Operations,x=>x.Id==failed.Id);
+        using var vm=new TasksViewModel(test.Manager,new Dispatcher()){IssuesOnly=true};await vm.SnapshotIdle;vm.SelectedJobId=failed.Id;Assert.Equal(file.New,await vm.SelectedLocationAsync());await vm.ClearAllAsync();await vm.SnapshotIdle;Assert.Contains(vm.Operations,x=>x.Id==failed.Id);
         var gets=test.Dav.Server.Requests.Count(x=>x.Method=="GET"&&x.Target.EndsWith("/123.bak",StringComparison.Ordinal));var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         test.Dav.Server.Handler=async r=>{if(r.Method=="PROPFIND"&&r.Target.EndsWith("/123.bak",StringComparison.Ordinal)){entered.TrySetResult();await release.Task;}return await handler(r);};
-        try{vm.RecheckSelected();await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));Assert.False(test.Manager.RetryUpload(failed.Id));}
+        try{await vm.RecheckSelectedAsync();await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));Assert.False(test.Manager.RetryUpload(failed.Id));}
         finally{release.TrySetResult();}await Task.Delay(350);test.Dav.Server.Handler=handler;
-        Assert.Equal(gets,test.Dav.Server.Requests.Count(x=>x.Method=="GET"&&x.Target.EndsWith("/123.bak",StringComparison.Ordinal)));Assert.False(CloudFilesNative.HasFullContent(file.New,file.Bytes.Length));Assert.False(await vm.BeginConflictAsync());vm.RetrySelected();await Wait(test);Assert.Equal(file.Bytes,await File.ReadAllBytesAsync(file.New));
+        Assert.Equal(gets,test.Dav.Server.Requests.Count(x=>x.Method=="GET"&&x.Target.EndsWith("/123.bak",StringComparison.Ordinal)));Assert.False(CloudFilesNative.HasFullContent(file.New,file.Bytes.Length));Assert.False(await vm.BeginConflictAsync());await vm.RetrySelectedAsync();await Wait(test);Assert.Equal(file.Bytes,await File.ReadAllBytesAsync(file.New));
     }
     [Fact(Timeout=90000)]
     public async Task ServerIgnoringOverwriteFlagFailsProbeBeforeUserMove()

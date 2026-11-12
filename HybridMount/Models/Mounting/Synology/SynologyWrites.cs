@@ -14,6 +14,8 @@ public sealed partial class SynologyFileSource
     /// <summary>用户内容发送前验证目标不存在、父目录和新建能力；只读连接探测不调用此方法。</summary>
     public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         path=NonRoot(path);ArgumentOutOfRangeException.ThrowIfNegative(contentLength);RequireCreate(condition);
         await _writes.WaitAsync(token).ConfigureAwait(false);
         try{await PrepareCreateAsync(path,token).ConfigureAwait(false);}finally{_writes.Release();}
@@ -73,6 +75,8 @@ public sealed partial class SynologyFileSource
     /// <summary>新建不会删除或改名已有目标；回执不明交由宿主持久事务只读核对。</summary>
     public async Task<SourceEntry> UploadWithPreconditionAsync(string path,Stream content,UploadPrecondition condition,IProgress<UploadProgress>? progress=null,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         path=NonRoot(path);RequireCreate(condition);ArgumentNullException.ThrowIfNull(content);
         if(!content.CanRead||!content.CanSeek)throw new NotSupportedException("群晖上传需要可定位的完整快照。");
         await _writes.WaitAsync(token).ConfigureAwait(false);
@@ -122,6 +126,8 @@ public sealed partial class SynologyFileSource
     /// <summary>仅在已存在的父目录内新建目录；不隐式创建祖先或覆盖同名对象。</summary>
     public async Task<SourceEntry> CreateDirectoryAsync(string path,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true).ConfigureAwait(false);
         path=NonRoot(path);await _writes.WaitAsync(token).ConfigureAwait(false);
         try
         {

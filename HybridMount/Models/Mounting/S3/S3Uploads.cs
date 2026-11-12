@@ -124,6 +124,8 @@ public sealed partial class S3FileSource
     /// <summary>发送前按连接验证条件写与所需回退能力；可取消，探测失败保留用户目标和原上传意图。</summary>
     public async Task PrepareUploadAsync(string path,UploadPrecondition condition,long contentLength,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         path=NonRoot(path);await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);RequirePut(condition.ExpectedVersion is null);
         await CheckTargetAsync(path,condition.ExpectedVersion,token).ConfigureAwait(false);
         if(condition.ExpectedVersion is not null)_=RequiredETag(Version(condition.ExpectedVersion));

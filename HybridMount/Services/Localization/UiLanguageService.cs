@@ -80,27 +80,36 @@ public sealed class UiLanguageService:IDisposable
             try{return string.Format(CultureInfo.CurrentCulture,fallback,values);}catch(FormatException){return fallback;}
         }
     }
-    private sealed record Pattern(string Key,Regex Regex,int[] Indices,int LiteralLength);
+    private sealed record Pattern(string Key,Regex Regex,int[] Indices,int LiteralLength,string Prefix,string Suffix);
     /// <summary>旧业务反馈的兼容适配：仅匹配随包的完整固定模板，将其保存为键＋原始参数。未知原文保持Raw，不扫描或翻译参数正文。</summary>
     internal ResourceMessage Describe(string? value)
     {
         if(string.IsNullOrEmpty(value))return ResourceMessage.Raw(value);EnsurePatterns();if(_exact!.TryGetValue(value,out var key))return ResourceMessage.Create(key);
         if(value.Length>65536)return ResourceMessage.Raw(value);
-        foreach(var pattern in _patterns!){var match=pattern.Regex.Match(value);if(!match.Success)continue;var count=pattern.Indices.Length==0?0:pattern.Indices.Max()+1;var args=new object?[count];var valid=true;
+        foreach(var pattern in _patterns!){
+            // 固定文本先筛选，避免并发任务对明显无关的短状态启动正则引擎。
+            if(value.Length<pattern.LiteralLength||!value.StartsWith(pattern.Prefix,StringComparison.Ordinal)||!value.EndsWith(pattern.Suffix,StringComparison.Ordinal))continue;
+            var match=MatchLegacyPattern(pattern.Regex,value);if(!match.Success)continue;var count=pattern.Indices.Length==0?0:pattern.Indices.Max()+1;var args=new object?[count];var valid=true;
             for(var i=0;i<pattern.Indices.Length;i++){var index=pattern.Indices[i];var text=match.Groups["a"+i].Value;if(args[index] is {} previous&&previous.ToString()!=text){valid=false;break;}args[index]=text;}
             if(!valid)continue;var definition=UiCatalog.Templates[pattern.Key];foreach(var index in definition.LocalizableArguments)if(index<args.Length&&args[index] is string nested&&_exact.TryGetValue(nested,out var nestedKey))args[index]=ResourceMessage.Create(nestedKey);
             return ResourceMessage.Create(pattern.Key,args);}
         return ResourceMessage.Raw(value);
     }
+    /// <summary>兼容翻译只影响展示；超时保留原文，不得阻断任务保存或同步，也不记录用户参数。</summary>
+    internal static Match MatchLegacyPattern(Regex regex,string value)
+    {
+        try{return regex.Match(value);}
+        catch(RegexMatchTimeoutException error){System.Diagnostics.Trace.TraceWarning("Legacy language pattern: 0x{0:X8}",error.HResult);return Match.Empty;}
+    }
     private void EnsurePatterns()
     {
         lock(_gate){if(_exact is not null)return;var exact=new Dictionary<string,string>(StringComparer.Ordinal);var patterns=new List<Pattern>();
             foreach(var (key,definition) in UiCatalog.Templates)foreach(var language in new[]{"zh-CN","en-US","zh-HK"}){
-                var text=Template(language,key);var regex=new StringBuilder("\\A");var indices=new List<int>();var literal=0;
-                for(var i=0;i<text.Length;){if(i+1<text.Length&&(text.AsSpan(i,2).SequenceEqual("{{")||text.AsSpan(i,2).SequenceEqual("}}"))){regex.Append(Regex.Escape(text[i].ToString()));literal++;i+=2;continue;}
-                    if(text[i]=='{'&&text.IndexOf('}',i+1) is var end&&end>i){var part=text.Substring(i+1,end-i-1);var number=part.Split(',',':')[0];if(int.TryParse(number,NumberStyles.None,CultureInfo.InvariantCulture,out var index)){regex.Append("(?<a").Append(indices.Count).Append(">.*?)");indices.Add(index);i=end+1;continue;}}
-                    regex.Append(Regex.Escape(text[i].ToString()));literal++;i++;}
-                if(indices.Count==0)exact.TryAdd(text,key);else if(literal>=2){regex.Append("\\z");patterns.Add(new(key,new Regex(regex.ToString(),RegexOptions.Singleline|RegexOptions.CultureInvariant|RegexOptions.NonBacktracking,TimeSpan.FromMilliseconds(30)),indices.ToArray(),literal));}}
+                var text=Template(language,key);var regex=new StringBuilder("\\A");var indices=new List<int>();var literal=0;var run=new StringBuilder();var prefix="";
+                for(var i=0;i<text.Length;){if(i+1<text.Length&&(text.AsSpan(i,2).SequenceEqual("{{")||text.AsSpan(i,2).SequenceEqual("}}"))){regex.Append(Regex.Escape(text[i].ToString()));run.Append(text[i]);literal++;i+=2;continue;}
+                    if(text[i]=='{'&&text.IndexOf('}',i+1) is var end&&end>i){var part=text.Substring(i+1,end-i-1);var number=part.Split(',',':')[0];if(int.TryParse(number,NumberStyles.None,CultureInfo.InvariantCulture,out var index)){regex.Append("(?<a").Append(indices.Count).Append(">.*?)");if(indices.Count==0)prefix=run.ToString();run.Clear();indices.Add(index);i=end+1;continue;}}
+                    regex.Append(Regex.Escape(text[i].ToString()));run.Append(text[i]);literal++;i++;}
+                if(indices.Count==0)exact.TryAdd(text,key);else if(literal>=2){regex.Append("\\z");patterns.Add(new(key,new Regex(regex.ToString(),RegexOptions.Singleline|RegexOptions.CultureInvariant|RegexOptions.NonBacktracking,TimeSpan.FromMilliseconds(30)),indices.ToArray(),literal,prefix,run.ToString()));}}
             _patterns=patterns.OrderByDescending(x=>x.LiteralLength).ToList();_exact=exact;}
     }
     /// <summary>GetUserPreferredUILanguages读取用户Windows优先列表，不使用已被PrimaryLanguageOverride影响的应用语言列表。</summary>

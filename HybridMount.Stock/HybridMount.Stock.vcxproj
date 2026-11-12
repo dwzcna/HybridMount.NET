@@ -109,6 +109,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HybridMount.Ext\HybridMount.Ext.vcxproj">
+      <!-- 隔离宿主的全局输出路径不能传给依赖，否则同名对象会混用Shell宏与运行时宏。 -->
+      <GlobalPropertiesToRemove>OutDir;IntDir</GlobalPropertiesToRemove>
       <Project>{e353aae2-9ec4-45f5-bbd2-0e53be1ef224}</Project>
       <CopyLocalSatelliteAssemblies>true</CopyLocalSatelliteAssemblies>
     </ProjectReference>

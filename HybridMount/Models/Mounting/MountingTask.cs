@@ -7,6 +7,15 @@ public sealed record MountingTask(string Id,Guid MountId,long Generation,Mountin
     string Operation,string? Path=null,string? EntryId=null,string? Version=null) : Commons.IMountingTask
 {
     public IReadOnlyList<string> Dependencies {get;init;}=[];
+    // 以下仅供进程内协调，不进入公共模型、IPC、备份或数据库格式。
+    internal CloudOperationChannel Channel {get;init;}=CloudOperationChannel.Metadata;
+    internal Guid FlowId {get;init;}
+    internal bool ExclusivePath {get;init;}
+    internal bool Subtree {get;init;}
+    internal string? DestinationPath {get;init;}
 }
 /// <summary>一个当前网络步骤的只读快照；原始错误来自业务记录，等待原因不会覆盖它。</summary>
-public sealed record MountingQueueSnapshot(MountingTask Task,MountingPriority EffectivePriority,string Phase,string? WaitingReason,string? BlockingTaskId,long Sequence);
+public sealed record MountingQueueSnapshot(MountingTask Task,MountingPriority EffectivePriority,string Phase,string? WaitingReason,string? BlockingTaskId,long Sequence)
+{
+    internal bool Workflow {get;init;}
+}

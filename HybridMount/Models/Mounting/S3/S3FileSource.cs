@@ -98,6 +98,8 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
     }
     public async ValueTask<int> ReadRangeAsync(SourceEntry entry, long offset, Memory<byte> buffer, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Download,entry.Path,entry.StableId,entry.Version);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         if (entry.IsDirectory || offset > entry.Size) throw new ArgumentException("S3 读取范围无效。");
         var count = (int)Math.Min(buffer.Length, entry.Size - offset); if (count == 0) return 0;
@@ -123,6 +125,8 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
     /// <summary>单个受版本约束的范围请求顺序交付分块；恢复仍验证版本，取消或消费者失败停止，不放宽严格预览。</summary>
     public async Task ReadRangeSequentialAsync(SourceEntry entry,long offset,long length,Func<ReadOnlyMemory<byte>,CancellationToken,ValueTask> sink,int chunk=262144,CancellationToken token=default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Download,entry.Path,entry.StableId,entry.Version);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         if(_queueBinding is not null)
         {await SequentialRangeTransfer.DefaultAsync(this,entry,offset,length,sink,Math.Min(chunk,262144),token).ConfigureAwait(false);return;}
         var transfer=new SequentialRangeTransfer(entry,offset,length,sink,chunk);token.ThrowIfCancellationRequested();if(length==0)return;
@@ -207,6 +211,8 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
     }
     public async Task<SourceEntry> MoveAsync(string path, string destination, string expectedVersion, CancellationToken token = default)
     {
+        using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
+        using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true,destination:destination).ConfigureAwait(false);
         path = NonRoot(path); destination = NonRoot(destination); if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移动到自身或子目录。");
         await VerifyPutCapabilitiesAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false);RequirePut(true);await VerifyCopyAsync(RelativePaths.Parent(destination),token).ConfigureAwait(false); var entry = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (!IsSameVersion(entry.Version,expectedVersion)) throw new SourceConflictException("S3 移动版本变化。");

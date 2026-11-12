@@ -52,7 +52,10 @@ public sealed class ConflictCopySnapshotTests
     [Fact]
     public async Task NoSnapshotPreservesLegacyQueueAndDialogExplicitlyDisclosesCurrentContent()
     {
-        await using var test=new Fixture(1);test.Repository.UpdateUpload(test.Original.Id,x=>x with{SnapshotPath=null,SnapshotSha256=null,SnapshotStamp=null,SnapshotIdentity=null,SnapshotGeneration=0});var copy=test.Copy();Assert.Null(copy.SnapshotPath);Assert.Equal("Queued",copy.State);using var vm=new TasksViewModel(test.Manager,new Dispatcher());Assert.Contains("没有快照时",vm.CopyContentNotice);Assert.Contains("上传准备时的当前本地内容",vm.CopyContentNotice);Assert.Contains("不是冲突时的内容",vm.CopyContentNotice);
+        await using var test=new Fixture(1);test.Repository.UpdateUpload(test.Original.Id,x=>x with{SnapshotPath=null,SnapshotSha256=null,SnapshotStamp=null,SnapshotIdentity=null,SnapshotGeneration=0});var copy=test.Copy();Assert.Null(copy.SnapshotPath);Assert.Equal("Queued",copy.State);var vm=new TasksViewModel(test.Manager,new Dispatcher());
+        try{Assert.Contains("没有快照时",vm.CopyContentNotice);Assert.Contains("上传准备时的当前本地内容",vm.CopyContentNotice);Assert.Contains("不是冲突时的内容",vm.CopyContentNotice);}
+        // 页面关闭不等待UI；隔离夹具删除数据库前必须异步等待已开始的只读快照收尾。
+        finally{vm.Dispose();await vm.SnapshotIdle;}
     }
     [Theory]
     [InlineData("")][InlineData("file")][InlineData("../outside")]

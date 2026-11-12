@@ -14,6 +14,7 @@ public sealed partial class MountManager
         public readonly RemoteSyncEngine Engine=engine;
         public readonly CancellationTokenSource Stop=CancellationTokenSource.CreateLinkedTokenSource(parent);
         public readonly SemaphoreSlim Serial=new(1,1);
+        public readonly SemaphoreSlim ScanSerial=new(1,1);
         public readonly NetworkFailureLog FailureLog=new();
         public readonly StagingRetrySchedule StagingRetries=new();
         public readonly SemaphoreSlim Signal=new(0,1);
@@ -26,7 +27,7 @@ public sealed partial class MountManager
         public Task? Finish;
         public void RequestStop(){lock(Sync){if(Stopping)return;Stopping=true;Cancellation=Stop.CancelAsync();}}
         public void Wake(){lock(Sync){if(Stopping)return;if(Signal.CurrentCount==0)Signal.Release();}}
-        public void Dispose(){Stop.Dispose();Serial.Dispose();Signal.Dispose();}
+        public void Dispose(){Stop.Dispose();Serial.Dispose();ScanSerial.Dispose();Signal.Dispose();}
     }
     private void StartRemoteSync(Runtime root,bool startLoop=true)
     {
@@ -63,6 +64,7 @@ public sealed partial class MountManager
     {
         await Task.WhenAll(runtime.Cancellation,runtime.Work,runtime.QueueWork).ConfigureAwait(false);
         await runtime.Serial.WaitAsync().ConfigureAwait(false);runtime.Serial.Release();
+        await runtime.ScanSerial.WaitAsync().ConfigureAwait(false);runtime.ScanSerial.Release();
         lock(root.ConnectionSync)if(ReferenceEquals(root.RemoteSync,runtime))root.RemoteSync=null;
         runtime.Dispose();
     }
@@ -115,7 +117,7 @@ public sealed partial class MountManager
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,parent?.MountId==root.Definition.Id?parent.Id:Guid.NewGuid().ToString("N"),parent?.MountId==root.Definition.Id?parent.Priority:MountingPriority.Observation,"remoteScan");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,runtime.Stop.Token);token=linked.Token;
         using var cancelOwner=TasksQueue.RegisterCancellation(TasksQueueService.CurrentTask!.Id,()=>{if(!linked.IsCancellationRequested)_=linked.CancelAsync();return true;});
-        await runtime.Serial.WaitAsync(token).ConfigureAwait(false);
+        await runtime.ScanSerial.WaitAsync(token).ConfigureAwait(false);
         try
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
@@ -130,13 +132,16 @@ public sealed partial class MountManager
                     if(root.ChangeSession.Fallback is {} fallback)RecordStateDiagnostic("远端检测",root.Definition.Id,root.Definition.Id.ToString("N"),"RFC6578Fallback",true,fallback.OccurredUtc.UtcTicks.ToString(),
                         description:"RFC 6578 响应异常，本次挂载会话已改用完整对账；降级时间UTC="+fallback.OccurredUtc.ToString("O"));
                 }
-                await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);
+
                 var checkpoint=_repository.RemoteCollections(root.Definition.Id,runtime.Engine.Scope).FirstOrDefault(x=>x.Path=="");
                 root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
                     PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
             }
             catch(Exception error){if(error is not OperationCanceledException)_logger.QueueException("远端检测","Warning","远端检测未完成",error,root.Definition.Id.ToString("N"));root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
         }
+        finally{runtime.ScanSerial.Release();}
+        await runtime.Serial.WaitAsync(token).ConfigureAwait(false);
+        try{await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);}
         finally{runtime.Serial.Release();}
     }
     private IReadOnlyList<RemotePendingChange> RemotePendingFor(Runtime root)=>_repository.AllRemotePending(root.Definition.Id);
@@ -150,7 +155,7 @@ public sealed partial class MountManager
             var current=_repository.FindRemotePending(pending.Id);
             if(!retry&&current?.State=="Canceled"&&pending.State is not("Canceled" or "Completed" or "Superseded"))return current;
             if(!StagingDiskSpace.IsWaiting(pending.State,pending.Error)&&_roots.TryGetValue(pending.MountId,out var root))root.RemoteSync?.StagingRetries.Reset(pending.Id);
-            _repository.SaveRemotePending(pending);RecordStateDiagnostic("远端更新",pending.MountId,pending.Id,pending.State,pending.Error is not null&&pending.State is not("Completed" or "Canceled" or "Superseded"),DiagnosticVersion(pending.Scope+pending.Error),failure);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;
+            pending=_repository.SaveRemotePendingCurrent(pending,retry);RecordStateDiagnostic("远端更新",pending.MountId,pending.Id,pending.State,pending.Error is not null&&pending.State is not("Completed" or "Canceled" or "Superseded"),DiagnosticVersion(pending.Scope+pending.Error),failure);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;
         }
     }
     private bool CancelRemoteChange(string id)

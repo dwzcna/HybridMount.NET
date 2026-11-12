@@ -4,7 +4,7 @@ using HybridMount.Services.Mounting;
 namespace HybridMount.ViewModels;
 
 /// <summary>设置页唯一状态源；拥有外观、启动、托盘及缓存草稿，不保存窗口或控件。</summary>
-public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDisposable
+public sealed partial class SettingsViewModel : ObservableObject,IDisposable,IAsyncDisposable
 {
     private readonly AppearanceSettingsService _settings;
     private readonly global::HybridMount.Services.Localization.UiLanguageService _languages;private readonly IDisposable _languageSubscription;private bool _savingLanguage;
@@ -24,14 +24,14 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     public bool CanEditSettings=>!_disposed&&!_resetting;
     public bool CanReset=>CanEditSettings;
     public bool TryBeginReset(){if(!CanReset)return false;_resetting=true;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));return true;}
-    public Task DrainSettingsOperationsAsync()=>Task.WhenAll(_startupWork,_cacheWork);
+    public Task DrainSettingsOperationsAsync()=>Task.WhenAll(_startupWork,_cacheWork,_cloudWork);
     public void EndReset(){if(!_disposed){_resetting=false;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));}}
     private void Publish(PageStatusMessage message,string text,string property,bool reopen=true,PageMessageSeverity severity=PageMessageSeverity.Information)
     {if(!_disposed&&(reopen?message.Show(text,severity):message.Update(text,severity)))OnPropertyChanged(property);}
     private double _cacheLimitGiB,_savedCacheLimitGiB;
     private Task _startupWork=Task.CompletedTask,_cacheWork=Task.CompletedTask;
     /// <summary>生产页面注入应用服务；仅传外观服务时可隔离验证外观，不接触系统启动或注册表。</summary>
-    public SettingsViewModel(AppearanceSettingsService appearance,IStartupService? startup=null,ApplicationPreferencesService? preferences=null,MountManager? mounts=null,LoggerService? logger=null,global::HybridMount.Services.Localization.UiLanguageService? languages=null)
+    public SettingsViewModel(AppearanceSettingsService appearance,IStartupService? startup=null,ApplicationPreferencesService? preferences=null,MountManager? mounts=null,LoggerService? logger=null,global::HybridMount.Services.Localization.UiLanguageService? languages=null,CloudOperationSettings? cloud=null)
     {
         _languages=languages??global::HybridMount.Services.Localization.UiText.Current;_languageSubscription=global::HybridMount.Services.Localization.UiText.Observe(this,static model=>model.RefreshLanguage());
         _settings=appearance;_startup=startup;_preferences=preferences;_mounts=mounts;_logger=logger;
@@ -39,6 +39,8 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         try{if(mounts is not null){_savedCacheLimitGiB=_cacheLimitGiB=mounts.CacheLimitBytes/(double)(1024L*1024*1024);_cacheLoaded=true;}}
         catch(Exception error){CacheMessage.Update(global::HybridMount.Services.Localization.UiText.Text("Text_A2A57F95410A"),PageMessageSeverity.Error);_logger?.Queue("缓存","Warning",error.GetType().Name);}
         if(_languages.Error is {} languageError)AppearanceMessage.Update(languageError,PageMessageSeverity.Error);
+        _cloud=cloud;_cloudConcurrency=(cloud?.Current??CloudOperationSettings.Default).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if(cloud?.ReadFailed==true)CloudMessage.Update(global::HybridMount.Services.Localization.UiText.Text("CloudReadFailed"),PageMessageSeverity.Error);
         appearance.Changed+=SettingsChanged;
     }
     /// <summary>语言保存成功后立即更新；失败仅回滚选择，保留原语言和其他卡片状态。</summary>
@@ -48,7 +50,7 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
         get=>_languages.Current.Choice;
         set{if(_disposed||_savingLanguage||value==LanguageSelection||!CanEditLanguage)return;_savingLanguage=true;try{var saved=_languages.TrySave(value,out var error);var message=saved?global::HybridMount.Services.Localization.UiText.Message("Text_2A1924653192"):error!;if(AppearanceMessage.Show(message,saved?PageMessageSeverity.Success:PageMessageSeverity.Error))OnPropertyChanged(nameof(AppearanceStatus));}finally{_savingLanguage=false;OnPropertyChanged(nameof(LanguageSelection));OnPropertyChanged(nameof(CanEditLanguage));}}
     }
-    private void RefreshLanguage(){if(_disposed)return;OnPropertyChanged(nameof(LanguageSelection));OnPropertyChanged(nameof(CanEditLanguage));OnPropertyChanged(nameof(StartupDetail));OnPropertyChanged(nameof(AppearanceStatus));OnPropertyChanged(nameof(Status));OnPropertyChanged(nameof(CacheStatus));}
+    private void RefreshLanguage(){if(_disposed)return;OnPropertyChanged(nameof(LanguageSelection));OnPropertyChanged(nameof(CanEditLanguage));OnPropertyChanged(nameof(StartupDetail));OnPropertyChanged(nameof(AppearanceStatus));OnPropertyChanged(nameof(Status));OnPropertyChanged(nameof(CacheStatus));OnPropertyChanged(nameof(CloudRecommendation));}
     public bool CanEditDensity=>!_disposed&&_preferences is not null&&!_savingDensity;
     public string DensitySelection
     {
@@ -194,6 +196,6 @@ public sealed class SettingsViewModel : ObservableObject,IDisposable,IAsyncDispo
     }
 
     /// <summary>真正退出先停止页面通知；系统已发出的操作安全完成后再释放日志等服务。</summary>
-    public void Dispose(){_languageSubscription.Dispose();if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();ResetMessage.Dispose();_settings.Changed-=SettingsChanged;if(_preferences is not null)_preferences.LayoutChanged-=DensityChanged;}
-    public async ValueTask DisposeAsync(){Dispose();await Task.WhenAll(_startupWork,_cacheWork);}
+    public void Dispose(){_languageSubscription.Dispose();if(_disposed)return;_disposed=true;StatusMessage.Dispose();AppearanceMessage.Dispose();CacheMessage.Dispose();ResetMessage.Dispose();CloudMessage.Dispose();_settings.Changed-=SettingsChanged;if(_preferences is not null)_preferences.LayoutChanged-=DensityChanged;}
+    public async ValueTask DisposeAsync(){Dispose();await Task.WhenAll(_startupWork,_cacheWork,_cloudWork);}
 }

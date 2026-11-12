@@ -6,6 +6,22 @@ namespace HybridMount.Tests;
 /// <summary>隔离文件与仓库回归：摘要期间根锁可用，变更、取消和迟到结果不能覆盖当前提交状态。</summary>
 public sealed class UploadCommitRecoveryTests
 {
+    [Theory]
+    [InlineData(5)][InlineData(32)][InlineData(33)]
+    public void LocalCommitExceptionsHaveABoundedReceiptOnlyRetryBudget(int code)
+    {
+        var now=DateTimeOffset.UtcNow;var receipt=new SourceEntry("","file",false,1,now,"remote");
+        var item=new LocalUpload("one",Guid.NewGuid(),"file","file",false,"stamp",1,"RemoteCommitted",now,
+            Receipt:receipt,SnapshotPath:"saved.snapshot",SnapshotSha256:"digest",SnapshotIdentity:"identity",SnapshotStamp:"stamp",SnapshotGeneration:1);
+        for(var attempt=1;attempt<=3;attempt++)
+        {
+            item=UploadRules.WaitForLocalCommit(item,new System.ComponentModel.Win32Exception(code),now);
+            Assert.Equal("RemoteCommitted",item.State);Assert.Same(receipt,item.Receipt);Assert.Equal("saved.snapshot",item.SnapshotPath);Assert.Equal("digest",item.SnapshotSha256);Assert.Equal(1,item.SnapshotGeneration);
+            Assert.Equal(attempt,item.TransientFailureCount);Assert.Equal(attempt<3?now.AddSeconds(3*attempt):(DateTimeOffset?)null,item.NextAttemptUtc);
+        }
+        Assert.Null(UploadRules.WaitForLocalCommit(item,new IOException("permanent"),now).NextAttemptUtc);
+        Assert.Null(UploadRules.WaitForLocalCommit(item with{Receipt=null},new UnauthorizedAccessException(),now).NextAttemptUtc);
+    }
     [Fact(Timeout=20000)]
     public async Task ActualHashReleasesGateAndPublishesVerifiedStamp()
     {

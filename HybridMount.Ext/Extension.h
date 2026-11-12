@@ -64,7 +64,7 @@ struct ThumbnailCacheSource{HybridMountReadThumbnail Read{};void* Context{};std:
 HRESULT CreateThumbnailHandler(REFIID iid,void** result,const ThumbnailCacheSource* source=nullptr) noexcept;
 /// <summary>创建本产品根菜单；状态查询仅读取本机属性，实际动作由应用服务执行。</summary>
 HRESULT CreateMenuHandler(REFIID iid,void** result) noexcept;
-/// <summary>flags位0为缩略图、位1为菜单；独立STA宿主不创建WinUI或同步服务。</summary>
+/// <summary>flags位0为独立MTA缩略图、位1为独立STA菜单；宿主不创建WinUI或同步服务。</summary>
 extern "C" HRESULT WINAPI HybridMountRunShellServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds,DWORD flags) noexcept;
 /// <summary>注册唯一缩略图类的本地COM服务；不创建菜单、不运行主应用，空闲时安全撤销。</summary>
 extern "C" HRESULT WINAPI HybridMountRunThumbnailServer(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds) noexcept;

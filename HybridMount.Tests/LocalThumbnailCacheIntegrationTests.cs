@@ -47,7 +47,9 @@ public sealed class LocalThumbnailCacheIntegrationTests(Xunit.Abstractions.ITest
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);var path=await Photo(test);await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"keepOnDevice",[path]));await Ready(test,path);
         var reader=new ThumbnailCacheReader(ThumbnailCachePaths.ForMount(ThumbnailCachePaths.DirectoryPath,test.Id));Assert.NotNull(reader.TryGet(path,64));await test.Manager.SetThumbnailsEnabledAsync(test.Id,false);Assert.Null(reader.TryGet(path,64));
-        await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);await Ready(test,path);var temporary=Path.Combine(test.Dav.Area,"new.bmp");await File.WriteAllBytesAsync(temporary,PreviewPipelineTests.Bmp());File.Move(temporary,path,true);Assert.Null(reader.TryGet(path,64));
+        await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);await Ready(test,path);var temporary=Path.Combine(test.Dav.Area,"new.bmp");await File.WriteAllBytesAsync(temporary,PreviewPipelineTests.Bmp());try{File.Move(temporary,path,true);}
+        catch{output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new{Attributes=File.GetAttributes(path),Native=CloudFilesNative.Inspect(path),Stamp=LocalFileState.Read(path)}));throw;}
+        Assert.Null(reader.TryGet(path,64));
     }
     [Fact(Timeout=90000)]
     public async Task StaleQueuedSnapshotCannotReenableDisabledCacheOrPublishLateFrames()

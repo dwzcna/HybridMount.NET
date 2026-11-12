@@ -9,6 +9,7 @@ public sealed partial class MountManager
     internal bool BrowsePreviewsForTests{get;set;}
     internal bool ObserveExplorerForTests{get;set;}
     internal Action<string>? ThumbnailNotificationForTests{set=>_previews.ThumbnailNotificationForTests=value;}
+    internal TimeSpan ThumbnailNotificationDebounceForTests{set=>_previews.NotificationDebounce=value;}
     internal void PreviewObservationForTests(Guid id,IReadOnlyList<string> paths,bool complete)=>Root(id).Session!.PreviewObservationForTests(paths,complete);
     private bool PreviewObservationEnabled=>ObserveExplorerForTests;
     private bool BrowseDrivenPreviews=>BrowsePreviewsForTests;
@@ -128,6 +129,7 @@ public sealed partial class MountManager
                 // 排队期间可能已经水合完成，先归还托管互斥量，再由原生端取得自己的互斥量及保护租约。
                 if(nativeCompleteLocal&&CloudFilesNative.HasFullContent(path,length)){await decode.DisposeAsync().ConfigureAwait(false);decode=null;nativeLocal=true;}
             }
+            using var remoteRead=!nativeLocal&&local is null?await TasksQueue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false):null;
             Dictionary<int,byte[]>? frames;
             if(nativeLocal)
             {

@@ -28,6 +28,15 @@ internal static class WinRegisterService
             key.SetValue("SchemaVersion", 1, RegistryValueKind.DWord);
         }
     }
+    /// <summary>只保存当前运行模式的单一 DWORD；不接触另一模式或挂载配置。</summary>
+    internal static void WriteDword(string name,int value)
+    {
+        lock(Gate)
+        {
+            using var key=Registry.CurrentUser.CreateSubKey(ApplicationPaths.RegistryPath,writable:true)??throw new IOException("无法打开当前用户设置。");
+            key.SetValue(name,value,RegistryValueKind.DWord);
+        }
+    }
     /// <summary>读取布尔偏好；无效类型和值采用调用方指定默认。</summary>
     internal static bool ReadFlag(string name, bool defaultValue) =>
         ReadValue(ApplicationPaths.RegistryPath, name) is int value && value is 0 or 1 ? value == 1 : defaultValue;

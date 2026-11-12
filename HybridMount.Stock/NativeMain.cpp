@@ -1,4 +1,5 @@
 #include "NativeCommon.h"
+#include "NativeFile.h"
 #include "ThumbnailCache.h"
 #include "PreviewWorker.h"
 #include "LocalThumbnail.h"
@@ -33,7 +34,7 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int){
         if(count==4&&wcscmp(argv[1],L"--runtime")==0){wchar_t* end{};auto parent=wcstoul(argv[2],&end,10);hm::Require(end&&!*end&&parent>0);return hm::RunRuntime(parent,argv[3]);}
         if(count==2&&wcscmp(argv[1],L"--local-thumbnail-service")==0)return hm::RunLocalThumbnailService();
         if(count==2&&wcscmp(argv[1],L"--preview-worker")==0)return hm::RunPreviewWorker();
-        if(count>=2&&count<=130&&wcscmp(argv[1],L"--preview-observer")==0){std::vector<std::string> mounts;for(int i=2;i<count;++i)mounts.push_back(hm::GuidN(hm::Utf8(argv[i])));return hm::RunPreviewObserver(mounts);}
+        if(count>=4&&count<=258&&(count-2)%2==0&&wcscmp(argv[1],L"--preview-observer")==0){auto roots=hm::Json::array();for(int i=2;i<count;i+=2)roots.push_back({{"mountId",hm::GuidN(hm::Utf8(argv[i]))},{"rootPath",hm::Utf8(hm::FullPath(argv[i+1]))}});return hm::RunPreviewObserver(roots);}
         if(count==5&&wcscmp(argv[1],L"--local-thumbnail-worker")==0){wchar_t* end{};auto size=wcstoul(argv[3],&end,10);hm::Require(end&&!*end&&size>=1&&size<=256);auto acknowledged=wcstoull(argv[4],&end,10);hm::Require(end&&!*end&&acknowledged>0);return hm::RunLocalThumbnailWorker(argv[2],static_cast<UINT>(size),reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(acknowledged)));}
         if(count==2&&wcscmp(argv[1],L"--identity")==0){auto value=hm::Utf8(hm::ProductScope())+"\n";DWORD written{};WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),value.data(),static_cast<DWORD>(value.size()),&written,nullptr);return 0;}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS

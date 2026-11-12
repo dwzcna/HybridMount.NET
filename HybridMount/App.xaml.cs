@@ -30,6 +30,7 @@ public partial class App:Application
     public LoggerService Logger{get;private set;}=null!;
     public AppearanceSettingsService Appearance{get;private set;}=null!;
     public ApplicationPreferencesService Preferences{get;private set;}=null!;
+    public CloudOperationSettings CloudOperations{get;private set;}=null!;
     public IStartupService Startup{get;private set;}=null!;
     public IUiDispatcher UiDispatcher{get;private set;}=null!;
     public TaskFocusService TaskFocus{get;private set;}=null!;
@@ -70,11 +71,12 @@ public partial class App:Application
             }
             _lifecycle=new LifecycleDiagnostics(ApplicationPaths.LogsDirectory,Version,WinRegisterService.IsPackaged()?"Packaged":"Unpackaged");
             UnhandledException+=OnUiUnhandled;AppDomain.CurrentDomain.UnhandledException+=OnDomainUnhandled;TaskScheduler.UnobservedTaskException+=OnTaskUnobserved;
-            Logger=new LoggerService();
+            Logger=await Task.Run(()=>new LoggerService());
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
             Appearance=new AppearanceSettingsService();if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
             Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
-            TasksQueue=new();Mounts=new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger,tasksQueue:TasksQueue){StopObserver=RecordMountStop};
+            CloudOperations=await Task.Run(()=>new CloudOperationSettings(Logger));
+            TasksQueue=new(CloudOperations.Current);CloudOperations.Bind(TasksQueue);Mounts=await Task.Run(()=>new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger,tasksQueue:TasksQueue){StopObserver=RecordMountStop});
             TaskFocus=new(Navigation);IssueNotifications=new(Mounts);
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}

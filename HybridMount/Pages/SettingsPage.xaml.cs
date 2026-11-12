@@ -10,11 +10,12 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
 {
     private IDisposable? _localization;
     private CancellationTokenSource? _resetCancel;private ContentDialog? _resetDialog;private bool _disposed;
-    public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.Mounts,App.Current.Logger);
+    public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.Mounts,App.Current.Logger,cloud:App.Current.CloudOperations);
     private readonly PageScrollBookmark _viewport=new();
     public SettingsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(SettingsScroll);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_resetCancel?.Cancel();_resetDialog?.Hide();_viewport.Leave(SettingsScroll);base.OnNavigatedFrom(args);}
+    private async void SaveCloudConcurrency(object sender,RoutedEventArgs args)=>await ViewModel.SaveCloudConcurrencyAsync();
     private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(SettingsScroll);ViewModel.ReloadAppearance();await ViewModel.RefreshStartupAsync();}
     /// <summary>只读检查后一次明确确认当前模式的精确范围；取消、离页或退出不授权删除，接纳后交给应用顺序收尾。</summary>
     private async void ResetSettings(object sender,RoutedEventArgs args)

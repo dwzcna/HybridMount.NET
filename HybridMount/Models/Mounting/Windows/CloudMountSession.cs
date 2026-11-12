@@ -23,7 +23,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly NetworkFailureLog _networkFailures=new();
     private readonly CancellationTokenSource _stop = new();
     private readonly PriorityReadQueue _reads=new();
-    private readonly SharedAsyncWork<string,SourceEntry> _metadata=new();
+    private readonly SharedAsyncWork<string,SourceEntry> _metadata=new(128);
     private readonly bool _diagnostics=HydrationDiagnostics.Enabled;
     private NativeRuntimeClient? _runtime;
     private readonly string _sessionId=Guid.NewGuid().ToString("N");
@@ -41,7 +41,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         static int Count(JsonElement item,string name,int maximum)=>item.TryGetProperty(name,out var raw)&&raw.TryGetInt32(out var number)?Math.Clamp(number,0,maximum):0;
         var strategy=value.TryGetProperty("strategy",out var mode)&&mode.ValueKind==JsonValueKind.String&&mode.GetString()=="UIA.viewport"?"只读视口":"等待采样";
         var failure="";if(value.TryGetProperty("failures",out var failures)&&failures.ValueKind==JsonValueKind.Array)foreach(var item in failures.EnumerateArray().Take(16))if(item.TryGetProperty("hresult",out var raw)&&raw.TryGetInt32(out var code))failure=$"；最近采样HRESULT=0x{code:X8}";
-        return $"策略={strategy}；窗口={Count(value,"windows",32)}；已匹配目录={Count(value,"accepted",16)}；候选={Count(value,"candidates",4096)}{failure}；UTC={DateTimeOffset.UtcNow:O}";
+        return $"策略={strategy}；窗口={Count(value,"windows",32)}；已匹配目录={Count(value,"accepted",16)}；候选={Count(value,"candidates",4096)}；目录识别累计ms={Count(value,"directoryMs",int.MaxValue)}；采样累计ms={Count(value,"sampleMs",int.MaxValue)}；超时={Count(value,"timeouts",int.MaxValue)}；迟到={Count(value,"late",int.MaxValue)}；排队={Count(value,"queued",32)}；活动={Count(value,"active",1)}{failure}；UTC={DateTimeOffset.UtcNow:O}";
     }
     private sealed record FetchRequest(string EntryId,CancellationTokenSource Cancel,Task Work);
     private readonly ConcurrentDictionary<string,FetchRequest> _fetches=new();
@@ -211,6 +211,11 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             using var queueTask=_queueBinding?.Queue.Enter(_queueBinding,parent??new("read:"+info.FetchId,_mount.Id,_queueBinding.Generation,MountingPriority.Demand,DateTimeOffset.UtcNow,"download",entry.SourcePath,entry.Id,entry.Version));
             var source=_source??throw new IOException("清空期间不提供内容读取。");_remoteSnapshots.TryGetValue(id,out var staged);
             if(staged is null&&_repository.HasPendingRemote(_mount.Id,entry.SourcePath))throw new SourceConflictException("远端更新待提交，暂缓旧版本水合。");
+            using var workflow=staged is null&&_queueBinding is not null?await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false):null;
+            if(_queueBinding is not null&&!_queueBinding.Queue.IsCurrent(_queueBinding))throw new OperationCanceledException(token);
+            var currentEntry=_repository.EntryById(_mount.Id,id);
+            if(currentEntry is null||currentEntry.Deleted||currentEntry.RemotePresence==RemotePresence.Deleted||currentEntry.SourcePath!=entry.SourcePath||currentEntry.Version!=entry.Version)throw new SourceConflictException("等待下载期间条目身份或版本变化，未读取旧内容。");
+            entry=currentEntry;
             var metadata=staged?.Metadata??await _metadata.RunAsync(entry.SourcePath,cancel=>source.GetMetadataAsync(entry.SourcePath,cancel),token).ConfigureAwait(false);
             await using var snapshot=staged is null?null:new FileStream(staged.Path,FileMode.Open,FileAccess.Read,FileShare.Read|FileShare.Delete,262144,FileOptions.Asynchronous|FileOptions.RandomAccess);
             if(staged is null)entry=BindColdMetadata(entry,metadata,source);
@@ -247,7 +252,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                     finally{System.Buffers.ArrayPool<byte>.Shared.Return(bytes,clearArray:true);}
                 }
             }
-            await FinishFetchAsync(info,0).ConfigureAwait(false);if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);RecordHydrationWrite(entry,metadata,localStamp);_localContentReady?.Invoke(entry);
+            await FinishFetchAsync(info,0).ConfigureAwait(false);token.ThrowIfCancellationRequested();if(_queueBinding is not null&&!_queueBinding.Queue.IsCurrent(_queueBinding))throw new OperationCanceledException(token);if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);RecordHydrationWrite(entry,metadata,localStamp);_localContentReady?.Invoke(entry);
         }
         catch(Exception error)
         {

@@ -2399,4 +2399,16 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="LogsPageInformationFilterLabel.Text" xml:space="preserve"><value>Information</value></data>
   <data name="LogsPageWarningFilterLabel.Text" xml:space="preserve"><value>Warnings</value></data>
   <data name="LogsPageErrorFilterLabel.Text" xml:space="preserve"><value>Errors</value></data>
+  <data name="CloudRecommendation" xml:space="preserve"><value>Recommended: {0} (logical CPU count ÷ 2). Range: 1–128; default: 4. Applies after saving.</value></data>
+  <data name="CloudReadFailed" xml:space="preserve"><value>Could not read cloud concurrency. Using 4 temporarily; the stored value was kept.</value></data>
+  <data name="CloudInvalid" xml:space="preserve"><value>Enter a whole number from 1 to 128.</value></data>
+  <data name="CloudSaved" xml:space="preserve"><value>Cloud concurrency saved and applied. Existing transfers will finish normally.</value></data>
+  <data name="CloudSaveFailed" xml:space="preserve"><value>Could not save cloud concurrency. The previous setting was kept.</value></data>
+  <data name="SettingsCloudHeading.Text" xml:space="preserve"><value>Cloud operation concurrency</value></data>
+  <data name="SettingsCloudInput.Header" xml:space="preserve"><value>Concurrency limit</value></data>
+  <data name="SettingsCloudInput.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Cloud concurrency, 1 to 128</value></data>
+  <data name="SettingsCloudSaveText.Text" xml:space="preserve"><value>Save</value></data>
+  <data name="SettingsCloudSave.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Save cloud concurrency</value></data>
+  <data name="CloudWorkflowPhase" xml:space="preserve"><value>File workflow</value></data>
+  <data name="CloudWaitingChannel" xml:space="preserve"><value>Waiting for channel or path: {0}</value></data>
 </root>

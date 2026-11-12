@@ -18,6 +18,17 @@ public sealed class BrowseThumbnailTests
         Assert.All(test.Dav.Server.Requests.Where(x=>x.Method=="GET"),x=>Assert.NotNull(x.Headers.GetValueOrDefault("Range")));Assert.DoesNotContain(test.Dav.Server.Requests,x=>x.Method is "PUT" or "MOVE" or "DELETE");
     }
     [Fact(Timeout=90000)]
+    public async Task EarlyNotificationWakeStillPublishesWithoutAnotherHint()
+    {
+        await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);
+        test.Manager.LocalPreviewsForTests=true;test.Manager.RemoteThumbnailsForTests=true;test.Manager.BrowsePreviewsForTests=true;
+        test.Manager.ThumbnailNotificationDebounceForTests=TimeSpan.FromSeconds(1);
+        var notification=new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);test.Manager.ThumbnailNotificationForTests=path=>notification.TrySetResult(path);
+        test.Dav.Put("early-wake.bmp",PreviewPipelineTests.Bmp());await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));await test.Manager.SetThumbnailsEnabledAsync(test.Id,true);
+        var path=Path.Combine(test.Local,"early-wake.bmp");test.Manager.ApplyPreviewDemandForTests(test.Id,[path]);await Ready(test,path);
+        Assert.Equal(path,await notification.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+    [Fact(Timeout=90000)]
     public async Task OutsidePathsAndDisabledMountNeverStartSourceReads()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);test.Dav.Put("visible.bmp",PreviewPipelineTests.Bmp());await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));
@@ -37,9 +48,9 @@ public sealed class BrowseThumbnailTests
     [Fact(Timeout=20000)]
     public async Task ObserverIsIndependentNativeProcessAndProducesBoundedMetadataFrames()
     {
-        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};start.ArgumentList.Add("--preview-observer");using var process=Process.Start(start)!;
+        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe")){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};var root=Directory.CreateTempSubdirectory("HybridMount.Observer.");start.ArgumentList.Add("--preview-observer");start.ArgumentList.Add(Guid.NewGuid().ToString("N"));start.ArgumentList.Add(root.FullName);using var process=Process.Start(start)!;
         try{var frame=await IpcProtocol.ReadAsync<System.Text.Json.JsonElement>(process.StandardOutput.BaseStream,default).WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("previewViews",frame.GetProperty("kind").GetString());Assert.InRange(frame.GetProperty("views").GetArrayLength(),0,16);process.Refresh();Assert.DoesNotContain(process.Modules.Cast<ProcessModule>(),x=>x.ModuleName.Equals("coreclr.dll",StringComparison.OrdinalIgnoreCase));}
-        finally{if(!process.HasExited){process.Kill();await process.WaitForExitAsync();}}
+        finally{if(!process.HasExited){process.Kill();await process.WaitForExitAsync();}root.Delete();}
     }
     [Fact(Timeout=90000)]
     public async Task ReturningToViewWhileOldReadCancelsRestartsOnlyCurrentDemand()

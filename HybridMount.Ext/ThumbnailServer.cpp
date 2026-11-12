@@ -1,5 +1,7 @@
 #include "Extension.h"
 #include <algorithm>
+#include <thread>
+#include <memory>
 using namespace Microsoft::WRL;
 namespace {
     /// <summary>仅创建云缩略图对象；上下文随宿主存在，关闭后拒绝新的类实例与缓存回调。</summary>
@@ -15,36 +17,68 @@ namespace {
         IFACEMETHODIMP LockServer(BOOL lock) override{if(lock){++_locks;++g_objects;}else{auto count=_locks.load();while(count>0&&!_locks.compare_exchange_weak(count,count-1)){}if(count==0)return E_UNEXPECTED;--g_objects;}return S_OK;}
     };
 }
-/// <summary>STA消息循环服务Shell；只有工厂自身的基线引用时才空闲退出，不终止仍有对象／锁的宿主。</summary>
+namespace {
+/// <summary>菜单STA与缩略图MTA分别拥有工厂和注册Cookie；协调线程只控制停止及活动排空。</summary>
+struct ServerApartment {
+    ThumbnailCacheSource Source;bool Thumbnail;HANDLE Stop,Ready{CreateEventW(nullptr,TRUE,FALSE,nullptr)};
+    std::atomic<HRESULT> Status{E_PENDING};std::atomic<bool> FactoryAlive{};std::thread Worker;
+    ServerApartment(ThumbnailCacheSource source,bool thumbnail,HANDLE stop):Source(source),Thumbnail(thumbnail),Stop(stop){}
+    ~ServerApartment(){if(Worker.joinable())Worker.join();if(Ready)CloseHandle(Ready);}
+    void Start(){Worker=std::thread([this]{Run();});}
+    void Run()noexcept{
+        const auto initialized=CoInitializeEx(nullptr,Thumbnail?COINIT_MULTITHREADED:COINIT_APARTMENTTHREADED);
+        DWORD cookie{};ComPtr<ThumbnailFactory> factory;HRESULT status=initialized;
+        try{
+            if(SUCCEEDED(status)){
+                factory=Make<ThumbnailFactory>(Source,Thumbnail);FactoryAlive.store(factory.Get()!=nullptr);
+                status=factory?CoRegisterClassObject(Thumbnail?HybridMountThumbnailId:HybridMountCommandId,factory.Get(),CLSCTX_LOCAL_SERVER,REGCLS_MULTIPLEUSE|REGCLS_SUSPENDED,&cookie):E_OUTOFMEMORY;
+            }
+            Status.store(status);SetEvent(Ready);
+            while(SUCCEEDED(status)&&WaitForSingleObject(Stop,0)!=WAIT_OBJECT_0){
+                if(Thumbnail){WaitForSingleObject(Stop,100);continue;}
+                const auto waited=MsgWaitForMultipleObjects(1,&Stop,FALSE,100,QS_ALLINPUT);
+                if(waited==WAIT_FAILED){status=HRESULT_FROM_WIN32(GetLastError());break;}
+                MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
+                    if(message.message==WM_QUIT){Source.Closing->store(true);continue;}
+                    TranslateMessage(&message);DispatchMessageW(&message);
+                }
+            }
+        }catch(...){status=E_OUTOFMEMORY;Status.store(status);SetEvent(Ready);}
+        if(cookie)CoRevokeClassObject(cookie);
+        if(factory){CoDisconnectObject(factory.Get(),0);factory.Reset();}FactoryAlive.store(false);
+        Status.store(status);if(SUCCEEDED(initialized))CoUninitialize();
+    }
+};
+}
+/// <summary>原ABI的协调入口；独立STA菜单不再被MTA缩略图调用阻塞。撤销注册前等待所有对象和后台通知收尾。</summary>
 extern "C" HRESULT WINAPI HybridMountRunShellServerWithActivity(HybridMountReadThumbnail read,void* context,HANDLE stopEvent,DWORD idleMilliseconds,DWORD flags,BOOL(WINAPI* busy)(void*)) noexcept{
     if(!flags||(flags&~3u)||((flags&1)&&!read)||!stopEvent||idleMilliseconds<100)return E_INVALIDARG;
-    auto initialized=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);if(FAILED(initialized))return initialized;
-    HRESULT status=S_OK;DWORD cookie=0,menuCookie=0;std::atomic<bool> closing{false};bool suspended=false;
+    // 旧宿主允许从已初始化的STA调用；协调入口不拥有工厂接口，保留调用方公寓且仅释放本次初始化。
+    const auto initialized=CoInitializeEx(nullptr,COINIT_MULTITHREADED);const auto ownsCom=SUCCEEDED(initialized);
+    if(FAILED(initialized)&&initialized!=RPC_E_CHANGED_MODE)return initialized;
+    const auto stop=CreateEventW(nullptr,TRUE,FALSE,nullptr);if(!stop){const auto error=HRESULT_FROM_WIN32(GetLastError());if(ownsCom)CoUninitialize();return error;}
+    HRESULT status=S_OK;std::atomic<bool> closing{false};std::unique_ptr<ServerApartment> menu,thumbnail;
     try{
-        ComPtr<ThumbnailFactory> factory,menuFactory;
-        const auto baseline=static_cast<long>(((flags&1)?1:0)+((flags&2)?1:0));
         const ThumbnailCacheSource source{read,context,&closing};
-        if(flags&1){factory=Make<ThumbnailFactory>(source,true);if(!factory){CoUninitialize();return E_OUTOFMEMORY;}status=CoRegisterClassObject(HybridMountThumbnailId,factory.Get(),CLSCTX_LOCAL_SERVER,REGCLS_MULTIPLEUSE|REGCLS_SUSPENDED,&cookie);}
-        if(SUCCEEDED(status)&&(flags&2)){menuFactory=Make<ThumbnailFactory>(source,false);if(!menuFactory)status=E_OUTOFMEMORY;else status=CoRegisterClassObject(HybridMountCommandId,menuFactory.Get(),CLSCTX_LOCAL_SERVER,REGCLS_MULTIPLEUSE|REGCLS_SUSPENDED,&menuCookie);}
+        if(flags&2){menu=std::make_unique<ServerApartment>(source,false,stop);if(!menu->Ready)throw std::bad_alloc();menu->Start();WaitForSingleObject(menu->Ready,INFINITE);status=menu->Status.load();}
+        if(SUCCEEDED(status)&&(flags&1)){thumbnail=std::make_unique<ServerApartment>(source,true,stop);if(!thumbnail->Ready)throw std::bad_alloc();thumbnail->Start();WaitForSingleObject(thumbnail->Ready,INFINITE);status=thumbnail->Status.load();}
         if(SUCCEEDED(status))status=CoResumeClassObjects();
-        auto lastActive=GetTickCount64();
-        while(SUCCEEDED(status)&&(cookie||menuCookie)){
-            const auto count=g_objects.load();const bool working=busy&&busy(context);if(count>baseline||working)lastActive=GetTickCount64();
-            const auto signaled=WaitForSingleObject(stopEvent,0)==WAIT_OBJECT_0;
-            if(signaled||GetTickCount64()-lastActive>=idleMilliseconds){
+        const auto baseline=static_cast<long>(((flags&1)?1:0)+((flags&2)?1:0));auto lastActive=GetTickCount64();bool suspended=false;
+        while(SUCCEEDED(status)){
+            const bool working=busy&&busy(context);if(g_objects.load()>baseline||working)lastActive=GetTickCount64();
+            if(closing.load()||WaitForSingleObject(stopEvent,0)==WAIT_OBJECT_0||GetTickCount64()-lastActive>=idleMilliseconds){
                 closing.store(true);if(!suspended){status=CoSuspendClassObjects();suspended=true;}
                 if(g_objects.load()==baseline&&!working)break;
             }
-            auto result=MsgWaitForMultipleObjects(suspended?0:1,suspended?nullptr:&stopEvent,FALSE,100,QS_ALLINPUT);
-            if(result==WAIT_FAILED){status=HRESULT_FROM_WIN32(GetLastError());break;}
-            MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
-                if(message.message==WM_QUIT){SetEvent(stopEvent);closing.store(true);CoSuspendClassObjects();suspended=true;}
-                else{TranslateMessage(&message);DispatchMessageW(&message);}
-            }
+            if(menu&&FAILED(menu->Status.load())){status=menu->Status.load();break;}
+            if(thumbnail&&FAILED(thumbnail->Status.load())){status=thumbnail->Status.load();break;}
+            // 停止后也不忙循环；对象仍可在各自公寓完成Release及最后的异步缓存通知。
+            Sleep(25);
         }
-        closing.store(true);if(cookie){CoRevokeClassObject(cookie);cookie=0;}if(menuCookie){CoRevokeClassObject(menuCookie);menuCookie=0;}if(factory)CoDisconnectObject(factory.Get(),0);if(menuFactory)CoDisconnectObject(menuFactory.Get(),0);
     }catch(...){status=E_OUTOFMEMORY;}
-    if(cookie)CoRevokeClassObject(cookie);if(menuCookie)CoRevokeClassObject(menuCookie);CoUninitialize();return status;
+    closing.store(true);CoSuspendClassObjects();
+    while(true){const auto factories=static_cast<long>((menu&&menu->FactoryAlive.load()?1:0)+(thumbnail&&thumbnail->FactoryAlive.load()?1:0));if(g_objects.load()<=factories&&!(busy&&busy(context)))break;Sleep(25);}
+    SetEvent(stop);thumbnail.reset();menu.reset();CloseHandle(stop);if(ownsCom)CoUninitialize();return status;
 }
 
 /// <summary>保留原宿主ABI；新宿主额外提供只读工作计数以覆盖后台解码和通知生命周期。</summary>
