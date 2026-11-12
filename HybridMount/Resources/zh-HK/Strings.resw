@@ -2153,8 +2153,8 @@
   <data name="MountsPageTextBlockMount.Text" xml:space="preserve"><value>掛載</value></data>
   <data name="MountsPageTextBlockNoMountsYetSelectAddMount.Text" xml:space="preserve"><value>尚無掛載。請選取「新增掛載」以連線至檔案來源。</value></data>
   <data name="MountsPageTextBlockReconnectAll.Text" xml:space="preserve"><value>全部重新連線</value></data>
-  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET 原生預覽版：將遠端儲存掛載為本機資料夾。</value></data>
-  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount Native Preview</value></data>
+  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET：將遠端儲存掛載為本機資料夾。</value></data>
+  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount.NET</value></data>
   <data name="S3ConfigurationContentDialogAutoConnectField.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>隨應用程式啟動連線</value></data>
   <data name="S3ConfigurationContentDialogBucketField.Header" xml:space="preserve"><value>貯體名稱／Bucket</value></data>
   <data name="S3ConfigurationContentDialogButtonAddDefaultRules.Content" xml:space="preserve"><value>加入預設規則</value></data>

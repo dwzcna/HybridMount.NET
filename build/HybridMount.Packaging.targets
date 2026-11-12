@@ -13,6 +13,8 @@
 		<IntermediateOutputPath>obj\$(Platform)\$(Configuration)\$(HybridMountDeployment)\</IntermediateOutputPath>
 		<AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
 		<AppxBundle>Never</AppxBundle>
+        <!-- 安装包文件名与可见产品名一致，Windows安装身份继续兼容已有根。 -->
+        <AppxPackageName>HybridMount.NET_$(BinaryVersion)_$(Platform)</AppxPackageName>
 		<AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
 		<GenerateAppInstallerFile>false</GenerateAppInstallerFile>
 		<HasPackageAndPublishMenu Condition="'$(HybridMountDeployment)' == 'Packaged'">true</HasPackageAndPublishMenu>

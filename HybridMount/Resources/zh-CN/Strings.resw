@@ -2153,8 +2153,8 @@
   <data name="MountsPageTextBlockMount.Text" xml:space="preserve"><value>挂载</value></data>
   <data name="MountsPageTextBlockNoMountsYetSelectAddMount.Text" xml:space="preserve"><value>尚无挂载。选择“新增挂载”以连接文件源。</value></data>
   <data name="MountsPageTextBlockReconnectAll.Text" xml:space="preserve"><value>重新连接全部</value></data>
-  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET 原生预览版：将远程存储挂载为本地文件夹。</value></data>
-  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount Native Preview</value></data>
+  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET：将远程存储挂载为本地文件夹。</value></data>
+  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount.NET</value></data>
   <data name="S3ConfigurationContentDialogAutoConnectField.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>随程序启动连接</value></data>
   <data name="S3ConfigurationContentDialogBucketField.Header" xml:space="preserve"><value>桶名 / Bucket</value></data>
   <data name="S3ConfigurationContentDialogButtonAddDefaultRules.Content" xml:space="preserve"><value>添加默认规则</value></data>

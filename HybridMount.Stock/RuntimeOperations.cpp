@@ -127,7 +127,7 @@ RuntimeOperations::~RuntimeOperations()=default;
 Json RuntimeOperations::Execute(RuntimeCommand& command){
     const auto apartment=CoInitializeEx(nullptr,COINIT_MULTITHREADED);struct Scope{HRESULT Value;~Scope(){if(SUCCEEDED(Value))CoUninitialize();}} scope{apartment};Check(apartment);command.CheckCancel();auto& data=command.Data;const auto& operation=command.Operation;
     if(operation=="notificationDiagnostics")return _impl->Host.CallbackStatistics();
-    if(operation=="thumbnailDiagnostics")return {{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"reads",LocalReadStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
+    if(operation=="thumbnailDiagnostics")return {{"observer",_impl->Previews.Statistics()},{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"reads",LocalReadStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
     if(operation=="testCallbackMailbox"){

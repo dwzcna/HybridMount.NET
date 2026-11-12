@@ -38,6 +38,8 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int){
         if(count==5&&wcscmp(argv[1],L"--local-thumbnail-worker")==0){wchar_t* end{};auto size=wcstoul(argv[3],&end,10);hm::Require(end&&!*end&&size>=1&&size<=256);auto acknowledged=wcstoull(argv[4],&end,10);hm::Require(end&&!*end&&acknowledged>0);return hm::RunLocalThumbnailWorker(argv[2],static_cast<UINT>(size),reinterpret_cast<HANDLE>(static_cast<ULONG_PTR>(acknowledged)));}
         if(count==2&&wcscmp(argv[1],L"--identity")==0){auto value=hm::Utf8(hm::ProductScope())+"\n";DWORD written{};WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),value.data(),static_cast<DWORD>(value.size()),&written,nullptr);return 0;}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+        // 隔离状态机只接收内存证据，不安装事件钩子或创建真实根。
+        if(count==2&&wcscmp(argv[1],L"--test-foreground-observer")==0){hm::WriteFrame(GetStdHandle(STD_OUTPUT_HANDLE),hm::TestForegroundObserver(hm::ReadFrame(GetStdHandle(STD_INPUT_HANDLE))));return 0;}
         // 隔离测试复用同一解码拥有者，支持观察真实30秒闲置退出，不启动正式应用。
         if(count==2&&wcscmp(argv[1],L"--test-local-thumbnail-reader")==0){
             while(true){auto request=hm::ReadFrame(GetStdHandle(STD_INPUT_HANDLE));if(request.at("kind")=="stop")return 0;

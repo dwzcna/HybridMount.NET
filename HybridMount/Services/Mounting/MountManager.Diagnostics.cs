@@ -38,6 +38,7 @@ public sealed partial class MountManager
         {
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancel);timeout.CancelAfter(TimeSpan.FromSeconds(2));
             text.Append("原生固定池：").AppendLine(session.Runtime.Invoke("runtimeSchedulingDiagnostics",new{},token:timeout.Token).GetRawText());
+            text.Append("前台观察计数：").AppendLine(session.Runtime.Invoke("thumbnailDiagnostics",new{},token:timeout.Token).GetProperty("observer").GetRawText());
         }
         catch(Exception error){text.Append("原生固定池诊断不可用：0x").AppendLine(error.HResult.ToString("X8"));}
         text.AppendLine(snapshot.Capacity?.Display??snapshot.CapacityDisplay);

@@ -2153,8 +2153,8 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="MountsPageTextBlockMount.Text" xml:space="preserve"><value>Mount</value></data>
   <data name="MountsPageTextBlockNoMountsYetSelectAddMount.Text" xml:space="preserve"><value>No mounts yet. Select “Add mount” to connect a file source.</value></data>
   <data name="MountsPageTextBlockReconnectAll.Text" xml:space="preserve"><value>Reconnect all</value></data>
-  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET native preview: mount remote storage as local folders.</value></data>
-  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount Native Preview</value></data>
+  <data name="PackageDescription" xml:space="preserve"><value>HybridMount.NET: mount remote storage as local folders.</value></data>
+  <data name="PackageDisplayName" xml:space="preserve"><value>HybridMount.NET</value></data>
   <data name="S3ConfigurationContentDialogAutoConnectField.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Connect when the application starts</value></data>
   <data name="S3ConfigurationContentDialogBucketField.Header" xml:space="preserve"><value>Bucket name</value></data>
   <data name="S3ConfigurationContentDialogButtonAddDefaultRules.Content" xml:space="preserve"><value>Add default rules</value></data>

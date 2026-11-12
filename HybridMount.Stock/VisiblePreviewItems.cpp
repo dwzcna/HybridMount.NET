@@ -24,28 +24,29 @@ std::wstring ResolveVisibleName(const std::wstring& directory,const std::wstring
 
 /// <summary>UIA客户端只属于专用MTA线程；至多一项请求，调用方250ms到期后丢弃迟到结果。</summary>
 class ViewSampler {
-    struct Request {HWND Window{};RECT Viewport{};std::wstring Directory;ULONGLONG Deadline{};std::promise<PreviewViewItems> Result;};
+    struct Request {HWND Window{};RECT Viewport{};std::wstring Directory;ULONGLONG Deadline{};std::shared_ptr<PreviewViewGuard> Guard;std::promise<PreviewViewItems> Result;};
     std::mutex Gate;std::condition_variable Changed;std::shared_ptr<Request> Pending;bool Closed{},Active{};std::thread Worker;
     PreviewViewItems Sample(IUIAutomation2* automation,Request& request){
         PreviewViewItems result;const auto started=GetTickCount64(),deadline=std::min(request.Deadline,started+200);
         try{
             ComPtr<IUIAutomationCacheRequest> cache;Check(automation->CreateCacheRequest(&cache));Check(cache->put_TreeScope(TreeScope_Element));
             for(auto property:{UIA_NamePropertyId,UIA_ControlTypePropertyId,UIA_IsOffscreenPropertyId,UIA_BoundingRectanglePropertyId})Check(cache->AddProperty(property));
-            ComPtr<IUIAutomationTreeWalker> walker;Check(automation->get_ControlViewWalker(&walker));std::set<std::wstring> seen;std::vector<RECT> rectangles;
+            ComPtr<IUIAutomationTreeWalker> walker;Check(automation->get_ControlViewWalker(&walker));std::set<std::wstring> seen,names;std::vector<RECT> rectangles;
             const auto viewport=request.Viewport;const auto width=viewport.right-viewport.left,height=viewport.bottom-viewport.top;Require(width>0&&height>0);
             for(int row=0;row<8&&result.Paths.size()<64;++row)for(int column=0;column<16&&result.Paths.size()<64;++column){
                 if(GetTickCount64()>=deadline){result.Error=HRESULT_FROM_WIN32(ERROR_TIMEOUT);result.Milliseconds=GetTickCount64()-started;return result;}POINT point{viewport.left+(column*2+1)*width/32,viewport.top+(row*2+1)*height/16};
                 if(std::any_of(rectangles.begin(),rectangles.end(),[&](const RECT& rectangle){return PtInRect(&rectangle,point)!=FALSE;}))continue;
-                ++result.Candidates;Require(IsWindow(request.Window),HRESULT_FROM_WIN32(ERROR_INVALID_WINDOW_HANDLE));
+                ++result.Candidates;Require(!request.Guard||request.Guard->Current(),HRESULT_FROM_WIN32(ERROR_CANCELLED));Require(IsWindow(request.Window)&&IsWindowVisible(request.Window),HRESULT_FROM_WIN32(ERROR_INVALID_WINDOW_HANDLE));
                 // 覆盖在视图上方的其他窗口不能提供候选；只读命中测试不改变焦点或滚动。
                 if(GetAncestor(WindowFromPoint(point),GA_ROOT)!=GetAncestor(request.Window,GA_ROOT))continue;
                 ComPtr<IUIAutomationElement> item;Check(automation->ElementFromPointBuildCache(point,cache.Get(),&item));
                 for(int depth=0;item&&depth<6;++depth){
-                    Require(GetTickCount64()<deadline,HRESULT_FROM_WIN32(ERROR_TIMEOUT));CONTROLTYPEID type{};Check(item->get_CachedControlType(&type));
+                    Require(GetTickCount64()<deadline,HRESULT_FROM_WIN32(ERROR_TIMEOUT));Require(!request.Guard||request.Guard->Current(),HRESULT_FROM_WIN32(ERROR_CANCELLED));CONTROLTYPEID type{};Check(item->get_CachedControlType(&type));
                     if(type==UIA_ListItemControlTypeId||type==UIA_DataItemControlTypeId){
                         RECT rectangle{},intersection{};BOOL offScreen{};Check(item->get_CachedIsOffscreen(&offScreen));Check(item->get_CachedBoundingRectangle(&rectangle));
                         if(!offScreen&&IntersectRect(&intersection,&viewport,&rectangle)&&PtInRect(&rectangle,point)){
                             rectangles.push_back(rectangle);BSTR raw{};Check(item->get_CachedName(&raw));std::wstring name(raw?raw:L"",raw?SysStringLen(raw):0);SysFreeString(raw);
+                            Require(!request.Guard||request.Guard->Current(),HRESULT_FROM_WIN32(ERROR_CANCELLED));if(!names.insert(name).second)break;
                             auto path=ResolveVisibleName(request.Directory,name);if(!path.empty()&&path.size()<=4096&&seen.insert(path).second)result.Paths.push_back(Utf8(path));
                         }
                         break;
@@ -55,7 +56,7 @@ class ViewSampler {
                     ComPtr<IUIAutomationElement> parent;Check(walker->GetParentElementBuildCache(item.Get(),cache.Get(),&parent));item=parent;
                 }
             }
-            result.Complete=true;
+            Require(!request.Guard||request.Guard->Current(),HRESULT_FROM_WIN32(ERROR_CANCELLED));result.Complete=true;
         }catch(const Failure& error){result.Error=error.Code;}catch(...){result.Error=E_FAIL;}
         result.Milliseconds=GetTickCount64()-started;return result;
     }
@@ -73,8 +74,8 @@ class ViewSampler {
 public:
     ViewSampler():Worker([this]{Run();}){}
     ~ViewSampler(){{std::lock_guard lock(Gate);Closed=true;Changed.notify_all();}if(Worker.joinable())Worker.join();}
-    PreviewViewItems Read(HWND window,const RECT& viewport,const std::wstring& directory,ULONGLONG deadline){
-        auto request=std::make_shared<Request>();request->Window=window;request->Viewport=viewport;request->Directory=directory;request->Deadline=deadline;auto result=request->Result.get_future();
+    PreviewViewItems Read(HWND window,const RECT& viewport,const std::wstring& directory,ULONGLONG deadline,std::shared_ptr<PreviewViewGuard> guard){
+        auto request=std::make_shared<Request>();request->Window=window;request->Viewport=viewport;request->Directory=directory;request->Deadline=deadline;request->Guard=std::move(guard);auto result=request->Result.get_future();
         {std::lock_guard lock(Gate);if(Active||Pending){PreviewViewItems busy;busy.Error=HRESULT_FROM_WIN32(ERROR_BUSY);return busy;}Pending=request;Changed.notify_one();}
         const auto now=GetTickCount64();
         if(result.wait_for(std::chrono::milliseconds(deadline>now?deadline-now:0))!=std::future_status::ready){PreviewViewItems timeout;timeout.Error=HRESULT_FROM_WIN32(ERROR_TIMEOUT);timeout.Milliseconds=deadline>now?deadline-now:0;return timeout;}
@@ -83,17 +84,14 @@ public:
 };
 }
 bool PreviewSamplerUncooperative()noexcept{const auto started=SamplingSince.load();return started&&GetTickCount64()-started>=1000;}
-PreviewViewItems ReadVisiblePreviewItems(IShellView* view,IFolderView2* folder,const std::wstring& directory,ULONGLONG deadline){
+PreviewViewItems ReadVisiblePreviewItems(IShellView* view,IFolderView2* folder,const std::wstring& directory,ULONGLONG deadline,std::shared_ptr<PreviewViewGuard> guard){
     if(!deadline)deadline=GetTickCount64()+250;
-    UNREFERENCED_PARAMETER(folder);PreviewViewItems result;
-    struct Retry {std::wstring Directory;ULONGLONG After{};unsigned Failures{};};static std::map<HWND,Retry> retries;static ViewSampler sampler;
+    UNREFERENCED_PARAMETER(folder);PreviewViewItems result;static ViewSampler sampler;
     try{
+        Require(!guard||guard->Current(),HRESULT_FROM_WIN32(ERROR_CANCELLED));
         HWND window{};Check(view->GetWindow(&window));Require(window&&IsWindowVisible(window)&&!IsIconic(window));RECT viewport{};WinCheck(GetClientRect(window,&viewport));MapWindowPoints(window,nullptr,reinterpret_cast<POINT*>(&viewport),2);
-        if(retries.size()>32)retries.clear();auto& retry=retries[window];if(retry.Directory!=directory)retry={directory,0,0};const auto now=GetTickCount64();
-        if(retry.After>now){result.Error=HRESULT_FROM_WIN32(ERROR_RETRY);return result;}
         if(GetTickCount64()>=deadline){result.Error=HRESULT_FROM_WIN32(ERROR_TIMEOUT);return result;}
-        result=sampler.Read(window,viewport,directory,deadline);
-        if(result.Complete)retry={directory,0,0};else{++retry.Failures;retry.After=now+(retry.Failures>=2?30000:5000);}
+        result=sampler.Read(window,viewport,directory,deadline,std::move(guard));
     }catch(const Failure& error){result.Error=error.Code;}catch(...){result.Error=E_FAIL;}
     return result;
 }

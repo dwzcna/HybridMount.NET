@@ -79,6 +79,7 @@
     <ClCompile Include="VisiblePreviewItems.cpp" />
     <ClInclude Include="VisiblePreviewItems.h" />
     <ClInclude Include="PreviewObserver.h" />
+    <ClInclude Include="ForegroundPreviewState.h" />
     <ClInclude Include="LocalThumbnail.h" />
     <ClCompile Include="PreviewWorker.cpp" />
     <ClCompile Include="RuntimeHost.cpp" />

@@ -33,6 +33,9 @@ try {
     & $makepri dump /if $priFile /of $resourceXml /o *> (Join-Path $resourceWork 'dump.log')
     if($LASTEXITCODE -ne 0){throw '无法核验包内XAML资源索引。'}
     [xml]$resourceIndex=[IO.File]::ReadAllText($resourceXml)
+    # 核对实际PRI中的三语言安装显示名，避免仅修改源清单而仍打入旧实验名。
+    $displayNames=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @name='PackageDisplayName']/*[local-name()='Candidate' and @type='String']")
+    if($displayNames.Count -ne 3 -or @($displayNames | Where-Object {$_.SelectSingleNode("./*[local-name()='Value']").InnerText -ne 'HybridMount.NET'}).Count){throw '安装包显示名称未统一为HybridMount.NET。'}
     $resourceRoot='ms-resource://'+$manifest.Package.Identity.Name+'/Files/'
     foreach($name in @('App.xbf','Views/MainWindow.xbf','Pages/HomePage.xbf','Pages/MountsPage.xbf','Pages/TasksPage.xbf','Pages/LogsPage.xbf','Pages/SettingsPage.xbf','Controls/MountCard.xbf','Controls/SettingRow.xbf','Controls/MountBackupDialog.xbf','Controls/ConflictResolutionContentDialog.xbf','Controls/Mounting/WebDAVConfigurationContentDialog.xbf','Controls/Mounting/S3ConfigurationContentDialog.xbf','Controls/Mounting/SynologyConfigurationContentDialog.xbf','Resources/SharedStyles.xbf')){
         $resource=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @uri='"+$resourceRoot+$name+"']/*[local-name()='Candidate' and @type='EmbeddedData']")
