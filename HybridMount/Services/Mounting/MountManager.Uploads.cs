@@ -11,7 +11,6 @@ public sealed partial class MountManager
         public readonly CancellationTokenSource Stop;
         public readonly SemaphoreSlim Signal=new(0,1);
         public readonly object Sync=new();
-        public FileSystemWatcher? Watcher;
         public CloudMountSession? Session;
         public Action<string,LocalFileStamp>? LocalWriteCompleted;
         public Action<LocalRenameNotice>? LocalRenameCompleted;
@@ -33,12 +32,13 @@ public sealed partial class MountManager
         public void RequestScan()=>Notify(true);
         /// <summary>无法定位路径的CFAPI变化立即请求全扫；停止后通知仍由原生命周期防护。</summary>
         public void RequestFullScan(){Scans.RequestFull();RequestScan();}
+        public void RequestCloseScan(){Scans.RequestAfterClose(DateTimeOffset.UtcNow);RequestScan();}
         /// <summary>消费者原子取走扫描请求；普通调度唤醒不会设置此标记。</summary>
         public bool TakeScanRequest()=>Interlocked.Exchange(ref Dirty,0)!=0;
         private void Notify(bool scan){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;if(scan)Interlocked.Exchange(ref Dirty,1);if(Signal.CurrentCount==0)Signal.Release();}}
         public void CancelRequest(string? id=null){lock(Sync)if((id is null||CurrentId==id)&&Request is {IsCancellationRequested:false} request)RequestCancellation=request.CancelAsync();}
         public void RequestStop(){lock(_signalSync){if(_stopping!=0||_disposed!=0)return;_stopping=1;Cancellation=Stop.CancelAsync();}CancelRequest();}
-        public void Dispose(){FileSystemWatcher? watcher;lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;watcher=Watcher;Watcher=null;}if(Session is not null){Session.LocalWriteCompleted-=LocalWriteCompleted;Session.LocalRenameCompleted-=LocalRenameCompleted;}watcher?.Dispose();Stop.Dispose();Signal.Dispose();}
+        public void Dispose(){lock(_signalSync){if(Interlocked.Exchange(ref _disposed,1)!=0)return;}if(Session is not null){Session.LocalWriteCompleted-=LocalWriteCompleted;Session.LocalRenameCompleted-=LocalRenameCompleted;}Stop.Dispose();Signal.Dispose();}
     }
     private void StartUploads(Runtime root)
     {
@@ -48,16 +48,17 @@ public sealed partial class MountManager
         var runtime=new UploadRuntime(_stop.Token);root.Uploads=runtime;
         runtime.Session=root.Session;runtime.LocalWriteCompleted=(path,stamp)=>runtime.Scans.Writes.Record(path,stamp,DateTimeOffset.UtcNow);runtime.Session.LocalWriteCompleted+=runtime.LocalWriteCompleted;
         runtime.LocalRenameCompleted=notice=>{runtime.Scans.RecordNativeRename(notice with{IntoExcluded=!FileExclusionRules.Matches(root.Definition.ExclusionRules,notice.OldPath)&&FileExclusionRules.Matches(root.Definition.ExclusionRules,notice.NewPath)});runtime.RequestScan();};runtime.Session.LocalRenameCompleted+=runtime.LocalRenameCompleted;
-        var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.FileName|NotifyFilters.DirectoryName|NotifyFilters.Size|NotifyFilters.LastWrite|NotifyFilters.CreationTime};
-        BindUploadWatcher(watcher,runtime.RequestScan,change=>runtime.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow,root.Definition.ExclusionRules??[]),runtime.Scans.RequestFull);
-        runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Work=Task.Run(()=>UploadLoopAsync(root,runtime));
+        runtime.Work=Task.Run(()=>UploadLoopAsync(root,runtime));
         }
     }
-    /// <summary>集中适配所有文件系统变化及溢出；回调只请求扫描，不在监控线程读取正文。</summary>
-    internal static void BindUploadWatcher(FileSystemWatcher watcher,Action requestScan,Action<FileSystemEventArgs>? queuePath=null,Action? requestFull=null)
+    /// <summary>原生相对路径适配到既有去抖／自写戳规则；无托管监听，不在管道线程调用。</summary>
+    internal static void RecordNativeUploadChange(string root,NativeTaskIntent intent,Action<FileSystemEventArgs> record,Action requestScan,Action requestFull)
     {
-        void Changed(object sender,FileSystemEventArgs change){queuePath?.Invoke(change);requestScan();}
-        watcher.Changed+=Changed;watcher.Created+=Changed;watcher.Deleted+=Changed;watcher.Renamed+=(_,change)=>Changed(watcher,change);watcher.Error+=(_,_)=>{requestFull?.Invoke();requestScan();};
+        if(intent.EventKind=="rescan"){requestFull();requestScan();return;}
+        FileSystemEventArgs change=intent.EventKind=="renamed"
+            ?new RenamedEventArgs(WatcherChangeTypes.Renamed,root,intent.Path.Replace('/',Path.DirectorySeparatorChar),intent.OldPath!.Replace('/',Path.DirectorySeparatorChar))
+            :new FileSystemEventArgs(intent.EventKind switch{"created"=>WatcherChangeTypes.Created,"deleted"=>WatcherChangeTypes.Deleted,_=>WatcherChangeTypes.Changed},root,intent.Path.Replace('/',Path.DirectorySeparatorChar));
+        record(change);requestScan();
     }
     private static void RequestUploadStop(Runtime root){lock(root.ConnectionSync)root.Uploads?.RequestStop();}
     private static async Task StopUploadsAsync(Runtime root)
@@ -91,9 +92,19 @@ public sealed partial class MountManager
     {if(item is null)return;item=_repository.Upload(item.Id)??item;
         if(_roots.TryGetValue(item.MountId,out var root)&&FileExclusionRules.Matches(root.Definition,item)&&FileExclusionRules.Pause(item)!=item)
             item=_repository.UpdateUpload(item.Id,FileExclusionRules.Pause)??item;
-        _repository.SaveOperation(UploadSnapshot(item));RecordUploadDiagnostic(item,error);Notify();}
+        _repository.SaveOperation(UploadSnapshot(item));RecordUploadDiagnostic(item,error);
+        if(_roots.TryGetValue(item.MountId,out var owner)&&owner.Session is not null)_fileDispatcher.Observe(Workflow(owner,item.Id,item.LocalPath,"upload",item.Generation,item.State));Notify();}
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
-    private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change,Exception? error=null){var item=_repository.UpdateUpload(id,change);PublishUpload(item,error);return item;}
+    private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change,Exception? error=null)
+    {
+        var prior=_repository.Upload(id);var item=_repository.UpdateUpload(id,change);PublishUpload(item,error);
+        if(prior is not null&&item is not null&&item.Generation>prior.Generation)
+        {
+            _fileDispatcher.ContentChanged(id,item.Generation);
+            if(_roots.TryGetValue(item.MountId,out var root))root.Uploads?.CancelRequest(id);
+        }
+        return item;
+    }
     /// <summary>首次启用仅扫描本地元数据；不读取干净占位的正文，也不提交远端写入。</summary>
     public Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>ScanUploadChangesCoreAsync(id,cancel),token);
     private async Task<IReadOnlyList<UploadCandidate>> ScanUploadChangesCoreAsync(Guid id,CancellationToken token)

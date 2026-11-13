@@ -37,6 +37,10 @@ public partial class App:Application
     public UploadIssueNotificationService IssueNotifications{get;private set;}=null!;
     public TasksQueueService TasksQueue{get;private set;}=null!;
     public MountManager Mounts{get;private set;}=null!;
+    internal MountIndexFormat IndexFormat {get;private set;}=new("New");
+    internal bool RuntimeAvailable=>Mounts is not null;
+    internal string IndexRestrictionMessage=>Services.Localization.UiText.Text(IndexFormat.State switch
+    {"Old"=>"IndexOldResetRequired","Newer"=>"IndexNewerVersion","Corrupt"=>"IndexCorrupt","AccessDenied"=>"IndexAccessDenied",_=>"IndexReadFailed"});
     public Services.Localization.UiLanguageService Languages{get;private set;}=null!;
     private IDisposable? _languageScope;private Services.Localization.NativeUiLanguageBridge? _languageBridge;
     public App():this(null){}
@@ -76,16 +80,28 @@ public partial class App:Application
             Appearance=new AppearanceSettingsService();if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
             Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
             CloudOperations=await Task.Run(()=>new CloudOperationSettings(Logger));
-            TasksQueue=new(CloudOperations.Current);CloudOperations.Bind(TasksQueue);Mounts=await Task.Run(()=>new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger,tasksQueue:TasksQueue){StopObserver=RecordMountStop});
-            TaskFocus=new(Navigation);IssueNotifications=new(Mounts);
+            // 只读格式预检先于仓库和全部挂载业务服务；不迁移旧索引或因关闭提示解除限制。
+            IndexFormat=await Task.Run(()=>MountIndexFormat.Inspect(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")));
+            if(IndexFormat.CanStart)
+            {
+                TasksQueue=new(CloudOperations.Current);CloudOperations.Bind(TasksQueue);
+                Mounts=await Task.Run(()=>new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger,tasksQueue:TasksQueue){StopObserver=RecordMountStop});
+                IssueNotifications=new(Mounts);
+            }
+            else
+            {
+                Navigation.PageAllowed=page=>page is ApplicationPage.Settings or ApplicationPage.Logs;
+                Logger.Queue("应用数据","Warning",IndexRestrictionMessage);
+            }
+            TaskFocus=new(Navigation);
             Appearance.Changed+=OnAppearanceChanged;Logger.NotificationRequested+=OnNotification;
             try{_tray=new TrayIconService();_tray.RestoreRequested+=RestoreWindow;_tray.ExitRequested+=RequestExit;}
             catch(Exception error){Logger.QueueException("托盘","Error","操作未完成",error);}
             _ipc=new IpcServerService(Logger){Handler=request=>HandleRequest(request,false)};_ipc.Start();
             _legacyIpc=new IpcServerService(Logger,IpcProtocol.LegacyPipeName){Handler=request=>HandleRequest(request,true)};_legacyIpc.Start();
-            _=Mounts.StartAsync();
+            if(RuntimeAvailable)_=Mounts.StartAsync();
             Logger.Queue("应用","Information",$"HybridMount.NET {Version} 已启动。");
-            if(!silent||_tray?.IsRegistered!=true)RestoreWindow();
+            if(!silent||_tray?.IsRegistered!=true||!RuntimeAvailable)RestoreWindow();
             _lifecycle.Record("Ready");
         }
         catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,global::HybridMount.Services.Localization.UiText.Text("Text_77C4A50009F0",Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error),error.Message),"HybridMount.NET",0x10);await ExitAsync();}
@@ -106,6 +122,7 @@ public partial class App:Application
         if((legacy&&request.Version!=1)||!IpcProtocol.IsValid(request with{Version=legacy?2:request.Version}))return new(version,request.RequestId??"","invalidRequest",global::HybridMount.Services.Localization.UiText.Text("Text_37CE123BBAD6"));
         if(request.Operation=="ping")return new(version,request.RequestId,"ready",global::HybridMount.Services.Localization.UiText.Text("Text_8D3061703E17"));
         if(request.Operation=="showWindow") {_dispatcher?.TryEnqueue(RestoreWindow);return new(version,request.RequestId,"accepted",global::HybridMount.Services.Localization.UiText.Text("Text_F71FF9567A7C"));}
+        if(!RuntimeAvailable)return new(version,request.RequestId,"rejected",IndexRestrictionMessage);
         if(legacy)return new(1,request.RequestId,"notImplemented",global::HybridMount.Services.Localization.UiText.Text("Text_A028D7449DF0"));
         try
         {
@@ -154,12 +171,18 @@ public partial class App:Application
         catch(Exception error){_lifecycle?.Record("ExitBoundaryFailure",error,true);Logger?.QueueException("退出","Error","退出边界失败",error);Environment.ExitCode=1;}
     }
     /// <summary>页面只请求应用生命周期动作，挂载检查仍由应用协调器持锁执行。</summary>
-    internal Task<SettingsResetPlan> InspectSettingsResetAsync(CancellationToken token)=>Mounts.InspectSettingsResetAsync(token);
+    internal async Task<SettingsResetPlan> InspectSettingsResetAsync(CancellationToken token)
+    {
+        try{return RuntimeAvailable?await Mounts.InspectSettingsResetAsync(token):await Task.Run(()=>SettingsResetService.Inspect(token),token);}
+        catch(IOException error)when(!RuntimeAvailable&&IndexFormat.State=="Old")
+        {throw new IOException(Services.Localization.UiText.Text("IndexResetBlocked",error.Message),error);}
+    }
     /// <summary>已确认的当前模式还原先在配置锁内复核并停止接纳业务；删除仅在完整退出阶段执行。</summary>
     internal async Task ResetSettingsAndExitAsync(SettingsResetPlan plan,CancellationToken token)
     {
         if(_exiting)throw new OperationCanceledException(token);
-        await Mounts.BeginSettingsResetAsync(plan,token);
+        if(RuntimeAvailable)await Mounts.BeginSettingsResetAsync(plan,token);
+        else await Task.Run(()=>SettingsResetService.Revalidate(plan,token),token);
         lock(_exitSync){if(_exitTask is not null)throw new OperationCanceledException(token);_settingsReset=plan;}
         await ExitAsync();
     }

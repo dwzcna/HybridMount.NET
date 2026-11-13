@@ -228,6 +228,19 @@ internal sealed class DavFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Server.DisposeAsync();
-        if(Directory.Exists(Area)&&!MountPathGuard.ContainsCloudPlaceholders(Area))Directory.Delete(Area,true);
+        try{if(Directory.Exists(Area)&&!MountPathGuard.ContainsCloudPlaceholders(Area))Directory.Delete(Area,true);}
+        catch(System.ComponentModel.Win32Exception)
+        {
+            // 只在隔离夹具失败时补充精确路径；不跳过占位保护，也不跟随重解析点清理外部目标。
+            var pending=new Stack<string>();pending.Push(Area);
+            while(pending.TryPop(out var directory))foreach(var path in Directory.EnumerateFileSystemEntries(directory))
+            {
+                var attributes=File.GetAttributes(path);
+                try{_ = CloudFilesNative.Inspect(path);}
+                catch(Exception error){throw new IOException("隔离夹具清理核验失败："+Path.GetRelativePath(Area,path)+"；attributes="+attributes,error);}
+                if((attributes&(FileAttributes.Directory|FileAttributes.ReparsePoint))==FileAttributes.Directory)pending.Push(path);
+            }
+            throw;
+        }
     }
 }

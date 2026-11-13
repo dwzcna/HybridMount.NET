@@ -17,11 +17,10 @@ public sealed partial class TasksQueueService
     public IReadOnlyList<MountOperationSnapshot> Conflicts=>EnrichAll(Backend.Conflicts);
     /// <summary>冲突对象按当前持久记录重建，不占调度名额；清除展示历史不能删除待决冲突。</summary>
     public IReadOnlyList<IMountingConflict> ConflictItems=>Backend.Conflicts.Where(x=>x.MountId is not null).Select(x=>(IMountingConflict)new Conflict(this,x.Id,x.MountId!.Value,x.ItemPath)).ToArray();
-    public IReadOnlyList<MountOperationSnapshot> Operations
+    public IReadOnlyList<MountOperationSnapshot> Operations=>ReadOperations(false);
+    internal IReadOnlyList<MountOperationSnapshot> ReadOperations(bool includeIssues)
     {
-        get
-        {
-            var steps=QueueSnapshots;var captured=Backend.ReadTaskPresentation();var schedule=captured.Schedule;var definitions=Backend.TaskDefinitions;
+            var steps=QueueSnapshots;var captured=Backend.ReadTaskPresentation(includeIssues);var schedule=captured.Schedule;var definitions=Backend.TaskDefinitions;
             var byTask=steps.ToLookup(x=>x.Task.Id);
             var persistent=captured.Operations.Select(x=>Enrich(x,byTask[x.Id].ToArray(),schedule,definitions)).ToDictionary(x=>x.Id);
             foreach(var group in steps.GroupBy(x=>x.Task.Id))
@@ -31,7 +30,6 @@ public sealed partial class TasksQueueService
                 persistent[task.Id]=Enrich(new(task.Id,task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,task.MountId,task.Path){SubmissionOrder=task.SubmitTime.UtcTicks},steps,schedule,definitions);
             }
             return persistent.Values.ToArray();
-        }
     }
     /// <summary>一次页面快照只批量读取一次业务调度信息，避免每行／每个范围块重新查询SQLite。</summary>
     private IReadOnlyList<MountOperationSnapshot> EnrichAll(IEnumerable<MountOperationSnapshot> snapshots)
@@ -55,7 +53,7 @@ public sealed partial class TasksQueueService
     {
         var steps=QueueSnapshots.Where(x=>x.Task.Id==id).ToArray();var item=Backend.GetOperation(id);
         if(item is null&&steps.FirstOrDefault() is {} current)item=new(id,current.Task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,current.Task.MountId,current.Task.Path);
-        return item is null?null:Enrich(item,steps,Backend.TaskScheduleFor(id),Backend.TaskDefinitions);
+        return item is null?null:Enrich(item,steps,Backend.TaskScheduleFor(id),Backend.TaskDefinitions) with{WorkflowDetails=Backend.FileWorkflowDetails(id)};
     }
     /// <summary>页面携带尝试证据，阻止旧行在重排后取消新的同名文件任务。</summary>
     internal bool CancelSelected(MountOperationSnapshot selected)

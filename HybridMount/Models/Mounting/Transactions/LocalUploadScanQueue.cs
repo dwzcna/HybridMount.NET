@@ -49,6 +49,16 @@ internal sealed class LocalUploadScanQueue(int capacity=4096)
     internal readonly LocalWriteStampCache Writes=new();
     private DateTimeOffset _fullAfter=DateTimeOffset.MinValue,_lastFull=DateTimeOffset.MinValue,_firstEvent,_lastEvent;
     internal void RequestFull(){lock(_sync){_full=true;_fullAfter=DateTimeOffset.MinValue;_paths.Clear();_changes.Clear();Writes.Clear();}}
+    /// <summary>关闭只要求延后核对，给同一批改名因果留出交付窗口；连续关闭最多延后两秒。</summary>
+    internal void RequestAfterClose(DateTimeOffset now)
+    {
+        lock(_sync)
+        {
+            if(!_full){_firstEvent=now;_full=true;}
+            var quiet=now.AddMilliseconds(200);var bounded=_firstEvent.AddSeconds(2);
+            _fullAfter=quiet<bounded?quiet:bounded;
+        }
+    }
     internal LocalUploadScanBatch StartFull(){lock(_sync){_full=false;_paths.Clear();_changes.Clear();Writes.Clear();var batch=new LocalUploadScanBatch(true,[],_renames.ToArray());_renames.Clear();return batch;}}
     /// <summary>原生完成通知只写有界内存；全扫和去抖不能丢弃已复制的改名关联。</summary>
     internal void RecordNativeRename(LocalRenameNotice notice){lock(_sync){if(_renames.Count<capacity)_renames.Add(notice);_full=true;_fullAfter=DateTimeOffset.MinValue;}}

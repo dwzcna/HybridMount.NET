@@ -198,7 +198,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     /// <summary>数据库批量读取、路径整理、速度计算与排序只由单一后台快照泵执行。</summary>
     private PageSnapshot ReadSnapshot(SnapshotQuery query)
     {
-        var all=_queue.Operations.ToArray();
+        var all=_queue.ReadOperations(query.Issues||query.Conflicts).ToArray();
         var source=query.Issues||query.Conflicts?all.Where(x=>query.Conflicts?x.IssueKind==TaskIssueKind.Conflict:x.IssueKind!=TaskIssueKind.Normal)
             .Where(x=>(query.Mount is null||x.MountId==query.Mount)&&(query.Paths.Count==0||query.Paths.Any(path=>path.Length==0||x.ItemPath?.Equals(path,StringComparison.OrdinalIgnoreCase)==true||x.ItemPath?.StartsWith(path+"/",StringComparison.OrdinalIgnoreCase)==true))):all;
         var now=System.Diagnostics.Stopwatch.GetTimestamp();var snapshots=OperationDisplayOrder.Sort(source.Select(value=>_rates.Apply(value,now))).ToArray();

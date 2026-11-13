@@ -2451,4 +2451,13 @@ Use the removal action for that mount.</value></data>
   <data name="RecoveryModeUnpackaged" xml:space="preserve"><value>Unpackaged</value></data>
   <data name="TaskRemoteScanProgress" xml:space="preserve"><value>Remote scan: {0} items discovered</value></data>
   <data name="TaskRemoteApplyProgress" xml:space="preserve"><value>Checking remote changes: {0} / {1}</value></data>
+  <data name="IndexOldResetRequired" xml:space="preserve"><value>An older application data format was detected. Go to Settings → Reset to reset data for the current mode, then import your .hmxbk configuration again.</value></data>
+  <data name="IndexRestrictedTitle" xml:space="preserve"><value>Application data needs attention</value></data>
+  <data name="IndexGoToSettings" xml:space="preserve"><value>Go to Settings</value></data>
+  <data name="IndexNewerVersion" xml:space="preserve"><value>Application data was created by a newer version. Use that version or later. Mounts and tasks are stopped.</value></data>
+  <data name="IndexCorrupt" xml:space="preserve"><value>The application data index is damaged. Keep the logs and original data for diagnosis. Mounts and tasks are stopped.</value></data>
+  <data name="IndexAccessDenied" xml:space="preserve"><value>Access to application data was denied. Check directory permissions for the current user.</value></data>
+  <data name="IndexReadFailed" xml:space="preserve"><value>The application data index could not be read. Check the logs. Mounts and tasks are stopped.</value></data>
+  <data name="IndexResetBlocked" xml:space="preserve"><value>Cannot reset: {0} Use 0.0.14.0 to finish pending work, export configuration, and remove mounts before resetting data for this mode.</value></data>
+  <data name="TaskWorkflowStep" xml:space="preserve"><value>Step {0}: {1}; state: {2}; dependency: {3}; attempt: {4}</value></data>
 </root>

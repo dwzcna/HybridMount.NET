@@ -132,20 +132,19 @@ public sealed class RemoteDeletionTests
         }
         finally{release.TrySetResult();test.Dav.Server.Handler=handler;}
     }
-    /// <summary>旧九列索引迁移后默认未知，远端删除状态可持久化且不污染本地删除标记。</summary>
+    /// <summary>旧本机索引只读拒绝，不迁移或覆盖；原字节保留供.14完成恢复。</summary>
     [Fact]
-    public async Task LegacyIndexMigrationKeepsLocalFlagsAndPersistsRemotePresence()
+    public async Task LegacyIndexIsRejectedWithoutChangingData()
     {
-        await using var dav=new DavFixture();var data=Path.Combine(dav.Area,"legacy");Directory.CreateDirectory(data);var id=Guid.NewGuid();
-        using(var db=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+Path.Combine(data,"mounts.db")+";Pooling=False"))
+        await using var dav=new DavFixture();var data=Path.Combine(dav.Area,"legacy");Directory.CreateDirectory(data);
+        var path=Path.Combine(data,"mounts.db");
+        using(var db=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+path+";Pooling=False"))
         {
-            db.Open();using var command=db.CreateCommand();command.CommandText="CREATE TABLE entries(mount TEXT,id TEXT,source TEXT,local TEXT,version TEXT,directory INTEGER,deleted INTEGER,protected INTEGER,materialized INTEGER,PRIMARY KEY(mount,id));INSERT INTO entries VALUES($m,'item','file','file','v1',0,0,0,1);PRAGMA user_version=2";command.Parameters.AddWithValue("$m",id.ToString("N"));command.ExecuteNonQuery();
+            db.Open();using var command=db.CreateCommand();command.CommandText="CREATE TABLE entries(id TEXT);INSERT INTO entries VALUES('preserved');PRAGMA user_version=2";command.ExecuteNonQuery();
         }
-        var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");var repository=new MountRepository(data,registry);var entry=Assert.Single(repository.Entries(id));Assert.Equal(RemotePresence.Unknown,entry.RemotePresence);
-        Assert.True(repository.SetRemotePresence(id,entry,RemotePresence.Deleted));repository.SaveEntry(id,entry);
-        repository=new(data,registry);entry=Assert.Single(repository.Entries(id));Assert.Equal(RemotePresence.Deleted,entry.RemotePresence);Assert.False(entry.Deleted);Assert.False(entry.Protected);
-        Assert.False(repository.SetRemotePresence(id,entry with{Version="stale"},RemotePresence.Present));Assert.Equal(RemotePresence.Deleted,Assert.Single(repository.Entries(id)).RemotePresence);
-        Assert.True(repository.SetRemotePresence(id,entry,RemotePresence.Present));Assert.Equal(RemotePresence.Present,Assert.Single(new MountRepository(data,registry).Entries(id)).RemotePresence);
+        var before=await File.ReadAllBytesAsync(path);var status=MountIndexFormat.Inspect(data);Assert.Equal("Old",status.State);
+        var error=Assert.Throws<MountIndexFormatException>(()=>new MountRepository(data));Assert.Equal(2,error.Format.Version);
+        Assert.Equal(before,await File.ReadAllBytesAsync(path));
     }
     /// <summary>通知风暴及停止后的迟到通知不以信号量已满或已释放异常作为正常控制流。</summary>
     [Fact]

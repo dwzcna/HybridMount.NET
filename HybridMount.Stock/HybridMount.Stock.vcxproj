@@ -82,6 +82,8 @@
     <ClInclude Include="ForegroundPreviewState.h" />
     <ClInclude Include="LocalThumbnail.h" />
     <ClCompile Include="PreviewWorker.cpp" />
+    <ClCompile Include="TaskDispatcher.cpp" />
+    <ClInclude Include="TaskDispatcher.h" />
     <ClCompile Include="RuntimeHost.cpp" />
     <ClCompile Include="RuntimeOperations.cpp" />
     <ClCompile Include="OrphanedDirectoryRecovery.cpp" />

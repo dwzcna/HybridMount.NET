@@ -98,7 +98,7 @@ public sealed partial class TasksPage : Page, IDisposable
         {
             var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,MinWidth=400,SelectionMode=ListViewSelectionMode.None};
             var details=new StackPanel{Spacing=12,MinWidth=360,MaxWidth=580};
-            details.Children.Add(global::HybridMount.Helpers.UI.Ui.Bind(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.IssueDetails)));
+            details.Children.Add(global::HybridMount.Helpers.UI.Ui.Bind(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.IssueDetails+(job.WorkflowDetails.Length==0?"":"\n"+job.WorkflowDetails))));
             if(!ViewModel.IssuesOnly&&!ViewModel.ConflictsOnly)details.Children.Add(list);
             await global::HybridMount.Helpers.UI.Ui.Bind(global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=460,Content=details}},("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_3FD47EDCE45B"))),"Title",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation+"："+job.DisplayState)).ShowAsync();
         }

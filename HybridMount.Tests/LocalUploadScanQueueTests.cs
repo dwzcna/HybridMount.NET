@@ -63,14 +63,15 @@ public sealed class LocalUploadScanQueueTests
         var queue=Ready(3);for(var index=0;index<10000;index++)queue.Record(Root,Change("one"),Now);Assert.False(queue.Take(Now.AddSeconds(1))!.IsFull);
         queue.Record(Root,Change("one"),Now.AddSeconds(1));queue.Record(Root,Change("two"),Now.AddSeconds(1));queue.Record(Root,Change("three"),Now.AddSeconds(1));Assert.True(queue.Take(Now.AddSeconds(1))!.IsFull);
     }
-    [Theory]
-    [InlineData(false)][InlineData(true)]
-    public void WatcherErrorAndOverflowForceImmediateFullScan(bool overflow)
+    [Fact]
+    public void NativeRescanForcesImmediateFullScan()
     {
-        var queue=Ready();using var watcher=new FileSystemWatcher();var signals=0;
-        MountManager.BindUploadWatcher(watcher,()=>signals++,change=>queue.Record(Root,change,Now),queue.RequestFull);
-        Raise(watcher,"OnChanged",Change("file"));Assert.Equal(1,signals);Assert.Null(queue.Take(Now,true));
-        Raise(watcher,"OnError",new ErrorEventArgs(overflow?new InternalBufferOverflowException():new IOException("watcher failed")));Assert.Equal(2,signals);Assert.True(queue.Take(Now,true)!.IsFull);
+        var queue=Ready();var signals=0;
+        NativeTaskIntent Intent(string kind,string path)=>new(Guid.NewGuid().ToString("N"),Guid.NewGuid(),Guid.NewGuid().ToString("N"),1,kind,path);
+        MountManager.RecordNativeUploadChange(Root,Intent("changed","file"),change=>queue.Record(Root,change,Now),()=>signals++,queue.RequestFull);
+        Assert.Equal(1,signals);Assert.Null(queue.Take(Now,true));
+        MountManager.RecordNativeUploadChange(Root,Intent("rescan",""),change=>queue.Record(Root,change,Now),()=>signals++,queue.RequestFull);
+        Assert.Equal(2,signals);Assert.True(queue.Take(Now,true)!.IsFull);
     }
     [Fact]
     public void IncrementalActivityCannotPostponePeriodicFullScan()
@@ -145,5 +146,4 @@ public sealed class LocalUploadScanQueueTests
         var continuous=Ready();for(var index=0;index<20;index++)continuous.Record(Root,Change("file"),Now.AddMilliseconds(index*100));
         Assert.Equal(Now.AddSeconds(2),continuous.NextDueUtc(Now.AddMilliseconds(1900)));
     }
-    private static void Raise(FileSystemWatcher watcher,string method,EventArgs args)=>typeof(FileSystemWatcher).GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(watcher,[args]);
 }

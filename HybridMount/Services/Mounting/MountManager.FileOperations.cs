@@ -10,6 +10,7 @@ public sealed partial class MountManager
         internal readonly Runtime Root=root;internal readonly CloudMountSession Session=session;internal readonly MountEntry Entry=entry;
         internal readonly object Sync=new();internal MountOperationSnapshot Snapshot=snapshot;
         internal (string? Stage,int? Code,string? Message)? LastLogged=snapshot.State is "Deferred" or "Failed"?(snapshot.FailureStage,snapshot.FailureHResult,snapshot.Error):null;
+        internal readonly long Generation=DateTimeOffset.UtcNow.UtcTicks;
         internal bool Canceling;internal Action? StopDownload;internal Task? CancelWork;internal readonly long Started=System.Diagnostics.Stopwatch.GetTimestamp();
     }
     private readonly ConcurrentDictionary<string,FileOperation> _fileOperations=new();
@@ -24,7 +25,7 @@ public sealed partial class MountManager
         var previous=renew?null:_repository.LoadFileOperations(root.Definition.Id).FirstOrDefault(row=>row.Id==id&&row.OperationEntryId==entry.Id&&row.Operation==operation&&row.State is "Running" or "Deferred" or "Interrupted");
         var snapshot=previous??new MountOperationSnapshot(id,operation,"Running",0,1,[],null,root.Definition.Id,entry.LocalPath,TotalBytes:entry.IsDirectory?0:file.Length,IsDirectory:entry.IsDirectory)
         {OperationEntryId=entry.Id,OperationVersion=entry.Version,OperationFileId=file.Identity,AttemptId=Guid.NewGuid().ToString("N")};
-        var task=new FileOperation(root,session,entry,snapshot);_fileOperations[id]=task;_repository.SaveOperation(snapshot);return task;
+        var task=new FileOperation(root,session,entry,snapshot);_fileOperations[id]=task;_repository.SaveOperation(snapshot);_fileDispatcher.Observe(Workflow(root,id,entry.LocalPath,operation,task.Generation,snapshot.State));return task;
         }
     }
     /// <summary>短内存锁内串行发布同一尝试；持久化成功后通知UI，取消中的迟到完成不能覆盖取消结果。</summary>
@@ -46,7 +47,7 @@ public sealed partial class MountManager
             }
         }
         if(state is "Completed" or "Canceled" or "Superseded" or "Failed")_fileOperations.TryRemove(new KeyValuePair<string,FileOperation>(task.Snapshot.Id,task));
-        Notify();
+        _fileDispatcher.Observe(Workflow(task.Root,task.Snapshot.Id,task.Entry.LocalPath,task.Snapshot.Operation,task.Generation,state));Notify();
     }
     /// <summary>任务页的明确取消同时撤销固定意图；低层共享等待者取消仍保留独立所有权语义。</summary>
     internal bool CancelDisplayedDownload(MountOperationSnapshot selected)

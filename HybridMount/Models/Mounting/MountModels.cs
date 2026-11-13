@@ -63,6 +63,7 @@ public sealed record MountOperationSnapshot(string Id, string Operation, string 
     /// <summary>仅供界面使用的内存快照；不改变配置、IPC或任务历史格式。</summary>
     [System.Text.Json.Serialization.JsonIgnore] public string MountName {get=>_mountName??global::HybridMount.Services.Localization.UiText.Text(MountId is null?"Text_6FC9C71CB14F":"Text_C2942442A231");init=>_mountName=value;}
     private readonly string? _mountName;
+    [System.Text.Json.Serialization.JsonIgnore] public string WorkflowDetails {get;init;}="";
     [System.Text.Json.Serialization.JsonIgnore] public string? RelativeItemPath {get;init;}
     [System.Text.Json.Serialization.JsonIgnore] public double BytesPerSecond {get;init;}
     /// <summary>本次处理的单调计时秒数；旧历史默认为0，附加JSON字段不改变表或IPC格式。</summary>

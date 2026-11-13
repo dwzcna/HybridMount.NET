@@ -12,7 +12,6 @@ public sealed partial class MountManager
         public readonly SemaphoreSlim Signal=new(0,1);
         public readonly object Sync=new();
         public readonly Dictionary<string,(string Version,DateTimeOffset Next)> Retry=[];
-        public FileSystemWatcher? Watcher;
         private readonly HashSet<string> _dirty=new(StringComparer.OrdinalIgnoreCase),_afterDownload=new(StringComparer.OrdinalIgnoreCase);
         // 一批可能同时包含多个固定项；未取得下载名额的路径在活动下载归还后重新核验，不能丢到30秒补扫。
         public void Defer(string path){lock(Sync)_afterDownload.Add(path);}
@@ -28,7 +27,7 @@ public sealed partial class MountManager
         private bool _stopping;private int _disposed;
         public void Wake(){lock(Sync){if(!_stopping&&Signal.CurrentCount==0)Signal.Release();}}
         public void RequestStop(){lock(Sync){if(_stopping)return;_stopping=true;Cancellation=Stop.CancelAsync();}}
-        public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Session.PinWorkCompleted-=Record;Watcher?.Dispose();DownloadStop?.Dispose();Stop.Dispose();Signal.Dispose();}
+        public void Dispose(){if(Interlocked.Exchange(ref _disposed,1)!=0)return;Session.PinWorkCompleted-=Record;DownloadStop?.Dispose();Stop.Dispose();Signal.Dispose();}
     }
     private void StartPinIntents(Runtime root)
     {
@@ -36,16 +35,7 @@ public sealed partial class MountManager
         {
             if(root.Pins is not null||!root.PinIntentsEnabled||root.Session is null||root.RemovalRequested||root.Definition.RemovalPending||IsStopping)return;
             var runtime=new PinIntentRuntime(root.Session,_stop.Token);root.Pins=runtime;runtime.Session.PinWorkCompleted+=runtime.Record;
-            var watcher=new FileSystemWatcher(root.Definition.LocalPath){IncludeSubdirectories=true,InternalBufferSize=65536,NotifyFilter=NotifyFilters.Attributes|NotifyFilters.FileName|NotifyFilters.DirectoryName};
-            // 普通文件沿用原内容监控；只有排除文件的属性变化才额外请求上传扫描以恢复系统标记。
-            watcher.Changed+=(_,change)=>
-            {
-                runtime.Record(change.Name);
-                if(FileExclusionRules.Matches(root.Definition.ExclusionRules,change.Name??"")&&root.Uploads is {} uploads)
-                {uploads.Scans.Record(root.Definition.LocalPath,change,DateTimeOffset.UtcNow);uploads.RequestScan();}
-            };
-            watcher.Created+=(_,change)=>runtime.Record(change.Name);watcher.Deleted+=(_,change)=>runtime.Record(change.Name);watcher.Renamed+=(_,change)=>{runtime.Record(change.OldName);runtime.Record(change.Name);};watcher.Error+=(_,_)=>runtime.RequestFull();
-            runtime.Watcher=watcher;watcher.EnableRaisingEvents=true;runtime.Wake();runtime.Work=TasksQueue.RunObserverAsync(new MountingObserver("pin:"+root.Definition.Id,root.Definition.Id,cancel=>PinIntentLoopAsync(root,runtime,cancel)),runtime.Stop.Token);
+            runtime.Wake();runtime.Work=TasksQueue.RunObserverAsync(new MountingObserver("pin:"+root.Definition.Id,root.Definition.Id,cancel=>PinIntentLoopAsync(root,runtime,cancel)),runtime.Stop.Token);
         }
     }
     private static void RequestPinStop(Runtime root){lock(root.ConnectionSync)root.Pins?.RequestStop();}
@@ -112,9 +102,14 @@ public sealed partial class MountManager
         catch(Exception error){_logger.QueueException("固定意图","Warning","操作未完成",error);}
         finally{await runtime.Download.ConfigureAwait(false);}
     }
-    private async Task DownloadPinIntentAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,CancellationToken token)
+    private Task DownloadPinIntentAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,CancellationToken token)
     {
         var fileTask=FileTask(root,runtime.Session,entry,"keepOnDevice","pin:"+root.Definition.Id+":"+entry.Id,renew:true);
+        return _fileDispatcher.ExecuteAsync(Workflow(root,fileTask.Snapshot.Id,entry.LocalPath,"keepOnDevice",fileTask.Generation),
+            cancel=>DownloadPinIntentCoreAsync(root,runtime,entry,fileTask,cancel),cancel=>Task.FromResult(new TaskVerification(fileTask.Snapshot.State,"hydratePinned",fileTask.Snapshot.FailureHResult)),token);
+    }
+    private async Task DownloadPinIntentCoreAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,FileOperation fileTask,CancellationToken token)
+    {
         var downloadStop=runtime.DownloadStop;fileTask.StopDownload=()=>{if(downloadStop is not null)try{_=downloadStop.CancelAsync();}catch(ObjectDisposedException){}};
         PublishFileTask(fileTask,"Running");
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,"pin:"+root.Definition.Id+":"+entry.Id,MountingPriority.User,"keepOnDevice",entry.SourcePath,entry.Id,entry.Version);

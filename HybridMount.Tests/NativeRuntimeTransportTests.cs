@@ -103,7 +103,7 @@ public sealed class NativeRuntimeTransportTests
     public void HelloBuildDiagnosticsDoNotBypassAuthentication()
     {
         var build=typeof(NativeRuntimeClient).Assembly.GetName().Version!.ToString();var nonce=Guid.NewGuid().ToString("N");var stale=build=="0.0.0.0"?"1.0.0.0":"0.0.0.0";
-        System.Text.Json.JsonElement Hello(string? version,string proof)=>NativeRuntimeProtocol.Element(new{kind="hello",version=1,nonce=proof,scope=ApplicationPaths.ProductScope,processId=42,build=version});
+        System.Text.Json.JsonElement Hello(string? version,string proof)=>NativeRuntimeProtocol.Element(new{kind="hello",version=NativeRuntimeProtocol.Version,nonce=proof,scope=ApplicationPaths.ProductScope,processId=42,build=version});
         NativeRuntimeClient.VerifyHello(Hello(build,nonce),nonce,42);
         var error=Assert.Throws<IOException>(()=>NativeRuntimeClient.VerifyHello(Hello(stale,nonce),nonce,42));
         Assert.Equal($"原生后台版本({stale})与主程序({build})不一致，请重新生成",error.Message);

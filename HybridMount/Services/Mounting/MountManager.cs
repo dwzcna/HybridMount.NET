@@ -77,6 +77,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private bool RemoteThumbnailsAllowed=>CustomPreviewsAvailable;
     private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
 #endif
+    private readonly Services.FileTasks.TaskDispatcher _fileDispatcher;
     private readonly MountRepository _repository;
     private readonly ILocalUploadCommitter _uploadCommitter;
     private readonly IAsyncDisposable _remoteEvents;
@@ -106,9 +107,9 @@ public sealed partial class MountManager : IAsyncDisposable
     private readonly bool _ownsTasksQueue;
     public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null,TasksQueueService? tasksQueue=null)
     {
-        TasksQueue=tasksQueue??new();_ownsTasksQueue=tasksQueue is null;
+        TasksQueue=tasksQueue??new();_ownsTasksQueue=tasksQueue is null;_fileDispatcher=new(repository,logger);
         var definitions=repository.LoadDefinitions();
-        repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
+        repository.RecoverFileTaskAttempts();repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
         _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null,renderOwnsMutex:true);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
@@ -147,7 +148,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public IReadOnlyList<MountOperationSnapshot> Operations=>ReadTaskPresentation().Operations;
     /// <summary>任务、问题、冲突及调度共用一次持久读取；构造与解析在数据库锁外进行。</summary>
     private long _lastTaskReadDiagnostic;
-    internal (IReadOnlyList<MountOperationSnapshot> Operations,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> Schedule) ReadTaskPresentation()
+    internal (IReadOnlyList<MountOperationSnapshot> Operations,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> Schedule) ReadTaskPresentation(bool includeIssues=false)
     {
         var state=_repository.ReadTaskState();var renames=RenameIntents().ToArray();
         var measured=_repository.LastTaskRead;var now=Environment.TickCount64;
@@ -157,7 +158,7 @@ public sealed partial class MountManager : IAsyncDisposable
         foreach(var upload in state.Uploads)
         {
             schedule[upload.Id]=(upload.ExplicitRequest?MountingPriority.User:MountingPriority.Transaction,upload.NextAttemptUtc);
-            if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id))
+            if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id)||includeIssues&&UploadAttentionRules.NeedsAttention(upload))
                 history[upload.Id]=DescribeOperationWait(upload.ToSnapshot(),upload.SourcePath,state,renames) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
         }
         foreach(var pending in state.Remote.Where(x=>_roots.ContainsKey(x.MountId)))
@@ -253,6 +254,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
+            await _fileDispatcher.StopCaptureAsync(root.Definition.Id).ConfigureAwait(false);
             CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
             await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync(token).ConfigureAwait(false);
@@ -376,7 +378,7 @@ public sealed partial class MountManager : IAsyncDisposable
             lock(_lifetime)
             {
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
-                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>{InvalidateCacheUsage(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));QueueLocalPreview(root,entry);},localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
+                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>{InvalidateCacheUsage(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));QueueLocalPreview(root,entry);},localChanged:()=>root.Uploads?.RequestCloseScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
             }
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
@@ -516,6 +518,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync){root.ConnectionStops++;if(!runtimeFailure)root.RuntimeFailed=false;}Notify();
         try
         {
+            await _fileDispatcher.StopCaptureAsync(id).ConfigureAwait(false);
             CancelConnection(root);await root.ConnectionFinished.WaitAsync(token).ConfigureAwait(false);
             // 先取消任务所有者，再停止共享检测：关联读取可立即结束，不能在任务令牌尚有效的窗口被误记 Failed。
             foreach(var job in _jobs.Values.Where(job=>job.Root==id))job.Cancel.Cancel();
@@ -547,14 +550,18 @@ public sealed partial class MountManager : IAsyncDisposable
                 }
                 catch(OperationCanceledException)when(IsStopping){}
             }
-        };session.PreviewDemandReceived+=paths=>ApplyPreviewDemand(root,session,paths);session.Connect();
+        };session.PreviewDemandReceived+=paths=>ApplyPreviewDemand(root,session,paths);
+        session.DispatchFileTask=(id,entry,operation,execute,token)=>DispatchNativeReadAsync(root,session,id,entry,execute,token);
+        RegisterNativeTasks(root,session);
+        session.Connect();
     }
     private async Task DisconnectCoreAsync(Runtime root)
     {
+        await _fileDispatcher.StopCaptureAsync(root.Definition.Id).ConfigureAwait(false);
         RequestUploadStop(root);RequestPinStop(root);var previewStop=_previews.CancelMountAsync(root.Definition.Id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
         RequestCapacityStop(root);var errors=new List<Exception>();
         try{await Task.WhenAll(previewStop,reads,StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root)).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
-        UnobserveUploadSource(root);var session=root.Session;var source=root.Source;root.Session=null;root.Source=null;
+        await _fileDispatcher.RemoveAsync(root.Definition.Id).ConfigureAwait(false);UnobserveUploadSource(root);var session=root.Session;var source=root.Source;root.Session=null;root.Source=null;
         try{if(session is not null)await session.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         try{if(source is not null)await source.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         if(root.QueueBinding is {} binding){try{await TasksQueue.RetireMountAsync(binding).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}root.QueueBinding=null;}
@@ -600,7 +607,12 @@ public sealed partial class MountManager : IAsyncDisposable
             try
             {
                 await EnsureInspectionAsync(root).ConfigureAwait(false);
-                if(removing)await Task.WhenAll(previewStop,StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+                if(removing)
+                {
+                    await Task.WhenAll(previewStop,StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
+                    // 删除／注销前先关闭目录句柄并持久交付捕获事件，监听不得跨过根的销毁。
+                    await _fileDispatcher.StopCaptureAsync(id).ConfigureAwait(false);
+                }
                 if(operation=="refresh"&&root.Source is IRemoteChangeSource)
                 {
                     Update(job,"Running");
@@ -663,7 +675,8 @@ public sealed partial class MountManager : IAsyncDisposable
                         if(operation=="keepOnDevice"&&!entry.IsDirectory)
                         {
                             root.Gate.Release();held=false;
-                            try{await session.HydratePinnedAsync(entry,job.Cancel.Token).ConfigureAwait(false);}
+                            try{await _fileDispatcher.ExecuteAsync(Workflow(root,job.Snapshot.Id+":"+entry.Id,entry.LocalPath,"keepOnDevice",DateTimeOffset.UtcNow.UtcTicks),
+                                cancel=>session.HydratePinnedAsync(entry,cancel),cancel=>VerifyPinnedWorkflowAsync(root,session,entry,cancel),job.Cancel.Token).ConfigureAwait(false);}
                             finally{await root.Gate.WaitAsync().ConfigureAwait(false);held=true;}
                             job.Cancel.Token.ThrowIfCancellationRequested();
                             if(!ReferenceEquals(root.Session,session))throw new IOException("下载会话已结束。");

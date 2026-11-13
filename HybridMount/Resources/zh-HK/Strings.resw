@@ -2451,4 +2451,13 @@
   <data name="RecoveryModeUnpackaged" xml:space="preserve"><value>非封裝執行</value></data>
   <data name="TaskRemoteScanProgress" xml:space="preserve"><value>遠端掃描：已發現 {0} 項</value></data>
   <data name="TaskRemoteApplyProgress" xml:space="preserve"><value>核對遠端變更：{0} / {1}</value></data>
+  <data name="IndexOldResetRequired" xml:space="preserve"><value>偵測到舊版應用程式資料格式。請前往「設定 → 還原」重設目前執行模式的資料，然後重新匯入 .hmxbk 設定。</value></data>
+  <data name="IndexRestrictedTitle" xml:space="preserve"><value>應用程式資料需要處理</value></data>
+  <data name="IndexGoToSettings" xml:space="preserve"><value>前往設定</value></data>
+  <data name="IndexNewerVersion" xml:space="preserve"><value>應用程式資料由較新版本建立。請使用相應新版程式；目前不會連接掛載或執行工作。</value></data>
+  <data name="IndexCorrupt" xml:space="preserve"><value>應用程式資料索引損壞。請保留記錄及原始資料以供排查；目前不會連接掛載或執行工作。</value></data>
+  <data name="IndexAccessDenied" xml:space="preserve"><value>無法讀取應用程式資料，存取遭拒。請檢查目前使用者的目錄權限。</value></data>
+  <data name="IndexReadFailed" xml:space="preserve"><value>應用程式資料索引讀取失敗。請查看記錄；目前不會連接掛載或執行工作。</value></data>
+  <data name="IndexResetBlocked" xml:space="preserve"><value>無法重設：{0} 請先使用 0.0.14.0 完成未決工作、匯出設定並移除掛載，再重設目前模式的資料。</value></data>
+  <data name="TaskWorkflowStep" xml:space="preserve"><value>步驟 {0}：{1}；狀態：{2}；相依：{3}；嘗試：{4}</value></data>
 </root>

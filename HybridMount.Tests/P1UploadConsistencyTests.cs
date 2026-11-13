@@ -167,7 +167,7 @@ public sealed class P1UploadConsistencyTests
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(30));Replace(path,directory);await test.Manager.ScanUploadChangesAsync(test.Id);
-            var sending=test.Repository.Uploads(test.Id).Single(item=>item.LocalPath=="inflight-type");Assert.Equal("Sending",sending.State);Assert.Equal(CloudUploadState.TypeConflictMessage,sending.Error);
+            var sending=test.Repository.Uploads(test.Id).Single(item=>item.LocalPath=="inflight-type");Assert.Contains(sending.State,new[]{"Sending","OutcomeUnknown"});Assert.Equal(CloudUploadState.TypeConflictMessage,sending.Error);
         }
         finally{release.TrySetResult();}
         var conflict=await test.Wait("inflight-type",state:"Conflict");Assert.NotNull(conflict.Receipt);Assert.NotNull(conflict.SnapshotStamp);Assert.Equal(1,TargetWrites(test,"inflight-type"));

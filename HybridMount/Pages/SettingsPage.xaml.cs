@@ -10,7 +10,7 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
 {
     private IDisposable? _localization;
     private CancellationTokenSource? _resetCancel;private ContentDialog? _resetDialog;private bool _disposed;
-    public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.Mounts,App.Current.Logger,cloud:App.Current.CloudOperations);
+    public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.RuntimeAvailable?App.Current.Mounts:null,App.Current.Logger,cloud:App.Current.CloudOperations);
     private readonly PageScrollBookmark _viewport=new();
     public SettingsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(SettingsScroll);}

@@ -10,6 +10,7 @@
 #include "RootRegistryGuard.h"
 #include "NativeDiagnostics.h"
 #include "PreviewObserver.h"
+#include "TaskDispatcher.h"
 #include "LocalThumbnail.h"
 #include "LocalThumbnailQueue.h"
 #include "RemoteThumbnailHints.h"
@@ -119,7 +120,7 @@ Json RegisterRoot(const Json& data){
 }
 }
 void ValidateRuntimeRoot(const Json& data,bool registered){GuardRoot(data,registered);}
-struct RuntimeOperations::Impl{RuntimeHost& Host;LocalReadLeases Reads;PreviewObserver Previews;std::mutex Gate;std::map<std::string,std::shared_ptr<CloudSession>> Sessions;explicit Impl(RuntimeHost& host):Host(host),Reads(host),Previews(host){}
+struct RuntimeOperations::Impl{RuntimeHost& Host;LocalReadLeases Reads;PreviewObserver Previews;TaskDispatcher Tasks;std::mutex Gate;std::map<std::string,std::shared_ptr<CloudSession>> Sessions;explicit Impl(RuntimeHost& host):Host(host),Reads(host),Previews(host),Tasks(host){}
     std::shared_ptr<CloudSession> Session(const Json& data){std::lock_guard lock(Gate);auto key=GuidN(data.at("sessionId"));auto found=Sessions.find(key);Require(found!=Sessions.end(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));Require(GuidN(found->second->Root().at("mountId"))==GuidN(data.at("mountId")),E_ACCESSDENIED);return found->second;}
 };
 RuntimeOperations::RuntimeOperations(RuntimeHost& host):_impl(std::make_unique<Impl>(host)){}
@@ -156,6 +157,9 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     if(operation=="testPoolDelay"){
         const auto milliseconds=data.at("milliseconds").get<DWORD>();Require(milliseconds<=5000);WaitForSingleObject(command.Cancel.Value,milliseconds);command.CheckCancel();return {{"completed",true}};
     }
+    if(operation=="testTaskWatchAdd"){_impl->Tasks.Add(data);return Json::object();}
+    if(operation=="testTaskWatchRemove")return {{"sequence",std::to_string(_impl->Tasks.Remove(GuidN(data.at("sessionId"))))}};
+    if(operation=="testTaskWatchOverflow"){_impl->Tasks.OverflowForTests(GuidN(data.at("sessionId")));return Json::object();}
     if(operation=="testCompletion")return {{"completed",true}};
     if(operation=="testCheckpoint")return _impl->Host.Checkpoint(command,"test",Json::object());
     if(operation=="testManagedCheckpoint"){if(data.value("irreversible",false))_impl->Host.Checkpoint(command,"beginWrite",Json::object(),true);return _impl->Host.Checkpoint(command,data.value("irreversible",false)?"commit":"test",Json::object(),false,data.value("irreversible",false));}
@@ -173,10 +177,12 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     if(operation=="connectRoot"){
         GuardRoot(data);auto session=std::make_shared<CloudSession>(_impl->Host,data);auto key=GuidN(data.at("sessionId"));
         {std::lock_guard lock(_impl->Gate);for(auto& [_,other]:_impl->Sessions)Require(GuidN(other->Root().at("mountId"))!=GuidN(data.at("mountId")),HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS));Require(_impl->Sessions.emplace(key,session).second);}
-        try{session->Connect();}catch(...){std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(key);throw;}return {{"sessionId",key}};
+        try{session->Connect();if(!data.value("blockHydration",false))_impl->Tasks.Add(data);}catch(...){session->Stop();std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(key);throw;}return {{"sessionId",key}};
     }
+    if(operation=="taskWatchDiagnostics")return _impl->Tasks.Statistics();
+    if(operation=="stopTaskWatch")return {{"sequence",std::to_string(_impl->Tasks.Remove(GuidN(data.at("sessionId"))))}};
     if(operation=="observePreviews"){auto session=_impl->Session(data);auto root=session->Root();GuardRoot(root);_impl->Previews.Configure(root,data.at("enabled").get<bool>());return Json::object();}
-    if(operation=="disconnectRoot"){auto session=_impl->Session(data);_impl->Previews.Remove(GuidN(data.at("sessionId")));session->Stop();std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(GuidN(data.at("sessionId")));return Json::object();}
+    if(operation=="disconnectRoot"){auto session=_impl->Session(data);_impl->Tasks.Remove(GuidN(data.at("sessionId")));_impl->Previews.Remove(GuidN(data.at("sessionId")));session->Stop();std::lock_guard lock(_impl->Gate);_impl->Sessions.erase(GuidN(data.at("sessionId")));return Json::object();}
     if(operation=="clearRoot"){_impl->Session(data)->BeginClear();return Json::object();}
     if(operation=="activity")return _impl->Session(data)->Activity(data.at("entryId"));
     if(operation=="blockEntry"){_impl->Session(data)->SetBlocked(data.at("entryId"),data.at("blocked"));return Json::object();}
@@ -230,5 +236,6 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     throw Failure(E_NOTIMPL);
 }
 void RuntimeOperations::Content(const RuntimeBlock& block){std::vector<std::shared_ptr<CloudSession>> sessions;{std::lock_guard lock(_impl->Gate);for(auto& [_,session]:_impl->Sessions)sessions.push_back(session);}for(auto& session:sessions)if(session->OwnsFetch(block.FetchId)){session->Transfer(block);return;}throw Failure(HRESULT_FROM_WIN32(ERROR_NOT_FOUND));}
-void RuntimeOperations::Stop(){_impl->Previews.Stop();_impl->Reads.Stop();std::vector<std::shared_ptr<CloudSession>> sessions;{std::lock_guard lock(_impl->Gate);for(auto& [_,session]:_impl->Sessions)sessions.push_back(session);}for(auto& session:sessions)session->BeginClear();}
+void RuntimeOperations::TaskMessage(const Json& frame){_impl->Tasks.Receive(frame);}
+void RuntimeOperations::Stop(){_impl->Tasks.Stop();_impl->Previews.Stop();_impl->Reads.Stop();std::vector<std::shared_ptr<CloudSession>> sessions;{std::lock_guard lock(_impl->Gate);for(auto& [_,session]:_impl->Sessions)sessions.push_back(session);}for(auto& session:sessions)session->BeginClear();}
 }

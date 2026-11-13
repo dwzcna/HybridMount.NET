@@ -52,7 +52,12 @@ public sealed partial class MountManager
     private sealed class UploadReporter(Action<UploadProgress> action) : IProgress<UploadProgress>
     {public void Report(UploadProgress value)=>action(value);}
     /// <summary>发送前持久化快照及阶段；返回成功后先保存回执，再修改本地占位和索引。</summary>
-    private async Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
+    private Task RunUploadAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
+        =>_fileDispatcher.ExecuteAsync(Workflow(root,selected.Id,selected.LocalPath,"upload",selected.Generation) with
+            {Dependencies=_repository.UploadsRelated(root.Definition.Id,selected.SourcePath,false).Where(item=>item.Id!=selected.Id&&item.IsDirectory&&item.State!="Completed"&&UploadRules.SourceContains(item.SourcePath,selected.SourcePath)).Select(item=>item.Id).ToArray()},
+            cancel=>RunUploadCoreAsync(root,runtime,selected,cancel),cancel=>VerifyUploadWorkflowAsync(root,selected.Id,cancel),stopping);
+    /// <summary>现有安全上传及恢复阶段作为Runner适配器；调度权仅属于TaskDispatcher。</summary>
+    private async Task RunUploadCoreAsync(Runtime root,UploadRuntime runtime,LocalUpload selected,CancellationToken stopping)
     {
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,selected.Id,selected.ExplicitRequest?MountingPriority.User:MountingPriority.Transaction,"upload",selected.SourcePath,selected.EntryId,selected.ExpectedVersion,selected.ChangedUtc);
         using var request=CancellationTokenSource.CreateLinkedTokenSource(stopping);
@@ -69,18 +74,25 @@ public sealed partial class MountManager
             if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest)||!UploadDependenciesReady(_repository.Uploads(root.Definition.Id),prepared))return;
             await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             await UploadCheckpointAsync("BeforePrepare",prepared).ConfigureAwait(false);
-            prepared=await PrepareUploadAsync(root,prepared,token).ConfigureAwait(false);
+            var snapshotStep=Workflow(root,selected.Id+":snapshot:"+Guid.NewGuid().ToString("N"),selected.LocalPath,"snapshot",selected.Generation) with{ParentId=selected.Id};
+            prepared=await _fileDispatcher.ExecuteAsync(snapshotStep,async cancel=>
+                {prepared=await PrepareUploadAsync(root,prepared!,cancel).ConfigureAwait(false);return prepared;},
+                cancel=>Task.FromResult(new TaskVerification(prepared is {State:"Prepared"}&&(prepared.IsDirectory||prepared.SnapshotPath is not null&&File.Exists(prepared.SnapshotPath))?"Completed":"Deferred","snapshot-verification")),token).ConfigureAwait(false);
             if(prepared is null)return;preparing=false;
             await UploadCheckpointAsync("Prepared",prepared).ConfigureAwait(false);
             capacity=await EnterUploadCapacityAsync(root,prepared,token).ConfigureAwait(false);
             await PrepareUploadDestinationAsync(root,prepared,token,capacity.Definition).ConfigureAwait(false);
             await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             if(!prepared.IsDirectory)await root.Source!.PrepareUploadAsync(prepared.SourcePath,new(prepared.ExpectedVersion,prepared.BaselineSha256),prepared.Total,token).ConfigureAwait(false);
+            SourceEntry? sentReceipt=null;
+            var cloudStep=Workflow(root,selected.Id+":cloud:"+Guid.NewGuid().ToString("N"),selected.LocalPath,prepared.IsDirectory?"createDirectory":"upload",prepared.Generation) with{ParentId=selected.Id,Dependencies=[snapshotStep.Id]};
+            var receipt=await _fileDispatcher.ExecuteAsync(cloudStep,async phaseToken=>
+            {
             SourceEntry receipt;
             if(prepared.IsDirectory)
             {
-                var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token,capacity.Definition).ConfigureAwait(false);if(sending is null)return;prepared=sending;sendingStarted=true;
-                receipt=await root.Source!.TryGetMetadataAsync(prepared.SourcePath,token).ConfigureAwait(false)??await root.Source.CreateDirectoryAsync(prepared.SourcePath,token).ConfigureAwait(false);
+                var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,phaseToken,capacity.Definition).ConfigureAwait(false);if(sending is null)throw new UploadPreparationChangedException();prepared=sending;sendingStarted=true;
+                receipt=await root.Source!.TryGetMetadataAsync(prepared.SourcePath,phaseToken).ConfigureAwait(false)??await root.Source.CreateDirectoryAsync(prepared.SourcePath,phaseToken).ConfigureAwait(false);
                 if(!receipt.IsDirectory)throw new SourceConflictException("远端已有同名文件，目录不能覆盖它。");
             }
             else
@@ -90,13 +102,16 @@ public sealed partial class MountManager
                     ChangeUpload(prepared.Id,x=>x with{Bytes=value.Bytes,Total=value.Total});});
                 ValidateUploadSnapshot(prepared);
                 await using var content=new FileStream(prepared.SnapshotPath!,FileMode.Open,FileAccess.Read,FileShare.Read,131072,FileOptions.Asynchronous|FileOptions.SequentialScan);
-                var digest=Convert.ToHexString(await SHA256.HashDataAsync(content,token).ConfigureAwait(false));
+                var digest=Convert.ToHexString(await SHA256.HashDataAsync(content,phaseToken).ConfigureAwait(false));
                 if(content.Length!=prepared.Total||digest!=prepared.SnapshotSha256)
                 {ChangeUpload(prepared.Id,x=>x with{SnapshotStamp=null});throw new SourceConflictException("持久上传快照已变化，未发送内容；请重试以重新生成快照。");}
                 content.Position=0;
-                var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,token,capacity.Definition).ConfigureAwait(false);if(sending is null)return;prepared=sending;sendingStarted=true;
-                receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,token).ConfigureAwait(false);
+                var sending=await BeginUploadSendAsync(root.Definition.Id,prepared,phaseToken,capacity.Definition).ConfigureAwait(false);if(sending is null)throw new UploadPreparationChangedException();prepared=sending;sendingStarted=true;
+                receipt=await root.Source!.UploadWithPreconditionAsync(prepared.SourcePath,content,new(prepared.ExpectedVersion,prepared.BaselineSha256),progress,phaseToken).ConfigureAwait(false);
             }
+                sentReceipt=receipt;return receipt;
+            },cancel=>VerifyUploadReceiptAsync(root,prepared!,sentReceipt,cancel),token).ConfigureAwait(false);
+            if(_repository.ReadFileTask(cloudStep.Id)?.State!="Completed")throw new SourceOutcomeUnknownException("上传核验",new IOException("远端回执尚未通过核验，保留快照等待只读核对。"));
             prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total,TransientFailureCount=0,NextAttemptUtc=null,TransferDurationSeconds=System.Diagnostics.Stopwatch.GetElapsedTime(attemptStarted).TotalSeconds})!;
             capacity.Committed(receipt);receiptSaved=true;PublishCapacity(root,capacity.Definition,capacity.Snapshot);
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);
@@ -126,7 +141,7 @@ public sealed partial class MountManager
         if(current.State=="RemoteCommitted")Update(x=>UploadRules.WaitForLocalCommit(x,error,DateTimeOffset.UtcNow));
         else if(error is SourceRequestRejectedException)Update(x=>x.CancelRequested?x with{State="Canceled"}:UploadRules.IsTransient(error)?UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow):x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
         else if(UploadRules.IsPermanentConnectionFailure(error)&&(error is not SourceOutcomeUnknownException||current.State!="Sending"))Update(x=>x with{State="Failed",Error=error.Message,LastCheckedUtc=null,NextAttemptUtc=null});
-        else if(current.State=="Sending")Update(x=>x with{State="OutcomeUnknown",Error="写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
+        else if(current.State=="Sending")Update(x=>x with{State="OutcomeUnknown",Error=x.Error==UploadRules.TypeConflictMessage?x.Error:"写入结果待核对："+error.Message,LastCheckedUtc=stopping.IsCancellationRequested?null:DateTimeOffset.UtcNow});
         else if(current.CancelRequested)Update(x=>x with{State="Canceled",Error="本代上传已取消。"});
         else if(error is OperationCanceledException&&stopping.IsCancellationRequested)Update(x=>x with{State=x.SnapshotPath is null?"Queued":"Prepared",LastCheckedUtc=null});
         else if(UploadRules.IsTransient(error))Update(x=>UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow));
@@ -148,6 +163,8 @@ public sealed partial class MountManager
             if(item.IsDirectory&&metadata.IsDirectory||!item.IsDirectory&&!metadata.IsDirectory&&metadata.Size==item.Total&&await HashRemoteAsync(root.Source,metadata,token).ConfigureAwait(false)==item.SnapshotSha256)
             {
                 var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,LastCheckedUtc=null})!;
+                var local=RelativePaths.ToLocal(root.Definition.LocalPath,saved.LocalPath);
+                if(!saved.IsCopy&&!LocalMissing(local)&&!RenamedUploadMissing(saved))UploadRules.ValidateTypes(saved,LocalFileState.Read(local),metadata.IsDirectory);
                 await CommitUploadAsync(root,saved,token).ConfigureAwait(false);WakeCapacityWaiters(FileSourceFactory.CapacityWriteScope(root.Definition));return;
             }
             var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);

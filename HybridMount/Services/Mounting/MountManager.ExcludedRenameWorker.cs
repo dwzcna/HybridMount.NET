@@ -29,7 +29,10 @@ public sealed partial class MountManager
         MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
     }
     /// <summary>Moving先落盘；任何未知结果均只读核对两端及回执，显式重试才允许继续写操作。</summary>
-    private async Task RunExcludedRenameAsync(Runtime root,ExcludedRenameIntent initial,CancellationToken token)
+    private Task RunExcludedRenameAsync(Runtime root,ExcludedRenameIntent initial,CancellationToken token)
+        =>_fileDispatcher.ExecuteAsync(Workflow(root,initial.Id,initial.LocalPath,"excludedRename",DateTimeOffset.UtcNow.UtcTicks),
+            cancel=>RunExcludedRenameCoreAsync(root,initial,cancel),cancel=>Task.FromResult(new TaskVerification(RenameIntent(initial.Id)?.Snapshot().State??"OutcomeUnknown","rename-verification")),token);
+    private async Task RunExcludedRenameCoreAsync(Runtime root,ExcludedRenameIntent initial,CancellationToken token)
     {
         using var queueTask=TasksQueue.EnterTask(initial.MountId,initial.Id,initial.RetryRequested||initial.ReadOnlyRequested?MountingPriority.User:MountingPriority.Transaction,"excludedRename",initial.SourcePath);
         using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(token,exclusive:true,destination:initial.LocalPath).ConfigureAwait(false);

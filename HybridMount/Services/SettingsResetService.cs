@@ -59,6 +59,7 @@ internal static class SettingsResetService
     private static void EnsureNoRecovery(SettingsResetScope scope,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        EnsureNoUnsettledTaskIndex(scope,token);
         var recovery=Path.Combine(scope.MountDataDirectory,"Recovery");
         if(new MountRemovalCompletion(recovery,new RecoveryShellRegistration(false)).Journals().Any(j=>j.Stage!="Completed"||!j.ExternalVerified))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_4057AC6E04F7"));
         new OrphanedDirectoryRecovery(Path.Combine(recovery,"OrphanedDirectories"),()=>[]).EnsureNoPendingForSettingsReset();
@@ -69,6 +70,25 @@ internal static class SettingsResetService
         }
         foreach(var directory in new[]{recovery,renames})
             if(Directory.Exists(directory)&&Directory.EnumerateFiles(directory,"*.tmp",SearchOption.AllDirectories).Any())throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_4057AC6E04F7"));
+    }
+    /// <summary>只读检查当前模式的新旧索引恢复屏障；不构造业务仓库，不迁移旧表。</summary>
+    private static void EnsureNoUnsettledTaskIndex(SettingsResetScope scope,CancellationToken token)
+    {
+        var path=Path.Combine(scope.MountDataDirectory,"mounts.db");if(!File.Exists(path))return;
+        using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=path,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());db.Open();
+        using var command=db.CreateCommand();command.CommandText="SELECT name FROM sqlite_master WHERE type='table'";var tables=new HashSet<string>(StringComparer.Ordinal);
+        using(var rows=command.ExecuteReader())while(rows.Read())tables.Add(rows.GetString(0));
+        foreach(var (table,predicate) in new[]{("uploads","json_extract(json,'$.State') IN ('Sending','RemoteCommitted','OutcomeUnknown')"),("remote_pending","json_extract(json,'$.State') IN ('Committing','Hydrating')")})
+        {
+            token.ThrowIfCancellationRequested();if(!tables.Contains(table))continue;
+            command.CommandText="SELECT 1 FROM "+table+" WHERE "+predicate+" LIMIT 1";
+            if(command.ExecuteScalar() is not null)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_4057AC6E04F7"));
+        }
+        if(tables.Contains("task_attempts")&&tables.Contains("file_tasks"))
+        {
+            command.CommandText="SELECT 1 FROM task_attempts a JOIN file_tasks t ON t.id=a.task WHERE a.state IN ('Running','OutcomeUnknown') AND json_extract(t.json,'$.State') NOT IN ('Completed','Canceled','Superseded') LIMIT 1";
+            if(command.ExecuteScalar() is not null)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_4057AC6E04F7"));
+        }
     }
     /// <summary>仅在宿主、页面及日志写入者成功排空后调用；不重启宿主，不写任何会重建已删目录的日志。</summary>
     internal static async Task CompleteAsync(SettingsResetPlan plan)

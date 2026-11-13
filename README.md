@@ -1,10 +1,14 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.14.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.15.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.14.0_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.15.0_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
-主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份及现有挂载数据保持兼容。
+主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份保持。当前本机任务索引使用新格式，旧数据处理见下文。
+
+本地变化与固定／释放属性统一由 `HybridMount.Stock` 使用异步目录监听和 IOCP 捕获，只有已连接根才启用，每根使用 64 KiB 缓冲。普通变化按 200 毫秒合并、最长两秒；改名关联及时交付，溢出和序号断档要求补扫。原生任务管道独立于 CFAPI 控制和正文通道，以挂载 ID、相对路径、任务 ID 和连接代次联系；接纳前先持久化，结果按 ID 确认和重送。退出、断开或移除先停止监听并交付捕获事件，原生独立缩略图行为保持。
+
+.NET 文件任务通过 Dispatcher、Queue、Runner 和 Verifier 分发、执行与核验，复用现有云请求额度和路径屏障。上传记录快照、云端核验和本地提交步骤，下载、远端应用、改名及固定／释放沿用安全业务适配器；详情可查看步骤和依赖。编辑中的新内容替代旧尝试时，已发送的修改先核对实际结果，旧回执不能将新正文标记为已同步。协议能力不足时继续保留冲突，不执行未经验证的删除替换。
 
 CFAPI通知使用独立有界邮箱；打开／关闭以带序号的绝对计数合并，关键改名／删除保持顺序，回调排队共享45毫秒预算。通知无法可靠交付时后台显式停止连接并保留注册与恢复记录，等待重新核对。
 
@@ -64,7 +68,7 @@ CFAPI通知使用独立有界邮箱；打开／关闭以带序号的绝对计数
 
 常规缓存操作会保护本地修改、新建、删除和重命名；明确选择清空时按上述范围删除。本版本自动上传新增文件、目录和文件修改；最后一次变化后默认等待 2 秒，连接恢复、监控溢出及每 60 秒补扫。**本地删除不删除远端；重命名上传新路径，保留远端旧项。** 删除后复制同名文件会沿用原远端基线执行条件更新；远端变化、远端删除或类型互换仍保留冲突。 WebDAV 的干净已固定文件自动下载新版并保持固定状态；占用、修改或未决上传保持保护，取消当前版本后需显式重试或等待下一版本。手动“刷新”立即完整对账。WebDAV 全部协议操作使用 WebDAVClient 3.3.0 的 DavClient，每目录独立 RFC 6578 令牌，服务不支持时回退 Depth 1；S3 使用 AWS SDK v4、SigV4 签名及分页，路径寻址默认开启。默认 HTTPS，原子替换等未验证的能力保持未知。WebDAV 的可选空／非标准 ETag 不阻断枚举；缺少可靠标签时使用整文件快照缓存，可靠强标签仍严格验证版本。系统状态为本地（实心绿勾）、仅远端（云）及待脱水（空心绿勾，允许回收）。设置页可调整默认 10 GiB 的缓存软上限，0 关闭自动回收；固定、修改和活动内容不会为了达标而被回收。
 
-上传使用挂载目录外的不可变快照，每根同时上传一个文件、全局最多两个；发送阶段持久化，结果不明时先只读核对远端；仅已验证的可靠条件写在原基线仍满足时最多五次自动重试，其余保留冲突供显式重试或另存副本。已确认的远端删除屏障继续禁止自动重建；发送前瞬时故障按指数退避等待，并尊重服务器更长的 Retry-After。取消本代后不会立即自动重传，可手动重试或再次修改。上传期间或提交后继续编辑会保留下一代；只有本地身份与内容仍匹配快照时才更新同步状态。同一路径在文件和目录之间变化时保持类型冲突，可恢复原类型后重试，或改名上传。断开、退出及移除会先停止调度并结束在途处理。
+上传使用挂载目录外的不可变快照，每根同时上传一个文件，并受全局云请求并发设置约束；发送阶段持久化，结果不明时先只读核对远端；仅已验证的可靠条件写在原基线仍满足时最多五次自动重试，其余保留冲突供显式重试或另存副本。已确认的远端删除屏障继续禁止自动重建；发送前瞬时故障按指数退避等待，并尊重服务器更长的 Retry-After。取消本代后不会立即自动重传，可手动重试或再次修改。上传期间或提交后继续编辑会保留下一代；只有本地身份与内容仍匹配快照时才更新同步状态。同一路径在文件和目录之间变化时保持类型冲突，可恢复原类型后重试，或改名上传。断开、退出及移除会先停止调度并结束在途处理。
 
 任务页“冲突”视图聚合上传和远端更新的持久冲突，不随任务历史清除。选择条目后“处理冲突”会只读比较当前本地、远端及原同步版本，可直接选择“使用本地覆盖远端”或“使用远端替换本地”。本地覆盖仍使用确认版本的条件上传，远端再次变化时停止；远端替换会先将原本地内容备份到同步根外的 `Mounting/ConflictRecovery`，再下载、核验并原位替换。备份路径显示在操作反馈、任务结果和完整诊断，保留供恢复，不随缓存回收删除。中断后保留恢复屏障，需重新核对并明确选择；不自动重放。目录／类型互换、未完整下载、未知写入结果或身份不明时不能直接覆盖，可先另存处理。
 
@@ -97,6 +101,14 @@ WebDAV 与 S3 连接、远端检测和读取失败时显示安全的阶段、TLS
 未解决的上传问题独立保存，清除任务历史不会清除问题。任务页的“同步问题”显示文件、阶段、原因和时间，可重试选中项、查看详情及打开所在位置；重试期间保留上次原因，成功或明确取消后解除提醒。失败、冲突、结果待核对、容量阻挡及错误的本地提交需要处理，普通排队和文件占用等待不新增提醒。容量恢复或本地提交失败后需显式重试；结果不明可继续只读核对，未获得重试授权时不会再次发送写入。新发生的问题按挂载合并为应用内提示，关闭提示仍保留问题。
 
 Explorer 继续通过原生后台的 Windows 自定义存储提供程序属性发布同步问题；属性发布失败单独进入完整诊断，不改变上传结果。打包模式的自有菜单可查看同步问题，应用内挂载卡片和任务页也可定位。实际 Explorer 视觉效果及正式安装升级按本版待测边界记录。
+
+## 从旧版本更新
+
+0.0.15.0 的本机任务索引不迁移 0.0.14.0 及更早格式。`.hmxbk` 的 JSON 版本、UTF-8 编码及可选凭据加密方式保持不变。
+
+请先使用 0.0.14.0 完成未决任务，导出 `.hmxbk`，再移除挂载。新版检测到旧索引后，只开放设置和日志，使用不透明 Warning InfoBar 提示前往“设置 → 还原”；关闭提示仍保持运行限制。重置只处理当前运行模式，现有挂载、有效注册或未决恢复记录会阻止清理。完成重置后重新打开程序并导入 `.hmxbk`，导入不会自动连接远端。
+
+损坏、访问拒绝、读取失败和较新索引分别报告，不一律按旧格式要求重置；不会自动删除现场数据。
 
 ## 故障排查
 
@@ -174,7 +186,7 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版构建、验收记录及待测项目见 [docs/Validation-0.0.14.0.md](docs/Validation-0.0.14.0.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版构建、验收记录及待测项目见 [docs/Validation-0.0.15.0.md](docs/Validation-0.0.15.0.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 真实自动同步验收为显式操作，可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

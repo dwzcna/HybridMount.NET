@@ -10,6 +10,7 @@ public:
     Json Execute(RuntimeCommand& command);
     void Content(const RuntimeBlock& block);
     void Stop();
+    void TaskMessage(const Json& frame);
 };
 /// <summary>64位文件状态以十进制字符串编码，避免任何JSON浮点转换。</summary>
 Json FileJson(const FileState& value);

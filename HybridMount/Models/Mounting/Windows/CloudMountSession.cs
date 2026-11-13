@@ -75,6 +75,9 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {var args=NativeRuntimeArguments.Root(_mount,extra);args["sessionId"]=_sessionId;return args;}
     internal Dictionary<string,object?> EntryArgs(MountEntry entry,object? extra=null)
     {var args=NativeRuntimeArguments.Entry(_mount,entry,extra);args["sessionId"]=_sessionId;return args;}
+    internal string SessionId=>_sessionId;
+    /// <summary>仅管理器装配文件任务执行器；FETCH仍拥有独立取消和原生资源。</summary>
+    internal Func<string,string,string,Func<CancellationToken,Task>,CancellationToken,Task>? DispatchFileTask {get;set;}
     internal NativeRuntimeClient Runtime=>_runtime??throw new IOException("原生挂载尚未连接。");
     public void Connect()
     {
@@ -124,7 +127,9 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
                 if(_metadataUpdating.Contains(fetch.EntryId)){var rejected=Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});_notifications.Add(rejected);_ = rejected.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{using var cancelOwner=_queueBinding?.Queue.RegisterCancellation("read:"+fetch.FetchId,()=>{if(!cancel.IsCancellationRequested)_=cancel.CancelAsync();return true;});await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
+                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{using var cancelOwner=_queueBinding?.Queue.RegisterCancellation("read:"+fetch.FetchId,()=>{if(!cancel.IsCancellationRequested)_=cancel.CancelAsync();return true;});if(DispatchFileTask is {} dispatch)
+                    await dispatch("read:"+fetch.FetchId,fetch.EntryId,"download",token=>FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),token),cancel.Token).ConfigureAwait(false);
+                else await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
                 _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work,(fetch.ProcessId==(uint)Runtime.ProcessId||fetch.ProcessId==(uint)Environment.ProcessId)&&_downloadTasks.TryGetValue(fetch.EntryId,out var owner)&&owner.Operation=="keepOnDevice");if(_clearing||_cancelingPins.ContainsKey(fetch.EntryId)&&_fetches[fetch.FetchId].Owned)cancel.Cancel();start.SetResult();
             }return;
         }

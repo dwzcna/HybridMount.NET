@@ -12,11 +12,29 @@ public sealed partial class MountManager
         var pending=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope)
             .Where(x=>x.State is not("Completed" or "Superseded")&&(x.State!="Canceled"||x.Entry is {IsDirectory:true}&&!x.MetadataOnly))
             .OrderBy(x=>x.Entry is null?1:0).ThenBy(x=>x.Entry is null?-x.Path.Count(c=>c=='/'):x.Path.Count(c=>c=='/')).ToArray();
+        var repeated=new HashSet<string>(StringComparer.Ordinal);
+        foreach(var batch in pending.Where(item=>item.State=="Pending").Chunk(256))
+        {
+            var acknowledged=await _fileDispatcher.AcknowledgeObservedAsync(async cancel=>
+            {
+                await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
+                try
+                {
+                    if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(cancel);
+                    MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
+                    return _repository.CompleteRepeatedRemoteTasks(root.Definition.Id,batch,runtime.Source.IsSameVersion);
+                }
+                finally{root.Gate.Release();}
+            },token).ConfigureAwait(false);
+            repeated.UnionWith(acknowledged);
+        }
+        if(repeated.Count>0)Notify();
         var inspected=0;var progressTaskId=TasksQueueService.CurrentTask?.Id;
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
             if(progressTaskId is {} taskId)_taskProgress[taskId]=global::HybridMount.Services.Localization.UiText.Text("TaskRemoteApplyProgress",++inspected,pending.Length);
+            if(repeated.Contains(prior.Id))continue;
             if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path)||!RemoteDependenciesReady(root,prior))continue;
             var parentPriority=TasksQueueService.CurrentTask?.Priority;
             using var queueTask=TasksQueue.EnterTask(root.Definition.Id,prior.Id,parentPriority>=MountingPriority.User?parentPriority.Value:MountingPriority.Transaction,"remoteUpdate",prior.Path,prior.EntryId,prior.Entry?.Version);
@@ -25,17 +43,20 @@ public sealed partial class MountManager
             var current=prior;
             try
             {
-                using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(request.Token,exclusive:true,subtree:prior.Entry?.IsDirectory!=false).ConfigureAwait(false);
-                if(!RemoteDependenciesReady(root,prior))continue;
+                await _fileDispatcher.ExecuteAsync(Workflow(root,prior.Id,prior.Path,"remoteUpdate",Math.Max(1,prior.Entry?.ModifiedUtc.UtcTicks??1)),async cancel=>
+                {
+                using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(cancel,exclusive:true,subtree:prior.Entry?.IsDirectory!=false).ConfigureAwait(false);
+                if(!RemoteDependenciesReady(root,prior))return;
                 current=RequireRemotePending(prior.Id);
-                if(current.State=="Canceled"){await RecheckCanceledDirectoryAsync(root,runtime,current,request.Token).ConfigureAwait(false);continue;}
-                if(current.State is "Completed" or "Superseded")continue;
-                current=await ResolveListedMetadataAsync(root,runtime,current,request.Token).ConfigureAwait(false);
-                if(current.State=="Completed")continue;
-                if(!await SuppressExcludedRenameEchoAsync(root,runtime,current,request.Token).ConfigureAwait(false)&&!await CompleteUnchangedObservationAsync(root,runtime,current,request.Token).ConfigureAwait(false))
-                    current=await ApplyRemoteItemAsync(root,runtime,current,request.Token).ConfigureAwait(false);
+                if(current.State=="Canceled"){await RecheckCanceledDirectoryAsync(root,runtime,current,cancel).ConfigureAwait(false);return;}
+                if(current.State is "Completed" or "Superseded")return;
+                current=await ResolveListedMetadataAsync(root,runtime,current,cancel).ConfigureAwait(false);
+                if(current.State=="Completed")return;
+                if(!await SuppressExcludedRenameEchoAsync(root,runtime,current,cancel).ConfigureAwait(false)&&!await CompleteUnchangedObservationAsync(root,runtime,current,cancel).ConfigureAwait(false))
+                    current=await ApplyRemoteItemAsync(root,runtime,current,cancel).ConfigureAwait(false);
                 else current=RequireRemotePending(current.Id);
                 if(current.State=="Completed")DeleteRemoteSnapshot(current.SnapshotPath);
+                },cancel=>Task.FromResult(new TaskVerification(RequireRemotePending(prior.Id).State,"remote-apply")),request.Token).ConfigureAwait(false);
             }
             catch(OperationCanceledException)when(request.IsCancellationRequested)
             {

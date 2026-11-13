@@ -61,6 +61,9 @@
         <!-- 与参考主窗口一致，所有即时反馈叠放在内容右下角；长消息或多个渠道可在窗口内滚动。 -->
         <ScrollViewer x:Name="NotificationHost" Grid.Row="1" Margin="24" MaxWidth="560" HorizontalAlignment="Right" VerticalAlignment="Bottom" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="8">
+                <InfoBar x:Name="IndexWarning" Style="{StaticResource InstantNotificationStyle}" IsOpen="False" Severity="Warning">
+                    <InfoBar.ActionButton><Button x:Name="IndexSettingsButton" Click="GoToIndexSettings" Style="{StaticResource SubtleButtonStyle}"/></InfoBar.ActionButton>
+                </InfoBar>
                 <StackPanel x:Name="PageNotifications" Spacing="8"/>
                 <StackPanel x:Name="IssueNotifications" Spacing="8"/>
                 <InfoBar x:Name="NotificationBar" Style="{StaticResource InstantNotificationStyle}" Title="{x:Bind ViewModel.NotificationSource,Mode=OneWay}" Message="{x:Bind ViewModel.NotificationMessage,Mode=OneWay}" IsOpen="{x:Bind ViewModel.IsNotificationOpen,Mode=TwoWay}"/>

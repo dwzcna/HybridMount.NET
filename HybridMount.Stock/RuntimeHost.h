@@ -28,6 +28,9 @@ public:
     std::function<Json(RuntimeCommand&)> Execute;
     std::function<void(const RuntimeBlock&)> Content;
     std::function<void()> Stopping;
+    std::function<void(const Json&)> TaskMessage;
+    /// <summary>任务独立有界发送；完成线程从不等待此管道容量。</summary>
+    bool SendTask(Json value)noexcept;
     bool Send(Json value,bool waitForCapacity=false)noexcept;
     /// <summary>回调独立队列；共享绝对截止时间，失败只置位故障，由专用监视线程关闭通道。</summary>
     bool SendCallback(Json value,ULONGLONG deadline)noexcept;

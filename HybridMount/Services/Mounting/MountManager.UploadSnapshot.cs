@@ -91,7 +91,10 @@ public sealed partial class MountManager
     /// <summary>实例级通知屏障，用于验证数据库、保护句柄和根锁的提交顺序。</summary>
     internal Action<string>? ShellNotificationForTests {get;set;}
     /// <summary>远端确认后短锁捕获，恢复摘要在锁外执行；重新核对会话、代次和文件后再原生提交及持久化。</summary>
-    private async Task CommitUploadAsync(Runtime root,LocalUpload prepared,CancellationToken token)
+    private Task CommitUploadAsync(Runtime root,LocalUpload prepared,CancellationToken token)
+        =>_fileDispatcher.ExecuteAsync(Workflow(root,prepared.Id+":commit:"+Guid.NewGuid().ToString("N"),prepared.LocalPath,"localCommit",prepared.Generation) with{ParentId=prepared.Id},
+            cancel=>CommitUploadCoreAsync(root,prepared,cancel),cancel=>VerifyUploadWorkflowAsync(root,prepared.Id,cancel),token);
+    private async Task CommitUploadCoreAsync(Runtime root,LocalUpload prepared,CancellationToken token)
     {
         var receipt=prepared.Receipt??throw new IOException("上传回执缺失。");string? notifyPath=null;
         var definition=root.Definition;var session=root.Session;var source=root.Source;
@@ -110,6 +113,7 @@ public sealed partial class MountManager
             var row=_repository.Upload(prepared.Id);if(row!=prepared||row.State!="RemoteCommitted"||root.RemovalRequested||root.Definition.RemovalPending)return null;
             MountPathGuard.ValidateOperation(definition,prepared.IsCopy||RenamedUploadMissing(prepared)?definition.LocalPath:localPath);capturedEntry=Entry();
             var stamp=prepared.IsCopy||LocalMissing(localPath)||RenamedUploadMissing(prepared)?null:LocalFileState.Read(localPath);
+            if(stamp is not null)UploadRules.ValidateTypes(prepared,stamp,receipt.IsDirectory);
             var needsHash=stamp is not null&&_uploadCommitter is IRecoveryUploadCommitter committer&&committer.NeedsRecovery(definition,capturedEntry,prepared,stamp);
             return new(row,stamp,needsHash);
         },Current,capture=>UploadCommitRecovery.HashAsync(localPath,capture.Stamp!,token,()=>UploadCheckpointAsync("RecoveryHash",prepared)),token).ConfigureAwait(false);

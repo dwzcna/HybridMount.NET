@@ -58,7 +58,8 @@ public sealed partial class MountManager
                     if(reason is not null){PublishFileTask(task,"Deferred","releaseGuard",reason:reason);continue;}
                     PublishFileTask(task,"Running");
                     await PreserveBeforeDehydrateAsync(root,entry,token).ConfigureAwait(false);
-                    var bytes=session.CompletePendingUnpin(entry);
+                    var bytes=await _fileDispatcher.ExecuteAsync(Workflow(root,task.Snapshot.Id,entry.LocalPath,"freeSpace",task.Generation),
+                        cancel=>Task.Run(()=>session.CompletePendingUnpin(entry),cancel),cancel=>VerifyReleasedWorkflowAsync(root,session,entry,cancel),token).ConfigureAwait(false);
                     if(bytes is null)
                     {
                         var after=CloudFilesNative.InspectPersisted(path);

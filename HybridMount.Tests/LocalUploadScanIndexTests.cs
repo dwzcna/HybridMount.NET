@@ -72,12 +72,14 @@ public sealed class LocalUploadScanIndexTests
     [Fact]
     public void SchedulerWakesDoNotRequestScanButEveryWatcherEventDoes()
     {
-        using var runtime=new RuntimeProbe();using var watcher=new FileSystemWatcher();MountManager.BindUploadWatcher(watcher,runtime.RequestScan);
+        using var runtime=new RuntimeProbe();
         Assert.True(runtime.Take());runtime.Wake();Assert.False(runtime.Take());Assert.Equal(1,runtime.Signal.CurrentCount);runtime.Signal.Wait(0);
         var directory=System.IO.Path.GetFullPath(".");
-        foreach(var (method,args) in new (string,EventArgs)[]{("OnChanged",new FileSystemEventArgs(WatcherChangeTypes.Changed,directory,"file")),("OnCreated",new FileSystemEventArgs(WatcherChangeTypes.Created,directory,"file")),("OnDeleted",new FileSystemEventArgs(WatcherChangeTypes.Deleted,directory,"file")),("OnRenamed",new RenamedEventArgs(WatcherChangeTypes.Renamed,directory,"new","old")),("OnError",new ErrorEventArgs(new InternalBufferOverflowException()))})
+        foreach(var kind in new[]{"changed","created","deleted","renamed","rescan"})
         {
-            typeof(FileSystemWatcher).GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(watcher,[args]);runtime.Wake();Assert.True(runtime.Take());Assert.False(runtime.Take());Assert.Equal(1,runtime.Signal.CurrentCount);runtime.Signal.Wait(0);
+            var intent=new NativeTaskIntent(Guid.NewGuid().ToString("N"),Guid.NewGuid(),Guid.NewGuid().ToString("N"),1,kind,kind=="rescan"?"":"file",kind=="renamed"?"old":null);
+            MountManager.RecordNativeUploadChange(directory,intent,_=>{},runtime.RequestScan,()=>{});
+            runtime.Wake();Assert.True(runtime.Take());Assert.False(runtime.Take());Assert.Equal(1,runtime.Signal.CurrentCount);runtime.Signal.Wait(0);
         }
     }
     [Fact]

@@ -22,6 +22,8 @@ public sealed partial class NavigationService : INavigationService,IAsyncDisposa
     private bool _navigating,_stopping,_requestFailed;
     private Task? _releaseWork;
     public ApplicationPage? Current {get;private set;}
+    /// <summary>受限启动只允许设置和诊断页；关闭提醒不能改变此门禁。</summary>
+    internal Func<ApplicationPage,bool>? PageAllowed {get;set;}
     public bool CanGoBack=>!_stopping&&_frame?.CanGoBack==true;
     public event Action<ApplicationPage>? Navigated;
 
@@ -47,7 +49,7 @@ public sealed partial class NavigationService : INavigationService,IAsyncDisposa
     /// <summary>重复当前页不增加历史；非法枚举、重入和停止请求均不进入 Frame。</summary>
     public bool Navigate(ApplicationPage page)
     {
-        if(_stopping||_navigating||_frame is not {} frame||!_pageTypes.TryGetValue(page,out var pageType))return false;
+        if(_stopping||_navigating||PageAllowed?.Invoke(page)==false||_frame is not {} frame||!_pageTypes.TryGetValue(page,out var pageType))return false;
         if(Current==page)return true;
         return RunNavigation(()=>frame.Navigate(pageType,null));
     }

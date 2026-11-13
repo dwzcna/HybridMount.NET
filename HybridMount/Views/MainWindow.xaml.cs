@@ -11,6 +11,7 @@ namespace HybridMount.Views;
 /// <summary>主窗口连接标题栏、侧栏与 Frame，负责外观和页面导航状态。</summary>
 public sealed partial class MainWindow : Window
 {
+    private bool _indexWarningDismissed;
     private IDisposable? _localization;private LanguageWindowObserver? _languageWindow;
     private readonly NavigationService _navigation;
     public MainWindowViewModel ViewModel {get;}
@@ -24,7 +25,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         ViewModel=new(App.Current.Navigation,App.Current.UiDispatcher,App.Current.IssueNotifications,App.Current.TaskFocus,error=>App.Current.Logger.QueueException("主窗口","Warning","窗口状态更新失败",error));
-        InitializeComponent();NotificationBar.Closed+=MainNotificationClosed;_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(RootGrid,()=>Bindings.Update());
+        InitializeComponent();NotificationBar.Closed+=MainNotificationClosed;_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(RootGrid,()=>{Bindings.Update();RefreshIndexWarning();});
         _navigation=App.Current.Navigation;
         _navigation.RegisterFrame(ContentFrame,error=>App.Current.Logger.Queue("导航","Error","页面导航失败："+error.GetType().Name));
         ViewModel.Navigated+=SynchronizeSelection;ViewModel.NoticesChanged+=RefreshUploadIssueNotifications;
@@ -42,8 +43,22 @@ public sealed partial class MainWindow : Window
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
         App.Current.Preferences.LayoutChanged+=ApplyDensity;ObserveThemeSettings();ApplyDensity();
         ApplyAppearance();
-        ViewModel.Navigate(ApplicationPage.Home);RefreshUploadIssueNotifications();_languageWindow=new(this,App.Current.Languages);
+        if(!App.Current.RuntimeAvailable)
+            foreach(var item in Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>())
+                if(item.Tag is ApplicationPage page)item.IsEnabled=page is ApplicationPage.Settings or ApplicationPage.Logs;
+        IndexWarning.Closed+=(_,_)=>{_indexWarningDismissed=true;RefreshNotificationHost();};RefreshIndexWarning();
+        ViewModel.Navigate(App.Current.RuntimeAvailable?ApplicationPage.Home:ApplicationPage.Settings);RefreshUploadIssueNotifications();_languageWindow=new(this,App.Current.Languages);
     }
+    /// <summary>格式提醒独立关闭；三语言与模式切换不改变运行限制。</summary>
+    private void RefreshIndexWarning()
+    {
+        if(App.Current.RuntimeAvailable)return;
+        IndexWarning.Title=global::HybridMount.Services.Localization.UiText.Text("IndexRestrictedTitle");
+        IndexWarning.Message=App.Current.IndexRestrictionMessage;IndexSettingsButton.Content=global::HybridMount.Services.Localization.UiText.Text("IndexGoToSettings");
+        IndexWarning.Severity=App.Current.IndexFormat.State=="Old"?InfoBarSeverity.Warning:InfoBarSeverity.Error;
+        if(!_indexWarningDismissed)IndexWarning.IsOpen=true;RefreshNotificationHost();
+    }
+    private void GoToIndexSettings(object sender,RoutedEventArgs args)=>ViewModel.Navigate(ApplicationPage.Settings);
     /// <summary>成功导航后更新侧栏和标题栏；程序性选中不会触发 ItemInvoked。</summary>
     private void SynchronizeSelection(ApplicationPage page)
     {
@@ -117,7 +132,7 @@ public sealed partial class MainWindow : Window
         else if(!App.Current.Preferences.CompactLayout&&_compactResources is {} previous){RootGrid.Resources.MergedDictionaries.Remove(previous);_compactResources=null;}
     }
     /// <summary>无打开消息时折叠整个提醒容器，避免空白区域遮挡页面或拦截滚轮。</summary>
-    private void RefreshNotificationHost()=>NotificationHost.Visibility=NotificationBar.IsOpen||PageNotifications.Children.OfType<InfoBar>().Any(bar=>bar.IsOpen)||IssueNotifications.Children.OfType<InfoBar>().Any(bar=>bar.IsOpen)?Visibility.Visible:Visibility.Collapsed;
+    private void RefreshNotificationHost()=>NotificationHost.Visibility=IndexWarning.IsOpen||NotificationBar.IsOpen||PageNotifications.Children.OfType<InfoBar>().Any(bar=>bar.IsOpen)||IssueNotifications.Children.OfType<InfoBar>().Any(bar=>bar.IsOpen)?Visibility.Visible:Visibility.Collapsed;
     private void MainNotificationClosed(InfoBar sender,InfoBarClosedEventArgs args)=>RefreshNotificationHost();
     /// <summary>UI线程注册一个独立页面消息；关闭仅更新该渠道，不取消业务，不为导航重新发布。</summary>
     internal IDisposable? RegisterPageMessage(PageStatusMessage message)

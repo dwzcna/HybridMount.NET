@@ -63,16 +63,25 @@ public sealed partial class MountManager
         lock(_lifetime)
         {
             if(IsStopping)return;Volatile.Write(ref _stopping,1);TasksQueue.RequestStop();
-            var signals=new List<Task>{_stop.CancelAsync(),_previews.RequestStop()};
-            foreach(var root in _roots.Values)
-            {
-                CancelConnection(root,reason:"Shutdown");RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
-                lock(root.ConnectionSync){signals.Add(root.ConnectionSignal);if(root.Uploads is {} uploads)signals.Add(uploads.Cancellation);}
-                if(root.Session is {} session)signals.Add(session.RequestStop());
-            }
-            signals.AddRange(_synologySessions.Select(session=>session.DisposeAsync().AsTask()));
-            _cancellation=Task.WhenAll(signals);ObserveStop("StopSignaled",null);
+            _fileDispatcher.StopAdmission();
+            _cancellation=StopNativeProducersAsync();ObserveStop("StopSignaled",null);
         }
+    }
+    /// <summary>停止监听并持久交付捕获事件，然后取消业务；管道持续服务到任务与回执资源排空。</summary>
+    private async Task StopNativeProducersAsync()
+    {
+        Exception? captureFailure=null;
+        try{await _fileDispatcher.StopCapturesAsync().ConfigureAwait(false);}
+        catch(Exception error){captureFailure=error;ObserveStop("NativeCaptureFailed",error);}
+        var signals=new List<Task>{_stop.CancelAsync(),_previews.RequestStop()};
+        foreach(var root in _roots.Values)
+        {
+            CancelConnection(root,reason:"Shutdown");RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
+            lock(root.ConnectionSync){signals.Add(root.ConnectionSignal);if(root.Uploads is {} uploads)signals.Add(uploads.Cancellation);}
+            if(root.Session is {} session)signals.Add(session.RequestStop());
+        }
+        signals.AddRange(_synologySessions.Select(session=>session.DisposeAsync().AsTask()));await Task.WhenAll(signals).ConfigureAwait(false);
+        if(captureFailure is not null)throw new IOException("原生捕获交付未完整确认，重连必须补扫。",captureFailure);
     }
     private void ObserveStop(string phase,Exception? error)
     {
@@ -113,6 +122,7 @@ public sealed partial class MountManager
                 finally{root.Gate.Release();}
             }).ConfigureAwait(false);
         }
+        await Step("FileTaskDispatcher",()=>_fileDispatcher.DisposeAsync().AsTask()).ConfigureAwait(false);
         if(_ownsTasksQueue)await Step("TasksQueue",()=>TasksQueue.DisposeAsync().AsTask()).ConfigureAwait(false);
         foreach(var job in _jobs.Values)job.Cancel.Dispose();_capacities.Dispose();_issuePublishGate.Dispose();_configurationGate.Dispose();_displayWake.Dispose();_stop.Dispose();
         ObserveStop(errors.Count==0?"Stopped":"StoppedWithErrors",null);

@@ -2812,5 +2812,41 @@
   "RecoveryModePackaged": {"Source": "有包运行", "LocalizableArguments": []},
   "RecoveryModeUnpackaged": {"Source": "无包运行", "LocalizableArguments": []},
   "TaskRemoteScanProgress": {"Source": "远端扫描：已发现 {0} 项", "LocalizableArguments": []},
-  "TaskRemoteApplyProgress": {"Source": "核对远端更改：{0} / {1}", "LocalizableArguments": []}
+  "TaskRemoteApplyProgress": {"Source": "核对远端更改：{0} / {1}", "LocalizableArguments": []},
+  "IndexOldResetRequired": {
+    "Source": "检测到旧版应用数据格式。请前往“设置 → 还原”重置当前运行模式的应用数据，然后重新导入 .hmxbk 配置。",
+    "LocalizableArguments": []
+  },
+  "IndexRestrictedTitle": {
+    "Source": "应用数据需要处理",
+    "LocalizableArguments": []
+  },
+  "IndexGoToSettings": {
+    "Source": "前往设置",
+    "LocalizableArguments": []
+  },
+  "IndexNewerVersion": {
+    "Source": "应用数据由较新版本创建。请使用相应新版程序；当前不会连接挂载或执行任务。",
+    "LocalizableArguments": []
+  },
+  "IndexCorrupt": {
+    "Source": "应用数据索引损坏。请保留日志和原始数据进行排查；当前不会连接挂载或执行任务。",
+    "LocalizableArguments": []
+  },
+  "IndexAccessDenied": {
+    "Source": "无法读取应用数据，访问被拒绝。请检查当前用户的目录权限。",
+    "LocalizableArguments": []
+  },
+  "IndexReadFailed": {
+    "Source": "应用数据索引读取失败。请查看日志；当前不会连接挂载或执行任务。",
+    "LocalizableArguments": []
+  },
+  "IndexResetBlocked": {
+    "Source": "无法重置：{0} 请先使用 0.0.14.0 完成未决任务、导出配置并移除挂载，再重置当前模式的数据。",
+    "LocalizableArguments": []
+  },
+  "TaskWorkflowStep": {
+    "Source": "步骤 {0}：{1}；状态：{2}；依赖：{3}；尝试：{4}",
+    "LocalizableArguments": []
+  }
 }
