@@ -130,7 +130,7 @@ public sealed partial class SettingsViewModel : ObservableObject,IDisposable,IAs
     }
     private async Task TrimCoreAsync()
     {
-        try{var result=await Task.Run(async()=>{var freed=await _mounts!.EnforceCacheLimitAsync().ConfigureAwait(false);return (Freed:freed,Usage:_mounts.CacheUsageBytes);});if(!_disposed)CacheStatus=global::HybridMount.Services.Localization.UiText.Text("Text_9A4D7A27AB0E",result.Freed/(1024d*1024),result.Usage/(1024d*1024));}
+        try{var result=await Task.Run(async()=>{var freed=await _mounts!.EnforceCacheLimitAsync().ConfigureAwait(false);return (Freed:freed,Usage:await _mounts.GetCacheUsageAsync().ConfigureAwait(false));});if(!_disposed)CacheStatus=global::HybridMount.Services.Localization.UiText.Text("Text_9A4D7A27AB0E",result.Freed/(1024d*1024),result.Usage/(1024d*1024));}
         catch(Exception error){if(!_disposed)Publish(CacheMessage,error.Message,nameof(CacheStatus),severity:PageMessageSeverity.Error);_logger?.QueueException("缓存","Warning","缓存操作失败",error);}
         finally{_trimming=false;if(!_disposed)OnPropertyChanged(nameof(CanEditCache));}
     }

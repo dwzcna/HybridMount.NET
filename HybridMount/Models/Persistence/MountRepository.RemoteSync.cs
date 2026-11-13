@@ -34,12 +34,35 @@ public sealed partial class MountRepository
     public void CommitRemoteBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null)
         =>CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint);
     /// <summary>返回本次事务实际创建的事件，供有界发布使用；调用方不能重放未提交的发现。</summary>
-    internal IReadOnlyList<RemotePendingChange> CommitDiscoveredBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null)
+    internal IReadOnlyList<RemotePendingChange> CommitDiscoveredBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null,IReadOnlyDictionary<string,RemoteShadowEntry>? repeated=null)
     {
         lock(_gate)
         {
             using var db=Open();using var transaction=db.BeginTransaction();
             var created=new List<RemotePendingChange>();
+            // 当前事务内按批次捕获证据；不能只凭扫描开始时的内存影子吞掉本地变化或恢复任务。
+            if(repeated is {Count:>0})
+            {
+                var paths=JsonSerializer.Serialize(repeated.Keys);
+                Dictionary<string,RemoteShadowEntry> current;
+                var active=new Dictionary<string,List<RemotePendingChange>>(StringComparer.Ordinal);
+                using(var query=db.CreateCommand())
+                {
+                    query.Transaction=transaction;query.CommandText="SELECT json FROM remote_shadow WHERE mount=$m AND scope=$s AND path IN (SELECT value FROM json_each($paths))";
+                    query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$s",scope);query.Parameters.AddWithValue("$paths",paths);
+                    using var rows=query.ExecuteReader();current=new(StringComparer.Ordinal);
+                    while(rows.Read()){var item=JsonSerializer.Deserialize<RemoteShadowEntry>(rows.GetString(0))!;current[item.Entry.Path]=item;}
+                }
+                using(var query=db.CreateCommand())
+                {
+                    query.Transaction=transaction;query.CommandText="SELECT json FROM remote_pending WHERE mount=$m AND scope=$s AND path IN (SELECT value FROM json_each($paths)) AND json_extract(json,'$.State') NOT IN ('Completed','Superseded')";
+                    query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$s",scope);query.Parameters.AddWithValue("$paths",paths);
+                    using var rows=query.ExecuteReader();while(rows.Read()){var item=JsonSerializer.Deserialize<RemotePendingChange>(rows.GetString(0))!;if(!active.TryGetValue(item.Path,out var list))active[item.Path]=list=[];list.Add(item);}
+                }
+                changed=changed.Where(item=>!repeated.TryGetValue(item.Entry.Path,out var expected)||
+                    !current.TryGetValue(item.Entry.Path,out var actual)||actual!=expected||
+                    !(active.GetValueOrDefault(item.Entry.Path)?.Any(p=>p.Entry?.Version==item.Entry.Version&&p.Entry.IsDirectory==item.Entry.IsDirectory)==true||ConfirmedSilent(db,transaction,mount,item.Entry))).ToArray();
+            }
             // 路径索引定位待退役事件，不逐个文件重新装载整根JSON；本事务内再核验静默回显候选。
             var deletedPaths=deleted.ToHashSet(StringComparer.Ordinal);
             foreach(var path in changed.Select(x=>x.Entry.Path).Concat(deleted))
@@ -83,7 +106,7 @@ public sealed partial class MountRepository
         lock(_gate){using var db=Open();using var tx=db.BeginTransaction();SavePendingCore(db,tx,pending);tx.Commit();}
     }
     /// <summary>扫描与应用并行时，在同一事务内检查终态再保存；迟到准备不得复活被取代的事件。</summary>
-    internal RemotePendingChange SaveRemotePendingCurrent(RemotePendingChange pending,bool retry=false)
+    internal RemotePendingChange SaveRemotePendingCurrent(RemotePendingChange pending,bool retry=false,Func<RemotePendingChange,MountOperationSnapshot>? snapshot=null,MountEntry? present=null)
     {
         lock(_gate)
         {
@@ -96,12 +119,23 @@ public sealed partial class MountRepository
                 // 仅刚进入不可逆阶段时重建依赖；已经提交的阶段仍须安全收尾。
                 if(pending.State=="Committing"&&current.State is not("Committing" or "Hydrating"))
                 {
-                    using var command=db.CreateCommand();command.Transaction=tx;command.CommandText="SELECT json FROM remote_pending WHERE mount=$m";command.Parameters.AddWithValue("$m",pending.MountId.ToString("N"));
-                    var all=new List<RemotePendingChange>();using(var rows=command.ExecuteReader())while(rows.Read())all.Add(JsonSerializer.Deserialize<RemotePendingChange>(rows.GetString(0))!);
-                    if(!OperationDependencies.RemoteReady(all,pending))throw new SourceConflictException("必要父项或子项尚未完成，未开始本地提交。");
+                    if(!RemoteDependenciesReadyCore(db,tx,pending))throw new SourceConflictException("必要父项或子项尚未完成，未开始本地提交。");
                 }
             }
-            SavePendingCore(db,tx,pending);tx.Commit();return pending;
+            if(present is not null)
+            {
+                using var presence=db.CreateCommand();presence.Transaction=tx;
+                presence.CommandText="INSERT INTO remote_presence SELECT mount,id,1 FROM entries WHERE mount=$m AND id=$id AND source=$p AND local=$l AND version=$v AND materialized=1 ON CONFLICT(mount,id) DO UPDATE SET presence=1";
+                presence.Parameters.AddWithValue("$m",pending.MountId.ToString("N"));presence.Parameters.AddWithValue("$id",present.Id);presence.Parameters.AddWithValue("$p",present.SourcePath);presence.Parameters.AddWithValue("$l",present.LocalPath);presence.Parameters.AddWithValue("$v",present.Version);
+                if(presence.ExecuteNonQuery()!=1)throw new SourceConflictException("索引已变化，未完成旧版本核对。");
+            }
+            SavePendingCore(db,tx,pending);
+            if(snapshot is not null)
+            {
+                using var history=db.CreateCommand();history.Transaction=tx;history.CommandText="INSERT INTO operations VALUES($id,$j) ON CONFLICT(id) DO UPDATE SET json=$j";
+                history.Parameters.AddWithValue("$id",pending.Id);history.Parameters.AddWithValue("$j",JsonSerializer.Serialize(snapshot(pending)));history.ExecuteNonQuery();
+            }
+            tx.Commit();return pending;
         }
     }
     private static RemotePendingChange? ReadPendingCore(SqliteConnection db,SqliteTransaction transaction,string id)

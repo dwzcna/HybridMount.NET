@@ -48,14 +48,14 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         var roots=await _manager.DiscoverOrphanedMountsAsync(token);if(IsStopping)return;
         SnapshotCollections.Reconcile(RecoveryRoots,roots,x=>x.LocalPath);SelectedRecoveryRoot=null;
     }
-    public async Task AddRecoveryRootAsync(string path,CancellationToken token)
+    public async Task<OrphanedMountInspection> AddRecoveryRootAsync(string path,CancellationToken token)
     {
-        var root=await _manager.InspectOrphanedMountAsync(path,token);if(IsStopping)return;
+        var inspected=await _manager.InspectOrphanedMountSelectionAsync(path,token);if(IsStopping||inspected.Candidate is not {} root)return inspected;
         var previous=RecoveryRoots.FirstOrDefault(x=>x.LocalPath.Equals(root.LocalPath,StringComparison.OrdinalIgnoreCase));
         if(previous is {CanRemove:true}&&previous.RootIdentity==root.RootIdentity&&previous.SyncRootId==root.SyncRootId&&previous.OrphanedDirectory==root.OrphanedDirectory&&previous.ShellOnly==root.ShellOnly)
-        {SelectedRecoveryRoot=previous;return;}
+        {SelectedRecoveryRoot=previous;return inspected;}
         if(previous is not null)RecoveryRoots.Remove(previous);
-        RecoveryRoots.Add(root);SelectedRecoveryRoot=root;
+        RecoveryRoots.Add(root);SelectedRecoveryRoot=root;return inspected;
     }
     public async Task<OrphanedMountResult> ClearRecoveryRootAsync(OrphanedMountCandidate root,CancellationToken token,Action<string>? progress=null)
     {

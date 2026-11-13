@@ -121,6 +121,61 @@ public sealed class RemoteCollectionSyncTests
         await engine.PollAsync(false,TimeSpan.Zero,default);await engine.PollAsync(false,TimeSpan.Zero,default);
         Assert.Empty(repo.RemotePending(mount,"scope"));Assert.Empty(repo.LoadOperations());
     }
+    [Theory]
+    [InlineData("strong")][InlineData("weak")][InlineData("bare")][InlineData("missing")]
+    public async Task FiveReconnectsKeepCanceledIntentAndCompletedObservationWithoutNewTasks(string shape)
+    {
+        await using var fixture=new SyncDavFixture();
+        if(shape=="weak")fixture.Dav.WeakEtag=true;
+        if(shape is "bare" or "missing")foreach(var pair in fixture.Dav.Objects.ToArray())fixture.Dav.Objects[pair.Key]=pair.Value with{ETag=shape=="bare"?pair.Value.ETag.Trim('"'):""};
+        await using var source=fixture.Dav.Source();var repo=fixture.Repository();var mount=Guid.NewGuid();
+        await new RemoteSyncEngine(mount,"repeat",source,source,repo).PollAsync(true,TimeSpan.Zero,default);
+        var original=repo.RemotePending(mount,"repeat").ToArray();Assert.NotEmpty(original);
+        foreach(var item in original)
+        {
+            if(item.Entry!.IsDirectory){repo.SaveEntry(mount,new("local-"+item.Id,item.Path,item.Path,item.Entry.Version,true,Materialized:true));repo.SaveRemotePending(item with{State="Completed"});}
+            else repo.SaveRemotePending(item with{State="Canceled",Error="explicit cancellation"});
+        }
+        var expected=repo.RemotePending(mount,"repeat").ToArray();
+        for(var i=0;i<5;i++)await new RemoteSyncEngine(mount,"repeat",source,source,repo).PollAsync(true,TimeSpan.Zero,default);
+        Assert.Equal(expected,repo.RemotePending(mount,"repeat"));
+        Assert.DoesNotContain(fixture.Dav.Server.Requests,x=>x.Method is "GET" or "PUT" or "DELETE");
+    }
+    [Fact]
+    public async Task MissingLocalPublicationIsRepairedRatherThanHiddenByUnchangedShadow()
+    {
+        await using var fixture=new SyncDavFixture();fixture.Dav.WeakEtag=true;await using var source=fixture.Dav.Source();var repo=fixture.Repository();var mount=Guid.NewGuid();
+        await new RemoteSyncEngine(mount,"repair",source,source,repo).PollAsync(true,TimeSpan.Zero,default);
+        foreach(var item in repo.RemotePending(mount,"repair"))repo.SaveRemotePending(item with{State="Completed"});
+        var count=repo.RemotePending(mount,"repair").Count;
+        await new RemoteSyncEngine(mount,"repair",source,source,repo).PollAsync(true,TimeSpan.Zero,default);
+        Assert.True(repo.RemotePending(mount,"repair").Count>count);Assert.Contains(repo.RemotePending(mount,"repair"),x=>x.State=="Pending");
+    }
+    [Fact(Timeout=120000)]
+    public async Task Legacy861UnchangedEventsDrainWithoutBodyReadOrIdentityChange()
+    {
+        await using var fixture=new DavFixture();fixture.XmlTag=item=>item.ETag.Trim('"');
+        for(var i=0;i<1773;i++)fixture.Put("bulk-"+i.ToString("D4")+".bin",[(byte)(i%251)]);
+        var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");var local=Path.Combine(fixture.Area,"view");Directory.CreateDirectory(local);
+        var repo=new MountRepository(Path.Combine(fixture.Area,"data"),registry);await using var logger=new LoggerService(Path.Combine(fixture.Area,"logs.db"));
+        await using var manager=new MountManager(repo,logger);var mount=await manager.AddAsync("legacy backlog",local,true,source:fixture.Options,credentials:new("user","app-password"));
+        try
+        {
+            await manager.SetRemoteDetectionAsync(mount.Id,false,60,300);var all=repo.AllRemotePending(mount.Id);Assert.Equal(1775,all.Count);
+            var backlog=all.Where(x=>x.Entry is {IsDirectory:false}).Take(861).ToArray();Assert.Equal(861,backlog.Length);
+            var first=repo.Entries(mount.Id).First(x=>!x.IsDirectory);var path=RelativePaths.ToLocal(local,first.LocalPath);var identity=LocalFileState.Read(path).Identity;
+            foreach(var item in backlog)repo.SaveRemotePending(item with{State="Pending"});
+            var started=System.Diagnostics.Stopwatch.GetTimestamp();await manager.DetectRemoteForTestsAsync(mount.Id);
+            var seconds=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds;
+            Assert.All(repo.AllRemotePending(mount.Id),item=>Assert.Equal("Completed",item.State));Assert.Equal(1775,repo.AllRemotePending(mount.Id).Count);
+            Assert.Equal(identity,LocalFileState.Read(path).Identity);Assert.DoesNotContain(fixture.Server.Requests,x=>x.Method is "GET" or "PUT" or "DELETE");
+            Assert.True(seconds<=30,$"861-event drain took {seconds:F3}s");
+        }
+        finally
+        {
+            await WebDavTests.Finished(manager,manager.Queue(mount.Id,"clearAndRemove"));Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);
+        }
+    }
     [Fact]
     public async Task FactoryRestoresWeakObservationBeforeItsFirstMetadataRead()
     {

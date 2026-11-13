@@ -41,13 +41,6 @@ public static class CloudRootRegistration
             Context = CryptographicBuffer.CreateFromByteArray(MountPathGuard.RootBytes(mount.Id))
         };
     }
-    private static void AddIssueDefinition(StorageProviderSyncRootInfo info)
-    {
-        if(!info.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudUploadIssueProperty.PropertyId))
-            info.StorageProviderItemPropertyDefinitions.Add(new(){Id=CloudUploadIssueProperty.PropertyId,DisplayNameResource="同步问题"});
-        if(!info.StorageProviderItemPropertyDefinitions.Any(x=>x.Id==CloudItemStateProperty.ExclusionId))
-            info.StorageProviderItemPropertyDefinitions.Add(new(){Id=CloudItemStateProperty.ExclusionId,DisplayNameResource="上传排除"});
-    }
     public static void Unregister(MountDefinition mount)
     {
         MountPathGuard.ValidateOperation(mount,mount.LocalPath);

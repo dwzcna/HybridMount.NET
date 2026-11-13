@@ -11,7 +11,7 @@ public sealed partial class CloudMountSession
     internal event Action<string>? PinWorkCompleted;
     internal Func<CancellationToken,Task>? PinResourcesReleasingForTests {get;set;}
     private void NotifyPinWorkCompleted(string entryId)
-    {if(_stop.IsCancellationRequested)return;var entry=_repository.Entries(_mount.Id).FirstOrDefault(x=>x.Id==entryId);if(entry is null)return;if(PinWorkCompleted is {} handlers)foreach(Action<string> handler in handlers.GetInvocationList())try{handler(entry.LocalPath);}catch(Exception error){_logger.Queue("固定意图","Warning",error.GetType().Name);}}
+    {if(_stop.IsCancellationRequested)return;var entry=_repository.EntryById(_mount.Id,entryId);if(entry is null)return;if(PinWorkCompleted is {} handlers)foreach(Action<string> handler in handlers.GetInvocationList())try{handler(entry.LocalPath);}catch(Exception error){_logger.Queue("固定意图","Warning",error.GetType().Name);}}
     private readonly ConcurrentDictionary<string,SemaphoreSlim> _pinGates=new();
     /// <summary>只查属性和本地范围；调用者持根锁且已排除上传及远端屏障，不读取正文或改变固定意图。</summary>
     internal (bool Pinned,bool NeedsDownload) ReadPinIntent(MountEntry entry)

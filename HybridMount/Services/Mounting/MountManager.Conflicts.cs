@@ -18,18 +18,18 @@ public sealed partial class MountManager
     {
         if(RenameIntent(id) is {} rename)return RelativePaths.ToLocal(Root(rename.MountId).Definition.LocalPath,rename.LocalPath);
         if(_repository.Upload(id) is not null)return UploadIssueLocalPath(id);
-        var pending=_roots.Keys.SelectMany(_repository.AllRemotePending).FirstOrDefault(x=>x.Id==id)??throw new IOException("同步问题不存在。");
-        var root=Root(pending.MountId);var entry=_repository.Entries(pending.MountId).FirstOrDefault(x=>x.SourcePath==pending.Path);
+        var pending=_repository.FindRemotePending(id)??throw new IOException("同步问题不存在。");
+        var root=Root(pending.MountId);var entry=_repository.EntryBySource(pending.MountId,pending.Path);
         return RelativePaths.ToLocal(root.Definition.LocalPath,entry?.LocalPath??pending.Path);
     }
-    private bool HasConflictResolution(Guid mount,string path)=>_repository.Uploads(mount).Any(x=>x.Resolution is not null&&MountRepository.ConflictRelated(path,x.SourcePath));
+    private bool HasConflictResolution(Guid mount,string path)=>_repository.UploadsRelated(mount,path).Any(x=>x.Resolution is not null&&MountRepository.ConflictRelated(path,x.SourcePath));
     /// <summary>比较仅查询元数据，不水合、不计算正文摘要、不执行写能力探测；网络期间不持根锁。</summary>
     public Task<ConflictComparison> CompareConflictAsync(string taskId,CancellationToken token=default)=>OwnAsync(async cancel=>
         {try{return await Task.Run(()=>CompareConflictCoreAsync(taskId,cancel),cancel).ConfigureAwait(false);}
          catch(Exception error){ReportDiagnosticException("冲突比较","冲突核对未完成",error);throw;}},token);
     private async Task<ConflictComparison> CompareConflictCoreAsync(string taskId,CancellationToken token)
     {
-        var selected=_repository.Upload(taskId);var remoteTask=selected is null?_roots.Keys.SelectMany(_repository.AllRemotePending).FirstOrDefault(x=>x.Id==taskId):null;
+        var selected=_repository.Upload(taskId);var remoteTask=selected is null?_repository.FindRemotePending(taskId):null;
         var root=Root(selected?.MountId??remoteTask?.MountId??throw new IOException("冲突任务不存在。"));
         MountDefinition definition;CloudMountSession session;IFileSource source;LocalUpload? upload;MountEntry? entry;LocalFileStamp? stamp=null;string pending,path,localError="";
         await root.Gate.WaitAsync(token).ConfigureAwait(false);

@@ -14,13 +14,6 @@ public sealed partial class CloudMountSession
     {
         if(!entry.IsDirectory&&!_clearing&&!_stop.IsCancellationRequested)LocalWriteCompleted?.Invoke(entry.LocalPath,stamp);
     }
-    /// <summary>保护句柄仍有效时记录元数据更新后的戳；记录失败保留正常扫描行为。</summary>
-    private void RecordProtectedWrite(MountEntry entry,SafeFileHandle handle)
-    {
-        if(LocalWriteCompleted is null||entry.IsDirectory)return;
-        try{RecordLocalWrite(entry,LocalFileState.Read(handle));}
-        catch(Exception error)when(error is IOException or Win32Exception or UnauthorizedAccessException){}
-    }
     /// <summary>只读属性核对本挂载、条目身份及干净状态；可靠USN、长度和时间均匹配才提供候选戳。</summary>
     private LocalFileStamp? HydrationStamp(MountEntry entry,SourceEntry metadata)
     {

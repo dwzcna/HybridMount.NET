@@ -2443,4 +2443,12 @@
   <data name="BackupProtectionToggle.Content" xml:space="preserve"><value>使用密码保护</value></data>
   <data name="BackupPlaintextNotice.Text" xml:space="preserve"><value>未启用密码保护：备份包含明文用户名、密码和访问密钥，请妥善保管。</value></data>
   <data name="BackupProtectedNotice.Text" xml:space="preserve"><value>仅凭据受到密码保护；服务器地址、目录和排除规则等设置保持明文，可直接编辑。</value></data>
+  <data name="RecoveryManagedDirectory" xml:space="preserve"><value>目录仍由挂载“{0}”管理。
+目录：{1}
+所属模式：{2}
+请使用该挂载的移除入口。</value></data>
+  <data name="RecoveryModePackaged" xml:space="preserve"><value>有包运行</value></data>
+  <data name="RecoveryModeUnpackaged" xml:space="preserve"><value>无包运行</value></data>
+  <data name="TaskRemoteScanProgress" xml:space="preserve"><value>远端扫描：已发现 {0} 项</value></data>
+  <data name="TaskRemoteApplyProgress" xml:space="preserve"><value>核对远端更改：{0} / {1}</value></data>
 </root>

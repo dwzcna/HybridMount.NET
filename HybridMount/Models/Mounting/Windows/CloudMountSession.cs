@@ -144,7 +144,8 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(!_clearing&&!_stop.IsCancellationRequested)_localChanged?.Invoke();NotifyPinWorkCompleted(id);QueueContentNotification(id);return;}
         var captured=data.Clone();QueueNativeNotification(()=>
         {
-            var entries=_repository.Entries(_mount.Id);var entry=entries.FirstOrDefault(x=>x.Id==id);if(entry is null)return;
+            var entry=_repository.EntryById(_mount.Id,id);if(entry is null)return;
+            var entries=_repository.EntriesInLocalSubtree(_mount.Id,entry.LocalPath);
             if(message.Event=="deleted")foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)&&item.RemotePresence!=RemotePresence.Deleted))_repository.SaveEntry(_mount.Id,child with{Deleted=true,Protected=true});
             else if(message.Event=="renamed")
             {

@@ -199,6 +199,12 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     }
 #endif
     if(operation=="inspectOrphanedDirectory"||operation=="clearOrphanedDirectory")return ExecuteOrphanedDirectory(_impl->Host,command);
+    // 批量只读属性查询与普通查询共用实现；单项故障保留HRESULT，不读取文件正文。
+    if(operation=="queryFiles"){
+        const auto& paths=data.at("paths");Require(paths.is_array()&&paths.size()>0&&paths.size()<=64);Json items=Json::array();
+        for(const auto& path:paths){command.CheckCancel();Json item{{"path",path},{"hresult",S_OK}};try{item["snapshot"]=Query({{"path",path},{"persisted",true},{"ranges",false}});}catch(const Failure& error){item["hresult"]=error.Code;}items.push_back(std::move(item));}
+        return {{"items",items}};
+    }
     if(operation=="queryFile")return Query(data);
     if(operation=="readShellState")return ReadShellProperties(FullPath(Text(data,"path")));
     if(operation=="readCustomState")return ReadCustomProperties(FullPath(Text(data,"path")));

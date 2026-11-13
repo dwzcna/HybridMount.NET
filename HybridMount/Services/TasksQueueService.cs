@@ -200,8 +200,9 @@ public sealed partial class TasksQueueService : IAsyncDisposable
             var requests=_active.Values.Count(x=>!x.IsWorkflow);
             var ready=_pending.Where(x=>(x.Workflow||requests<_parallelism)&&DependenciesReady(x.Task)&&CanRun(x.Task,x.Workflow)).ToArray();
             if(ready.Length==0)break;
-            var priority=ready.Max(x=>Priority(x.Task));
-            var selected=ready.Where(x=>Priority(x.Task)==priority).GroupBy(x=>x.Task.MountId)
+            var priorities=ready.ToDictionary(x=>x,x=>Priority(x.Task));
+            var priority=priorities.Values.Max();
+            var selected=ready.Where(x=>priorities[x]==priority).GroupBy(x=>x.Task.MountId)
                 .OrderBy(group=>_turns.GetValueOrDefault((priority,group.Key)))
                 .ThenBy(group=>group.Min(x=>x.Sequence))
                 .First().OrderBy(x=>x.Task.SubmitTime).ThenBy(x=>x.Sequence).First();

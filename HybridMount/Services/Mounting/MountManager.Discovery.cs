@@ -53,6 +53,7 @@ public sealed partial class MountManager
     private void PublishDiscoveryProgress(Runtime root,RemoteSyncRuntime runtime,bool force=false)
     {
         if(!RemoteSessionCurrent(root,runtime))return;var now=Stopwatch.GetTimestamp();if(!force&&runtime.LastPublicationProgress!=0&&Stopwatch.GetElapsedTime(runtime.LastPublicationProgress,now)<TimeSpan.FromMilliseconds(250))return;
+        if(runtime.ProgressTaskId is {} taskId)_taskProgress[taskId]=global::HybridMount.Services.Localization.UiText.Text("TaskRemoteScanProgress",runtime.Discovered);
         runtime.LastPublicationProgress=now;root.Detection=root.Detection with{Mode=$"{runtime.Engine.Mode}；发现 {runtime.Discovered}／创建 {runtime.Created}／发布 {runtime.Published}"};Notify();
     }
     /// <summary>只快速发布新建的冷占位，已有内容仍走原保护路径；同一层最多256项，父目录先发布。</summary>

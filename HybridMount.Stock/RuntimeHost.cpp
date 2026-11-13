@@ -129,7 +129,7 @@ void RuntimeHost::Run(){
         if(kind=="cancel"){auto id=GuidN(frame.at("requestId"));std::lock_guard lock(p.CallsGate);auto found=p.Calls.find(id);if(found!=p.Calls.end())SetEvent(found->second->Cancel.Value);continue;}
         Require(kind=="command");auto command=std::make_shared<RuntimeCommand>();command->Id=GuidN(frame.at("requestId"));command->Operation=frame.at("operation").get<std::string>();command->Data=frame.at("data");Require(command->Operation.size()<=64&&command->Data.is_object());
         {std::lock_guard lock(p.CallsGate);Require(p.Calls.emplace(command->Id,command).second);}
-        const auto& op=command->Operation;bool completion=op=="runtimeSchedulingDiagnostics"||op=="finishFetch"||op=="closeLocalRead"||op=="clearRoot"||op=="blockEntry";bool fast=op=="localReadDiagnostics"||op=="thumbnailDiagnostics"||op=="readShellState"||op=="readCustomState"||op=="queryFile"||op=="queryRoot"||op=="tagState"||op=="activity";
+        const auto& op=command->Operation;bool completion=op=="runtimeSchedulingDiagnostics"||op=="finishFetch"||op=="closeLocalRead"||op=="clearRoot"||op=="blockEntry";bool fast=op=="localReadDiagnostics"||op=="thumbnailDiagnostics"||op=="readShellState"||op=="readCustomState"||op=="queryFile"||op=="queryFiles"||op=="queryRoot"||op=="tagState"||op=="activity";
         bool longRunning=op=="renderLocalThumbnail"||op=="hydrateFile"||op=="hydratePinned"||op=="applyRemoteSnapshot";
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
         // 只在测试映像路由无文件的延迟命令，实际使用生产工作池及取消路径。

@@ -21,8 +21,9 @@ public sealed partial class TasksQueueService
     {
         get
         {
-            var steps=QueueSnapshots;var schedule=Backend.TaskSchedules();var definitions=Backend.TaskDefinitions;
-            var persistent=Backend.Operations.Select(x=>Enrich(x,steps,schedule,definitions)).ToDictionary(x=>x.Id);
+            var steps=QueueSnapshots;var captured=Backend.ReadTaskPresentation();var schedule=captured.Schedule;var definitions=Backend.TaskDefinitions;
+            var byTask=steps.ToLookup(x=>x.Task.Id);
+            var persistent=captured.Operations.Select(x=>Enrich(x,byTask[x.Id].ToArray(),schedule,definitions)).ToDictionary(x=>x.Id);
             foreach(var group in steps.GroupBy(x=>x.Task.Id))
             {
                 if(persistent.ContainsKey(group.Key))continue;
@@ -46,10 +47,16 @@ public sealed partial class TasksQueueService
         if(path is not null&&definition is not null&&Path.IsPathRooted(path)&&MountPathGuard.IsUnder(definition.LocalPath,path))path=Path.GetRelativePath(definition.LocalPath,path);
         if(path==".")path="\\";
         snapshot=WithDownloadProgress(snapshot);
-        return snapshot with{MountName=definition?.Name!,RelativeItemPath=snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
+        var progress=Backend.TaskProgress(snapshot.Id);
+        return snapshot with{MountName=definition?.Name!,RelativeItemPath=progress??snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
     }
     internal Task<T> RunClientActionAsync<T>(Func<T> action)=>Backend.RunClientActionAsync(action);
-    public MountOperationSnapshot? GetOperation(string id)=>Operations.FirstOrDefault(x=>x.Id==id)??Backend.GetOperation(id);
+    public MountOperationSnapshot? GetOperation(string id)
+    {
+        var steps=QueueSnapshots.Where(x=>x.Task.Id==id).ToArray();var item=Backend.GetOperation(id);
+        if(item is null&&steps.FirstOrDefault() is {} current)item=new(id,current.Task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,current.Task.MountId,current.Task.Path);
+        return item is null?null:Enrich(item,steps,Backend.TaskScheduleFor(id),Backend.TaskDefinitions);
+    }
     /// <summary>页面携带尝试证据，阻止旧行在重排后取消新的同名文件任务。</summary>
     internal bool CancelSelected(MountOperationSnapshot selected)
     {

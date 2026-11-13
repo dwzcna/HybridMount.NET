@@ -203,6 +203,7 @@
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.UploadCopies.cs" Link="Production\Models\Persistence\MountRepository.UploadCopies.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.Uploads.cs" Link="Production\Models\Persistence\MountRepository.Uploads.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.cs" Link="Production\Models\Persistence\MountRepository.cs"/>
+    <Compile Include="..\HybridMount\Models\Persistence\MountRepository.TaskSnapshots.cs" Link="Production\Models\Persistence\MountRepository.TaskSnapshots.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.Discovery.cs" Link="Production\Models\Persistence\MountRepository.Discovery.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\RegistryMountDefinitionStore.cs" Link="Production\Models\Persistence\RegistryMountDefinitionStore.cs"/>
     <Compile Include="..\HybridMount\Models\Runtime\NativeRuntimeArguments.cs" Link="Production\Models\Runtime\NativeRuntimeArguments.cs"/>
@@ -240,6 +241,7 @@
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.ExcludedRenameWorker.cs" Link="Production\Services\Mounting\MountManager.ExcludedRenameWorker.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.ExcludedRenames.cs" Link="Production\Services\Mounting\MountManager.ExcludedRenames.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Exclusions.cs" Link="Production\Services\Mounting\MountManager.Exclusions.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.CacheUsage.cs" Link="Production\Services\Mounting\MountManager.CacheUsage.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.DisplaySnapshots.cs" Link="Production\Services\Mounting\MountManager.DisplaySnapshots.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Lifecycle.cs" Link="Production\Services\Mounting\MountManager.Lifecycle.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.PinIntents.cs" Link="Production\Services\Mounting\MountManager.PinIntents.cs"/>

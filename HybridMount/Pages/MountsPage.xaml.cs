@@ -154,7 +154,8 @@ public sealed partial class MountsPage : Page,IDisposable
             {
                 var picker=new global::Windows.Storage.Pickers.FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
                 var folder=await picker.PickSingleFolderAsync();if(folder is null||cancel.IsCancellationRequested||ViewModel.IsStopping)return;
-                await ViewModel.AddRecoveryRootAsync(folder.Path,cancel.Token);
+                var inspected=await ViewModel.AddRecoveryRootAsync(folder.Path,cancel.Token);
+                if(inspected.Managed is not null){feedback.Severity=InfoBarSeverity.Warning;feedback.Message=inspected.Message;feedback.IsOpen=true;return;}
                 if(!ViewModel.IsStopping&&ViewModel.SelectedRecoveryRoot is {} added)
                 {
                     if(!list.SelectedItems.Contains(added))list.SelectedItems.Add(added);list.ScrollIntoView(added);feedback.IsOpen=false;

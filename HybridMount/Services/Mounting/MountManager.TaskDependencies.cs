@@ -4,25 +4,28 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private readonly ConcurrentDictionary<string,string> _operationChecks=new();
+    private readonly ConcurrentDictionary<string,string> _taskProgress=new();
+    /// <summary>仅返回后台已发布的任务阶段，不执行查询或启动业务。</summary>
+    internal string? TaskProgress(string id)=>_taskProgress.GetValueOrDefault(id);
     private readonly ConcurrentDictionary<string,byte> _operationChecking=new();
     /// <summary>只读合并实际持久依赖与当前连接状态；不清除原错误，不因界面查询改变任务或连接。</summary>
-    private MountOperationSnapshot DescribeOperationWait(MountOperationSnapshot snapshot,string path)
+    private MountOperationSnapshot DescribeOperationWait(MountOperationSnapshot snapshot,string path,TaskStateSnapshot? state=null,IReadOnlyList<ExcludedRenameIntent>? renames=null)
     {
         string? reason=null,blockerId=null;
         if(snapshot.MountId is {} mount&&_roots.TryGetValue(mount,out var root)&&snapshot.State is not("Completed" or "Superseded"))
         {
-            var blocker=RemotePendingFor(root).Where(x=>x.Id!=snapshot.Id&&x.State is not("Completed" or "Superseded")&&!(x.State=="Canceled"&&x.MetadataOnly)&&UploadRules.SourceContains(x.Path,path)).OrderByDescending(x=>x.Path.Length).FirstOrDefault();
+            var blocker=state is null?_repository.RemoteAncestors(mount,path).Where(x=>x.Id!=snapshot.Id&&!(x.State=="Canceled"&&x.MetadataOnly)).OrderByDescending(x=>x.Path.Length).FirstOrDefault():state.Blocker(mount,path,snapshot.Id);
             if(blocker is not null){blockerId=blocker.Id;reason=$"等待远端任务 {blocker.Id}（{blocker.Path}，{RemoteTask(blocker).DisplayState}）：{blocker.Error??"远端变化尚待核对"}";}
             else if(snapshot.State is "Queued" or "Prepared" or "Waiting" or "WaitingCapacity")
             {
                 if(root.Session is null)reason="等待挂载连接。";
-                else if(_repository.Upload(snapshot.Id) is {} upload)
+                else if((state is null?_repository.Upload(snapshot.Id):state.ById.GetValueOrDefault(snapshot.Id)) is {} upload)
                 {
-                    if(_repository.HasPendingRemote(mount,path))reason="等待协议变更提示完成核对。";
-                    else if(RenameBlocksSource(mount,path))reason="等待同路径改名收尾。";
+                    if(state is null?_repository.HasPendingRemote(mount,path):state.ProtocolBlockedUploads.Contains(snapshot.Id))reason="等待协议变更提示完成核对。";
+                    else if(renames is null?RenameBlocksSource(mount,path):_renameErrors.ContainsKey(mount)||renames.Any(x=>x.MountId==mount&&!x.Finished&&(x.SourcePath==path||(x.DestinationPath??x.LocalPath)==path)))reason="等待同路径改名收尾。";
                     else if(!root.SchedulingEnabled&&!upload.ExplicitRequest)reason="自动上传已暂停，等待恢复调度。";
                     else if(upload.NextAttemptUtc is {} next&&next>DateTimeOffset.UtcNow)reason="等待重试时间："+next.ToLocalTime().ToString("G");
-                    else if(UploadRules.DeletedSourceAncestor(_repository.Entries(mount),path) is {} parent)reason="等待已删除父路径核对："+parent.SourcePath;
+                    else if((state is null?_repository.DeletedSourceAncestor(mount,path):state.DeletedAncestor(mount,path)) is {} parent)reason="等待已删除父路径核对："+parent.SourcePath;
                     else if(root.Uploads is {} runtime){lock(runtime.Sync)if(runtime.CurrentId is {} current&&current!=snapshot.Id){blockerId=current;reason="等待当前上传结束："+current;}}
                 }
             }
@@ -33,7 +36,7 @@ public sealed partial class MountManager
     public bool RecheckOperation(string id)
     {
         if(IsStopping)return false;if(RetryFileOperation(id))return true;if(RenameIntent(id) is not null)return RecheckExcludedRename(id);
-        var upload=_repository.Upload(id);var pending=_roots.Values.SelectMany(RemotePendingFor).FirstOrDefault(x=>x.Id==id);
+        var upload=_repository.Upload(id);var pending=_repository.FindRemotePending(id);
         var mount=upload?.MountId??pending?.MountId;
         if(mount is null||!_roots.TryGetValue(mount.Value,out var root)||root.RemovalRequested||root.Definition.RemovalPending||root.RemoteSync is not {} runtime||!_operationChecking.TryAdd(id,0))return false;
         _operationChecks[id]="正在只读核对；未授权覆盖或重试。";Notify();

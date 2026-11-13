@@ -2,6 +2,11 @@
             <!-- <summary>页头使用应用内磨玻璃；Grid背景画刷不透明度为原有的80%，Border保持原值，高对比度均保持不透明系统色。</summary> -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#FFF3F3F3"/>
+                    <SolidColorBrush x:Key="InfoBarErrorSeverityBackgroundBrush" Color="#FFFDE7E9"/>
+                    <SolidColorBrush x:Key="InfoBarWarningSeverityBackgroundBrush" Color="#FFFFF4CE"/>
+                    <SolidColorBrush x:Key="InfoBarSuccessSeverityBackgroundBrush" Color="#FFDFF6DD"/>
+
                     <StaticResource x:Key="AppBarButtonBackground" ResourceKey="SubtleButtonBackground"/>
                     <StaticResource x:Key="AppBarButtonForeground" ResourceKey="SubtleButtonForeground"/>
                     <StaticResource x:Key="AppBarButtonBorderBrush" ResourceKey="SubtleButtonBorderBrush"/>
@@ -24,6 +29,11 @@
                     <media:AcrylicBrush x:Key="PageHeaderAcrylicBrush"  Opacity="0.75" TintOpacity="0.5" TintLuminosityOpacity="0.8" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#FF202020"/>
+                    <SolidColorBrush x:Key="InfoBarErrorSeverityBackgroundBrush" Color="#FF442726"/>
+                    <SolidColorBrush x:Key="InfoBarWarningSeverityBackgroundBrush" Color="#FF433519"/>
+                    <SolidColorBrush x:Key="InfoBarSuccessSeverityBackgroundBrush" Color="#FF393D1B"/>
+
                     <StaticResource x:Key="AppBarButtonBackground" ResourceKey="SubtleButtonBackground"/>
                     <StaticResource x:Key="AppBarButtonForeground" ResourceKey="SubtleButtonForeground"/>
                     <StaticResource x:Key="AppBarButtonBorderBrush" ResourceKey="SubtleButtonBorderBrush"/>
@@ -46,6 +56,11 @@
                     <media:AcrylicBrush x:Key="PageHeaderAcrylicBrush"  Opacity="0.75" TintOpacity="0.5" TintLuminosityOpacity="0.8" TintColor="{ThemeResource SystemChromeMediumColor}" FallbackColor="{ThemeResource SystemChromeMediumColor}" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="InfoBarErrorSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="InfoBarWarningSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="InfoBarSuccessSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+
                     <StaticResource x:Key="AppBarButtonBackground" ResourceKey="SubtleButtonBackground"/>
                     <StaticResource x:Key="AppBarButtonForeground" ResourceKey="SubtleButtonForeground"/>
                     <StaticResource x:Key="AppBarButtonBorderBrush" ResourceKey="SubtleButtonBorderBrush"/>

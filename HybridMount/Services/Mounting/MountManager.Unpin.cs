@@ -107,7 +107,7 @@ public sealed partial class MountManager
                 return task?.State switch{"Completed"=>result with{Status="Completed",Message="释放已完成。"},"Failed"=>result with{Status="Failed",Message=task.Error??"释放失败。"},"Superseded"=>result with{Status="Skipped",Message="释放意图已改变。"},_=>result};
             }).ToArray();
             if(results.SequenceEqual(job.Snapshot.Results))continue;
-            job.Snapshot=job.Snapshot with{Results=results};Update(job,results.Any(row=>row.Status=="Waiting")?"Waiting":results.Any(row=>row.Status=="Failed")?"PartialFailure":"Completed");
+            job.Results.Clear();job.Results.AddRange(results);job.Snapshot=job.Snapshot with{Results=results};Update(job,results.Any(row=>row.Status=="Waiting")?"Waiting":results.Any(row=>row.Status=="Failed")?"PartialFailure":"Completed");
         }
     }
 }

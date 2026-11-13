@@ -22,6 +22,30 @@ public sealed partial class MountManager
             return (IReadOnlyList<OrphanedMountCandidate>)known.Concat(manual).ToArray();
         }finally{_configurationGate.Release();}
     },token);
+    /// <summary>在配置锁内先识别两模式归属；预期拒绝不进入原生检查或孤立占位接管。</summary>
+    public Task<OrphanedMountInspection> InspectOrphanedMountSelectionAsync(string path,CancellationToken token=default)=>OwnAsync<OrphanedMountInspection>(async cancel=>
+    {
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        await _configurationGate.WaitAsync(cancel).ConfigureAwait(false);
+        try
+        {
+            var full=Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));cancel.ThrowIfCancellationRequested();
+            var current=_roots.Values.Select(x=>x.Definition).Concat(_repository.LoadDefinitions());
+            var owner=current.FirstOrDefault(x=>MountPathGuard.IsUnder(x.LocalPath,full)||MountPathGuard.IsUnder(full,x.LocalPath));
+            if(owner is not null)return new(null,owner,ApplicationPaths.DeploymentScope);
+            foreach(var packaged in new[]{true,false})
+            {
+                var definitions=new RegistryMountDefinitionStore(ApplicationPaths.MountDefinitionsRegistryPathFor(packaged)).LoadDefinitions();
+                owner=definitions.FirstOrDefault(x=>MountPathGuard.IsUnder(x.LocalPath,full)||MountPathGuard.IsUnder(full,x.LocalPath));
+                if(owner is not null)return new(null,owner,packaged?"Packaged":"Unpackaged");
+            }
+            var manual=OrphanedDirectories();
+            if(manual.HasPending(full))return new(await manual.InspectAsync(full,cancel).ConfigureAwait(false));
+            try{return new(await Task.Run(()=>{cancel.ThrowIfCancellationRequested();return Recovery().Inspect(full);},cancel).ConfigureAwait(false));}
+            catch(MissingOrphanedMountEvidenceException){return new(await manual.InspectAsync(full,cancel).ConfigureAwait(false));}
+        }
+        finally{_configurationGate.Release();}
+    },token);
     /// <summary>用户选目录只产生经验证的候选，不登记正式挂载、不启动连接。</summary>
     public Task<OrphanedMountCandidate> InspectOrphanedMountAsync(string path,CancellationToken token=default)=>OwnAsync(async cancel=>
     {

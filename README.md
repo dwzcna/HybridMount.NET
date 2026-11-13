@@ -1,12 +1,14 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.13.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.14.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.13.0_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.14.0_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份及现有挂载数据保持兼容。
 
 CFAPI通知使用独立有界邮箱；打开／关闭以带序号的绝对计数合并，关键改名／删除保持顺序，回调排队共享45毫秒预算。通知无法可靠交付时后台显式停止连接并保留注册与恢复记录，等待重新核对。
+
+完整扫描对未变化的远端观测复用已有待办，保留取消、暂缓和未决提交；旧积压逐项核验，不删除历史。连接时显示发现及核对进度。任务页一次快照共用查询，批量结果合并更新；缓存统计在后台增量维护，设置页可显式重新核对。即时 InfoBar 使用不透明语义底色，日志文字不会透出。受管目录的遗留恢复选择显示所属挂载、模式和移除入口。
 
 挂载任务由应用级 TasksQueueService 调度，任务页经 TasksViewModel 读取状态与提交命令；所有挂载共享实际云请求并发额度，每挂载分别允许一路上传／修改、一路普通下载、一路独立元数据和一路缩略图远端读取。设置页“云操作线程数”可保存 1—128，默认 4，建议值为 CPU 逻辑处理器数的一半（向下取整，限制在 1—128）；实际使用异步任务和线程池，增加额度立即接纳，降低额度等待现有请求收尾。按需读取优先于用户操作、自动同步、目录检测、缩略图和维护；低优先级在范围块、分页或分片边界让路，已发送的完整写入先安全结束。冲突与依赖等待不占网络名额，任务页显示优先级、阶段、阻塞任务和重试时间；远端上传已确认而本地提交未完成时保留回执和不可变快照，只重试本地核验；同内容的元数据变化经稳定摘要证明后收尾，真实新正文才建立后续发送。三次本地核验未完成则保留证据，等待显式重试；同一任务的进度在常驻行上更新，选择和进度条保持；仅真实增删或分组改变时调整列表。每项以四行显示挂载及任务类型、相对路径与速度／状态、靠右可复制的任务ID和进度条。目录及应用远端更改不显示字节总量；上传／下载中显示实际采样速度，完成后按文件大小与本次耗时显示平均速度。左侧选中指示条和8%不透明度浅底分别使用绿色、同步问题红色及冲突黄色，文字沿用系统颜色；高对比度使用系统选择色。等待、错误、阶段和重试时间可在悬停／“查看结果”中查看，页面操作使用图标加文字，放不下的动作收入“…”菜单。任务页同一行左侧为全部／同步问题／冲突三段 Segmented、右侧为操作；先展开前三项操作，再显示筛选全部文字，之后展开其余操作，总数不足三项时先显示全部操作。宽度不足时筛选仅保留图标、提示和选中态，右侧其余操作收入“…”菜单；窄窗收缩立即生效，扩展留有余量以免反复跳动。日志页提供全部／信息／警告／错误四段筛选，搜索与单日 DatePicker 位于第一行，选择日期后显示清除按钮，加载更早和其他操作位于第二行右侧。
 
@@ -34,7 +36,7 @@ CFAPI通知使用独立有界邮箱；打开／关闭以带序号的绝对计数
 
 在 NAS 的 WebDAV Server 套件中启用 HTTPS（默认 5006），授予账号相应套件及共享目录权限，填写 `https://nas.example.com:5006/共享文件夹/`。不要填写 DSM 管理端口 5001；“群晖 NAS”菜单是独立的 File Station API 接口。
 
-自签名证书可填写**经可信渠道核对**的证书 SHA-256 指纹（64 位十六进制，可含冒号）；只对当前挂载生效，不修改系统信任。配置指纹后严格匹配，即使新证书获系统信任也需重新核验指纹。带指纹的备份使用已有 v6，未带指纹的 WebDAV／S3 仍用 v5。HTTPS 入口是新建预设，不是新的协议类型；保存后仍显示 WebDAV，带指纹的挂载编辑时会恢复证书设置。
+自签名证书可填写**经可信渠道核对**的证书 SHA-256 指纹（64 位十六进制，可含冒号）；只对当前挂载生效，不修改系统信任。配置指纹后严格匹配，即使新证书获系统信任也需重新核验指纹。证书指纹以非敏感选项保存在 `.hmxbk` JSON 中。HTTPS 入口是新建预设，不是新的协议类型；保存后仍显示 WebDAV，带指纹的挂载编辑时会恢复证书设置。
 
 真实 DSM WebDAV 设备验收尚未执行；“测试连接”只读，不保证服务器支持安全写入，原有写入能力探测及冲突保护继续生效。
 
@@ -172,7 +174,7 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版构建、验收记录及待测项目见 [docs/Validation-0.0.13.0.md](docs/Validation-0.0.13.0.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版构建、验收记录及待测项目见 [docs/Validation-0.0.14.0.md](docs/Validation-0.0.14.0.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 真实自动同步验收为显式操作，可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

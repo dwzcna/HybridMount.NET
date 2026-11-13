@@ -98,6 +98,7 @@ public sealed partial class LoggerService : IAsyncDisposable
         if(EntryWritten is not {} handlers)return;
         foreach(EventHandler<DiagnosticEntry> handler in handlers.GetInvocationList())try{handler(this,entry);}catch(Exception error){Debug.WriteLine(error.GetType().Name);}
     }
+    private readonly Queue<(string Key,DateTimeOffset Time)> _recentOrder=new();
     /// <summary>同步接收界面日志；重复消息在三十秒内只入库一次。</summary>
     /// <param name="source">日志来源。</param><param name="severity">完整诊断级别。</param><param name="message">日志正文。</param>
     public void Queue(string source, string severity, string message)
@@ -111,14 +112,18 @@ public sealed partial class LoggerService : IAsyncDisposable
         var key = $"{source}\0{severity}\0{message}";
         lock (_recentGate)
         {
-            foreach (var expired in _recent.Where(item => now - item.Value >= TimeSpan.FromSeconds(30))
-                         .Select(item => item.Key).ToArray()) _recent.Remove(expired);
+            while (_recentOrder.TryPeek(out var expired) && now-expired.Time>=TimeSpan.FromSeconds(30))
+            {
+                _recentOrder.Dequeue();
+                if (_recent.TryGetValue(expired.Key,out var time) && time==expired.Time) _recent.Remove(expired.Key);
+            }
             if (_recent.ContainsKey(key)) return;
             if (!_operations.Writer.TryWrite(new Append(new PendingDiagnostic(source, severity, message))))
             { RecordDropped(1); Volatile.Write(ref _lastError, "诊断队列已满或关闭，此条日志未保存。"); return; }
-            if (_recent.Count >= QueueCapacity)
-                _recent.Remove(_recent.MinBy(item => item.Value).Key);
+            while (_recent.Count >= QueueCapacity && _recentOrder.TryDequeue(out var oldest))
+                if (_recent.TryGetValue(oldest.Key,out var time) && time==oldest.Time) _recent.Remove(oldest.Key);
             _recent[key] = now;
+            _recentOrder.Enqueue((key,now));
         }
     }
 
@@ -143,7 +148,7 @@ public sealed partial class LoggerService : IAsyncDisposable
             lock (_recentGate)
             {
                 if (!_operations.Writer.TryWrite(new Clear(completion))) continue;
-                _recent.Clear(); queued = true; break;
+                _recent.Clear(); _recentOrder.Clear(); queued = true; break;
             }
         }
         if (!queued) throw new ObjectDisposedException(nameof(LoggerService));

@@ -17,4 +17,12 @@ public sealed partial class MountManager
         foreach(var rename in RenameIntents())result[rename.Id]=(rename.RetryRequested||rename.ReadOnlyRequested?MountingPriority.User:MountingPriority.Transaction,null);
         return result;
     }
+    /// <summary>单项交互只读对应持久记录，不构造完整调度字典。</summary>
+    internal IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> TaskScheduleFor(string id)
+    {
+        if(_repository.Upload(id) is {} upload)return new Dictionary<string,(MountingPriority,DateTimeOffset?)>{{id,(upload.ExplicitRequest?MountingPriority.User:MountingPriority.Transaction,upload.NextAttemptUtc)}};
+        if(_repository.FindRemotePending(id) is {} pending)return new Dictionary<string,(MountingPriority,DateTimeOffset?)>{{id,(MountingPriority.Transaction,_roots.GetValueOrDefault(pending.MountId)?.RemoteSync?.StagingRetries.NextRetryUtc(id))}};
+        return new Dictionary<string,(MountingPriority,DateTimeOffset?)>();
+    }
+
 }

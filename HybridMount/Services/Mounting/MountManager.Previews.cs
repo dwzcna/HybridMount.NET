@@ -64,7 +64,8 @@ public sealed partial class MountManager
     {
         if(!CustomPreviewsAvailable||IsStopping)return null;var id=FindMount([path]);var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)return null;
         var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
-        var entry=_repository.Entries(id).FirstOrDefault(entry=>entry.Id==marker?.EntryId&&entry.Materialized&&!entry.Deleted&&entry.RemotePresence!=RemotePresence.Deleted);
+        var entry=marker?.MountId==id?_repository.EntryById(id,marker.EntryId):null;
+        if(entry is not {Materialized:true,Deleted:false}||entry.RemotePresence==RemotePresence.Deleted)return null;
         if(marker?.MountId!=id||entry is null||entry.IsDirectory||!PreviewWorker.Supports(entry.LocalPath))return null;
         return(root,entry);
     }

@@ -2443,4 +2443,12 @@
   <data name="BackupProtectionToggle.Content" xml:space="preserve"><value>使用密碼保護</value></data>
   <data name="BackupPlaintextNotice.Text" xml:space="preserve"><value>未啟用密碼保護：備份包含明文使用者名稱、密碼和存取金鑰，請妥善保管。</value></data>
   <data name="BackupProtectedNotice.Text" xml:space="preserve"><value>僅憑據受到密碼保護；伺服器位址、目錄和排除規則等設定保持明文，可直接編輯。</value></data>
+  <data name="RecoveryManagedDirectory" xml:space="preserve"><value>目錄仍由掛載「{0}」管理。
+目錄：{1}
+所屬模式：{2}
+請使用該掛載的移除入口。</value></data>
+  <data name="RecoveryModePackaged" xml:space="preserve"><value>封裝執行</value></data>
+  <data name="RecoveryModeUnpackaged" xml:space="preserve"><value>非封裝執行</value></data>
+  <data name="TaskRemoteScanProgress" xml:space="preserve"><value>遠端掃描：已發現 {0} 項</value></data>
+  <data name="TaskRemoteApplyProgress" xml:space="preserve"><value>核對遠端變更：{0} / {1}</value></data>
 </root>

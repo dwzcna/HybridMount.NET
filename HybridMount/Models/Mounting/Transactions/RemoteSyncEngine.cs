@@ -195,16 +195,19 @@ internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSour
     private IReadOnlyList<RemotePendingChange> Commit(RemoteCollectionCheckpoint checkpoint,IReadOnlyList<SourceEntry> incoming,IReadOnlyList<string> deleted,bool explicitChanges,string? scan=null,string? hint=null)
     {
         var index=_index??LoadIndex();var shadow=index.Shadow;var changed=new List<RemoteShadowEntry>();var silent=new HashSet<string>(StringComparer.Ordinal);
+        var repeated=new Dictionary<string,RemoteShadowEntry>(StringComparer.Ordinal);
         foreach(var entry in incoming)
         {
             shadow.TryGetValue(entry.Path,out var old);
             if(old is not null&&old.Entry.Path!=entry.Path)throw new IOException("远端路径大小写变化需要核对，本集合检查点未推进。");
-            var same=old is not null&&(entry.IsDirectory||changes.HasReliableVersion(entry)&&changes.HasReliableVersion(old.Entry))&&source.IsSameVersion(old.Entry.Version,entry.Version)&&old.Entry.IsDirectory==entry.IsDirectory;
-            if(same&&(!explicitChanges||changes.HasReliableVersion(entry)))continue;
+            // 完整扫描的相同观测可以去重；明确增量的弱版本仍推进代次，不能用元数据证明正文未变。
             var observation=(old?.Observation??0)+(explicitChanges&&!changes.HasReliableVersion(entry)?1:0);
-            changed.Add(new(changes.WithObservation(entry,observation),observation));
+            var observed=changes.WithObservation(entry,observation);
+            var same=old is not null&&old.Entry.IsDirectory==entry.IsDirectory&&source.IsSameVersion(old.Entry.Version,observed.Version);
+            if(same&&(!explicitChanges||changes.HasReliableVersion(entry)))repeated[entry.Path]=old!;
+            changed.Add(new(observed,observation));
             if(old is null&&(entry.IsDirectory||changes.HasReliableVersion(entry))&&index.Local.TryGetValue(entry.Path,out var local)&&local.SourcePath==entry.Path&&local.IsDirectory==entry.IsDirectory&&local.Materialized&&local.RemotePresence!=RemotePresence.Deleted&&source.IsSameVersion(local.Version,entry.Version))silent.Add(entry.Path);
         }
-        var pending=repository.CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint);index.Committed(checkpoint,changed,deleted);return pending;
+        var pending=repository.CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint,repeated);index.Committed(checkpoint,changed,deleted);return pending;
     }
 }

@@ -2807,5 +2807,10 @@
   "BackupInvalidOptions": {
     "Source": "配置备份包含无效连接参数或选项。",
     "LocalizableArguments": []
-  }
+  },
+  "RecoveryManagedDirectory": {"Source": "目录仍由挂载“{0}”管理。\n目录：{1}\n所属模式：{2}\n请使用该挂载的移除入口。", "LocalizableArguments": [2]},
+  "RecoveryModePackaged": {"Source": "有包运行", "LocalizableArguments": []},
+  "RecoveryModeUnpackaged": {"Source": "无包运行", "LocalizableArguments": []},
+  "TaskRemoteScanProgress": {"Source": "远端扫描：已发现 {0} 项", "LocalizableArguments": []},
+  "TaskRemoteApplyProgress": {"Source": "核对远端更改：{0} / {1}", "LocalizableArguments": []}
 }

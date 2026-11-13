@@ -20,6 +20,7 @@ internal sealed class MountDatabase
             CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,json TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS uploads(id TEXT PRIMARY KEY,mount TEXT NOT NULL,path TEXT NOT NULL,json TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS uploads_mount ON uploads(mount);
+            CREATE INDEX IF NOT EXISTS uploads_source ON uploads(mount,json_extract(json,'$.SourcePath') COLLATE NOCASE);
             CREATE TABLE IF NOT EXISTS content_baselines(mount TEXT NOT NULL,path TEXT NOT NULL,version TEXT NOT NULL,sha256 TEXT NOT NULL,
                 PRIMARY KEY(mount,path,version));
             CREATE TABLE IF NOT EXISTS remote_presence(mount TEXT NOT NULL,id TEXT NOT NULL,presence INTEGER NOT NULL,PRIMARY KEY(mount,id));
@@ -29,6 +30,7 @@ internal sealed class MountDatabase
             CREATE TABLE IF NOT EXISTS remote_scans(id TEXT PRIMARY KEY,mount TEXT NOT NULL,scope TEXT NOT NULL,state TEXT NOT NULL,started TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS remote_pending_mount ON remote_pending(mount,scope);
             CREATE INDEX IF NOT EXISTS remote_pending_path ON remote_pending(mount,scope,path);
+            CREATE INDEX IF NOT EXISTS remote_pending_mount_path ON remote_pending(mount,path COLLATE NOCASE);
             """+"\n"+string.Join("\n",protocolStorage.Select(module=>module.SchemaSql))+"\nPRAGMA user_version=6;"; cmd.ExecuteNonQuery();
     }
     public SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }

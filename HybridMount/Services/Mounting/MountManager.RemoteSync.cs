@@ -24,6 +24,7 @@ public sealed partial class MountManager
         public Task Work=Task.CompletedTask,QueueWork=Task.CompletedTask,Cancellation=Task.CompletedTask;
         public bool Stopping,LoopStarted,RescanSoon,QueueStarted;
         public long Discovered,Created,Published,LastPublicationProgress;
+        public string? ProgressTaskId;
         public Task? Finish;
         public void RequestStop(){lock(Sync){if(Stopping)return;Stopping=true;Cancellation=Stop.CancelAsync();}}
         public void Wake(){lock(Sync){if(Stopping)return;if(Signal.CurrentCount==0)Signal.Release();}}
@@ -117,52 +118,63 @@ public sealed partial class MountManager
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,parent?.MountId==root.Definition.Id?parent.Id:Guid.NewGuid().ToString("N"),parent?.MountId==root.Definition.Id?parent.Priority:MountingPriority.Observation,"remoteScan");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,runtime.Stop.Token);token=linked.Token;
         using var cancelOwner=TasksQueue.RegisterCancellation(TasksQueueService.CurrentTask!.Id,()=>{if(!linked.IsCancellationRequested)_=linked.CancelAsync();return true;});
-        await runtime.ScanSerial.WaitAsync(token).ConfigureAwait(false);
+        var progressTaskId=TasksQueueService.CurrentTask!.Id;
         try
         {
-            token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
+            await runtime.ScanSerial.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                runtime.Discovered=runtime.Created=runtime.Published=runtime.LastPublicationProgress=0;
-                await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
-                try{await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);}
-                finally
+                token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
+                try
                 {
-                    // 格式错误被引擎转为全量后不会抛出；即使后续全量失败，也先记录一次挂载会话降级。
-                    if(root.ChangeSession.Fallback is {} fallback)RecordStateDiagnostic("远端检测",root.Definition.Id,root.Definition.Id.ToString("N"),"RFC6578Fallback",true,fallback.OccurredUtc.UtcTicks.ToString(),
-                        description:"RFC 6578 响应异常，本次挂载会话已改用完整对账；降级时间UTC="+fallback.OccurredUtc.ToString("O"));
-                }
+                    runtime.Discovered=runtime.Created=runtime.Published=runtime.LastPublicationProgress=0;
+                    runtime.ProgressTaskId=TasksQueueService.CurrentTask?.Id;
+                    if(runtime.ProgressTaskId is {} progressId)_taskProgress[progressId]=global::HybridMount.Services.Localization.UiText.Text("TaskRemoteScanProgress",0);
+                    await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
+                    try{await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);}
+                    finally
+                    {
+                        // 格式错误被引擎转为全量后不会抛出；即使后续全量失败，也先记录一次挂载会话降级。
+                        if(root.ChangeSession.Fallback is {} fallback)RecordStateDiagnostic("远端检测",root.Definition.Id,root.Definition.Id.ToString("N"),"RFC6578Fallback",true,fallback.OccurredUtc.UtcTicks.ToString(),
+                            description:"RFC 6578 响应异常，本次挂载会话已改用完整对账；降级时间UTC="+fallback.OccurredUtc.ToString("O"));
+                    }
 
-                var checkpoint=_repository.RemoteCollections(root.Definition.Id,runtime.Engine.Scope).FirstOrDefault(x=>x.Path=="");
-                root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
-                    PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
+                    var checkpoint=_repository.RemoteCollections(root.Definition.Id,runtime.Engine.Scope).FirstOrDefault(x=>x.Path=="");
+                    root.Detection=root.Detection with{Mode=runtime.Engine.Mode,LastSuccessUtc=runtime.Source is IRemoteSnapshotSource?checkpoint?.LastFullUtc:DateTimeOffset.UtcNow,Error=null,
+                        PendingHints=_repository.PendingRemoteHints(root.Definition.Id,runtime.Engine.Scope).Count};Notify();
+                }
+                catch(Exception error){if(error is not OperationCanceledException)_logger.QueueException("远端检测","Warning","远端检测未完成",error,root.Definition.Id.ToString("N"));root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
             }
-            catch(Exception error){if(error is not OperationCanceledException)_logger.QueueException("远端检测","Warning","远端检测未完成",error,root.Definition.Id.ToString("N"));root.Detection=root.Detection with{Mode=runtime.Engine.Mode};Notify();throw;}
+            finally{runtime.ScanSerial.Release();}
+            await runtime.Serial.WaitAsync(token).ConfigureAwait(false);
+            try{await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);}
+            finally{runtime.Serial.Release();}
         }
-        finally{runtime.ScanSerial.Release();}
-        await runtime.Serial.WaitAsync(token).ConfigureAwait(false);
-        try{await ApplyRemotePendingAsync(root,runtime,token).ConfigureAwait(false);}
-        finally{runtime.Serial.Release();}
+        finally
+        {
+            // 扫描失败或等待应用时取消也必须移除临时进度；不能让旧任务状态驻留。
+            _taskProgress.TryRemove(progressTaskId,out _);
+        }
     }
     private IReadOnlyList<RemotePendingChange> RemotePendingFor(Runtime root)=>_repository.AllRemotePending(root.Definition.Id);
     private static MountOperationSnapshot RemoteTask(RemotePendingChange change,long bytes=0)=>new(change.Id,"remoteUpdate",change.State=="Pending"?"Queued":change.State,
         change.State=="Completed"?1:0,1,change.Error is null?[]:[new(change.Path,change.State,change.Error)],change.Error,change.MountId,change.Path,bytes,change.Entry?.Size??0,change.Entry?.IsDirectory,change.Path);
     private RemotePendingChange RequireRemotePending(string id)=>_repository.FindRemotePending(id)??throw new IOException("远端事件身份已丢失，保留当前阶段等待核对。");
-    private RemotePendingChange SaveRemote(RemotePendingChange pending,bool retry=false,Exception? failure=null)
+    private RemotePendingChange SaveRemote(RemotePendingChange pending,bool retry=false,Exception? failure=null,MountEntry? present=null)
     {
         lock(_remoteJournalLock)
         {
             var current=_repository.FindRemotePending(pending.Id);
             if(!retry&&current?.State=="Canceled"&&pending.State is not("Canceled" or "Completed" or "Superseded"))return current;
             if(!StagingDiskSpace.IsWaiting(pending.State,pending.Error)&&_roots.TryGetValue(pending.MountId,out var root))root.RemoteSync?.StagingRetries.Reset(pending.Id);
-            pending=_repository.SaveRemotePendingCurrent(pending,retry);RecordStateDiagnostic("远端更新",pending.MountId,pending.Id,pending.State,pending.Error is not null&&pending.State is not("Completed" or "Canceled" or "Superseded"),DiagnosticVersion(pending.Scope+pending.Error),failure);_repository.SaveOperation(RemoteTask(pending,pending.State=="Completed"?pending.Entry?.Size??0:0));Notify();return pending;
+            pending=_repository.SaveRemotePendingCurrent(pending,retry,current=>RemoteTask(current,current.State=="Completed"?current.Entry?.Size??0:0),present);RecordStateDiagnostic("远端更新",pending.MountId,pending.Id,pending.State,pending.Error is not null&&pending.State is not("Completed" or "Canceled" or "Superseded"),DiagnosticVersion(pending.Scope+pending.Error),failure);Notify();return pending;
         }
     }
     private bool CancelRemoteChange(string id)
     {
         foreach(var root in _roots.Values)
         {
-            var pending=RemotePendingFor(root).FirstOrDefault(x=>x.Id==id);if(pending is null)continue;if(HasConflictResolution(root.Definition.Id,pending.Path))return false;
+            var pending=_repository.FindRemotePending(id);if(pending is null||pending.MountId!=root.Definition.Id)continue;if(HasConflictResolution(root.Definition.Id,pending.Path))return false;
             if(pending.State is "Completed" or "Superseded" or "Canceled" or "Committing" or "Hydrating")return false;
             SaveRemote(pending with{State="Canceled",Error="已取消此远端版本；显式重试或下一远端版本后恢复。"});
             if(root.RemoteSync is {} runtime)lock(runtime.Sync)if(runtime.CurrentId==id)runtime.Request?.Cancel();return true;
@@ -173,7 +185,7 @@ public sealed partial class MountManager
     {
         foreach(var root in _roots.Values)
         {
-            var pending=RemotePendingFor(root).FirstOrDefault(x=>x.Id==id);if(pending is null)continue;if(HasConflictResolution(root.Definition.Id,pending.Path))return false;
+            var pending=_repository.FindRemotePending(id);if(pending is null||pending.MountId!=root.Definition.Id)continue;if(HasConflictResolution(root.Definition.Id,pending.Path))return false;
             if(pending.State is not("Conflict" or "Failed" or "Canceled" or "Waiting" or "Interrupted")&&!(pending.State is "Committing" or "Hydrating"&&pending.Error is not null))return false;
             var retryState=pending.State=="Hydrating"?"Hydrating":pending.State=="Committing"?"Prepared":"Pending";
             SaveRemote(pending with{State=retryState,Error=null},retry:true);

@@ -2443,4 +2443,12 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="BackupProtectionToggle.Content" xml:space="preserve"><value>Use password protection</value></data>
   <data name="BackupPlaintextNotice.Text" xml:space="preserve"><value>Password protection is off. The backup contains plaintext usernames, passwords, and access keys. Keep it secure.</value></data>
   <data name="BackupProtectedNotice.Text" xml:space="preserve"><value>Only credentials are password-protected. Server addresses, folders, exclusion rules, and other settings remain readable and editable.</value></data>
+  <data name="RecoveryManagedDirectory" xml:space="preserve"><value>This directory is managed by mount “{0}”.
+Directory: {1}
+Mode: {2}
+Use the removal action for that mount.</value></data>
+  <data name="RecoveryModePackaged" xml:space="preserve"><value>Packaged</value></data>
+  <data name="RecoveryModeUnpackaged" xml:space="preserve"><value>Unpackaged</value></data>
+  <data name="TaskRemoteScanProgress" xml:space="preserve"><value>Remote scan: {0} items discovered</value></data>
+  <data name="TaskRemoteApplyProgress" xml:space="preserve"><value>Checking remote changes: {0} / {1}</value></data>
 </root>

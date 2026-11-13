@@ -12,9 +12,11 @@ public sealed partial class MountManager
         var pending=_repository.RemotePending(root.Definition.Id,runtime.Engine.Scope)
             .Where(x=>x.State is not("Completed" or "Superseded")&&(x.State!="Canceled"||x.Entry is {IsDirectory:true}&&!x.MetadataOnly))
             .OrderBy(x=>x.Entry is null?1:0).ThenBy(x=>x.Entry is null?-x.Path.Count(c=>c=='/'):x.Path.Count(c=>c=='/')).ToArray();
+        var inspected=0;var progressTaskId=TasksQueueService.CurrentTask?.Id;
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
+            if(progressTaskId is {} taskId)_taskProgress[taskId]=global::HybridMount.Services.Localization.UiText.Text("TaskRemoteApplyProgress",++inspected,pending.Length);
             if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path)||!RemoteDependenciesReady(root,prior))continue;
             var parentPriority=TasksQueueService.CurrentTask?.Priority;
             using var queueTask=TasksQueue.EnterTask(root.Definition.Id,prior.Id,parentPriority>=MountingPriority.User?parentPriority.Value:MountingPriority.Transaction,"remoteUpdate",prior.Path,prior.EntryId,prior.Entry?.Version);
@@ -55,7 +57,7 @@ public sealed partial class MountManager
         }
     }
     /// <summary>从已有持久事件重建父子顺序；失败及取消保留屏障，重启不凭内存完成标记放行。</summary>
-    private bool RemoteDependenciesReady(Runtime root,RemotePendingChange item)=>OperationDependencies.RemoteReady(_repository.AllRemotePending(root.Definition.Id),item);
+    private bool RemoteDependenciesReady(Runtime root,RemotePendingChange item)=>_repository.RemoteDependenciesReady(item);
     /// <summary>迟到旧版本回显必须再读当前元数据；只消除确认已不存在的旧观测，重新出现的真实远端对象仍按正常同步处理。</summary>
     private async Task<bool> SuppressExcludedRenameEchoAsync(Runtime root,RemoteSyncRuntime runtime,RemotePendingChange pending,CancellationToken token)
     {
@@ -77,7 +79,7 @@ public sealed partial class MountManager
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             if(RenameBlocksSource(root.Definition.Id,pending.Path))return pending;
             entry=_repository.EntryBySource(root.Definition.Id,pending.Path);
-            var uploads=_repository.Uploads(root.Definition.Id).Where(x=>UploadRules.SourceContains(pending.Path,x.SourcePath)&&UploadRules.Unfinished(x)).ToArray();
+            var uploads=_repository.UploadsRelated(root.Definition.Id,pending.Path).Where(x=>UploadRules.SourceContains(pending.Path,x.SourcePath)&&UploadRules.Unfinished(x)).ToArray();
             if(TryCompleteDirectoryObservation(root,runtime,pending,entry,uploads))return RequireRemotePending(pending.Id);
             if(uploads.Any(UploadRules.InFlight))throw new IOException("同路径上传已发送，等待其回执或未知结果核对后再应用远端变化。");
             if(pending.Entry is not {} metadata)
@@ -93,8 +95,7 @@ public sealed partial class MountManager
             entry=RecoverPreparedPlaceholder(root,entry,metadata);
             if(entry is {Materialized:true}&&pending.State is not("Committing" or "Hydrating")&&runtime.Source.IsSameVersion(entry.Version,metadata.Version)&&entry.RemotePresence!=RemotePresence.Deleted)
             {
-                _repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
-                return SaveRemote(pending with{State="Completed",Error=null});
+                return SaveRemote(pending with{State="Completed",Error=null},present:entry);
             }
             if(uploads.Length!=0)
             {

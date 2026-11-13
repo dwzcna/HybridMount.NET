@@ -37,3 +37,10 @@ public sealed record OrphanedMountBatchResult(IReadOnlyList<OrphanedMountItemRes
     public string Detail=>Summary+"\n\n"+string.Join("\n\n",Items.Select(x=>x.Root.LocalPath+"\n"+x.State+" · "+x.Stage+
         (x.HResult is {} code?$" · 0x{code:X8}":"")+(x.Errors.Count>0?"\n"+string.Join("\n",x.Errors):"")));
 }
+
+/// <summary>手动目录检查的正常结果；受管目录是可展示的拒绝，不以异常驱动界面。</summary>
+public sealed record OrphanedMountInspection(OrphanedMountCandidate? Candidate,MountDefinition? Managed=null,string? OwnerMode=null)
+{
+    public string Message=>Managed is null?"":global::HybridMount.Services.Localization.UiText.Text("RecoveryManagedDirectory",Managed.Name,Managed.LocalPath,
+        global::HybridMount.Services.Localization.UiText.Text(OwnerMode=="Packaged"?"RecoveryModePackaged":"RecoveryModeUnpackaged"));
+}

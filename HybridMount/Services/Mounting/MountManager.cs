@@ -53,6 +53,8 @@ public sealed partial class MountManager : IAsyncDisposable
         public readonly Guid Root=root;
         public readonly CancellationTokenSource Cancel=CancellationTokenSource.CreateLinkedTokenSource(token);
         public MountOperationSnapshot Snapshot=new(id,operation,"Queued",0,0,[],null,root);
+        public readonly List<MountItemResult> Results=[];
+        public long LastPublished;public int PublishedCount;
         public Task Work=Task.CompletedTask;
     }
     private readonly ExePreviewCache _previews;
@@ -126,7 +128,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(!_roots.TryGetValue(mount.Id,out var root)||_stop.IsCancellationRequested)return null;
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         if(_stop.IsCancellationRequested||root.RemovalRequested||root.Definition.RemovalPending||!_roots.ContainsKey(mount.Id)||
-            !_repository.Entries(mount.Id).Any(current=>current.Id==entry.Id&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&current.RemotePresence!=RemotePresence.Deleted))
+            !(_repository.EntryById(mount.Id,entry.Id) is {} current&&current.Version==entry.Version&&current.LocalPath==entry.LocalPath&&!current.Deleted&&current.RemotePresence!=RemotePresence.Deleted))
         {root.Gate.Release();return null;}
         return new PreviewLease(root.Gate);
     }
@@ -142,25 +144,39 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
     public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).Concat(Operations.Where(row=>row.Operation is "freeSpace" or "keepOnDevice"&&row.State is "Failed" or "PartialFailure")).ToArray();
-    public IReadOnlyList<MountOperationSnapshot> Operations
+    public IReadOnlyList<MountOperationSnapshot> Operations=>ReadTaskPresentation().Operations;
+    /// <summary>任务、问题、冲突及调度共用一次持久读取；构造与解析在数据库锁外进行。</summary>
+    private long _lastTaskReadDiagnostic;
+    internal (IReadOnlyList<MountOperationSnapshot> Operations,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> Schedule) ReadTaskPresentation()
     {
-        get
+        var state=_repository.ReadTaskState();var renames=RenameIntents().ToArray();
+        var measured=_repository.LastTaskRead;var now=Environment.TickCount64;
+        if(measured.Milliseconds>=150&&now-Interlocked.Read(ref _lastTaskReadDiagnostic)>=30000)
+        {Interlocked.Exchange(ref _lastTaskReadDiagnostic,now);_logger.Queue("任务快照","Information",$"查询={measured.Queries}；解析行={measured.Rows}；耗时毫秒={measured.Milliseconds:F1}");}
+        var history=state.History.ToDictionary(x=>x.Id);var schedule=new Dictionary<string,(MountingPriority,DateTimeOffset?)>();
+        foreach(var upload in state.Uploads)
         {
-            var history=_repository.LoadOperations().ToDictionary(x=>x.Id);
-            foreach(var upload in _repository.Uploads())
-                if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id))
-                    history[upload.Id]=UploadSnapshot(upload) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
-            foreach(var root in _roots.Values)foreach(var pending in RemotePendingFor(root))
-                if(pending.State is not("Completed" or "Superseded")&&!(pending.State=="Canceled"&&pending.MetadataOnly)||history.ContainsKey(pending.Id))history[pending.Id]=DescribeOperationWait(RemoteTask(pending),pending.Path);
-            foreach(var rename in RenameIntents())if(!rename.Finished||history.ContainsKey(rename.Id))history[rename.Id]=rename.Snapshot();
-            foreach(var problem in RenameJournalIssues())history[problem.Id]=problem;
-            foreach(var job in _jobs.Values)
-                if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))
-                    history[job.Snapshot.Id]=job.Snapshot with{SubmissionOrder=history.GetValueOrDefault(job.Snapshot.Id)?.SubmissionOrder??0};
-            foreach(var task in _fileOperations.Values)
-                if(task.Snapshot.State is "Running" or "Canceling" or "Deferred"||history.ContainsKey(task.Snapshot.Id))history[task.Snapshot.Id]=task.Snapshot with{SubmissionOrder=history.GetValueOrDefault(task.Snapshot.Id)?.SubmissionOrder??0};
-            return history.Values.ToArray();
+            schedule[upload.Id]=(upload.ExplicitRequest?MountingPriority.User:MountingPriority.Transaction,upload.NextAttemptUtc);
+            if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id))
+                history[upload.Id]=DescribeOperationWait(upload.ToSnapshot(),upload.SourcePath,state,renames) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
         }
+        foreach(var pending in state.Remote.Where(x=>_roots.ContainsKey(x.MountId)))
+        {
+            schedule[pending.Id]=(MountingPriority.Transaction,_roots[pending.MountId].RemoteSync?.StagingRetries.NextRetryUtc(pending.Id));
+            if(pending.State is not("Completed" or "Superseded")&&!(pending.State=="Canceled"&&pending.MetadataOnly)||history.ContainsKey(pending.Id))
+                history[pending.Id]=DescribeOperationWait(RemoteTask(pending),pending.Path,state,renames);
+        }
+        foreach(var rename in renames)
+        {
+            schedule[rename.Id]=(rename.RetryRequested||rename.ReadOnlyRequested?MountingPriority.User:MountingPriority.Transaction,null);
+            if(!rename.Finished||history.ContainsKey(rename.Id))history[rename.Id]=rename.Snapshot();
+        }
+        foreach(var problem in RenameJournalIssues())history[problem.Id]=problem;
+        foreach(var job in _jobs.Values)
+            if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))history[job.Snapshot.Id]=job.Snapshot with{SubmissionOrder=history.GetValueOrDefault(job.Snapshot.Id)?.SubmissionOrder??0};
+        foreach(var task in _fileOperations.Values)
+            if(task.Snapshot.State is "Running" or "Canceling" or "Deferred"||history.ContainsKey(task.Snapshot.Id))history[task.Snapshot.Id]=task.Snapshot with{SubmissionOrder=history.GetValueOrDefault(task.Snapshot.Id)?.SubmissionOrder??0};
+        return (history.Values.ToArray(),schedule);
     }
     /// <summary>保留旧成功历史入口；生命周期和清理规则由统一方法拥有。</summary>
     public Task<int> ClearCompletedOperationsAsync(CancellationToken token=default)=>ClearOperationHistoryAsync(TaskHistoryClearMode.Completed,token);
@@ -175,7 +191,17 @@ public sealed partial class MountManager : IAsyncDisposable
                 .Select(row=>row.Id).ToArray():Array.Empty<string>();
             var count=_repository.ClearOperations(mode,interrupted);Notify();return count;
         },cancel),token);
-    private void Notify() { foreach(var root in _roots.Values)_previews.ConfigureMount(root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested});NotifyIssues();RefreshDisplaySnapshot();NotifyChanged(); }
+    private readonly ConcurrentDictionary<Guid,MountDefinition> _previewDefinitions=new();
+    private void Notify()
+    {
+        foreach(var root in _roots.Values)
+        {
+            var definition=root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested};
+            if(!_previewDefinitions.TryGetValue(definition.Id,out var previous)||previous!=definition)
+            {_previews.ConfigureMount(definition);_previewDefinitions[definition.Id]=definition;}
+        }
+        NotifyIssues();RefreshDisplaySnapshot();NotifyChanged();
+    }
     /// <summary>仅发布已有内存状态；后台快照回调不能反过来重新请求同一查询。</summary>
     private void NotifyChanged(){if(Changed is not {} handlers)return;foreach(Action handler in handlers.GetInvocationList())try{handler();}catch(Exception error){_logger.QueueException("挂载界面","Warning","操作未完成",error);}}
     private void Status(Runtime root,string status,string detail="") { root.Status=status; root.Detail=detail; Notify(); }
@@ -350,7 +376,7 @@ public sealed partial class MountManager : IAsyncDisposable
             lock(_lifetime)
             {
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
-                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>QueueLocalPreview(root,entry),localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
+                root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>{InvalidateCacheUsage(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));QueueLocalPreview(root,entry);},localChanged:()=>root.Uploads?.RequestFullScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
             }
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
@@ -414,27 +440,28 @@ public sealed partial class MountManager : IAsyncDisposable
         var expectedSource=root.Source;var expectedSession=root.Session;
         var missing=await OutsideRootAsync(root,async()=>{await Collect(sourcePath).ConfigureAwait(false);return await ConfirmRemoteDeletionsAsync(root,snapshot,token).ConfigureAwait(false);}).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();if(root.Source!=expectedSource||root.Session!=expectedSession)throw new OperationCanceledException(token);var results=new List<MountItemResult>();
+        var populateIndex=_repository.Entries(root.Definition.Id).ToDictionary(x=>x.SourcePath,StringComparer.OrdinalIgnoreCase);
         foreach(var metadata in snapshot.Values.OrderBy(item=>item.Path.Count(c=>c=='/')).ThenBy(item=>item.Path,StringComparer.Ordinal))
         {
             token.ThrowIfCancellationRequested();
             try
             {
-                var entries=_repository.Entries(root.Definition.Id);var entry=entries.FirstOrDefault(item=>item.SourcePath.Equals(metadata.Path,StringComparison.OrdinalIgnoreCase));
+                var entry=populateIndex.GetValueOrDefault(metadata.Path);
                 if(entry is not null)
                 {
                     // 清理后的项重新出现在远端时，只恢复远端存在性，不解除用户本地删除／修改保护。
                     if(entry.RemotePresence==RemotePresence.Deleted&&!entry.Deleted&&LocalMissing(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath)))
                     {_repository.CompleteRemoteCleanup(root.Definition.Id,entry);entry=entry with{Materialized=false};}
-                    _repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
                 }
-                var parent=entries.FirstOrDefault(item=>item.SourcePath.Equals(RelativePaths.Parent(metadata.Path),StringComparison.OrdinalIgnoreCase));
+                var parent=populateIndex.GetValueOrDefault(RelativePaths.Parent(metadata.Path));
                 if(parent?.Deleted==true||parent?.Protected==true||entry?.Deleted==true)continue;
                 var local=parent is null?metadata.Path:parent.LocalPath+"/"+Path.GetFileName(metadata.Path);
                 entry??=new(Guid.NewGuid().ToString("N"),metadata.Path,local,metadata.Version,metadata.IsDirectory);
                 if(entry.IsDirectory!=metadata.IsDirectory)throw new SourceConflictException("远端文件与目录类型变化，保留本地内容，请处理冲突。");
                 var full=RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath);var absent=LocalMissing(full);
                 if(absent&&!entry.Materialized)entry=entry with{Version=metadata.Version};
-                _repository.SaveEntry(root.Definition.Id,entry);_repository.SetRemotePresence(root.Definition.Id,entry,RemotePresence.Present);
+                _repository.CommitDiscoveryBatch(root.Definition.Id,[entry],[],[]);
+                populateIndex[entry.SourcePath]=entry;
                 if(absent)root.Session!.CreatePlaceholder(entry,metadata);
                 else if(!entry.Materialized)_repository.SaveEntry(root.Definition.Id,entry with{Protected=true,Materialized=true});
                 else if(!root.Source!.IsSameVersion(entry.Version,metadata.Version)&&!entry.IsDirectory)
@@ -463,22 +490,25 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
         var entries=_repository.Entries(root.Definition.Id); var seen=new HashSet<string>();
+        var byLocal=entries.ToDictionary(x=>x.LocalPath,StringComparer.OrdinalIgnoreCase);var byId=entries.ToDictionary(x=>x.Id);
+        var updates=new List<MountEntry>();
         foreach(var path in Walk(root.Definition,root.Definition.LocalPath))
         {
             var relative=Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/');
             var info=CloudFilesNative.Inspect(path);
             if(info is null)
             {
-                var local=entries.FirstOrDefault(item=>item.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase));
-                if(local is not null){seen.Add(local.Id);_repository.SaveEntry(root.Definition.Id,local with{Protected=true,Materialized=true});}continue;
+                var local=byLocal.GetValueOrDefault(relative);
+                if(local is not null){seen.Add(local.Id);var changed=local with{Protected=true,Materialized=true};if(changed!=local)updates.Add(changed);}continue;
             }
             var marker=MountPathGuard.ReadEntry(info.Value.Identity);
-            var entry=marker?.MountId==root.Definition.Id?entries.FirstOrDefault(item=>item.Id==marker.EntryId):null;
+            var entry=marker?.MountId==root.Definition.Id?byId.GetValueOrDefault(marker.EntryId):null;
             if(entry is null)continue;
             seen.Add(entry.Id);
-            _repository.SaveEntry(root.Definition.Id,entry with{LocalPath=relative,Materialized=true,Protected=entry.Protected||entry.LocalPath!=relative||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1});
+            var changedEntry=entry with{LocalPath=relative,Materialized=true,Protected=entry.Protected||entry.LocalPath!=relative||info.Value.Info.ModifiedSize>0||info.Value.Info.InSyncState!=1};if(changedEntry!=entry)updates.Add(changedEntry);
         }
-        foreach(var entry in entries.Where(entry=>entry.Materialized&&!entry.Deleted&&entry.RemotePresence!=RemotePresence.Deleted&&!seen.Contains(entry.Id))) _repository.SaveEntry(root.Definition.Id,entry with{Deleted=true,Protected=true});
+        foreach(var entry in entries.Where(entry=>entry.Materialized&&!entry.Deleted&&entry.RemotePresence!=RemotePresence.Deleted&&!seen.Contains(entry.Id)))updates.Add(entry with{Deleted=true,Protected=true});
+        foreach(var batch in updates.Chunk(256))_repository.SaveEntries(batch,root.Definition.Id);
     }
     public Task DisconnectAsync(Guid id,CancellationToken token=default)=>OwnAsync(cancel=>DisconnectOwnedAsync(id,cancel),token);
     private async Task DisconnectOwnedAsync(Guid id,CancellationToken token,bool runtimeFailure=false)
@@ -600,9 +630,11 @@ public sealed partial class MountManager : IAsyncDisposable
                 }
                 var targets=paths??[root.Definition.LocalPath];
                 foreach(var target in targets)MountPathGuard.ValidateOperation(root.Definition,target);
-                var selected=_repository.Entries(id).Where(entry=>!entry.Deleted&&targets.Any(target=>MountPathGuard.IsUnder(target,RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath)))).ToArray();
+                var targetScopes=targets.Select(target=>Path.GetRelativePath(root.Definition.LocalPath,target).Replace('\\','/')).Select(path=>path=="."?"":path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var selected=_repository.Entries(id).Where(entry=>!entry.Deleted&&TaskStateSnapshot.Ancestors(entry.LocalPath).Any(targetScopes.Contains)).ToArray();
+                var selectedPaths=selected.Select(entry=>RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var localOnly=targets.SelectMany(target=>Directory.Exists(target)?Walk(root.Definition,target):new[]{target})
-                    .Where(path=>!path.Equals(root.Definition.LocalPath,StringComparison.OrdinalIgnoreCase)&&!selected.Any(entry=>RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath).Equals(path,StringComparison.OrdinalIgnoreCase))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                    .Where(path=>!path.Equals(root.Definition.LocalPath,StringComparison.OrdinalIgnoreCase)&&!selectedPaths.Contains(path)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 job.Snapshot=job.Snapshot with{Total=selected.Length+localOnly.Length};Save(job);
                 foreach(var local in localOnly)Result(job,local,"Skipped",FileExclusionRules.Matches(root.Definition.ExclusionRules,local,Directory.Exists(local))?
                     "文件已排除；固定或释放空间前请先解除对应规则。":"普通本地文件或未知项，已保留。");
@@ -646,7 +678,7 @@ public sealed partial class MountManager : IAsyncDisposable
                     catch(OperationCanceledException){throw;}
                     catch(Exception error){Result(job,path,"Failed",error.Message);}
                 }
-                Update(job,job.Snapshot.Results.Any(item=>item.Status=="Waiting")?"Waiting":job.Snapshot.Results.Any(item=>item.Status=="Failed")?"PartialFailure":"Completed");
+                Update(job,job.Results.Any(item=>item.Status=="Waiting")?"Waiting":job.Results.Any(item=>item.Status=="Failed")?"PartialFailure":"Completed");
                 if(operation=="freeSpace")RefreshReleaseParents(root);
             }
             catch(OperationCanceledException)when(job.Cancel.IsCancellationRequested){Update(job,"Canceled");}
@@ -713,7 +745,7 @@ public sealed partial class MountManager : IAsyncDisposable
         job.Cancel.Token.ThrowIfCancellationRequested();
         var failures=MountContentCleaner.Clear(root.Definition,registered,job.Cancel.Token,
             count=>{job.Snapshot=job.Snapshot with{Total=job.Snapshot.Total+count};Save(job);},(path,status,message)=>Result(job,path,status,message));
-        if(failures>0){RemovalCompletion().Failure(journal,new IOException(job.Snapshot.Results.LastOrDefault(x=>x.Status=="Failed")?.Message??"内容清空未完成。"));return false;}
+        if(failures>0){RemovalCompletion().Failure(journal,new IOException(job.Results.LastOrDefault(x=>x.Status=="Failed")?.Message??"内容清空未完成。"));return false;}
         journal=RemovalCompletion().ContentComplete(journal);job.Cancel.Token.ThrowIfCancellationRequested();
         await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return true;
     }
@@ -767,15 +799,28 @@ public sealed partial class MountManager : IAsyncDisposable
         journal=RemovalCompletion().ContentComplete(journal);
         await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);
     }
+    /// <summary>批量结果只累积一次；250毫秒或256项发布，终态强制刷新全部结果。</summary>
     private void Result(Job job,string path,string status,string message)
-    {job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,Results=job.Snapshot.Results.Append(new(path,status,message)).ToArray(),BytesTransferred=job.Snapshot.Operation=="keepOnDevice"&&job.Snapshot.IsDirectory is false&&status=="Completed"?job.Snapshot.TotalBytes:job.Snapshot.BytesTransferred};Save(job);}
+    {
+        job.Results.Add(new(path,status,message));
+        job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,BytesTransferred=job.Snapshot.Operation=="keepOnDevice"&&job.Snapshot.IsDirectory is false&&status=="Completed"?job.Snapshot.TotalBytes:job.Snapshot.BytesTransferred};
+        var now=Environment.TickCount64;
+        if(job.Results.Count-job.PublishedCount>=256||now-job.LastPublished>=250)Save(job);
+    }
     /// <summary>实例级持久化屏障；仅隔离回归使用，不通过界面或IPC配置。</summary>
     internal Action<MountOperationSnapshot>? OperationSavingForTests {get;set;}
-    /// <summary>终态先落库再发布，防止观察到完成后清理历史与迟到落库竞争而重新出现。</summary>
+    /// <summary>终态先落库再发布；已完成结果不因取消、错误或退出而丢失。</summary>
     private void Update(Job job,string state,string? error=null)
-    {var next=job.Snapshot with{State=state,Error=error};OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();}
-    private void Save(Job job){_repository.SaveOperation(job.Snapshot);Notify();}
-    public MountOperationSnapshot? GetOperation(string id)=>_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_roots.Values.SelectMany(RemotePendingFor).FirstOrDefault(x=>x.Id==id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.LoadOperations().FirstOrDefault(item=>item.Id==id));
+    {
+        var next=job.Snapshot with{State=state,Error=error,Results=job.Results.ToArray()};
+        OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();
+    }
+    private void Save(Job job)
+    {
+        job.Snapshot=job.Snapshot with{Results=job.Results.ToArray()};job.LastPublished=Environment.TickCount64;job.PublishedCount=job.Results.Count;
+        _repository.SaveOperation(job.Snapshot);Notify();
+    }
+    public MountOperationSnapshot? GetOperation(string id)=>_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_repository.FindRemotePending(id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.FindOperation(id));
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
     public bool Cancel(string id)
     {
@@ -788,37 +833,22 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     /// <summary>缓存是软限制，0 表示关闭自动回收；固定、修改和活动内容可使实际值超限。</summary>
     public long CacheLimitBytes { get=>_repository.CacheLimitBytes; set { if(value<0)throw new ArgumentOutOfRangeException(nameof(value));_repository.CacheLimitBytes=value; } }
-    public long CacheUsageBytes
-    {
-        get
-        {
-            long bytes=_previews.UsageBytes;
-            var remoteStaging=Path.Combine(_repository.DataDirectory,"RemoteStaging");
-            if(Directory.Exists(remoteStaging))foreach(var file in new DirectoryInfo(remoteStaging).EnumerateFiles("*",SearchOption.AllDirectories))try{bytes+=file.Length;}catch(IOException){}
-            var staging=Path.Combine(_repository.DataDirectory,"UploadStaging");
-            if(Directory.Exists(staging))foreach(var file in new DirectoryInfo(staging).EnumerateFiles("*",SearchOption.AllDirectories))try{bytes+=file.Length;}catch(IOException){}
-            var cache=Path.Combine(_repository.DataDirectory,"RangeCache");
-            if(Directory.Exists(cache))foreach(var file in new DirectoryInfo(cache).EnumerateFiles("*",SearchOption.AllDirectories))try{bytes+=file.Length;}catch(IOException){}
-            foreach(var root in _roots.Values)
-                foreach(var entry in _repository.Entries(root.Definition.Id).Where(entry=>entry.Materialized&&!entry.Deleted&&!entry.IsDirectory))
-                    try { bytes+=CloudFilesNative.Inspect(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath))?.Info.OnDiskSize??0; }catch(IOException){}catch(System.ComponentModel.Win32Exception){}
-            return bytes;
-        }
-    }
+    /// <summary>返回最近一次成功后台统计；需要实际核对的调用者使用GetCacheUsageAsync。</summary>
+    public long CacheUsageBytes=>Interlocked.Read(ref _cacheUsageBytes);
     private async Task CacheLoopAsync()
     {
         using var timer=new PeriodicTimer(TimeSpan.FromSeconds(30));
-        try { while(await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))try{await EnforceCacheLimitAsync(_stop.Token).ConfigureAwait(false);}catch(Exception error)when(error is not OperationCanceledException){_logger.QueueException("缓存回收","Warning","操作未完成",error);} }
+        try { while(await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))try{await OwnAsync(cancel=>EnforceCacheLimitCoreAsync(cancel,false),_stop.Token).ConfigureAwait(false);}catch(Exception error)when(error is not OperationCanceledException){_logger.QueueException("缓存回收","Warning","操作未完成",error);} }
         catch(OperationCanceledException)when(_stop.IsCancellationRequested){}
     }
     /// <summary>尽力回收整文件临时缓存及未固定的干净占位；不为了达标而解除固定。</summary>
-    public Task<long> EnforceCacheLimitAsync(CancellationToken token=default)=>OwnAsync(EnforceCacheLimitCoreAsync,token);
-    private async Task<long> EnforceCacheLimitCoreAsync(CancellationToken token)
+    public Task<long> EnforceCacheLimitAsync(CancellationToken token=default)=>OwnAsync(cancel=>EnforceCacheLimitCoreAsync(cancel,true),token);
+    private async Task<long> EnforceCacheLimitCoreAsync(CancellationToken token,bool full)
     {
         // UNPINNED是既有释放意图，和按容量自动回收分开；即便关闭软限额也要安全完成。
         var requested=await CompletePendingUnpinsAsync(token).ConfigureAwait(false);
         var limit=CacheLimitBytes;if(limit==0)return requested;
-        var needed=CacheUsageBytes-limit;if(needed<=0)return requested;
+        var needed=await ReadCacheUsageAsync(full,token).ConfigureAwait(false)-limit;if(needed<=0)return requested;
         long freed=_previews.Trim(needed);
         if(freed<needed)freed+=WholeFileCache.Trim(Path.Combine(_repository.DataDirectory,"RangeCache"),needed-freed);
         foreach(var root in _roots.Values)

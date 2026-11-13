@@ -20,6 +20,8 @@ public sealed partial class MountRepository
     internal MountEntry? EntryBySource(Guid mount,string path)=>SelectEntries(mount,"e.source=$p0",[path]).SingleOrDefault();
     internal MountEntry? EntryById(Guid mount,string id)=>SelectEntries(mount,"e.id=$p0",[id]).SingleOrDefault();
     internal IReadOnlyList<MountEntry> EntriesInSourceSubtree(Guid mount,string path)=>SelectEntries(mount,"e.source >= $p0 AND e.source < $p2 AND (e.source=$p0 OR e.source >= $p1)",[path,path+"/",path+"0"]);
+    /// <summary>按本地路径索引读取实际子树；原生改名删除通知不加载整个挂载。</summary>
+    internal IReadOnlyList<MountEntry> EntriesInLocalSubtree(Guid mount,string path)=>SelectEntries(mount,"e.local >= $p0 AND e.local < $p2 AND (e.local=$p0 OR e.local >= $p1)",[path,path+"/",path+"0"]);
     /// <summary>准备映射或发布结果一批提交；事务不执行CFAPI或远端I/O，旧表格式保持。</summary>
     internal void CommitDiscoveryBatch(Guid mount,IReadOnlyList<MountEntry> entries,IReadOnlyList<RemotePendingChange> pending,IReadOnlyList<MountOperationSnapshot> operations)
     {
@@ -59,4 +61,40 @@ public sealed partial class MountRepository
     /// <summary>主键定位单个事件；用于执行前重新核验取消及迟到阶段。</summary>
     internal RemotePendingChange? FindRemotePending(string id)
     {lock(_gate){using var db=Open();using var query=db.CreateCommand();query.CommandText="SELECT json FROM remote_pending WHERE id=$id";query.Parameters.AddWithValue("$id",id);return query.ExecuteScalar() is string json?JsonSerializer.Deserialize<RemotePendingChange>(json):null;}}
+    /// <summary>只按任务主键读取历史；交互操作不重建整个任务页。</summary>
+    internal MountOperationSnapshot? FindOperation(string id)
+    {
+        string? json;
+        lock(_gate)
+        {
+            using var db=Open();using var query=db.CreateCommand();
+            query.CommandText="SELECT json FROM operations WHERE id=$id";query.Parameters.AddWithValue("$id",id);
+            json=query.ExecuteScalar() as string;
+        }
+        return json is null?null:JsonSerializer.Deserialize<MountOperationSnapshot>(json);
+    }
+
+    /// <summary>按祖先或子树索引核验持久依赖；执行和提交共用语义，跨作用域未完成提交仍构成屏障。</summary>
+    internal bool RemoteDependenciesReady(RemotePendingChange item)
+    {
+        lock(_gate){using var db=Open();return RemoteDependenciesReadyCore(db,null,item);}
+    }
+    private static bool RemoteDependenciesReadyCore(SqliteConnection db,SqliteTransaction? transaction,RemotePendingChange item)
+    {
+        using var query=db.CreateCommand();query.Transaction=transaction;
+        var ancestors=new List<string>();for(var path=RelativePaths.Parent(item.Path);;path=RelativePaths.Parent(path)){ancestors.Add(path);if(path.Length==0)break;}
+        query.CommandText="SELECT 1 FROM remote_pending WHERE mount=$m AND id<>$id AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND "+
+            (item.Entry is null?"path COLLATE NOCASE >= $start AND path COLLATE NOCASE < $end":"path COLLATE NOCASE IN (SELECT value FROM json_each($parents)) AND json_extract(json,'$.Entry.IsDirectory')=1")+" LIMIT 1";
+        query.Parameters.AddWithValue("$m",item.MountId.ToString("N"));query.Parameters.AddWithValue("$id",item.Id);
+        query.Parameters.AddWithValue("$start",item.Path+"/");query.Parameters.AddWithValue("$end",item.Path+"0");query.Parameters.AddWithValue("$parents",JsonSerializer.Serialize(ancestors));
+        return query.ExecuteScalar() is null;
+    }
+
+    /// <summary>仅批量保存索引变化，不改变远端存在性或执行文件操作。</summary>
+    internal void SaveEntries(IReadOnlyList<MountEntry> entries,Guid mount)
+    {
+        if(entries.Count>256)throw new ArgumentOutOfRangeException(nameof(entries));
+        lock(_gate){using var db=Open();using var tx=db.BeginTransaction();foreach(var entry in entries)SaveEntryCore(db,tx,mount,entry);tx.Commit();}
+    }
+
 }
