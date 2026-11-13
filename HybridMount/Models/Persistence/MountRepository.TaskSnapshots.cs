@@ -16,7 +16,7 @@ internal sealed class TaskStateSnapshot
     internal void Index()
     {
         foreach(var item in Uploads)ById[item.Id]=item;
-        foreach(var item in Remote.Where(x=>x.State is not("Completed" or "Superseded")&&!(x.State=="Canceled"&&x.MetadataOnly)))
+        foreach(var item in Remote.Where(MountRepository.BlocksLocalPath))
         {
             if(!_remote.TryGetValue(item.MountId,out var paths))_remote[item.MountId]=paths=new(StringComparer.OrdinalIgnoreCase);
             if(!paths.TryGetValue(item.Path,out var values))paths[item.Path]=values=[];values.Add(item);
@@ -71,7 +71,7 @@ public sealed partial class MountRepository
     {
         List<string> json=[];lock(_gate)
         {
-            using var db=Open();using var query=db.CreateCommand();query.CommandText="SELECT json FROM remote_pending WHERE mount=$m AND path COLLATE NOCASE IN (SELECT value FROM json_each($paths)) AND json_extract(json,'$.State') NOT IN ('Completed','Superseded')";
+            using var db=Open();using var query=db.CreateCommand();query.CommandText="SELECT json FROM remote_pending WHERE mount=$m AND path COLLATE HM_PATH IN (SELECT value FROM json_each($paths)) AND "+ActiveRemoteBarrierSql;
             query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$paths",JsonSerializer.Serialize(TaskStateSnapshot.Ancestors(path)));using var rows=query.ExecuteReader();while(rows.Read())json.Add(rows.GetString(0));
         }
         return json.Select(x=>JsonSerializer.Deserialize<RemotePendingChange>(x)!).ToArray();
@@ -82,7 +82,7 @@ public sealed partial class MountRepository
         List<string> json=[];lock(_gate)
         {
             using var db=Open();using var query=db.CreateCommand();
-            query.CommandText="SELECT json FROM uploads WHERE mount=$m AND (json_extract(json,'$.SourcePath') COLLATE NOCASE IN (SELECT value FROM json_each($parents))"+(subtree?" OR (json_extract(json,'$.SourcePath') COLLATE NOCASE >= $start AND json_extract(json,'$.SourcePath') COLLATE NOCASE < $end)":"")+")";
+            query.CommandText=path.Length==0&&subtree?"SELECT json FROM uploads WHERE mount=$m":"SELECT json FROM uploads WHERE mount=$m AND (json_extract(json,'$.SourcePath') COLLATE HM_PATH IN (SELECT value FROM json_each($parents))"+(subtree?" OR (json_extract(json,'$.SourcePath') COLLATE HM_PATH >= $start AND json_extract(json,'$.SourcePath') COLLATE HM_PATH < $end)":"")+")";
             query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$parents",JsonSerializer.Serialize(TaskStateSnapshot.Ancestors(path)));
             query.Parameters.AddWithValue("$start",path+"/");query.Parameters.AddWithValue("$end",path+"0");using var rows=query.ExecuteReader();while(rows.Read())json.Add(rows.GetString(0));
         }
@@ -94,7 +94,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var query=db.CreateCommand();
-            query.CommandText="SELECT e.id,e.source,e.local,e.version,e.directory,e.deleted,e.protected,e.materialized FROM entries e JOIN remote_presence p ON p.mount=e.mount AND p.id=e.id WHERE e.mount=$m AND p.presence=2 AND e.source IN (SELECT value FROM json_each($parents)) ORDER BY length(e.source) DESC LIMIT 1";
+            query.CommandText="SELECT e.id,e.source,e.local,e.version,e.directory,e.deleted,e.protected,e.materialized FROM entries e JOIN remote_presence p ON p.mount=e.mount AND p.id=e.id WHERE e.mount=$m AND p.presence=2 AND e.source COLLATE HM_PATH IN (SELECT value FROM json_each($parents)) ORDER BY length(e.source) DESC LIMIT 1";
             query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$parents",JsonSerializer.Serialize(TaskStateSnapshot.Ancestors(path)));using var row=query.ExecuteReader();
             return row.Read()?new(row.GetString(0),row.GetString(1),row.GetString(2),row.GetString(3),row.GetInt64(4)!=0,row.GetInt64(5)!=0,row.GetInt64(6)!=0,row.GetInt64(7)!=0,RemotePresence.Deleted):null;
         }

@@ -6,7 +6,7 @@ public sealed partial class MountRepository
 {
     /// <summary>相关持久事件整体比较；包含父子路径的屏障，迟到取消或新观测使旧授权失效。</summary>
     internal string ConflictPendingJson(Guid mount,string path)=>JsonSerializer.Serialize(AllRemotePending(mount)
-        .Where(x=>x.State is not("Completed" or "Superseded")&&ConflictRelated(x.Path,path)).OrderBy(x=>x.Id,StringComparer.Ordinal));
+        .Where(x=>BlocksLocalPath(x)&&ConflictRelated(x.Path,path)).OrderBy(x=>x.Id,StringComparer.Ordinal));
     /// <summary>S3等协议尚未转为已核对事件的提示不能被直接取舍吞掉。</summary>
     internal bool HasConflictHints(Guid mount,string path)
     {

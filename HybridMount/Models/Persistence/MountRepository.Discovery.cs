@@ -21,7 +21,7 @@ public sealed partial class MountRepository
     internal MountEntry? EntryById(Guid mount,string id)=>SelectEntries(mount,"e.id=$p0",[id]).SingleOrDefault();
     internal IReadOnlyList<MountEntry> EntriesInSourceSubtree(Guid mount,string path)=>SelectEntries(mount,"e.source >= $p0 AND e.source < $p2 AND (e.source=$p0 OR e.source >= $p1)",[path,path+"/",path+"0"]);
     /// <summary>按本地路径索引读取实际子树；原生改名删除通知不加载整个挂载。</summary>
-    internal IReadOnlyList<MountEntry> EntriesInLocalSubtree(Guid mount,string path)=>SelectEntries(mount,"e.local >= $p0 AND e.local < $p2 AND (e.local=$p0 OR e.local >= $p1)",[path,path+"/",path+"0"]);
+    internal IReadOnlyList<MountEntry> EntriesInLocalSubtree(Guid mount,string path)=>SelectEntries(mount,"($p0='' OR (e.local COLLATE HM_PATH >= $p0 AND e.local COLLATE HM_PATH < $p2 AND (e.local COLLATE HM_PATH=$p0 OR e.local COLLATE HM_PATH >= $p1)))",[path,path+"/",path+"0"]);
     /// <summary>准备映射或发布结果一批提交；事务不执行CFAPI或远端I/O，旧表格式保持。</summary>
     internal void CommitDiscoveryBatch(Guid mount,IReadOnlyList<MountEntry> entries,IReadOnlyList<RemotePendingChange> pending,IReadOnlyList<MountOperationSnapshot> operations)
     {
@@ -92,8 +92,8 @@ public sealed partial class MountRepository
     {
         using var query=db.CreateCommand();query.Transaction=transaction;
         var ancestors=new List<string>();for(var path=RelativePaths.Parent(item.Path);;path=RelativePaths.Parent(path)){ancestors.Add(path);if(path.Length==0)break;}
-        query.CommandText="SELECT 1 FROM remote_pending WHERE mount=$m AND id<>$id AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND "+
-            (item.Entry is null?"path COLLATE NOCASE >= $start AND path COLLATE NOCASE < $end":"path COLLATE NOCASE IN (SELECT value FROM json_each($parents)) AND json_extract(json,'$.Entry.IsDirectory')=1")+" LIMIT 1";
+        query.CommandText="SELECT 1 FROM remote_pending WHERE mount=$m AND id<>$id AND "+ActiveRemoteBarrierSql+" AND "+
+            (item.Entry is null?(item.Path.Length==0?"length(path)>0":"path COLLATE HM_PATH >= $start AND path COLLATE HM_PATH < $end"):"path COLLATE HM_PATH IN (SELECT value FROM json_each($parents)) AND json_extract(json,'$.Entry.IsDirectory')=1")+" LIMIT 1";
         query.Parameters.AddWithValue("$m",item.MountId.ToString("N"));query.Parameters.AddWithValue("$id",item.Id);
         query.Parameters.AddWithValue("$start",item.Path+"/");query.Parameters.AddWithValue("$end",item.Path+"0");query.Parameters.AddWithValue("$parents",JsonSerializer.Serialize(ancestors));
         return query.ExecuteScalar() is null;

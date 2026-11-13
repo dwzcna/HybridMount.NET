@@ -47,7 +47,18 @@ internal sealed class MountDatabase
             CREATE INDEX IF NOT EXISTS remote_pending_mount ON remote_pending(mount,scope);
             CREATE INDEX IF NOT EXISTS remote_pending_path ON remote_pending(mount,scope,path);
             CREATE INDEX IF NOT EXISTS remote_pending_mount_path ON remote_pending(mount,path COLLATE NOCASE);
+            CREATE INDEX IF NOT EXISTS remote_pending_path_ordinal ON remote_pending(mount,path COLLATE HM_PATH);
+            CREATE INDEX IF NOT EXISTS uploads_source_ordinal ON uploads(mount,json_extract(json,'$.SourcePath') COLLATE HM_PATH);
+            CREATE INDEX IF NOT EXISTS entries_source_ordinal ON entries(mount,source COLLATE HM_PATH);
+            CREATE INDEX IF NOT EXISTS entries_local_ordinal ON entries(mount,local COLLATE HM_PATH);
             """+"\n"+string.Join("\n",protocolStorage.Select(module=>module.SchemaSql))+"\nPRAGMA user_version=7;"; cmd.ExecuteNonQuery();
     }
-    public SqliteConnection Open() { var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(DataDirectory, "mounts.db"), Pooling = false }.ToString()); db.Open(); return db; }
+    /// <summary>每条业务或预检连接先注册相同的本地路径排序；不覆盖SQLite内置NOCASE或S3对象键身份。</summary>
+    internal static void ConfigurePathComparison(SqliteConnection db)=>db.CreateCollation("HM_PATH",StringComparer.OrdinalIgnoreCase.Compare);
+    public SqliteConnection Open()
+    {
+        var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(DataDirectory,"mounts.db"),Pooling=false}.ToString());
+        try{db.Open();ConfigurePathComparison(db);return db;}
+        catch{db.Dispose();throw;}
+    }
 }

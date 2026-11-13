@@ -16,7 +16,7 @@ internal sealed record MountIndexFormat(string State,int Version=0,int? HResult=
             // 提前核验实际读权限，避免SQLite的CANTOPEN把访问拒绝混为普通读取错误。
             using(var proof=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete)){}
             using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=path,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());
-            db.Open();using var command=db.CreateCommand();command.CommandText="PRAGMA quick_check(1)";
+            db.Open();MountDatabase.ConfigurePathComparison(db);using var command=db.CreateCommand();command.CommandText="PRAGMA quick_check(1)";
             if(command.ExecuteScalar() as string!="ok")return new("Corrupt");
             command.CommandText="PRAGMA user_version";var version=Convert.ToInt32(command.ExecuteScalar());
             if(version<CurrentVersion)return new("Old",version);

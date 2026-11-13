@@ -163,14 +163,17 @@ public sealed partial class MountRepository
             SavePendingCore(db,tx,pending);tx.Commit();
         }
     }
+    // 本地映射采用OrdinalIgnoreCase；S3原始提示仍使用协议模块的精确对象键，不能把大小写变体误当同一个对象。
+    private const string ActiveRemoteBarrierSql="json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND NOT (json_extract(json,'$.State')='Canceled' AND coalesce(json_extract(json,'$.MetadataOnly'),0)=1)";
+    internal static bool BlocksLocalPath(RemotePendingChange item)=>item.State is not("Completed" or "Superseded")&&!(item.State=="Canceled"&&item.MetadataOnly);
     /// <summary>上传扫描与发送前共用持久屏障，避免同步提供程序的版本切换被当成本地新编辑。</summary>
     public bool HasPendingRemote(Guid mount,string path)
     {
         lock(_gate)
         {
             using var db=Open();using var cmd=db.CreateCommand();
-            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND json_extract(json,'$.State') NOT IN ('Completed','Superseded') AND NOT (json_extract(json,'$.State')='Canceled' AND coalesce(json_extract(json,'$.MetadataOnly'),0)=1) AND (path=$p OR substr($p,1,length(path)+1)=path||'/'))"+string.Concat(_protocolStorage.Select(module=>module.PendingPredicate is {} predicate?" OR ("+predicate+")":""));
-            cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$p",path);return cmd.ExecuteScalar() is not null;
+            cmd.CommandText="SELECT 1 WHERE EXISTS (SELECT 1 FROM remote_pending WHERE mount=$m AND "+ActiveRemoteBarrierSql+" AND path COLLATE HM_PATH IN (SELECT value FROM json_each($parents)))"+string.Concat(_protocolStorage.Select(module=>module.PendingPredicate is {} predicate?" OR ("+predicate+")":""));
+            cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$p",path);cmd.Parameters.AddWithValue("$parents",JsonSerializer.Serialize(TaskStateSnapshot.Ancestors(path)));return cmd.ExecuteScalar() is not null;
         }
     }
     /// <summary>新凭据作用域不重放旧提示；不可逆本地提交保留证据和保护屏障，其他旧作用域批次退役。</summary>
