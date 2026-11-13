@@ -74,6 +74,15 @@ public sealed partial class MountRepository
         return json is null?null:JsonSerializer.Deserialize<MountOperationSnapshot>(json);
     }
 
+    /// <summary>每文件恢复按主键点查同挂载、条目和操作；保留旧版本／身份及尝试证据，由原执行器核验失败，不能以新任务覆盖未决恢复。</summary>
+    internal MountOperationSnapshot? FindRecoverableFileOperation(string id,Guid mount,MountEntry entry,string operation)
+    {
+        var row=FindOperation(id);
+        return row is not null&&row.MountId==mount&&row.OperationEntryId==entry.Id&&row.Operation==operation&&
+            row.State is "Running" or "Deferred" or "Interrupted"
+            ?row:null;
+    }
+
     /// <summary>按祖先或子树索引核验持久依赖；执行和提交共用语义，跨作用域未完成提交仍构成屏障。</summary>
     internal bool RemoteDependenciesReady(RemotePendingChange item)
     {

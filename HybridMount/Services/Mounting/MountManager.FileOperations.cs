@@ -20,12 +20,12 @@ public sealed partial class MountManager
     {
         lock(_fileOperationCreation)
         {
-        if(_fileOperations.TryGetValue(id,out var active)&&ReferenceEquals(active.Session,session)&&active.Snapshot.State is not("Completed" or "Canceled" or "Failed" or "Superseded")&&(!renew||active.Canceling||operation=="freeSpace"))return active;
-        var file=LocalFileState.Read(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));
-        var previous=renew?null:_repository.LoadFileOperations(root.Definition.Id).FirstOrDefault(row=>row.Id==id&&row.OperationEntryId==entry.Id&&row.Operation==operation&&row.State is "Running" or "Deferred" or "Interrupted");
-        var snapshot=previous??new MountOperationSnapshot(id,operation,"Running",0,1,[],null,root.Definition.Id,entry.LocalPath,TotalBytes:entry.IsDirectory?0:file.Length,IsDirectory:entry.IsDirectory)
-        {OperationEntryId=entry.Id,OperationVersion=entry.Version,OperationFileId=file.Identity,AttemptId=Guid.NewGuid().ToString("N")};
-        var task=new FileOperation(root,session,entry,snapshot);_fileOperations[id]=task;_repository.SaveOperation(snapshot);_fileDispatcher.Observe(Workflow(root,id,entry.LocalPath,operation,task.Generation,snapshot.State));return task;
+            if(_fileOperations.TryGetValue(id,out var active)&&ReferenceEquals(active.Session,session)&&active.Snapshot.State is not("Completed" or "Canceled" or "Failed" or "Superseded")&&(!renew||active.Canceling||operation=="freeSpace"))return active;
+            var file=LocalFileState.Read(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));
+            var previous=renew?null:_repository.FindRecoverableFileOperation(id,root.Definition.Id,entry,operation);
+            var snapshot=previous??new MountOperationSnapshot(id,operation,"Running",0,1,[],null,root.Definition.Id,entry.LocalPath,TotalBytes:entry.IsDirectory?0:file.Length,IsDirectory:entry.IsDirectory)
+            {OperationEntryId=entry.Id,OperationVersion=entry.Version,OperationFileId=file.Identity,AttemptId=Guid.NewGuid().ToString("N")};
+            var task=new FileOperation(root,session,entry,snapshot);_fileOperations[id]=task;_repository.SaveOperation(snapshot);_fileDispatcher.Observe(Workflow(root,id,entry.LocalPath,operation,task.Generation,snapshot.State));return task;
         }
     }
     /// <summary>短内存锁内串行发布同一尝试；持久化成功后通知UI，取消中的迟到完成不能覆盖取消结果。</summary>
@@ -95,7 +95,7 @@ public sealed partial class MountManager
     /// <summary>仅重试仍匹配的释放意图；本操作只唤醒本地核验，不读取远端或解除保护。</summary>
     private bool RetryFileOperation(string id)
     {
-        var snapshot=_fileOperations.TryGetValue(id,out var task)?task.Snapshot:_repository.LoadOperations().FirstOrDefault(row=>row.Id==id);
+        var snapshot=_fileOperations.TryGetValue(id,out var task)?task.Snapshot:_repository.FindOperation(id);
         if(snapshot is not {Operation:"freeSpace",OperationEntryId:{} entryId,MountId:{} mount}||!_roots.TryGetValue(mount,out var root)||root.Session is null)return false;
         var entry=_repository.EntryById(mount,entryId);if(entry is null||entry.Version!=snapshot.OperationVersion)return false;
         task??=FileTask(root,root.Session,entry,"freeSpace",id);

@@ -18,6 +18,7 @@ internal sealed class MountDatabase
             CREATE INDEX IF NOT EXISTS entries_source ON entries(mount,source);
             CREATE INDEX IF NOT EXISTS entries_local ON entries(mount,local);
             CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,json TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS operations_file_mount ON operations(json_extract(json,'$.MountId')) WHERE json_extract(json,'$.OperationEntryId') IS NOT NULL;
             CREATE TABLE IF NOT EXISTS task_intents(id TEXT PRIMARY KEY,mount TEXT NOT NULL,session TEXT NOT NULL,sequence INTEGER NOT NULL,path TEXT NOT NULL COLLATE NOCASE,json TEXT NOT NULL,state TEXT NOT NULL,UNIQUE(mount,session,sequence));
             CREATE INDEX IF NOT EXISTS task_intents_ready ON task_intents(mount,state,sequence);
             CREATE INDEX IF NOT EXISTS task_intents_path ON task_intents(mount,path,state);
