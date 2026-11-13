@@ -89,6 +89,9 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     /// <summary>隔离回归通过真实事件入口注入采样状态；生产二进制不包含测试接口。</summary>
     /// <summary>隔离验证真实通知消费入口的连接代次及停止屏障，不创建内核根。</summary>
     internal void QueueNotificationForTests(Action action)=>QueueNativeNotification(action);
+    internal Task DrainNotificationsForTests(){lock(_fetchGate)return _nativeNotificationTail;}
+    internal int PendingNotificationsForTests{get{lock(_fetchGate)return _nativeNotificationCount;}}
+    internal void NativeNotificationForTests(string name,JsonElement data)=>OnNativeEvent(new(_mount.Id.ToString("N"),_sessionId,name,data));
     internal void NotificationForTests(JsonElement data,bool currentGeneration=true)=>OnNativeEvent(new(_mount.Id.ToString("N"),currentGeneration?_sessionId:"stale","activity",data));
     internal void PreviewObservationForTests(IReadOnlyList<string> paths,bool complete)=>OnNativeEvent(new(_mount.Id.ToString("N"),_sessionId,"previewDemand",NativeRuntimeProtocol.Element(new{paths,complete})));
 #endif
@@ -143,10 +146,10 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         {
             var sequence=NativeRuntimeProtocol.Read<long>(data.GetProperty("sequence"));var closed=NativeRuntimeProtocol.Read<long>(data.GetProperty("closeCount"));var count=data.GetProperty("openCount").GetInt32();if(sequence<=0||closed<0||count<0)throw new IOException("原生打开状态无效。");
             var prior=_activitySeen.GetValueOrDefault(id);if(sequence<=prior.Sequence)return;_activitySeen[id]=(sequence,closed);_open[id]=count;
-            if(closed>prior.Closed){_localChanged?.Invoke();NotifyPinWorkCompleted(id);QueueContentNotification(id);}return;
+            if(closed>prior.Closed)QueueClosedEntryNotification(id);return;
         }
         if(message.Event=="open"){_open.AddOrUpdate(id,1,(_,value)=>value+1);return;}
-        if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));if(!_clearing&&!_stop.IsCancellationRequested)_localChanged?.Invoke();NotifyPinWorkCompleted(id);QueueContentNotification(id);return;}
+        if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));QueueClosedEntryNotification(id);return;}
         var captured=data.Clone();QueueNativeNotification(()=>
         {
             var entry=_repository.EntryById(_mount.Id,id);if(entry is null)return;
@@ -173,19 +176,6 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             "unsafeTarget"=>$"重命名目标目录不可安全访问：{name}，请检查目标目录后重试",
             _=>$"重命名未完成：{name}，请检查目标位置和挂载状态"
         };
-    }
-    private Task _nativeNotificationTail=Task.CompletedTask;private int _nativeNotificationCount;
-    /// <summary>关键通知串行保留改名／删除因果；超容量显式失效，不在事件消费线程等待数据库。</summary>
-    private void QueueNativeNotification(Action action)
-    {
-        lock(_fetchGate)
-        {
-            if(_clearing||_stop.IsCancellationRequested)return;
-            if(_nativeNotificationCount>=256){_runtime?.AbortForSafety(new IOException("本地变更通知积压，保留记录等待核对。"));return;}
-            var prior=_nativeNotificationTail;_nativeNotificationCount++;
-            var work=Task.Run(async()=>{try{await prior.ConfigureAwait(false);action();}catch(Exception error){_logger.QueueException("原生通知","Error","本地变更通知未完成",error);_runtime?.AbortForSafety(error);}finally{lock(_fetchGate)_nativeNotificationCount--;}});
-            _nativeNotificationTail=work;_notifications.Add(work);_ = work.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
-        }
     }
     /// <summary>只有取消区间完整覆盖该回调时才结束其等待；部分重叠继续服务剩余需要的数据，避免误伤其他请求。</summary>
     internal static bool CancellationCovers(long offset,long length,long cancelOffset,long cancelLength)
@@ -345,8 +335,6 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {
         var result=Runtime.Invoke("createPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()}));_repository.SaveEntry(_mount.Id,entry with{Materialized=true});var usn=NativeRuntimeProtocol.Read<long>(result.GetProperty("createUsn"));RecordCreatedWrite(entry,metadata,usn);
     }
-    /// <summary>内容就绪提示共用有界串行通知拥有者，避免每次关闭无限制创建后台任务。</summary>
-    private void QueueContentNotification(string id)=>QueueNativeNotification(()=>{var entry=_repository.EntryById(_mount.Id,id);if(entry is not null)_localContentReady?.Invoke(entry);});
     /// <summary>同步禁止新水合，异步取消读取；不在根锁或回调内等待网络结束。</summary>
     public Task RequestStop(){lock(_fetchGate){_clearing=true;return _cancellation??=StopAdmissionAsync();}}
     private async Task StopAdmissionAsync(){await _stop.CancelAsync().ConfigureAwait(false);if(_connected&&_runtime?.IsAvailable==true)await _runtime.InvokeAsync("clearRoot",SessionArgs()).ConfigureAwait(false);}

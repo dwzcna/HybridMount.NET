@@ -185,6 +185,7 @@
     <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudMountSession.Pinning.cs" Link="Production\Models\Mounting\Windows\CloudMountSession.Pinning.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudMountSession.RemoteContent.cs" Link="Production\Models\Mounting\Windows\CloudMountSession.RemoteContent.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudMountSession.Unpin.cs" Link="Production\Models\Mounting\Windows\CloudMountSession.Unpin.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudMountSession.NativeNotifications.cs" Link="Production\Models\Mounting\Windows\CloudMountSession.NativeNotifications.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudMountSession.cs" Link="Production\Models\Mounting\Windows\CloudMountSession.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudRemoteCleanup.cs" Link="Production\Models\Mounting\Windows\CloudRemoteCleanup.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Windows\CloudRemoteUpdate.cs" Link="Production\Models\Mounting\Windows\CloudRemoteUpdate.cs"/>

@@ -34,9 +34,9 @@ public sealed class NativeNotificationQueueTests(Xunit.Abstractions.ITestOutputH
         try
         {
             var repository=new MountRepository(Path.Combine(area,"data"),definitions:new Definitions());await using var logger=new LoggerService(Path.Combine(area,"log.db"));var changed=0;await using var session=new CloudMountSession(new(Guid.NewGuid(),"notification",area,false),null,repository,logger,localChanged:()=>changed++);
-            var state=State("entry",5,2,3).Data;session.NotificationForTests(state,false);Assert.False(session.IsActive("entry"));session.NotificationForTests(state);Assert.True(session.IsActive("entry"));Assert.Equal(1,changed);
-            session.NotificationForTests(State("entry",2,0,1).Data);Assert.True(session.IsActive("entry"));Assert.Equal(1,changed);session.NotificationForTests(State("entry",6,0,4).Data);Assert.False(session.IsActive("entry"));Assert.Equal(2,changed);
-            await session.RequestStop();session.NotificationForTests(State("entry",7,1,5).Data);Assert.False(session.IsActive("entry"));Assert.Equal(2,changed);await session.DisposeAsync();
+            var state=State("entry",5,2,3).Data;session.NotificationForTests(state,false);Assert.False(session.IsActive("entry"));session.NotificationForTests(state);Assert.True(session.IsActive("entry"));await session.DrainNotificationsForTests();Assert.Equal(1,changed);
+            session.NotificationForTests(State("entry",2,0,1).Data);Assert.True(session.IsActive("entry"));await session.DrainNotificationsForTests();Assert.Equal(1,changed);session.NotificationForTests(State("entry",6,0,4).Data);Assert.False(session.IsActive("entry"));await session.DrainNotificationsForTests();Assert.Equal(2,changed);
+            await session.RequestStop();session.NotificationForTests(State("entry",7,1,5).Data);Assert.False(session.IsActive("entry"));await session.DrainNotificationsForTests();Assert.Equal(2,changed);await session.DisposeAsync();
         }
         finally{Directory.Delete(area,true);}
     }
