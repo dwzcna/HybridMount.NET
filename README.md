@@ -1,12 +1,14 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.16.2**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.16.3**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.16.2_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.16.3_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份保持。当前本机任务索引使用新格式，旧数据处理见下文。
 
 本地变化与固定／释放属性统一由 `HybridMount.Stock` 使用异步目录监听和 IOCP 捕获，只有已连接根才启用，每根使用 64 KiB 缓冲。普通变化按 200 毫秒合并、最长两秒；改名关联及时交付，溢出和序号断档要求补扫。原生任务管道独立于 CFAPI 控制和正文通道，以挂载 ID、相对路径、任务 ID 和连接代次联系；接纳前先持久化，结果按 ID 确认和重送。退出、断开或移除先停止监听并交付捕获事件，原生独立缩略图行为保持。
+
+CFAPI 打开／关闭后的索引与固定、缩略图通知在各挂载后台处理，重复关闭会合并。通知处理瞬时失败重试，持续失败或积压只停止受影响挂载并保留恢复记录；非法运行时协议仍会封闭共享连接。连续改名遇到已更新索引时补扫，不回写旧路径。类型替换后的已发修改在远端结果未确认时保留“结果未知”，只读核对后才收尾，不自动重放。
 
 .NET 文件任务通过 Dispatcher、Queue、Runner 和 Verifier 分发、执行与核验，复用现有云请求额度和路径屏障。上传记录快照、云端核验和本地提交步骤，下载、远端应用、改名及固定／释放沿用安全业务适配器；详情可查看步骤和依赖。编辑中的新内容替代旧尝试时，已发送的修改先核对实际结果，旧回执不能将新正文标记为已同步。协议能力不足时继续保留冲突，不执行未经验证的删除替换。
 

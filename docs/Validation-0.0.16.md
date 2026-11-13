@@ -27,3 +27,38 @@ x64 Debug／Release主矩阵各65/65，0失败／0跳过；00162-work/debug-fina
 RemotePathBarrierTests涵盖ASCII／拉丁／希腊／西里尔大小写、跨作用域、根及兄弟、取消与失败状态、S3原始键和本地别名、重启只读预检。查询计划实际命中`remote_pending_path_ordinal (mount=? AND path=?)`，没有扫描remote_pending。Release任务快照暖态100样本P95=8.613／344.828ms（1,000／10,000项），固定5查询；不能替代真实UI响应。
 
 首轮64通过／1失败：根删除SQL的空字符串引用不完整，静态修正晚于首轮编译；改为长度谓词后最终65项双配置均通过。debug-initial.trx及首轮日志保留。未重跑.15完整694项；ARM64／签名包在.16.3执行，真实协议设备与生产待测。
+
+## 0.0.16.3
+
+合法业务通知最多四次执行，退避100／500／2000ms，不持根锁或云执行位等待。SQLite忙／锁／I/O等可重试，结构损坏及无法继续的业务失败只隔离当前挂载；队列超过256项同样停止受影响会话，不能丢弃后继续。管理器取消该挂载并保留持久意图，重连按既有全量补扫和未决结果核验恢复。字段、身份及路径越界属于不可信协议，仍关闭共享运行时。
+
+改名／删除子树同一事务保存，注入提交前失败全部回滚；提交后订阅者重试复用原通知。独立任务管道已推进索引时，迟到CFAPI改名只请求补扫，不能回写旧路径或错误断开。类型替换取消等待不代表服务器取消修改，远端暂不存在时保留原OutcomeUnknown、快照和错误证据；出现迟到目录回执后保存回执并维持真实类型冲突，不重新发送修改。结果长期不明仍需用户核对，不推定成功或回滚。
+
+Windows SDK shared/winerror.h的ERROR_CLOUD_FILE_REQUEST_CANCELED为398，即HRESULT=0x8007018E，含义为用户取消云操作。两端完成分类均识别该终态，真实未知完成仍保留安全关闭。原生EntryId上限对齐4096字节，超过范围仍拒绝，不因新校验缩窄旧契约。通知只读诊断记录积压、重试、隔离和补扫请求，不触发文件正文或生成。
+
+| 阶段 | 真实结果 | 00163-work证据 |
+| --- | --- | --- |
+| 首组故障／通知Debug | 49/49 | debug-build-test-final.log、debug.trx |
+| 追加索引损坏／提交后订阅者Debug | 12/12 | debug-failure-final.log／trx |
+| 首轮扩大Release | 154通过／2失败，共156 | release-build-test.log、release-initial.trx |
+| 迟到观察／回执修正定向Release | 18/18 | release-late-fix.log／trx |
+| 修正后主要Debug | 58/58 | debug-latest-build-test.log、debug-latest.trx |
+| 再次扩大Release | 155通过／3失败，共158 | release-final-build-test.log、release-cancel-before-fix.trx |
+| 系统取消分类修正Debug | 58/58 | debug-cancel-final-build-test.log、debug-cancel-final.trx |
+| 取消修正后扩大Release | 190/190，0失败／0跳过 | release-cancel-final-build-test.log、release-cancel-final.trx |
+| 最终通知身份预算对齐 | Debug16/16、Release16/16 | debug-identity-final.log／trx、release-identity-final.log／trx |
+
+最后190项矩阵覆盖通知、真实原生CFAPI、读取优化、上传、连续排除改名、释放、文件恢复及路径屏障；末次仅调整ID预算并补边界用例，用两配置各16项覆盖，没有把190项算作末次局部修改后的完整重跑。没有执行.15完整694项矩阵或.33停止专项。
+
+首轮编译发现InvalidDataException并非IOException子类的模式写法错误，修正后才运行测试。首轮两项失败分别是迟到改名误隔离及类型替换提前终结结果，保留严格断言后修复；再次扩大三项失败由实际0x8007018E正常取消触发共享运行时误关闭，原生／托管同步修正后190项通过。两轮失败时间窗的HKLM注册审计仅选择随机HttpTests／S3Tests临时目录、当前用户与部署模式，候选0（failed-matrix-roots.json），未注销任何额外根或删除文件。
+
+### 最终构建与包
+
+最终x64 Debug／Release非打包构建通过（debug-identity-final-build.log、unpackaged-release-final.log）；x64／ARM64 Release签名MSIX与包检查通过（package-x64-final.log、package-arm64-final.log）。1096键×3语言／8原生字符串×3检查通过。ARM64测试程序集交叉编译0警告／0错误（tests-arm64-cross-final.log），没有在ARM64设备执行测试。签名使用既有CN=dwzcn证书，不安装产品包或增加信任。
+
+- x64：`artifacts/packages/x64/HybridMount.NET_0.0.16.3_x64_Test/HybridMount.NET_0.0.16.3_x64.msix`；SHA256：`4267158212D856760CC560CF7026F6A2B02B437660FDD90D99805BC6FC60897C`。
+- ARM64：`artifacts/packages/ARM64/HybridMount.NET_0.0.16.3_ARM64_Test/HybridMount.NET_0.0.16.3_ARM64.msix`；SHA256：`2FE2E712ACB4093146DA77569D84873EA38E5F523FFCA800133D06AAD4636CA7`。
+
+最终路径／哈希另存final-packages.json。保留四工程和安装身份、格式7、.hmxbk JSON与加密、公共IPC v2；仅测试构建有故障注入及分类探针。全部修改经版本化补丁检查与应用，记录后本地提交，不推送、不操作正式挂载、不重启Explorer。
+
+真实Explorer／WinUI端到端响应、生产文件与事件规模、真实慢盘／磁盘故障、断电及长时断线、Windows11 21H2、DSM及ARM64实机仍待验收。隔离成功不等于这些项目已通过。

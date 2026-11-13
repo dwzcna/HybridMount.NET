@@ -535,6 +535,12 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         var session=root.Session??throw new IOException("缺少原生挂载会话。");
         session.RenameRejected+=message=>{if(!IsStopping&&ReferenceEquals(root.Session,session))NotifyRenameRejected(root.Definition.Id,message);};
+        // 独立任务管道可能已推进连续改名；迟到CFAPI通知只请求可靠补扫，不能回写旧路径或错误断开。
+        session.NotificationRescanRequired+=()=>
+        {
+            if(!IsStopping&&!root.RemovalRequested&&ReferenceEquals(root.Session,session))
+            {root.Uploads?.RequestFullScan();root.Pins?.RequestFull();}
+        };
         session.RuntimeFailed+=error=>
         {
             lock(_lifetime)

@@ -131,6 +131,7 @@ Json RuntimeOperations::Execute(RuntimeCommand& command){
     if(operation=="thumbnailDiagnostics")return {{"observer",_impl->Previews.Statistics()},{"query",ThumbnailQueryStatistics()},{"local",LocalThumbnailStatistics()},{"reads",LocalReadStatistics()},{"decoder",LocalThumbnailDecoderStatistics()},{"remote",RemoteThumbnailHintStatistics()}};
     std::unique_lock<std::mutex> rootLock(RootRegistryGate,std::defer_lock);std::unique_ptr<RootRegistryGuard> registryLease;if(operation=="ownedRoot"||operation=="registerRoot"||operation=="ensureDefinition"||operation=="unregisterRoot"||operation=="unregisterNativeRoot"||operation=="unregisterKnownRoot"||operation=="testResetDefinitions"){rootLock.lock();command.CheckCancel();registryLease=std::make_unique<RootRegistryGuard>(command.Cancel.Value);}
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
+    if(operation=="testCompletionClassification")return {{"canceled",CloudSession::CanceledCompletionForTests(data.at("hresult").get<HRESULT>())}};
     if(operation=="testCallbackMailbox"){
         CallbackMailbox queue;auto event=[](const std::string& name,const std::string& id,int sequence=1){return Json{{"kind","event"},{"mountId","test"},{"sessionId","test"},{"event",name},{"data",{{"entryId",id},{"sequence",std::to_string(sequence)},{"openCount",sequence%2},{"closeCount",std::to_string(sequence/2)}}}};};
         const auto mode=data.at("mode").get<std::string>();

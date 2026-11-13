@@ -216,6 +216,7 @@ internal sealed partial class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDispo
 #if HYBRIDMOUNT_HEADLESS_TEST
     /// <summary>仅独立测试客户端可注入内部提示，验证饱和丢唤醒后最终需求仍可交付。</summary>
     internal void PostPreviewForTests(NativeRuntimeEvent value)=>EnqueuePreviewEvent(value);
+    internal void PostRequiredEventForTests(NativeRuntimeEvent value){if(!_events.TryWrite(value))throw new IOException("测试事件队列满。");}
 #endif
     /// <summary>可丢弃预览及Shell说明独立消费；会话记录诊断，提示失败绝不停止挂载或关键事件。</summary>
     private async Task PreviewLoopAsync()

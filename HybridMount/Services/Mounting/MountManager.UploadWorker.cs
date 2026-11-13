@@ -147,6 +147,10 @@ public sealed partial class MountManager
         else if(UploadRules.IsTransient(error))Update(x=>UploadRules.WaitForTransient(x,error,DateTimeOffset.UtcNow));
         else Update(x=>x with{State=preparing&&error is IOException or System.ComponentModel.Win32Exception?"Waiting":"Failed",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow,NextAttemptUtc=preparing&&error is IOException or System.ComponentModel.Win32Exception?DateTimeOffset.UtcNow.AddSeconds(3):null});
     }
+#if HYBRIDMOUNT_HEADLESS_TEST
+    /// <summary>隔离回归仅驱动同一只读核验器，不创建修改请求或改变公开接口。</summary>
+    internal Task ReconcileUploadForTests(Guid mount,string id)=>ReconcileUploadAsync(Root(mount),_repository.Upload(id)??throw new IOException("测试上传不存在。"),CancellationToken.None);
+#endif
     /// <summary>未知结果先核对远端；仅经验证的条件写在安全基线下有限重试。</summary>
     private async Task ReconcileUploadAsync(Runtime root,LocalUpload item,CancellationToken token)
     {
@@ -157,6 +161,12 @@ public sealed partial class MountManager
             var metadata=await root.Source!.TryGetMetadataAsync(item.SourcePath,token).ConfigureAwait(false);
             if(metadata is null)
             {
+                // 类型替换取消的是等待者，服务器仍可能稍后完成已发请求；不存在不能证明撤销，继续只读核对并保留原类型与快照。
+                if(item.Error==UploadRules.TypeConflictMessage)
+                {
+                    ChangeUpload(item.Id,current=>current with{State="OutcomeUnknown",LastCheckedUtc=DateTimeOffset.UtcNow});
+                    return;
+                }
                 if(!item.IsDirectory&&item.ExpectedVersion is null&&RetryConditionalUpload(root,item,true))return;
                 ChangeUpload(item.Id,current=>current with{State=current.CancelRequested?"Canceled":"Conflict",Error="发送结果不明且远端目标不存在，无法区分未写入与写入后被删除；请显式重试或另存副本。",LastCheckedUtc=null});return;
             }

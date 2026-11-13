@@ -8,7 +8,7 @@ thread_local ULONGLONG CallbackDeadline{};
 struct CallbackBudget{ULONGLONG Previous=CallbackDeadline;CallbackBudget(){auto end=GetTickCount64()+45;CallbackDeadline=Previous?std::min(Previous,end):end;}~CallbackBudget(){CallbackDeadline=Previous;}};
 constexpr NTSTATUS CanceledStatus=static_cast<NTSTATUS>(0xc000cf16),UnavailableStatus=static_cast<NTSTATUS>(0xc000cf00);
 std::string NewId(){GUID id{};Check(CoCreateGuid(&id));wchar_t text[40]{};Require(StringFromGUID2(id,text,40)>0);return GuidN(Utf8(text));}
-bool CanceledCompletion(HRESULT code){return code==static_cast<HRESULT>(0x8007017c)||code==static_cast<HRESULT>(0x80070189)||code==HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED);}
+bool CanceledCompletion(HRESULT code){return code==static_cast<HRESULT>(0x8007017c)||code==static_cast<HRESULT>(0x80070189)||code==HRESULT_FROM_WIN32(ERROR_OPERATION_ABORTED)||code==HRESULT_FROM_WIN32(ERROR_CLOUD_FILE_REQUEST_CANCELED);}
 CF_OPERATION_INFO Operation(const CF_CALLBACK_INFO& info,CF_OPERATION_TYPE type){CF_OPERATION_INFO value{};value.StructSize=sizeof(value);value.Type=type;value.ConnectionKey=info.ConnectionKey;value.TransferKey=info.TransferKey;value.RequestKey=info.RequestKey;return value;}
 HRESULT Complete(const CF_OPERATION_INFO& info,long long offset,long long length,NTSTATUS status,const void* buffer=nullptr){CF_OPERATION_PARAMETERS parameters{};parameters.ParamSize=static_cast<ULONG>(offsetof(CF_OPERATION_PARAMETERS,TransferData)+sizeof(parameters.TransferData));parameters.TransferData.CompletionStatus=status;parameters.TransferData.Offset.QuadPart=offset;parameters.TransferData.Length.QuadPart=length;parameters.TransferData.Buffer=buffer;return CfExecute(&info,&parameters);}
 void Ack(const CF_CALLBACK_INFO& info,CF_CALLBACK_TYPE type,NTSTATUS status){auto operation=Operation(info,type==CF_CALLBACK_TYPE_NOTIFY_DELETE?CF_OPERATION_TYPE_ACK_DELETE:CF_OPERATION_TYPE_ACK_RENAME);CF_OPERATION_PARAMETERS parameters{};if(type==CF_CALLBACK_TYPE_NOTIFY_DELETE){parameters.ParamSize=static_cast<ULONG>(offsetof(CF_OPERATION_PARAMETERS,AckDelete)+sizeof(parameters.AckDelete));parameters.AckDelete.CompletionStatus=status;}else{parameters.ParamSize=static_cast<ULONG>(offsetof(CF_OPERATION_PARAMETERS,AckRename)+sizeof(parameters.AckRename));parameters.AckRename.CompletionStatus=status;}Check(CfExecute(&operation,&parameters));}
@@ -124,6 +124,7 @@ void CloudSession::Stop(){auto& p=*_impl;std::lock_guard connection(p.Connection
 
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
 namespace hm {
+bool CloudSession::CanceledCompletionForTests(HRESULT code){return CanceledCompletion(code);}
 void CloudSession::HoldTestCallback(){Impl::CallbackTicket callback(_impl.get());Require(callback.Owner!=nullptr);_impl->Event("testCallback",Json::object());Require(WaitForSingleObject(_impl->TestCallbackRelease.Value,10000)==WAIT_OBJECT_0,HRESULT_FROM_WIN32(ERROR_TIMEOUT));}
 void CloudSession::ReleaseTestCallback(){WinCheck(SetEvent(_impl->TestCallbackRelease.Value));}
 void CloudSession::SetTestFailures(int finish,int disconnect){Require(finish>=0&&finish<=3&&disconnect>=0&&disconnect<=3);_impl->FinishFailures=finish;_impl->DisconnectFailures=disconnect;}}

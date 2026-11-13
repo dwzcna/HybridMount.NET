@@ -29,6 +29,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly string _sessionId=Guid.NewGuid().ToString("N");
     private sealed record NativeFetch(string FetchId,string EntryId,long Offset,long Length,byte Priority,bool Explicit,uint ProcessId,string Image);
     internal event Action<Exception>? RuntimeFailed;
+    internal event Action? NotificationRescanRequired;
     internal event Action<PreviewBrowseDemand>? PreviewDemandReceived;
     private string _previewObservation="尚未收到目录观察结果";
     /// <summary>最近一次观察的有界计数快照；不枚举Shell或读取源，供完整诊断直接查询。</summary>
@@ -50,7 +51,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     private readonly HashSet<Task> _notifications=[];
     private readonly ConcurrentDictionary<string,int> _open = new(StringComparer.Ordinal);
     private readonly Dictionary<string,(long Sequence,long Closed)> _activitySeen=new(StringComparer.Ordinal);
-    internal string NotificationDescription=>_runtime?.EventStatistics??"未运行";
+    internal string NotificationDescription=>(_runtime?.EventStatistics??"未运行")+"；"+NativeNotificationStatistics;
     private bool _connected;
     private readonly ConcurrentDictionary<string,int> _explicitDownloads=new();
     private sealed class DownloadPriority(ConcurrentDictionary<string,int> counts,ConcurrentDictionary<string,MountingTask> tasks,string id) : IDisposable
@@ -89,7 +90,12 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     /// <summary>隔离回归通过真实事件入口注入采样状态；生产二进制不包含测试接口。</summary>
     /// <summary>隔离验证真实通知消费入口的连接代次及停止屏障，不创建内核根。</summary>
     internal void QueueNotificationForTests(Action action)=>QueueNativeNotification(action);
-    internal Task DrainNotificationsForTests(){lock(_fetchGate)return _nativeNotificationTail;}
+    internal async Task DrainNotificationsForTests()
+    {
+        while(true){Task[] pending;lock(_fetchGate)pending=_notifications.ToArray();if(pending.Length==0)return;await Task.WhenAll(pending).ConfigureAwait(false);}
+    }
+    internal long NotificationRetriesForTests=>Interlocked.Read(ref _nativeNotificationRetries);
+    internal void AttachNotificationRuntimeForTests(NativeRuntimeClient runtime){_runtime=runtime;runtime.EventReceived+=OnNativeEvent;runtime.Failed+=OnRuntimeFailed;}
     internal int PendingNotificationsForTests{get{lock(_fetchGate)return _nativeNotificationCount;}}
     internal void NativeNotificationForTests(string name,JsonElement data)=>OnNativeEvent(new(_mount.Id.ToString("N"),_sessionId,name,data));
     internal void NotificationForTests(JsonElement data,bool currentGeneration=true)=>OnNativeEvent(new(_mount.Id.ToString("N"),currentGeneration?_sessionId:"stale","activity",data));
@@ -140,29 +146,44 @@ public sealed partial class CloudMountSession : IAsyncDisposable
         {if(_fetches.TryGetValue(data.GetProperty("fetchId").GetString()!,out var fetch))try{fetch.Cancel.Cancel();}catch(ObjectDisposedException){}return;}
         if(message.Event=="callbackFailure")
         {_logger.Queue("CFAPI","Error",$"原生回调未完成：type={data.GetProperty("type").GetInt32()}；HRESULT=0x{data.GetProperty("hresult").GetInt32():X8}");return;}
-        var id=data.GetProperty("entryId").GetString()!;
+        var id=data.GetProperty("entryId").GetString();
+        if(string.IsNullOrEmpty(id)||id.Length>4096||System.Text.Encoding.UTF8.GetByteCount(id)>4096||id.Any(char.IsControl))throw new InvalidDataException("原生通知条目身份无效。");
         if(_clearing||_stop.IsCancellationRequested)return;
         if(message.Event=="activity")
         {
-            var sequence=NativeRuntimeProtocol.Read<long>(data.GetProperty("sequence"));var closed=NativeRuntimeProtocol.Read<long>(data.GetProperty("closeCount"));var count=data.GetProperty("openCount").GetInt32();if(sequence<=0||closed<0||count<0)throw new IOException("原生打开状态无效。");
+            var sequence=NativeRuntimeProtocol.Read<long>(data.GetProperty("sequence"));var closed=NativeRuntimeProtocol.Read<long>(data.GetProperty("closeCount"));var count=data.GetProperty("openCount").GetInt32();if(sequence<=0||closed<0||count<0)throw new InvalidDataException("原生打开状态无效。");
             var prior=_activitySeen.GetValueOrDefault(id);if(sequence<=prior.Sequence)return;_activitySeen[id]=(sequence,closed);_open[id]=count;
             if(closed>prior.Closed)QueueClosedEntryNotification(id);return;
         }
         if(message.Event=="open"){_open.AddOrUpdate(id,1,(_,value)=>value+1);return;}
         if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));QueueClosedEntryNotification(id);return;}
-        var captured=data.Clone();QueueNativeNotification(()=>
+        if(message.Event=="deleted")
         {
-            var entry=_repository.EntryById(_mount.Id,id);if(entry is null)return;
-            var entries=_repository.EntriesInLocalSubtree(_mount.Id,entry.LocalPath);
-            if(message.Event=="deleted")foreach(var child in entries.Where(item=>RelativePaths.Contains(entry.LocalPath,item.LocalPath)&&item.RemotePresence!=RemotePresence.Deleted))_repository.SaveEntry(_mount.Id,child with{Deleted=true,Protected=true});
-            else if(message.Event=="renamed")
+            QueueNativeNotification(()=>_repository.ApplyNativeDeletion(_mount.Id,id));
+            return;
+        }
+        if(message.Event=="renamed")
+        {
+            // 不可信结构与越界身份在入队前拒绝；业务／数据库错误只在本挂载消费者处理。
+            var full=data.GetProperty("path").GetString();
+            var oldFull=data.GetProperty("oldPath").GetString();
+            if(string.IsNullOrEmpty(full)||string.IsNullOrEmpty(oldFull)||full.Length>32767||oldFull.Length>32767||
+                !MountPathGuard.IsUnder(_mount.LocalPath,full)||!MountPathGuard.IsUnder(_mount.LocalPath,oldFull))
+                throw new InvalidDataException("原生改名通知路径超出挂载身份。");
+            var relative=Path.GetRelativePath(_mount.LocalPath,full).Replace('\\','/');
+            var old=Path.GetRelativePath(_mount.LocalPath,oldFull).Replace('\\','/');
+            if(relative=="."||old==".")throw new InvalidDataException("原生改名通知不能改变挂载根。");
+            LocalRenameNotice? notice=null;var resolved=false;
+            QueueNativeNotification(()=>
             {
-                var full=captured.GetProperty("path").GetString()!;var oldFull=captured.GetProperty("oldPath").GetString()!;if(!MountPathGuard.IsUnder(_mount.LocalPath,full)||!MountPathGuard.IsUnder(_mount.LocalPath,oldFull))return;
-                var relative=Path.GetRelativePath(_mount.LocalPath,full).Replace('\\','/');var old=Path.GetRelativePath(_mount.LocalPath,oldFull).Replace('\\','/');
-                foreach(var child in entries.Where(item=>RelativePaths.Contains(old,item.LocalPath)))_repository.SaveEntry(_mount.Id,child with{LocalPath=relative+child.LocalPath[old.Length..],Protected=true});
-                if(!entry.IsDirectory)LocalRenameCompleted?.Invoke(new(old,relative,entry with{LocalPath=old}));
-            }
-        });
+                // 提交后的订阅者重试复用同一通知，不能再从更新后的路径猜测旧子树。
+                if(!resolved){notice=_repository.ApplyNativeRename(_mount.Id,id,old,relative);resolved=true;}
+                if(notice is null){Interlocked.Increment(ref _nativeNotificationRescans);NotificationRescanRequired?.Invoke();return;}
+                if(notice.Entry is {IsDirectory:false})LocalRenameCompleted?.Invoke(notice);
+            });
+            return;
+        }
+        throw new InvalidDataException("原生通知类型无效。");
     }
     /// <summary>固定原因映射和有界文件名，不输出父路径或Native任意错误正文。</summary>
     internal static string RenameRejectionMessage(string? source,string? reason)
@@ -198,7 +219,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             catch(Exception error)when(attempt<2&&error is not OperationCanceledException&&available()&&error.HResult!=unchecked((int)0x80070490)&&!IsCanceledCompletion(error.HResult))
             {await Task.Delay(attempt==0?100:500).ConfigureAwait(false);if(!available())throw;}
     }
-    internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3);
+    internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3) or unchecked((int)0x8007018e);
     private async Task FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {
         var id=info.EntryId;var offset=info.Offset;var length=info.Length;IDisposable? lease=null;long bytesTransferred=0;double queueMs=0,firstBlockMs=-1;var outcome="ok";_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;

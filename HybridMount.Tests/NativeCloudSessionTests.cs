@@ -7,6 +7,17 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class NativeCloudSessionTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    /// <summary>Windows SDK的398为用户取消；真实原生与托管完成分类均不把它升级为连接失效，其他失败继续保护。</summary>
+    [Fact(Timeout=20000)]
+    public async Task CloudCancellationCompletionMatchesNativeAndManagedClassification()
+    {
+        await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
+        foreach(var (code,canceled) in new[]{(unchecked((int)0x8007018e),true),(unchecked((int)0x8007017c),true),(unchecked((int)0x80070189),true),(unchecked((int)0x800703e3),true),(unchecked((int)0x800700aa),false),(unchecked((int)0x80070005),false)})
+        {
+            Assert.Equal(canceled,CloudMountSession.IsCanceledCompletion(code));var result=await runtime.InvokeAsync("testCompletionClassification",new{hresult=code});Assert.Equal(canceled,result.GetProperty("canceled").GetBoolean());
+        }
+        Assert.True(runtime.IsAvailable);
+    }
     [Fact(Timeout=90000)]
     public async Task NativeRootFetchAndReleasePreserveIdentityAndUseSeparateContentChannel()
     {

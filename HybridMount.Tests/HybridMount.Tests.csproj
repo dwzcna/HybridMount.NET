@@ -10,6 +10,7 @@
   </PropertyGroup>
   <!-- 各集合共享本机CFAPI／物理缓存资源；限制集合级并行，单个用例内的1／4／128并发保持真实执行。 -->
   <ItemGroup>
+    <Compile Include="..\HybridMount\Models\Persistence\MountRepository.NativeNotifications.cs" Link="Production\Models\Persistence\MountRepository.NativeNotifications.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.RepeatedTasks.cs" Link="Production\Models\Persistence\MountRepository.RepeatedTasks.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.Dispatcher.cs" Link="Production\Services\Mounting\MountManager.Dispatcher.cs"/>
     <Compile Include="..\HybridMount\Services\FileTasks\TaskVerifier.cs" Link="Production\Services\FileTasks\TaskVerifier.cs"/>

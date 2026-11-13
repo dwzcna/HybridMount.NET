@@ -16,6 +16,7 @@ public:
     void Finish(const std::string& id,NTSTATUS status);
 #ifdef HYBRIDMOUNT_NATIVE_TESTS
     /// <summary>仅隔离测试可注入完成及断开失败；生产二进制不包含入口。</summary>
+    static bool CanceledCompletionForTests(HRESULT code);
     void HoldTestCallback();
     void ReleaseTestCallback();
     void SetTestFailures(int finish,int disconnect);

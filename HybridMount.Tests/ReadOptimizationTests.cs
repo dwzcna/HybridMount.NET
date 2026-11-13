@@ -128,6 +128,7 @@ public sealed class ReadOptimizationTests
     [InlineData(true,unchecked((int)0x80070490),1)]
     [InlineData(true,unchecked((int)0x8007017c),1)]
     [InlineData(true,unchecked((int)0x80070189),1)]
+    [InlineData(true,unchecked((int)0x8007018e),1)]
     [InlineData(true,unchecked((int)0x800703e3),1)]
     public async Task FetchCompletionStopsAfterLimitOrTerminalFailure(bool available,int code,int expected)
     {
