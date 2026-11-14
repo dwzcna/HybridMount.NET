@@ -174,7 +174,7 @@ public sealed partial class MountManager
             {
                 var saved=ChangeUpload(item.Id,x=>x with{State="RemoteCommitted",Receipt=metadata,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,LastCheckedUtc=null})!;
                 var local=RelativePaths.ToLocal(root.Definition.LocalPath,saved.LocalPath);
-                if(!saved.IsCopy&&!LocalMissing(local)&&!RenamedUploadMissing(saved))UploadRules.ValidateTypes(saved,LocalFileState.Read(local),metadata.IsDirectory);
+                if(!saved.IsCopy&&!LocalMissing(local)&&!RenameOwnsUpload(saved))UploadRules.ValidateTypes(saved,LocalFileState.Read(local),metadata.IsDirectory);
                 await CommitUploadAsync(root,saved,token).ConfigureAwait(false);WakeCapacityWaiters(FileSourceFactory.CapacityWriteScope(root.Definition));return;
             }
             var unchanged=item.ExpectedVersion is not null&&root.Source.IsSameVersion(item.ExpectedVersion,metadata.Version);

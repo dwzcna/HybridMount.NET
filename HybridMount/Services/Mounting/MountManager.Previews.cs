@@ -15,7 +15,6 @@ public sealed partial class MountManager
     private bool BrowseDrivenPreviews=>BrowsePreviewsForTests;
     internal void ApplyPreviewDemandForTests(Guid id,IReadOnlyList<string> paths){var root=Root(id);ApplyPreviewDemand(root,root.Session!,paths);}
 #else
-    private bool BrowseDrivenPreviews=>true;
     private bool PreviewObservationEnabled=>true;
 #endif
     /// <summary>浏览需求只查索引并进入有界队列；网络、解码和原生操作均不在事件读线程或UI执行。</summary>
@@ -23,7 +22,10 @@ public sealed partial class MountManager
     private void ApplyPreviewDemand(Runtime root,CloudMountSession session,PreviewBrowseDemand demand)
     {
         var paths=demand.Paths;
-        if(!BrowseDrivenPreviews||!CustomPreviewsAvailable||IsStopping||root.RemovalRequested||!root.Definition.ThumbnailsEnabled||!ReferenceEquals(root.Session,session))return;
+#if HYBRIDMOUNT_HEADLESS_TEST
+        if (!BrowseDrivenPreviews) return;
+#endif
+        if(!CustomPreviewsAvailable||IsStopping||root.RemovalRequested||!root.Definition.ThumbnailsEnabled||!ReferenceEquals(root.Session,session))return;
         var selected=paths.Where(path=>Path.IsPathFullyQualified(path)&&MountPathGuard.IsUnder(root.Definition.LocalPath,path)).Select(path=>Path.GetRelativePath(root.Definition.LocalPath,path).Replace('\\','/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var pathSignature=string.Join("|",selected.OrderBy(x=>x,StringComparer.OrdinalIgnoreCase))+"#"+string.Join("|",demand.ForegroundPaths.OrderBy(path=>path,StringComparer.OrdinalIgnoreCase))+"#"+demand.Window+":"+demand.View;
         lock(_previewDemandGate){if(_previewDemand.TryGetValue(root.Definition.Id,out var previous)&&previous.Signature==pathSignature)return;}
@@ -35,12 +37,25 @@ public sealed partial class MountManager
     /// <summary>水合完成仅优先当前浏览项目；测试兼容路径仍可显式验证历史队列。</summary>
     private void QueueLocalPreview(Runtime root,MountEntry entry)
     {
-        if(BrowseDrivenPreviews){lock(_previewDemandGate){if(!_previewDemand.TryGetValue(root.Definition.Id,out var current)||!current.Entries.Contains(entry.Id))return;}}
-        if(BrowseDrivenPreviews)_previews.UpdateBrowseEntry(root.Definition,entry,RemoteThumbnailsAllowed);else _previews.Queue(root.Definition,entry);
+#if HYBRIDMOUNT_HEADLESS_TEST
+        if (!BrowseDrivenPreviews)
+        {
+            _previews.Queue(root.Definition, entry);
+            return;
+        }
+#endif
+        lock (_previewDemandGate)
+        {
+            if (!_previewDemand.TryGetValue(root.Definition.Id, out var current) || !current.Entries.Contains(entry.Id)) return;
+        }
+        _previews.UpdateBrowseEntry(root.Definition, entry, RemoteThumbnailsAllowed);
     }
     private void SetPreviewObservation(Runtime root,bool enabled)
     {
-        if(!PreviewObservationEnabled||!BrowseDrivenPreviews||!CustomPreviewsAvailable||root.Session is null)return;
+#if HYBRIDMOUNT_HEADLESS_TEST
+        if (!BrowseDrivenPreviews) return;
+#endif
+        if(!PreviewObservationEnabled||!CustomPreviewsAvailable||root.Session is null)return;
         try{root.Session.ObservePreviews(enabled&&root.Source is not null&&!root.RemovalRequested);}
         catch(Exception error){_logger.QueueException("缩略图","Warning","目录观察未启用，挂载继续运行",error,root.Definition.Id.ToString("N"));}
         if(!enabled)lock(_previewDemandGate)_previewDemand.Remove(root.Definition.Id);
@@ -56,7 +71,14 @@ public sealed partial class MountManager
         try{if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException("移除过程中不能更改缩略图。");var updated=root.Definition with{ThumbnailsEnabled=enabled};_repository.SaveDefinition(updated);root.Definition=updated;}
         finally{root.Gate.Release();}
         _previews.ConfigureMount(root.Definition);
-        if(enabled){_previews.ResumeMount(id);if(!BrowseDrivenPreviews)foreach(var entry in _repository.Entries(id))_previews.Queue(root.Definition,entry);}
+        if (enabled)
+        {
+            _previews.ResumeMount(id);
+#if HYBRIDMOUNT_HEADLESS_TEST
+            if (!BrowseDrivenPreviews)
+                foreach (var entry in _repository.Entries(id)) _previews.Queue(root.Definition, entry);
+#endif
+        }
         else await _previews.CancelMountAsync(id).ConfigureAwait(false);
         SetPreviewObservation(root,enabled);Notify();
     }
@@ -76,7 +98,12 @@ public sealed partial class MountManager
     {
         if(!CustomPreviewsAvailable)return "disabled";
         if(size is <16 or >256)return "unsupported";var target=PreviewTarget(path);if(target is null)return "unsupported";
-        _previews.Queue(target.Value.Root.Definition,target.Value.Entry,LegacyRemotePreviewsAllowed);return _previews.State(target.Value.Root.Definition,target.Value.Entry);
+#if HYBRIDMOUNT_HEADLESS_TEST
+        _previews.Queue(target.Value.Root.Definition, target.Value.Entry, LegacyRemotePreviewsAllowed);
+#else
+        _previews.Queue(target.Value.Root.Definition, target.Value.Entry, allowRemote: false);
+#endif
+        return _previews.State(target.Value.Root.Definition, target.Value.Entry);
     }
     /// <summary>新Shell宿主按需生成单个媒体；根内已启用项目才能排队，网络和解码不在回调内执行。</summary>
     public string RequestThumbnail(string path,int size)
@@ -98,7 +125,11 @@ public sealed partial class MountManager
         if(!CustomPreviewsAvailable||!_roots.TryGetValue(mount.Id,out var root))return null;
         using var queueTask=TasksQueue.EnterTask(mount.Id,"preview:"+mount.Id+":"+entry.Id,MountingPriority.Thumbnail,"thumbnail",entry.SourcePath,entry.Id,entry.Version);
         using var cancelOwner=TasksQueue.RegisterCancellation("preview:"+mount.Id+":"+entry.Id,()=>_previews.CancelEntry(mount.Id,entry.Id));
-        allowRemote=allowRemote&&(LegacyRemotePreviewsAllowed||RemoteThumbnailsAllowed); // 仅新按需请求允许有界远端预览。
+#if HYBRIDMOUNT_HEADLESS_TEST
+        allowRemote = allowRemote && (LegacyRemotePreviewsAllowed || RemoteThumbnailsAllowed);
+#else
+        allowRemote = allowRemote && RemoteThumbnailsAllowed;
+#endif
         NativeLocalReadLease? local=null;PreviewDecodeLease? decode=null;LocalFileStamp? stamp=null;Commons.IFileSource? source=null;CloudMountSession? session=null;long length=0;var nativeLocal=false;
         var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
 #if HYBRIDMOUNT_HEADLESS_TEST

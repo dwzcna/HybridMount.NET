@@ -151,7 +151,6 @@
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\LocalUploadScanQueue.cs" Link="Production\Models\Mounting\Transactions\LocalUploadScanQueue.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\LocalWriteStampCache.cs" Link="Production\Models\Mounting\Transactions\LocalWriteStampCache.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\MountContentCleaner.cs" Link="Production\Models\Mounting\Transactions\MountContentCleaner.cs"/>
-    <Compile Include="..\HybridMount\Models\Mounting\Transactions\RemoteSyncEngine.Compatibility.cs" Link="Production\Models\Mounting\Transactions\RemoteSyncEngine.Compatibility.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\RemoteSyncEngine.cs" Link="Production\Models\Mounting\Transactions\RemoteSyncEngine.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\RemoteSyncEngine.Index.cs" Link="Production\Models\Mounting\Transactions\RemoteSyncEngine.Index.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Transactions\UploadCommitRecovery.cs" Link="Production\Models\Mounting\Transactions\UploadCommitRecovery.cs"/>

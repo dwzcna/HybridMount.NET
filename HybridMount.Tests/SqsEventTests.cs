@@ -76,10 +76,10 @@ public sealed class SqsEventTests
         await using var fixture=new S3Fixture();await using var source=fixture.Source();var repository=Repository(fixture);var mount=Guid.NewGuid();var engine=new RemoteSyncEngine(mount,"scope",source,source,repository);
         await engine.PollAsync(true,TimeSpan.Zero,default);var before=repository.RemotePending(mount,"scope").Count;
         repository.PersistSqsMessage("queue","delete-old-version",[new(Guid.NewGuid().ToString("N"),mount,"scope","文件.bin","test-bucket","1","ObjectRemoved:DeleteMarkerCreated")]);
-        await engine.ObserveS3HintsAsync(default);Assert.Equal(before,repository.RemotePending(mount,"scope").Count);Assert.Equal("Verified",repository.S3EventHints(mount,"scope").Single().State);
+        await engine.ObserveEventHintsAsync(default);Assert.Equal(before,repository.RemotePending(mount,"scope").Count);Assert.Equal("Verified",repository.S3EventHints(mount,"scope").Single().State);
         Assert.DoesNotContain(repository.RemotePending(mount,"scope"),x=>x.Entry is null);
         fixture.Objects.TryRemove("remote/文件.bin",out _);repository.PersistSqsMessage("queue","actually-deleted",[new(Guid.NewGuid().ToString("N"),mount,"scope","文件.bin","test-bucket","2","ObjectRemoved:Delete")]);
-        await engine.ObserveS3HintsAsync(default);Assert.Contains(repository.RemotePending(mount,"scope"),x=>x.Path=="文件.bin"&&x.Entry is null);
+        await engine.ObserveEventHintsAsync(default);Assert.Contains(repository.RemotePending(mount,"scope"),x=>x.Path=="文件.bin"&&x.Entry is null);
     }
     internal sealed class FakeQueue : ISqsQueueClient
     {

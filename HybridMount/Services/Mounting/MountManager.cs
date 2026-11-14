@@ -59,24 +59,19 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     private readonly ExePreviewCache _previews;
 #if HYBRIDMOUNT_HEADLESS_TEST
-    // 仅隔离回归显式启用保留实现；生产默认能力仍为暂停，测试之间不共享全局开关。
+    // 旧预览仅由隔离回归显式启用；生产能力由原生缩略图注册及当前策略决定。
     internal bool LegacyPreviewsForTests {get;set;}
     internal bool LocalPreviewsForTests {get;set;}
     internal bool RemoteThumbnailsForTests {get;set;}
     private bool CustomPreviewsAvailable=>LocalPreviewsForTests||LegacyPreviewsForTests;
+    private bool LegacyRemotePreviewsAllowed=>LegacyPreviewsForTests;
+    private bool RemoteThumbnailsAllowed=>RemoteThumbnailsForTests;
 #else
     private readonly bool _nativeThumbnails=CloudShellState.ThumbnailCapability().Available;
     private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled&&_nativeThumbnails;
-#endif
-#if HYBRIDMOUNT_HEADLESS_TEST
-    private bool LegacyRemotePreviewsAllowed=>LegacyPreviewsForTests;
-    private bool RemoteThumbnailsAllowed=>RemoteThumbnailsForTests;
-    private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
-#else
-    private bool LegacyRemotePreviewsAllowed=>false;
     private bool RemoteThumbnailsAllowed=>CustomPreviewsAvailable;
-    private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
 #endif
+    private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
     private readonly Services.FileTasks.TaskDispatcher _fileDispatcher;
     private readonly MountRepository _repository;
     private readonly ILocalUploadCommitter _uploadCommitter;
@@ -395,7 +390,12 @@ public sealed partial class MountManager : IAsyncDisposable
             else refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();Status(root,"已连接",RefreshSummary(refreshed));
             if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
-            _previews.ResumeMount(root.Definition.Id);if(!BrowseDrivenPreviews)foreach(var cached in _repository.Entries(root.Definition.Id))_previews.Queue(root.Definition,cached);SetPreviewObservation(root,root.Definition.ThumbnailsEnabled);
+            _previews.ResumeMount(root.Definition.Id);
+#if HYBRIDMOUNT_HEADLESS_TEST
+            if (!BrowseDrivenPreviews)
+                foreach (var cached in _repository.Entries(root.Definition.Id)) _previews.Queue(root.Definition, cached);
+#endif
+            SetPreviewObservation(root, root.Definition.ThumbnailsEnabled);
             if(root.Source is IMountSourceRuntime recovery)
             {
                 try{await OutsideRootAsync(root,()=>recovery.AfterRegistrationAsync(token)).ConfigureAwait(false);}

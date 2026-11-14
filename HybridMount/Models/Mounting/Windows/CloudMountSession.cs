@@ -155,8 +155,6 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             var prior=_activitySeen.GetValueOrDefault(id);if(sequence<=prior.Sequence)return;_activitySeen[id]=(sequence,closed);_open[id]=count;
             if(closed>prior.Closed)QueueClosedEntryNotification(id);return;
         }
-        if(message.Event=="open"){_open.AddOrUpdate(id,1,(_,value)=>value+1);return;}
-        if(message.Event=="close"){_open.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));QueueClosedEntryNotification(id);return;}
         if(message.Event=="deleted")
         {
             QueueNativeNotification(()=>_repository.ApplyNativeDeletion(_mount.Id,id));

@@ -9,8 +9,8 @@ public sealed partial class MountManager
     private readonly ConcurrentDictionary<Guid,(string Error,DateTimeOffset Time)> _renameErrors=new();
 #if HYBRIDMOUNT_HEADLESS_TEST
     internal bool ObserveExcludedRenamesForTests {get;set;}=true;
-#endif
     internal Func<string,ExcludedRenameIntent,Task>? ExcludedRenameCheckpointForTests {get;set;}
+#endif
     private ExcludedRenameJournal RenameJournal(Guid id)=>_renameJournals.GetOrAdd(id,key=>new(_repository.DataDirectory,key));
     /// <summary>只读恢复快照；坏日志单独报告，不让普通文件误获改名授权。</summary>
     private IReadOnlyList<ExcludedRenameIntent> RenameIntents(Guid id)
@@ -23,7 +23,12 @@ public sealed partial class MountManager
     private void PublishRename(ExcludedRenameIntent row,Exception? error=null){_repository.SaveOperation(row.Snapshot());RecordStateDiagnostic("排除改名",row.MountId,row.Id,row.Stage,row.Stage is "Failed" or "Conflict" or "OutcomeUnknown" or "Copied"&&row.Error is not null,DiagnosticVersion(row.Error),error);Notify();}
     private ExcludedRenameIntent RenameChange(ExcludedRenameIntent row,Func<ExcludedRenameIntent,ExcludedRenameIntent> change,Exception? error=null)
     {var updated=RenameJournal(row.MountId).Update(row.Id,change)??throw new IOException("改名收尾记录不存在。");PublishRename(updated,error);return updated;}
-    private Task RenameCheckpoint(string stage,ExcludedRenameIntent row)=>ExcludedRenameCheckpointForTests?.Invoke(stage,row)??Task.CompletedTask;
+    /// <summary>仅测试构建允许注入故障检查点；生产不保存或调用测试委托。</summary>
+#if HYBRIDMOUNT_HEADLESS_TEST
+    private Task RenameCheckpoint(string stage, ExcludedRenameIntent row) => ExcludedRenameCheckpointForTests?.Invoke(stage, row) ?? Task.CompletedTask;
+#else
+    private static Task RenameCheckpoint(string stage, ExcludedRenameIntent row) => Task.CompletedTask;
+#endif
     /// <summary>索引保留原云路径，改名日志拥有退出同步意图；新旧路径只阻挡相关代次。</summary>
     private bool RenameBlocksSource(Guid mount,string source){var rows=RenameIntents(mount);return _renameErrors.ContainsKey(mount)||rows.Any(x=>!x.Finished&&(x.SourcePath==source||(x.DestinationPath??x.LocalPath)==source));}
     private IEnumerable<MountOperationSnapshot> RenameJournalIssues()=>_renameErrors.Where(x=>_roots.ContainsKey(x.Key)).Select(x=>new MountOperationSnapshot(x.Key.ToString("N"),"excludedRename","Failed",0,1,[],x.Value.Error,x.Key,ItemPath:"",Attention:new UploadAttention("改名恢复日志无法核对，该挂载暂停新写入；修复日志后可重新核对。"+x.Value.Error,"恢复日志",x.Value.Time,1,"Failed",ShellState:"应用内提示")));
@@ -38,7 +43,6 @@ public sealed partial class MountManager
         RenameChange(row,x=>x with{ReadOnlyRequested=true,CheckedUtc=null});root?.Uploads?.Wake();return true;
     }
     private bool RenameOwnsUpload(LocalUpload upload)=>RenameIntents(upload.MountId).Any(x=>x.UploadId==upload.Id&&x.Stage!="Canceled"&&x.FileId==upload.ObservedStamp.Split(':')[0]);
-    private bool RenamedUploadMissing(LocalUpload upload)=>RenameOwnsUpload(upload);
     /// <summary>扫描在任何排除提前返回之前保存关联；只有明确事件或升级前日志能创建远端改名授权。</summary>
     private void ObserveExcludedRename(Runtime root,LocalUploadScanBatch batch,string relative,LocalFileStamp stamp,MountEntry? entry,bool legacy)
     {

@@ -2098,7 +2098,6 @@
   <data name="MountBackupDialogPasswordField.Header" xml:space="preserve"><value>備份密碼（至少 8 個字元）</value></data>
   <data name="MountBackupDialogRowsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>掛載設定備份清單</value></data>
   <data name="MountBackupDialogStatusBar.Title" xml:space="preserve"><value>設定備份</value></data>
-  <data name="MountBackupDialogTextBlockLeavingThisBlankGivesNoPassword.Text" xml:space="preserve"><value>留空即不設密碼保護，任何取得備份的人均可讀取當中的認證。</value></data>
   <data name="MountBackupDialogTextBoxLocalFolder.Header" xml:space="preserve"><value>本機資料夾</value></data>
   <data name="MountCardButtonOpenFolder.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>開啟資料夾</value></data>
   <data name="MountCardButtonOpenFolder.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve"><value>開啟資料夾</value></data>

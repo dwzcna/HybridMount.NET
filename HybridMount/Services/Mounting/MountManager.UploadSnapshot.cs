@@ -111,8 +111,8 @@ public sealed partial class MountManager
         var recovery=await UploadCommitRecovery.VerifyAsync(root.Gate,()=>
         {
             var row=_repository.Upload(prepared.Id);if(row!=prepared||row.State!="RemoteCommitted"||root.RemovalRequested||root.Definition.RemovalPending)return null;
-            MountPathGuard.ValidateOperation(definition,prepared.IsCopy||RenamedUploadMissing(prepared)?definition.LocalPath:localPath);capturedEntry=Entry();
-            var stamp=prepared.IsCopy||LocalMissing(localPath)||RenamedUploadMissing(prepared)?null:LocalFileState.Read(localPath);
+            MountPathGuard.ValidateOperation(definition,prepared.IsCopy||RenameOwnsUpload(prepared)?definition.LocalPath:localPath);capturedEntry=Entry();
+            var stamp=prepared.IsCopy||LocalMissing(localPath)||RenameOwnsUpload(prepared)?null:LocalFileState.Read(localPath);
             if(stamp is not null)UploadRules.ValidateTypes(prepared,stamp,receipt.IsDirectory);
             var needsHash=stamp is not null&&_uploadCommitter is IRecoveryUploadCommitter committer&&committer.NeedsRecovery(definition,capturedEntry,prepared,stamp);
             return new(row,stamp,needsHash);
@@ -128,7 +128,7 @@ public sealed partial class MountManager
             {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});return;}
             // 完整同内容证明也覆盖同名替换对象；原生仍须在保护句柄内精确重验当前身份和验证戳。
             if(recovery.VerifiedStamp is {} verified)prepared=prepared with{SnapshotGeneration=recovery.Row.Generation,SnapshotIdentity=verified.Identity};
-            var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path)&&!RenamedUploadMissing(prepared);LocalFileStamp? committedStamp=null;
+            var path=RelativePaths.ToLocal(root.Definition.LocalPath,prepared.LocalPath);var exists=!LocalMissing(path)&&!RenameOwnsUpload(prepared);LocalFileStamp? committedStamp=null;
             UploadRules.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
             if(_repository.Upload(prepared.Id)?.Error==UploadRules.TypeConflictMessage)throw new SourceConflictException(UploadRules.TypeConflictMessage);
             // 远端 StableId 可为空且不保证可用；占位身份始终由本产品维护。
