@@ -93,7 +93,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IssuesOnly));OnPropertyChanged(nameof(SelectedTaskFilter));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
     }
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed&&SetProperty(ref _selectedJob,value))OnPropertyChanged(nameof(CanCancelSelected));}}
-    public bool CanCancelSelected=>!_disposed&&!_queue.IsStopping&&Selected is {State:not("Completed" or "Canceled" or "Failed" or "Superseded" or "Interrupted" or "Canceling")} selected&&selected.Operation!="freeSpace";
+    public bool CanCancelSelected=>!_disposed&&!_queue.IsStopping&&Selected is {State:not("Completed" or "Canceled" or "Failed" or "Superseded" or "Interrupted" or "Canceling")} selected&&selected.Operation!="freeSpace"&&(selected.Operation!="capabilityProbe"||selected.State is "Running" or "Queued");
     public TaskListItem? SelectedRow=>Operations.FirstOrDefault(x=>x.Id==_selectedJob);
     public MountOperationSnapshot? Selected=>SelectedRow?.Snapshot;
     public string CopyPath {get=>_copyPath;set{if(!_disposed)SetProperty(ref _copyPath,value);}}

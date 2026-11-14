@@ -45,6 +45,7 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
     internal SynologyFileSource(FileSourceConfiguration options,SourceCredentials credentials,WholeFileCache cache,HttpMessageHandler? handler,string? oneTimePassword)
     {
         ValidateOptions(options);new SynologySourceProtocol().ValidateCredentials(options,credentials);
+        _capabilityProbeScope=CapabilityProbeSession.Scope(options,credentials);
         _options=options;_endpoint=FileSourceFactory.Endpoint(options);_root=options.Prefix;_credentials=credentials;_cache=cache;_otpCode=oneTimePassword;
         _http=new HttpClient(handler??CreateHandler(NormalizeFingerprint(options.PinnedCertificateSha256))){Timeout=Timeout.InfiniteTimeSpan};
     }
@@ -150,7 +151,7 @@ public sealed partial class SynologyFileSource : IFileSource,IRemoteChangeSource
                 var entry=Entry(file);
                 if(entry.Path==path||RelativePathRules.Parent(entry.Path)!=path||!seen.Add(entry.Path)||seen.Count>1_000_000)
                     throw Failure("目录映射",ConnectionFailureKind.Service,"远端目录含重复、大小写碰撞、越界或过量路径；需要用户处理。");
-                if(!_probePaths.ContainsKey(entry.Path))yield return entry;
+                if(!_probePaths.ContainsKey(entry.Path)&&!CapabilityProbeOwnership.Contains(_capabilityProbeScope,RemotePath(entry.Path),entry.Version))yield return entry;
             }
             offset=checked(offset+files.GetArrayLength());if(offset>=total)yield break;
         }

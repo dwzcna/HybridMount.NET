@@ -49,9 +49,9 @@
                         </DataTemplate></ListView.ItemTemplate>
                     </ListView>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Click="AddExclusionRule" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonAddRule" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonAddRule"/>
-                        <Button Click="AddDefaultExclusionRules" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonAddDefaultRules" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonAddDefaultRules"/>
-                        <Button x:Name="SaveExclusionsButton" Click="SaveExclusions" x:Uid="/Strings/WebDAVConfigurationContentDialogSaveExclusionsButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSaveExclusionsButton"/>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" Click="AddExclusionRule" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonAddRule" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonAddRule"/>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" Click="AddDefaultExclusionRules" x:Uid="/Strings/WebDAVConfigurationContentDialogButtonAddDefaultRules" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogButtonAddDefaultRules"/>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SaveExclusionsButton" Click="SaveExclusions" x:Uid="/Strings/WebDAVConfigurationContentDialogSaveExclusionsButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSaveExclusionsButton"/>
                     </StackPanel>
                 </StackPanel></UserControl></Expander>
                 <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/WebDAVConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
@@ -62,8 +62,8 @@
                         <ComboBox x:Name="CapacityUnit" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogCapacityUnit" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogCapacityUnit"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
                     </Grid>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings"/></Button>
-                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer"/></Button>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings"/></Button>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer"/></Button>
                     </Grid>
                     <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(CapacityDescription.Text),Mode=OneWay}"/>
                     <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSyncAndPreviews" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSyncAndPreviews"/>
@@ -72,7 +72,7 @@
                     <controls:SettingRow x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowAutomaticRemoteDetectionRFC" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowAutomaticRemoteDetectionRFC"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogRemoteAuto" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogRemoteAuto"/></controls:SettingRow>
                     <NumberBox x:Name="IncrementalField" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogIncrementalField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogIncrementalField"/>
                     <NumberBox x:Name="FullField" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogFullField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogFullField"/>
-                    <Button x:Name="SaveIntervalsButton" Click="SaveIntervals" x:Uid="/Strings/WebDAVConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSaveIntervalsButton"/>
+                    <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SaveIntervalsButton" Click="SaveIntervals" x:Uid="/Strings/WebDAVConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSaveIntervalsButton"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(DetectionDescription.Text),Mode=OneWay}"/>
                 </StackPanel></UserControl></Expander>
             </StackPanel>

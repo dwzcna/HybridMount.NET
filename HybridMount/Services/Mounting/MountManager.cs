@@ -110,6 +110,8 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         TasksQueue=tasksQueue??new();_ownsTasksQueue=tasksQueue is null;_fileDispatcher=new(repository,logger);
         var definitions=repository.LoadDefinitions();
+        try { _ = CapabilityProbeSession.Read(Path.Combine(repository.DataDirectory,"CapabilityProbes")); }
+        catch(Exception error) when(error is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { logger.Queue("能力检测","Warning","检测清理记录读取失败，未授予清理权限："+error.GetType().Name); }
         repository.RecoverFileTaskAttempts();repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
         _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null,renderOwnsMutex:true);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
@@ -719,7 +721,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 Update(job,job.Results.Any(item=>item.Status=="Waiting")?"Waiting":job.Results.Any(item=>item.Status=="Failed")?"PartialFailure":"Completed");
                 if(operation=="freeSpace")RefreshReleaseParents(root);
             }
-            catch(OperationCanceledException)when(job.Cancel.IsCancellationRequested){Update(job,"Canceled");}
+            catch(OperationCanceledException)when(job.Cancel.IsCancellationRequested||IsStopping){Update(job,"Canceled");}
             catch(Exception error)
             {
                 if(removing)RecordRemovalFailure(id,error);

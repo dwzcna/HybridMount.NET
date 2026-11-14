@@ -39,8 +39,9 @@ public static class UploadRules
     internal static LocalUpload WaitForLocalCommit(LocalUpload item,Exception error,DateTimeOffset now)
     {
         var code=error is System.ComponentModel.Win32Exception native?native.NativeErrorCode:error.HResult&0xffff;
-        var retryable=item.Receipt is not null&&(code is 5 or 32 or 33)&&
-            error is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException;
+        // 已确认云端回执后的取消只能延后本地核验，不能永久冻结后续正文代次，也不能重新上传旧快照。
+        var retryable=item.Receipt is not null&&(error is OperationCanceledException || (code is 5 or 32 or 33)&&
+            error is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException);
         var attempts=retryable?Math.Min(3,Math.Clamp(item.TransientFailureCount,0,3)+1):item.TransientFailureCount;
         return item with{Error="远端已写入，本地状态尚待提交："+error.Message,LastCheckedUtc=now,TransientFailureCount=attempts,
             NextAttemptUtc=retryable&&attempts<3?now+TimeSpan.FromSeconds(3*attempts):null};

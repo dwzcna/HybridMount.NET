@@ -2286,7 +2286,7 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="SynologyConfigurationContentDialogSubfolderField.Header" xml:space="preserve"><value>Subfolder (optional, relative to the shared folder)</value></data>
   <data name="SynologyConfigurationContentDialogSubfolderField.PlaceholderText" xml:space="preserve"><value>For example: Documents/Project</value></data>
   <data name="SynologyConfigurationContentDialogTextBlockSynologyDoesNotProvideAnIncremental.Text" xml:space="preserve"><value>Synology does not provide an incremental change cursor. Folder scans use the full reconciliation interval.</value></data>
-  <data name="SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad.Text" xml:space="preserve"><value>Test the connection first to load shared folders. File Station is not required on this computer, but its service must be enabled on the NAS.</value></data>
+  <data name="SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad.Text" xml:space="preserve"><value>Enter a shared folder name directly or test the connection to load the list. File Station is not required on this computer; its service must be enabled on the NAS.</value></data>
   <data name="SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd.Text" xml:space="preserve"><value>This release supports reading, creating, and saving copies. Conflict protection remains for overwrite, delete, and move. Online-only thumbnails are not supported yet.</value></data>
   <data name="SynologyConfigurationContentDialogThumbnailToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Thumbnails (experimental)</value></data>
   <data name="SynologyConfigurationContentDialogUserField.Header" xml:space="preserve"><value>Account</value></data>
@@ -2525,7 +2525,7 @@ Use the removal action for that mount.</value></data>
   <data name="ExplorerEntrySearchButton.Content" xml:space="preserve"><value>Search File Explorer</value></data>
   <data name="ExplorerEntryResetHelp" xml:space="preserve"><value>Use Search File Explorer for leftover navigation entries. Remove active mounts normally. If old data cannot be loaded, use 0.0.14.0 to finish pending work, export settings and remove mounts first.</value></data>
   <data name="ProtocolCapabilitiesHeader" xml:space="preserve"><value>Protocol capabilities</value></data>
-  <data name="ProtocolCapabilitiesHint" xml:space="preserve"><value>Test or connect to view capabilities. Test again after changing connection settings.</value></data>
+  <data name="ProtocolCapabilitiesHint" xml:space="preserve"><value>Expand to view the interfaces used by the application; -- means no evidence yet. Test again after changing connection settings.</value></data>
   <data name="ProtocolCapabilitiesScope" xml:space="preserve"><value>Results apply only to the verified scopes for this account, not every subfolder. Advertised support has not been tested.</value></data>
   <data name="ProtocolCapabilitiesHistory" xml:space="preserve"><value>Disconnected: historical evidence from the previous connection, limited to its verified scopes.</value></data>
   <data name="ProtocolStatusUnknown" xml:space="preserve"><value>--</value></data>
@@ -2622,4 +2622,27 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="ProtocolPurposeMetadataCompression" xml:space="preserve"><value>Compress directory metadata only, with bounded streaming decompression. File bodies and ranges use the identity representation.</value></data>
   <data name="ProtocolPurposeRedirect" xml:space="preserve"><value>Follow up to five same-origin 301/308 redirects within the configured root, preserving methods, bodies and preconditions.</value></data>
   <data name="WebDavRedirectDiagnostic" xml:space="preserve"><value>Redirect ({0}, {1} hops): {2} → {3}</value></data>
+  <data name="CapabilityProbeStart" xml:space="preserve"><value>Test all capabilities</value></data>
+  <data name="CapabilityProbeCancel" xml:space="preserve"><value>Cancel testing</value></data>
+  <data name="CapabilityProbeWarning" xml:space="preserve"><value>Testing may modify your cloud storage to obtain results for each capability.</value></data>
+  <data name="CapabilityProbeWritePermission" xml:space="preserve"><value>Some write tests failed. The test directory may not allow writing.</value></data>
+  <data name="CapabilityProbeStagePreflight" xml:space="preserve"><value>Checking the current draft</value></data>
+  <data name="CapabilityProbeStageTesting" xml:space="preserve"><value>Testing protocol capabilities</value></data>
+  <data name="CapabilityProbeStageCleaning" xml:space="preserve"><value>Cleaning up test files</value></data>
+  <data name="CapabilityProbeStageCompleted" xml:space="preserve"><value>Testing and cleanup completed</value></data>
+  <data name="CapabilityProbeStageCanceled" xml:space="preserve"><value>Testing canceled; cleanup results are shown below</value></data>
+  <data name="CapabilityProbeStageCleanupPending" xml:space="preserve"><value>Testing finished; some test resources still need cleanup</value></data>
+  <data name="CapabilityProbeSummary" xml:space="preserve"><value>{0} results recorded; started {1}</value></data>
+  <data name="CapabilityProbeSkipped" xml:space="preserve"><value>Not verified in this run: {0}</value></data>
+  <data name="CapabilityProbeCaseDetails" xml:space="preserve"><value>{0}; {1} ms</value></data>
+  <data name="CapabilityProbeVerified" xml:space="preserve"><value>Request and verification passed</value></data>
+  <data name="CapabilityProbeReason" xml:space="preserve"><value>Reason: {0}</value></data>
+  <data name="CapabilityProbeCleanupRecord" xml:space="preserve"><value>Test cleanup record {0} ({1})</value></data>
+  <data name="CapabilityProbeRetryCleanup" xml:space="preserve"><value>Retry cleanup only</value></data>
+  <data name="CapabilityProbeManualOwned" xml:space="preserve"><value>Please manually delete the following test leftovers</value></data>
+  <data name="CapabilityProbeManualUnknown" xml:space="preserve"><value>Please verify ownership before manually deleting</value></data>
+  <data name="CapabilityProbePendingHistory" xml:space="preserve"><value>Test cleanup is incomplete. Check the exact resource paths.</value></data>
+  <data name="ProtocolPurposeProbeInventory" xml:space="preserve"><value>Verifies test resources, object versions and multipart cleanup without reading user content.</value></data>
+  <data name="CapabilityProbeOperation" xml:space="preserve"><value>Protocol capability test</value></data>
+  <data name="CapabilityProbeStageCanceledCleanupPending" xml:space="preserve"><value>Testing canceled; the following test resources still need cleanup</value></data>
 </root>

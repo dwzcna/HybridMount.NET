@@ -43,9 +43,9 @@
                         </DataTemplate></ListView.ItemTemplate>
                     </ListView>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Click="AddExclusionRule" x:Uid="/Strings/S3ConfigurationContentDialogButtonAddRule" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonAddRule"/>
-                        <Button Click="AddDefaultExclusionRules" x:Uid="/Strings/S3ConfigurationContentDialogButtonAddDefaultRules" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonAddDefaultRules"/>
-                        <Button x:Name="SaveExclusionsButton" Click="SaveExclusions" x:Uid="/Strings/S3ConfigurationContentDialogSaveExclusionsButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSaveExclusionsButton"/>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" Click="AddExclusionRule" x:Uid="/Strings/S3ConfigurationContentDialogButtonAddRule" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonAddRule"/>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" Click="AddDefaultExclusionRules" x:Uid="/Strings/S3ConfigurationContentDialogButtonAddDefaultRules" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogButtonAddDefaultRules"/>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SaveExclusionsButton" Click="SaveExclusions" x:Uid="/Strings/S3ConfigurationContentDialogSaveExclusionsButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSaveExclusionsButton"/>
                     </StackPanel>
                 </StackPanel></UserControl></Expander>
                 <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/S3ConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogExpanderSyncCapacityAndPreviewsAdvanced"><UserControl x:Name="SettingsFields" Visibility="Collapsed"><StackPanel Spacing="12">
@@ -56,8 +56,8 @@
                         <ComboBox x:Name="CapacityUnit" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="CapacityUnitChanged" x:Uid="/Strings/S3ConfigurationContentDialogCapacityUnit" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogCapacityUnit"><x:String>GB</x:String><x:String>TB</x:String></ComboBox>
                     </Grid>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Button x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockSaveCapacitySettings" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockSaveCapacitySettings"/></Button>
-                        <Button x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer"/></Button>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SaveCapacityButton" Click="SaveCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockSaveCapacitySettings" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockSaveCapacitySettings"/></Button>
+                        <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="RecheckButton" Grid.Column="1" Click="RecheckCapacity" HorizontalAlignment="Stretch"><TextBlock TextWrapping="Wrap" TextAlignment="Center" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockFetchCapacityInformationFromServer"/></Button>
                     </Grid>
                     <TextBlock x:Name="CapacityDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(CapacityDescription.Text),Mode=OneWay}"/>
                     <TextBlock FontWeight="SemiBold" x:Uid="/Strings/S3ConfigurationContentDialogTextBlockSyncAndPreviews" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogTextBlockSyncAndPreviews"/>
@@ -66,7 +66,7 @@
                     <controls:SettingRow x:Uid="/Strings/S3ConfigurationContentDialogSettingRowAutomaticRemoteDetection" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSettingRowAutomaticRemoteDetection"><ToggleSwitch x:Name="RemoteAuto" Toggled="RemoteAutoChanged" x:Uid="/Strings/S3ConfigurationContentDialogRemoteAuto" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogRemoteAuto"/></controls:SettingRow>
                     <NumberBox x:Name="IncrementalField" Minimum="10" Maximum="86400" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/S3ConfigurationContentDialogIncrementalField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogIncrementalField"/>
                     <NumberBox x:Name="FullField" Minimum="30" Maximum="604800" SpinButtonPlacementMode="Compact" ValueChanged="IntervalChanged" x:Uid="/Strings/S3ConfigurationContentDialogFullField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogFullField"/>
-                    <Button x:Name="SaveIntervalsButton" Click="SaveIntervals" x:Uid="/Strings/S3ConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSaveIntervalsButton"/>
+                    <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SaveIntervalsButton" Click="SaveIntervals" x:Uid="/Strings/S3ConfigurationContentDialogSaveIntervalsButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSaveIntervalsButton"/>
                     <TextBlock x:Name="DetectionDescription" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="{x:Bind helpers:TextVisibility.ForText(DetectionDescription.Text),Mode=OneWay}"/>
                     <TextBlock x:Name="SqsDescription" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(SqsDescription.Text),Mode=OneWay}"/>
                     <Expander HorizontalAlignment="Stretch" IsExpanded="False" x:Uid="/Strings/S3ConfigurationContentDialogExpanderSQSEventAccelerationSettings" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogExpanderSQSEventAccelerationSettings">
@@ -84,8 +84,8 @@
                                     <PasswordBox x:Name="SqsSessionField" x:Uid="/Strings/S3ConfigurationContentDialogSqsSessionField" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsSessionField"/>
                                 </StackPanel></UserControl>
                             </StackPanel></UserControl>
-                            <Button x:Name="SqsTestButton" Click="TestSqs" x:Uid="/Strings/S3ConfigurationContentDialogSqsTestButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsTestButton"/>
-                            <Button x:Name="SqsSaveButton" Click="SaveSqs" x:Uid="/Strings/S3ConfigurationContentDialogSqsSaveButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsSaveButton"/>
+                            <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SqsTestButton" Click="TestSqs" x:Uid="/Strings/S3ConfigurationContentDialogSqsTestButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsTestButton"/>
+                            <Button Style="{StaticResource ProtocolSecondaryButtonStyle}" x:Name="SqsSaveButton" Click="SaveSqs" x:Uid="/Strings/S3ConfigurationContentDialogSqsSaveButton" loc:Ui.ResourceId="/Strings/S3ConfigurationContentDialogSqsSaveButton"/>
                         </StackPanel>
                     </Expander>
                 </StackPanel></UserControl></Expander>

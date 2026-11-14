@@ -16,7 +16,8 @@ public sealed partial class WebDavFileSource
     /// <summary>使用普通文件名兼容拒绝隐藏路径的服务；创建前仍登记精确意图并验证不存在。</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> _sessionProbePaths=new(StringComparer.Ordinal);
     /// <summary>只过滤精确登记的内部临时项，Foreign仍可见；已清理探测路径供迟到REPORT排除。</summary>
-    private bool IsInternalTemporary(string path)=>_temporary.TryGetValue(path,out var item)?item.Stage!="Foreign":_sessionProbePaths.ContainsKey(path);
+    private bool IsInternalTemporary(string path)=>IsSessionTemporary(path);
+    private bool IsSessionTemporary(string path)=>_temporary.TryGetValue(path,out var item)?item.Stage!="Foreign":_sessionProbePaths.ContainsKey(path);
     private SourceRequestRejectedException? _rootProbeWriteRejection;
     private string ProbePath(string parent = "") => TrackTemporary((_rootProbeWriteRejection is not null&&parent.Length>0?parent+"/":"")+"hybridmount-probe-"+Guid.NewGuid().ToString("N"));
     /// <summary>在写入前记录意图，根明确拒绝写入时一次回退目标父目录；只读预检失败不回退。</summary>

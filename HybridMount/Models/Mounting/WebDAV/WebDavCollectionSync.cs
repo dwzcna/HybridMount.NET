@@ -101,7 +101,7 @@ public sealed partial class WebDavFileSource
                 var modified=DateTimeOffset.TryParse(Property(resource,"getlastmodified",true)?.Value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)?date.ToUniversalTime():DateTimeOffset.UnixEpoch;
                 var tag=NormalizeTag(Property(resource,"getetag",true)?.Value);
                 AccessResource(resource,path);
-                if(path!=collection)
+                if(path!=collection&&!CapabilityProbeOwnership.Contains(_capabilityProbeScope,Address(path,directory).AbsoluteUri,tag))
                     entries.Add(await AttachDigestAsync(ObserveMetadata(new("",path,directory,size,modified,JsonSerializer.Serialize(new VersionInfo(tag,size,modified.UtcTicks)))),limit.Token).ConfigureAwait(false));
             }
             if(result.HasMore&&result.SyncToken==syncToken)throw new InvalidRemoteChangeResponseException("DAV 续批令牌未前进，拒绝无限循环。");

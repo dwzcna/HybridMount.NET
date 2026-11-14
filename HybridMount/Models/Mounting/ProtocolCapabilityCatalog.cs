@@ -20,7 +20,7 @@ public static class ProtocolCapabilityCatalog
         Row("dav.move", "RFC 4918 (MOVE)", "Move"), Row("dav.conditionalMove", "RFC 4918 (MOVE / If-Match, Overwrite)", "ConditionalMove"),
         Row("dav.lock", "RFC 4918 (LOCK)", "Lock"), Row("dav.unlock", "RFC 4918 (UNLOCK)", "Unlock") });
     private static readonly IReadOnlyList<ProtocolCapabilityDescriptor> S3 = Array.AsReadOnly(new[] {
-        Row("s3.list", "S3 ListObjectsV2", "Metadata"), Row("s3.head", "S3 HeadObject", "Metadata"),
+        Row("s3.list", "S3 ListObjectsV2", "Metadata"), Row("s3.versions", "S3 ListObjectVersions", "ProbeInventory"), Row("s3.parts", "S3 ListParts", "ProbeInventory"), Row("s3.head", "S3 HeadObject", "Metadata"),
         Row("s3.get", "S3 GetObject", "Download"), Row("s3.range", "S3 GetObject / Range (RFC 9110)", "Range"),
         Row("s3.put", "S3 PutObject", "Upload"), Row("s3.create", "S3 PutObject / If-None-Match", "CreateOnly"),
         Row("s3.update", "S3 PutObject / If-Match", "Update"), Row("s3.delete", "S3 DeleteObject", "Delete"),

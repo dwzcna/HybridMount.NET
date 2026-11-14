@@ -3201,7 +3201,7 @@
     "LocalizableArguments": []
   },
   "ProtocolCapabilitiesHint": {
-    "Source": "测试连接或连接后查看。修改连接参数后需要重新测试。",
+    "Source": "可展开查看程序使用的接口；尚无证据显示为 --。修改连接参数后需重新检测。",
     "LocalizableArguments": []
   },
   "ProtocolCapabilitiesScope": {
@@ -3478,6 +3478,98 @@
   },
   "WebDavRedirectDiagnostic": {
     "Source": "重定向（{0}，{1}跳）：{2} → {3}",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStart": {
+    "Source": "检测所有能力",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeCancel": {
+    "Source": "取消检测",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeWarning": {
+    "Source": "可能会对你的云端执行修改以获得各个测试的结果",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeWritePermission": {
+    "Source": "部分写入测试失败，可能是测试目录未开放写入权限。",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStagePreflight": {
+    "Source": "正在检查当前草稿",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStageTesting": {
+    "Source": "正在检测协议能力",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStageCleaning": {
+    "Source": "正在清理测试文件",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStageCompleted": {
+    "Source": "检测及清理已完成",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStageCanceled": {
+    "Source": "检测已取消；清理结果如下",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStageCleanupPending": {
+    "Source": "检测已结束，部分测试资源仍待清理",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeSummary": {
+    "Source": "已记录 {0} 项结果；开始时间 {1}",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeSkipped": {
+    "Source": "本次未验证：{0}",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeCaseDetails": {
+    "Source": "{0}；耗时 {1} 毫秒",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeVerified": {
+    "Source": "实际请求及核对通过",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeReason": {
+    "Source": "原因：{0}",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeCleanupRecord": {
+    "Source": "检测清理记录 {0}（{1}）",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeRetryCleanup": {
+    "Source": "仅重试清理",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeManualOwned": {
+    "Source": "请手动删除以下测试遗留文件",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeManualUnknown": {
+    "Source": "请核对后手动删除",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbePendingHistory": {
+    "Source": "检测资源清理未完成，请查看精确路径。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeProbeInventory": {
+    "Source": "用于核对测试资源、历史版本和分片清理，不读取用户正文。",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeOperation": {
+    "Source": "协议能力检测",
+    "LocalizableArguments": []
+  },
+  "CapabilityProbeStageCanceledCleanupPending": {
+    "Source": "检测已取消，以下测试资源仍待清理",
     "LocalizableArguments": []
   }
 }

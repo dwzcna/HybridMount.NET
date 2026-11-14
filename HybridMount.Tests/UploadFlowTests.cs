@@ -61,6 +61,22 @@ public sealed class UploadFlowTests
         Assert.Equal("generation two",Encoding.UTF8.GetString(test.Dav.Objects["concurrent.txt"].Bytes));
         Assert.True(test.Manager.RetryUpload(item.Id));await test.Wait("concurrent.txt",bytes:Encoding.UTF8.GetBytes("canceled content"));
     }
+    /// <summary>远端回执后取消不重放PUT；有界重试只完成本地核验，避免永久卡在RemoteCommitted。</summary>
+    [Fact(Timeout=60000)]
+    public async Task CancelAfterVerifiedRemoteReceiptRetriesOnlyLocalCommit()
+    {
+        await using var test = await Fixture.Create();
+        var injected = 0;
+        test.Manager.UploadCheckpointForTests = (stage, _) =>
+            stage == "RemoteCommitted" && Interlocked.Exchange(ref injected, 1) == 0
+                ? Task.FromException(new OperationCanceledException("injected after receipt")) : Task.CompletedTask;
+        const string name = "receipt-cancel.txt";
+        var bytes = Encoding.UTF8.GetBytes("only one cloud commit");
+        await File.WriteAllBytesAsync(Path.Combine(test.Local, name), bytes);
+        var completed = await test.Wait(name, bytes: bytes);
+        Assert.Equal("Completed", completed.State);
+        Assert.Single(test.Dav.Server.Requests, request => request.Method == "PUT" && request.Target.EndsWith("/" + name, StringComparison.Ordinal));
+    }
     [Fact(Timeout=120000)]
     public async Task RestartReconcilesSentSnapshotWithoutDuplicatePut()
     {

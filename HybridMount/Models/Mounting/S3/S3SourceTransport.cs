@@ -27,6 +27,7 @@ public sealed partial class S3FileSource
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
     {
         var endpoint = ValidateOptions(options);
+        _capabilityProbeScope = CapabilityProbeSession.Scope(options, credentials);
         _capabilityEndpointPath = Uri.UnescapeDataString(endpoint.AbsolutePath).Trim('/'); if (_capabilityEndpointPath.Length > 0) _capabilityEndpointPath += "/";
         _capabilityPathStyle = options.PathStyle;
         _diagnosticContext=$"SigV4；签名区域 {options.Region}"+(options.Region=="us-east-1"?"（默认值，尚待服务确认）":"（配置值）")+

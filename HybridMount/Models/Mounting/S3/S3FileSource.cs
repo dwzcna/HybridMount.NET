@@ -77,7 +77,7 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
             var page = await Call(() => _client.ListObjectsV2Async(new() { BucketName = _bucket, Prefix = prefix, Delimiter = "/", ContinuationToken = continuation, MaxKeys = 1000 }, token), token).ConfigureAwait(false);
             foreach (var item in page.S3Objects ?? [])
             {
-                if(item.Key is not null&&_sessionProbeKeys.ContainsKey(item.Key))continue;
+                if(item.Key is not null&&(_sessionProbeKeys.ContainsKey(item.Key)||CapabilityProbeOwnership.Contains(_capabilityProbeScope,_bucket+"/"+item.Key,item.ETag)))continue;
                 if (item.Key is null || item.Size is null or <0 || item.LastModified is null || string.IsNullOrEmpty(item.ETag)) {Skip("incomplete_object");continue;}
                 Add(item.Key, item.Key.EndsWith('/'), item);
             }

@@ -48,6 +48,7 @@ internal sealed class ProtocolCapabilityDialogBinding : IDisposable
         try { return _serverIdentity?.Invoke(); }
         catch (Exception error) when (error is ArgumentException or IOException or InvalidOperationException or OverflowException or FormatException) { return "invalid"; }
     }
+    internal long DraftRevision { get; private set; }
     internal void BeginTest() { _session.Begin(SafeIdentity()); _pendingServer = SafeServerIdentity(); _pendingServerRevision = _serverRevision; }
     internal void CancelTest() => _session.Cancel();
     internal void CompleteTest(ProtocolCapabilitySnapshot? snapshot, bool serverDiscovery = false)
@@ -81,7 +82,10 @@ internal sealed class ProtocolCapabilityDialogBinding : IDisposable
     /// <summary>同步推进代次并立即失效展示；TextChanged可能合并，不能单靠摘要判断改回原值的输入。</summary>
     private void Invalidate(bool server)
     {
+        DraftRevision++;
         _session.Invalidate();
+        _view.ShowProbe(null);
+        _view.ShowProbeHistory([]);
         _pendingQueue = null;
         if (server) _serverRevision++;
         _view.Show(_kind, null, false, _mount()?.Definition.Sqs?.Enabled == true);
@@ -117,6 +121,11 @@ internal sealed class ProtocolCapabilityDialogBinding : IDisposable
             case ComboBox field when relevant:
                 SelectionChangedEventHandler selection = (_, _) => { Invalidate(server); Refresh(); };
                 field.SelectionChanged += selection; _unsubscribes.Add(() => field.SelectionChanged -= selection);
+                if (field.IsEditable)
+                {
+                    var textToken = field.RegisterPropertyChangedCallback(ComboBox.TextProperty, (_, _) => { Invalidate(server); Refresh(); });
+                    _unsubscribes.Add(() => field.UnregisterPropertyChangedCallback(ComboBox.TextProperty, textToken));
+                }
                 break;
             case ToggleSwitch field when relevant:
                 RoutedEventHandler toggled = (_, _) => { Invalidate(server); Refresh(); };

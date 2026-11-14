@@ -41,9 +41,11 @@ public sealed class WebDavProbeBudgetTests
             await Task.Delay(Timeout.InfiniteTimeSpan,token);return new(HttpStatusCode.OK);
         });
         await using var source=new WebDavFileSource(new(FileSourceKind.WebDav,"https://example.test/dav/"),new(),new WholeFileCache("unused"),handler)
-            {ProbeDeadline=TimeSpan.FromMilliseconds(100),OptionsDeadline=TimeSpan.FromSeconds(5)};
+            {ProbeDeadline=TimeSpan.FromSeconds(1),OptionsDeadline=TimeSpan.FromSeconds(5)};
+        var elapsed=System.Diagnostics.Stopwatch.StartNew();
         Assert.Equal(ConnectionFailureKind.Timeout,(await Assert.ThrowsAsync<SourceConnectionException>(()=>source.ProbeAsync())).Diagnostic.Kind);
         Assert.Equal(new[]{"PROPFIND","OPTIONS"},methods);
+        Assert.True(elapsed.Elapsed<TimeSpan.FromSeconds(3),"可选请求没有使用整轮预算。");
     }
     [Theory]
     [InlineData(401)] [InlineData(403)]

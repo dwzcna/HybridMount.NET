@@ -1,4 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.Helpers.UI">
+
+
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#FFF3F3F3"/>
@@ -73,6 +75,8 @@
                     <SolidColorBrush x:Key="MountIssueBadgeBackgroundBrush" Color="{ThemeResource SystemColorHighlightColor}"/><SolidColorBrush x:Key="MountIssueBadgeForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+    <!-- 协议弹窗局部操作使用与原生次按钮相同的默认模板，保留主题和全部交互状态。 -->
+    <Style x:Key="ProtocolSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"/>
             <!-- 主窗口与页面即时提醒共用原生可关闭InfoBar；宽度受可用窗口约束，正文由原生模板换行。 -->
             <Style x:Key="InstantNotificationStyle" TargetType="InfoBar">
                 <Setter Property="IsClosable" Value="True"/>

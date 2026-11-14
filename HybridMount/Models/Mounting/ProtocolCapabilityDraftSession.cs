@@ -49,11 +49,11 @@ public sealed class ProtocolCapabilityDraftSession(FileSourceKind kind, string o
         // 未改动的已连接表单持续展示当前会话；草稿测试不能冻结后续真实操作的证据。
         if (mount?.IsConnected == true && live is not null)
         {
-            if (_tested == identity && _test is { } test && test.Evidence.Any(e => e.Id.StartsWith("sqs.", StringComparison.Ordinal)))
+            if (_tested == identity && _test is { } test && test.Evidence.Count > 0)
             {
                 if (!ReferenceEquals(_mergedLive, live) || !ReferenceEquals(_mergedTest, test))
                 {
-                    var entries = live.Evidence.Concat(test.Evidence.Where(e => e.Id.StartsWith("sqs.", StringComparison.Ordinal)))
+                    var entries = live.Evidence.Concat(test.Evidence)
                         .GroupBy(e => (e.Id, e.Scope)).Select(group => group.OrderByDescending(e => e.ObservedUtc).First()).ToArray();
                     _mergedLive = live; _mergedTest = test; _merged = live with { Evidence = Array.AsReadOnly(entries) };
                 }

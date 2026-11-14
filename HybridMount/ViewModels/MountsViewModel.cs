@@ -117,6 +117,12 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     /// <summary>只读探测继续由应用登记、取消和等待；页面关闭使用自己的等待令牌。</summary>
     public Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,CancellationToken token)
         =>_manager.TestConnectionAsync(settings,credentials,token);
+    /// <summary>显式主动检测及清理由应用拥有，不创建挂载或保存草稿。</summary>
+    internal Task<(CapabilityProbeRun Run, ProtocolCapabilitySnapshot Snapshot)> DetectCapabilitiesAsync(FileSourceConfiguration source, SourceCredentials credentials, SqsConfiguration? sqs,
+        SourceCredentials? queueCredentials, string? otp, IProgress<CapabilityProbeRun>? progress, CancellationToken token, Guid? cleanupRun = null)
+        => _manager.DetectCapabilitiesAsync(source, credentials, sqs, queueCredentials, otp, progress, token, cleanupRun);
+    internal Task<IReadOnlyList<CapabilityProbeRun>> ReadCapabilityProbesAsync(FileSourceConfiguration source, SourceCredentials credentials, CancellationToken token)
+        => _manager.ReadCapabilityProbesAsync(source, credentials, token);
     /// <summary>不依赖账号、本地目录或原指纹的证书获取；生命周期由应用协调器拥有。</summary>
     internal Task<Models.Mounting.WebDAV.WebDavCertificateInfo> FetchCertificateAsync(string address,CancellationToken token)
         =>_manager.FetchCertificateAsync(address,token);

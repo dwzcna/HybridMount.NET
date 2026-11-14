@@ -2286,7 +2286,7 @@
   <data name="SynologyConfigurationContentDialogSubfolderField.Header" xml:space="preserve"><value>子文件夹（可选，相对共享文件夹）</value></data>
   <data name="SynologyConfigurationContentDialogSubfolderField.PlaceholderText" xml:space="preserve"><value>例如：文档/项目</value></data>
   <data name="SynologyConfigurationContentDialogTextBlockSynologyDoesNotProvideAnIncremental.Text" xml:space="preserve"><value>群晖没有增量变更游标，目录扫描按完整对账间隔执行。</value></data>
-  <data name="SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad.Text" xml:space="preserve"><value>先测试连接以加载共享文件夹；电脑无需安装 File Station，NAS 需启用 File Station 服务。</value></data>
+  <data name="SynologyConfigurationContentDialogTextBlockTestTheConnectionFirstToLoad.Text" xml:space="preserve"><value>可直接输入共享文件夹名称，或测试连接以加载列表。本机无需安装 File Station，NAS 需启用其服务。</value></data>
   <data name="SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd.Text" xml:space="preserve"><value>首版支持读取、新建及另存副本。覆盖、删除和移动保持冲突保护；仅联机缩略图暂不支持。</value></data>
   <data name="SynologyConfigurationContentDialogThumbnailToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>缩略图（实验性）</value></data>
   <data name="SynologyConfigurationContentDialogUserField.Header" xml:space="preserve"><value>账号</value></data>
@@ -2525,7 +2525,7 @@
   <data name="ExplorerEntrySearchButton.Content" xml:space="preserve"><value>从资源管理器检索</value></data>
   <data name="ExplorerEntryResetHelp" xml:space="preserve"><value>可使用“从资源管理器检索”处理仅剩导航入口的项目。有效挂载请先正常移除；旧数据无法加载时，请先用 0.0.14.0 完成处理、导出配置并移除挂载。</value></data>
   <data name="ProtocolCapabilitiesHeader" xml:space="preserve"><value>协议能力</value></data>
-  <data name="ProtocolCapabilitiesHint" xml:space="preserve"><value>测试连接或连接后查看。修改连接参数后需要重新测试。</value></data>
+  <data name="ProtocolCapabilitiesHint" xml:space="preserve"><value>可展开查看程序使用的接口；尚无证据显示为 --。修改连接参数后需重新检测。</value></data>
   <data name="ProtocolCapabilitiesScope" xml:space="preserve"><value>结果仅适用于当前账号已验证的范围，不代表所有子目录；声明支持尚未实测。</value></data>
   <data name="ProtocolCapabilitiesHistory" xml:space="preserve"><value>已断开：以下为上次连接的历史证据，仅适用于当时已验证的范围。</value></data>
   <data name="ProtocolStatusUnknown" xml:space="preserve"><value>--</value></data>
@@ -2622,4 +2622,27 @@ SHA-256：{5}</value></data>
   <data name="ProtocolPurposeMetadataCompression" xml:space="preserve"><value>只压缩目录元数据，流式解压并限制展开大小；文件正文与范围读取保持identity表示。</value></data>
   <data name="ProtocolPurposeRedirect" xml:space="preserve"><value>仅跟随同源、配置根内的301／308；保留方法、正文和保护条件，最多五跳。</value></data>
   <data name="WebDavRedirectDiagnostic" xml:space="preserve"><value>重定向（{0}，{1}跳）：{2} → {3}</value></data>
+  <data name="CapabilityProbeStart" xml:space="preserve"><value>检测所有能力</value></data>
+  <data name="CapabilityProbeCancel" xml:space="preserve"><value>取消检测</value></data>
+  <data name="CapabilityProbeWarning" xml:space="preserve"><value>可能会对你的云端执行修改以获得各个测试的结果</value></data>
+  <data name="CapabilityProbeWritePermission" xml:space="preserve"><value>部分写入测试失败，可能是测试目录未开放写入权限。</value></data>
+  <data name="CapabilityProbeStagePreflight" xml:space="preserve"><value>正在检查当前草稿</value></data>
+  <data name="CapabilityProbeStageTesting" xml:space="preserve"><value>正在检测协议能力</value></data>
+  <data name="CapabilityProbeStageCleaning" xml:space="preserve"><value>正在清理测试文件</value></data>
+  <data name="CapabilityProbeStageCompleted" xml:space="preserve"><value>检测及清理已完成</value></data>
+  <data name="CapabilityProbeStageCanceled" xml:space="preserve"><value>检测已取消；清理结果如下</value></data>
+  <data name="CapabilityProbeStageCleanupPending" xml:space="preserve"><value>检测已结束，部分测试资源仍待清理</value></data>
+  <data name="CapabilityProbeSummary" xml:space="preserve"><value>已记录 {0} 项结果；开始时间 {1}</value></data>
+  <data name="CapabilityProbeSkipped" xml:space="preserve"><value>本次未验证：{0}</value></data>
+  <data name="CapabilityProbeCaseDetails" xml:space="preserve"><value>{0}；耗时 {1} 毫秒</value></data>
+  <data name="CapabilityProbeVerified" xml:space="preserve"><value>实际请求及核对通过</value></data>
+  <data name="CapabilityProbeReason" xml:space="preserve"><value>原因：{0}</value></data>
+  <data name="CapabilityProbeCleanupRecord" xml:space="preserve"><value>检测清理记录 {0}（{1}）</value></data>
+  <data name="CapabilityProbeRetryCleanup" xml:space="preserve"><value>仅重试清理</value></data>
+  <data name="CapabilityProbeManualOwned" xml:space="preserve"><value>请手动删除以下测试遗留文件</value></data>
+  <data name="CapabilityProbeManualUnknown" xml:space="preserve"><value>请核对后手动删除</value></data>
+  <data name="CapabilityProbePendingHistory" xml:space="preserve"><value>检测资源清理未完成，请查看精确路径。</value></data>
+  <data name="ProtocolPurposeProbeInventory" xml:space="preserve"><value>用于核对测试资源、历史版本和分片清理，不读取用户正文。</value></data>
+  <data name="CapabilityProbeOperation" xml:space="preserve"><value>协议能力检测</value></data>
+  <data name="CapabilityProbeStageCanceledCleanupPending" xml:space="preserve"><value>检测已取消，以下测试资源仍待清理</value></data>
 </root>

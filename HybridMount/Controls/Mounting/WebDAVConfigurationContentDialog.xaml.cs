@@ -10,6 +10,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
 {
     private IDisposable? _localization;
     private ProtocolCapabilityDialogBinding? _capabilityBinding;
+    private ProtocolCapabilityProbeBinding? _probeBinding;
     private readonly HybridMount.Models.Mounting.WebDAV.WebDavCertificateTrustSession _certificateTrust = new();
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
@@ -59,7 +60,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
-            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.WebDav, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null);_loading=false;Refresh();UpdateHttpWarning();
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.WebDav, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null);_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()),()=>ValidateFields(false),Refresh,message=>{ErrorBar.Message=message;ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdateHttpWarning();
             if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
@@ -83,8 +84,9 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
         if(_existing is not null&&mount is null){CancelForShutdown();return;}
-        var busy=_savingSwitch||_submitting||_picking||(_testing is not null||_fetching is not null)||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
+        var busy=_probeBinding?.IsRunning==true||_savingSwitch||_submitting||_picking||(_testing is not null||_fetching is not null)||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
         ExclusionFields.IsEnabled=!busy;ConnectionFields.IsEnabled=!busy;SettingsFields.IsEnabled=!busy;
+        _probeBinding?.Refresh(!_submitting&&!_picking&&_testing is null&&_fetching is null&&!busy);
         IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
         if(mount is null||_savingSwitch)return;
         var settings=mount.Definition;var capacity=_model.CapacitySettingsDraft(settings);var detection=_model.Draft(settings);_loading=true;
@@ -130,7 +132,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     }
     private async void ChooseFolder(object sender,RoutedEventArgs args)
     {
-        if(Stopped||_submitting||_picking||(_testing is not null||_fetching is not null))return;_picking=true;Refresh();
+        if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||(_testing is not null||_fetching is not null))return;_picking=true;Refresh();
         try
         {
             var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
@@ -230,7 +232,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         TrustCertificateButton.Content=global::HybridMount.Services.Localization.UiText.Text("CertificateTrustAndRetry");
         TrustCertificateButton.IsEnabled=_certificateTrust.Candidate is not null&&_testing is null&&_fetching is null&&!_submitting;
         FetchCertificateLabel.Text=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchButton");
-        FetchCertificateButton.IsEnabled=https&&_testing is null&&_fetching is null&&!_submitting&&!_picking;
+        FetchCertificateButton.IsEnabled=_probeBinding?.IsRunning!=true&&https&&_testing is null&&_fetching is null&&!_submitting&&!_picking;
         FetchedCertificateDetails.Visibility=_fetchedCertificate is null?Visibility.Collapsed:Visibility.Visible;
         FetchedCertificateDetails.Text=_fetchedCertificate is {} fetched?global::HybridMount.Services.Localization.UiText.Text("CertificateDetails",fetched.Server,fetched.Subject,fetched.Issuer,
             fetched.NotBeforeUtc.ToLocalTime().ToString("g"),fetched.NotAfterUtc.ToLocalTime().ToString("g"),fetched.Sha256):"";
@@ -272,7 +274,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     }
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
-        args.Cancel=true;if(Stopped||_submitting||_picking||(_testing is not null||_fetching is not null))return;
+        args.Cancel=true;if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||(_testing is not null||_fetching is not null))return;
         if(!ValidateFields(true))return;var deferral=args.GetDeferral();_submitting=true;Refresh();ErrorBar.IsOpen=false;
         try
         {
@@ -299,7 +301,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();_fetching?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
+    {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();_fetching?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         _certificateTrust.Invalidate();EndpointField.TextChanged-=EndpointChanged;EndpointField.BeforeTextChanging-=EndpointChanging;

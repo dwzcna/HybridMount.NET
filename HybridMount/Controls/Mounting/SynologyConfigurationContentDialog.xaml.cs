@@ -10,6 +10,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
 {
     private IDisposable? _localization;
     private ProtocolCapabilityDialogBinding? _capabilityBinding;
+    private ProtocolCapabilityProbeBinding? _probeBinding;
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
     private readonly MountDefinition? _existing;
@@ -46,7 +47,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
-            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.Synology, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false),ReadCredentials() with { SessionToken = "" }), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false) with { Prefix = "" }, ReadCredentials() with { SessionToken = "" }));_loading=false;Refresh();UpdatePin();UpdateHttpWarning();
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.Synology, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false),ReadCredentials() with { SessionToken = "" }), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false) with { Prefix = "" }, ReadCredentials() with { SessionToken = "" }));_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(true),ReadCredentials(),OneTimePassword:OtpField.Password),()=>ValidateFields(false),Refresh,message=>{ErrorBar.Message=message;ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdatePin();UpdateHttpWarning();
             if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
@@ -62,17 +63,25 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         _capabilityBinding?.Refresh();
         if(_disposed)return;if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} existing?_model.FindMount(existing.Id):null;if(_existing is not null&&mount is null){CancelForShutdown();return;}
-        var busy=_savingSwitch||_submitting||_picking||_testing is not null||mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit;
+        var busy=_probeBinding?.IsRunning==true||_savingSwitch||_submitting||_picking||_testing is not null||mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit;
+        _probeBinding?.Refresh(!busy);
         ConnectionFields.IsEnabled=SettingsFields.IsEnabled=!busy;IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
         EndpointField.IsReadOnly=SubfolderField.IsReadOnly=!_rootEditable;ShareField.IsEnabled=HttpField.IsEnabled=_rootEditable;
         if(mount is not null&&!_savingSwitch){_loading=true;try{AutoConnectField.IsOn=mount.Definition.AutoConnect;RemoteAuto.IsOn=mount.Definition.RemoteAutoDetectEnabled;CapacityAuto.IsOn=mount.Definition.CapacityAutoDetectEnabled;ThumbnailToggle.IsOn=mount.Definition.ThumbnailsEnabled;}finally{_loading=false;}}
         if(mount is not null){DetectionDescription.Text=MountsViewModel.DetectionSummary(mount);CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);}
         MaximumField.IsEnabled=!busy&&!CapacityAuto.IsOn;
     }
-    private string Prefix=>ShareField.SelectedItem is SynologySharedFolder share?share.Path+(SubfolderField.Text.Length==0?"":"/"+SubfolderField.Text):"";
+    private string Prefix
+    {
+        get
+        {
+            var root = ShareField.SelectedItem is SynologySharedFolder share ? share.Path : string.IsNullOrWhiteSpace(ShareField.Text) ? "" : "/" + ShareField.Text.Trim().Trim('/');
+            return root.Length == 0 ? "" : root + (SubfolderField.Text.Length == 0 ? "" : "/" + SubfolderField.Text);
+        }
+    }
     private FileSourceConfiguration ReadSettings(bool requireShare)
     {
-        if(requireShare&&ShareField.SelectedItem is not SynologySharedFolder)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
+        if(requireShare&&Prefix.Length==0)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
         var options=new FileSourceConfiguration(FileSourceKind.Synology,EndpointField.Text.Trim(),Prefix:Prefix,AllowHttp:HttpField.IsChecked==true,PinnedCertificateSha256:_pin);
         SynologyFileSource.ValidateOptions(options.Prefix.Length==0?options with{Prefix="/__probe__"}:options);return options;
     }
@@ -150,12 +159,12 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
             if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
         }
         _fieldFeedback.Check(!string.IsNullOrWhiteSpace(UserField.Text),UserField,global::HybridMount.Services.Localization.UiText.Text("Text_406A7EEAF369"));_fieldFeedback.Check(PasswordField.Password.Length>0||_deviceToken.Length>0,PasswordField,global::HybridMount.Services.Localization.UiText.Text("Text_C682F190CBD4"));
-        if(saving)_fieldFeedback.Check(ShareField.SelectedItem is SynologySharedFolder,ShareField,global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
+        if(saving)_fieldFeedback.Check(Prefix.Length>0,ShareField,global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
         return _fieldFeedback.Complete(this);
     }
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
-        args.Cancel=true;if(Stopped||_submitting||_picking||_testing is not null)return;if(!ValidateFields(true))return;var deferral=args.GetDeferral();_submitting=true;Refresh();
+        args.Cancel=true;if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null)return;if(!ValidateFields(true))return;var deferral=args.GetDeferral();_submitting=true;Refresh();
         try
         {
             if(Stopped)return;ErrorBar.IsOpen=false;
@@ -185,7 +194,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private async void CapacityAutoChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else MaximumField.IsEnabled=!CapacityAuto.IsOn;}
     private async void ChooseFolder(object sender,RoutedEventArgs args)
     {
-        if(Stopped||_submitting||_picking||_testing is not null)return;_picking=true;Refresh();
+        if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null)return;_picking=true;Refresh();
         try{if(Stopped)return;var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);var folder=await picker.PickSingleFolderAsync();if(!Stopped&&folder is not null)PathField.Text=folder.Path;}
         catch(Exception error){if(!Stopped)ShowError(error.Message);}finally{_picking=false;if(!Stopped)Refresh();}
     }
@@ -194,7 +203,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
+    {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }

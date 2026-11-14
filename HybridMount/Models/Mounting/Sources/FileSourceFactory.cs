@@ -44,6 +44,16 @@ public sealed class FileSourceFactory : IFileSourceFactory
         }
         catch { await source.DisposeAsync().ConfigureAwait(false); throw; }
     }
+    /// <summary>创建独立的显式能力检测适配器；不保存草稿、凭据或挂载定义。</summary>
+    internal IFileSource CreateCapabilityProbeSource(FileSourceConfiguration source, SourceCredentials credentials, string work, string? oneTimePassword)
+    {
+        ValidateProtocolOptions(source);
+        ValidateProtocolCredentials(source, credentials);
+        if (source.Kind == FileSourceKind.Synology)
+            return new SynologyFileSource(source, credentials, new WholeFileCache(work), oneTimePassword);
+        if (!_adapters.TryGetValue(source.Kind, out var create)) throw new NotSupportedException("此协议尚未实现能力检测。");
+        return create(source, credentials, work);
+    }
     /// <summary>按当前表单执行只读探测；不接触仓库、凭据密文、注册根或分片恢复。</summary>
     /// <param name="timeout">WebDAV由协议统一120秒；其他默认三十秒，调用者可缩短或取消，重复提交由界面防护。</param>
     public async Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,
