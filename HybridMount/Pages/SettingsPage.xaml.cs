@@ -57,6 +57,42 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
         catch(Exception error){if(!_disposed&&!App.Current.IsExiting)ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Raw(error.Message),PageMessageSeverity.Error);}
         finally{_resetDialog=null;if(ReferenceEquals(_resetCancel,cancel))_resetCancel=null;ViewModel.EndReset();}
     }
+    /// <summary>确认前可取消，确认后移交应用生命周期；离开设置页不影响已接纳的逐根任务。</summary>
+    private async void RemoveAllMounts(object sender,RoutedEventArgs args)
+    {
+        if(_disposed||App.Current.IsExiting||!ViewModel.CanRemoveAll||!ViewModel.TryBeginReset())return;
+        using var cancel=new CancellationTokenSource();_resetCancel=cancel;
+        try
+        {
+            await ViewModel.DrainSettingsOperationsAsync();
+            var plan=await App.Current.Mounts.InspectAllMountRemovalsAsync(cancel.Token);
+            cancel.Token.ThrowIfCancellationRequested();
+            if(plan.Mounts.Count==0){ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("RemoveAllEmpty"));return;}
+            var summary=new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
+            global::HybridMount.Helpers.UI.Ui.Bind(summary,"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(global::HybridMount.Services.Localization.UiText.Text("RemoveAllConfirmation",plan.Mounts.Count)+"\n\n"+
+                string.Join("\n",plan.Mounts.Select(item=>item.Name+"\n"+item.LocalPath))));
+            var dialog=Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=summary,DefaultButton=ContentDialogButton.Close},
+                ("Title",global::HybridMount.Services.Localization.UiText.Message("RemoveAllTitle")),
+                ("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("RemoveAllKeepCached")),
+                ("SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("RemoveAllDiscard")),
+                ("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
+            _resetDialog=dialog;var answer=await Ui.ShowAsync(dialog);_resetDialog=null;
+            cancel.Token.ThrowIfCancellationRequested();if(answer==ContentDialogResult.None||_disposed||App.Current.IsExiting)return;
+            // 接纳后不再使用页面令牌；应用退出会经MountManager的停止链取消并排空。
+            _resetCancel=null;
+            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("RemoveAllRunning"));
+            var result=await App.Current.Mounts.RemoveAllMountsAsync(plan,answer==ContentDialogResult.Primary?
+                HybridMount.Models.Mounting.MountRemovalMode.PreserveCachedFiles:HybridMount.Models.Mounting.MountRemovalMode.ClearContents);
+            if(!_disposed&&!App.Current.IsExiting)
+                ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("RemoveAllSummary",result.Succeeded,result.Failed,result.Skipped)+"\n"+
+                    string.Join("\n",result.Items.Where(item=>item.State!="Completed").Select(item=>item.Path+" — "+item.Error)),
+                    result.Failed>0||result.Skipped>0?PageMessageSeverity.Warning:PageMessageSeverity.Success);
+        }
+        catch(OperationCanceledException)when(cancel.IsCancellationRequested||App.Current.IsExiting){}
+        catch(Exception error){if(!_disposed&&!App.Current.IsExiting)ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Raw(error.Message),PageMessageSeverity.Error);}
+        finally{_resetDialog=null;if(ReferenceEquals(_resetCancel,cancel))_resetCancel=null;ViewModel.EndReset();}
+    }
+    private void ShowRemovalTasks(object sender,RoutedEventArgs args)=>App.Current.TaskFocus.ShowAll();
     private void SaveCache(object sender,RoutedEventArgs args)=>ViewModel.SaveCacheLimit();
     private async void TrimCache(object sender,RoutedEventArgs args)=>await ViewModel.TrimCacheAsync();
     private async void OpenStartupSettings(object sender,RoutedEventArgs args)

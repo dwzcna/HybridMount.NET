@@ -1,6 +1,6 @@
 # 0.0.9.51 验收记录
 
-基线24be9c5（.50），继续codex/native-backend／NativePreview。受检补丁成对修订#30/#37，本地提交，不推送或改动master。
+基线24be9c5（.50），继续codex/native-backend／当时的预览身份。受检补丁成对修订#30/#37，本地提交，不推送或改动master。
 
 ## 来源与最终行为
 

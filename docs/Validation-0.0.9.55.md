@@ -1,6 +1,6 @@
 # 0.0.9.55 验收记录
 
-基线625a19f（.54），继续codex/native-backend／NativePreview；按用户最后顺序在PR批次、.53备份、.54队列后实施目录整理。所有产品文本改动先写版本补丁，git apply --check后应用；没有直接在目标文件上生成未检查改动。证据位于artifacts/validation/00955-layout/，未纳入产品或提交。
+基线625a19f（.54），继续codex/native-backend／当时的预览身份；按用户最后顺序在PR批次、.53备份、.54队列后实施目录整理。所有产品文本改动先写版本补丁，git apply --check后应用；没有直接在目标文件上生成未检查改动。证据位于artifacts/validation/00955-layout/，未纳入产品或提交。
 
 ## 实现与兼容边界
 

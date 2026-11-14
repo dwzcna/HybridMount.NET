@@ -49,6 +49,16 @@ public sealed class UploadIssueIntegrationTests
         vm.Dispose();focus.ShowIssues(area.Id);ui.Drain();await vm.SnapshotIdle;ui.Drain();focus.RequestStop();Assert.False(focus.ShowIssues(area.Id));
     }
     [Fact]
+    public async Task AllTaskLinkClearsPreviousMountPathAndIssueFilters()
+    {
+        await using var area=new Area();var row=area.Put("one");area.Repository.SaveOperation(row.ToSnapshot());var ui=new Dispatcher();var focus=new TaskFocusService(new Navigation());
+        using var vm=new TasksViewModel(area.Manager,ui,focus);
+        focus.ShowIssues(area.Id,["missing.txt"]);ui.Drain();await vm.SnapshotIdle;ui.Drain();Assert.Empty(vm.Operations);
+        Assert.True(focus.ShowAll());ui.Drain();await vm.SnapshotIdle;ui.Drain();
+        Assert.False(vm.IssuesOnly);Assert.False(vm.HasIssueFilter);Assert.Equal(row.Id,Assert.Single(vm.Operations).Id);
+        focus.RequestStop();Assert.False(focus.ShowAll());
+    }
+    [Fact]
     public async Task SegmentedSelectionIsExclusiveAndPreservesIssueFocusAcrossAll()
     {
         await using var area=new Area();var row=area.Put("one");var ui=new Dispatcher();var focus=new TaskFocusService(new Navigation());using var vm=new TasksViewModel(area.Manager,ui,focus);

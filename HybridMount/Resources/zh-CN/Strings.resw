@@ -2583,4 +2583,27 @@
 有效期：{3} — {4}
 SHA-256：{5}</value></data>
   <data name="CertificateTrustScope" xml:space="preserve"><value>仅对当前挂载与预期服务器生效，保存连接后保留。系统验证失败时仅接受已确认指纹，地址或异常证书变化需重新确认。</value></data>
+  <data name="RemoveAllButton.Content" xml:space="preserve"><value>移除所有挂载点</value></data>
+  <data name="RemoveAllTasks.Content" xml:space="preserve"><value>查看移除任务</value></data>
+  <data name="RemoveAllTitle" xml:space="preserve"><value>移除当前模式的全部挂载</value></data>
+  <data name="RemoveAllConfirmation" xml:space="preserve"><value>共 {0} 个挂载（包含未连接和连接失败的配置）。保留缓存只保留完整本地文件，未下载完整的干净占位文件将被移除；不保留文件会清空本地内容，包含本地修改。两种方式都不删除远端，保留根目录。完成后不会自动重置设置或退出。</value></data>
+  <data name="RemoveAllKeepCached" xml:space="preserve"><value>保留已缓存文件</value></data>
+  <data name="RemoveAllDiscard" xml:space="preserve"><value>不保留挂载点文件</value></data>
+  <data name="RemoveAllEmpty" xml:space="preserve"><value>当前模式没有已配置挂载。</value></data>
+  <data name="RemoveAllBusy" xml:space="preserve"><value>正在批量移除挂载，暂不能新建、导入、重置或开始另一批移除。</value></data>
+  <data name="RemoveAllSnapshotChanged" xml:space="preserve"><value>挂载配置已变化，请重新查看并确认移除范围。</value></data>
+  <data name="RemoveAllModeChanged" xml:space="preserve"><value>挂载身份或移除方式已改变，已跳过并保留原任务。</value></data>
+  <data name="RemoveAllRunning" xml:space="preserve"><value>正在逐个移除挂载；可在任务页查看进度或取消当前任务。离开此页不会停止已接纳的操作。</value></data>
+  <data name="RemoveAllSummary" xml:space="preserve"><value>挂载移除结束：成功 {0}，失败 {1}，跳过／取消 {2}。详情见任务页；未完成项保留配置与恢复记录。</value></data>
+  <data name="RemoveCachedOperation" xml:space="preserve"><value>保留缓存并移除</value></data>
+  <data name="RemoveCachedResume" xml:space="preserve"><value>继续保留已缓存文件并移除：{0}
+{1}
+不会下载未缓存内容；已完成的处理不会回滚。</value></data>
+  <data name="RemoveCachedUnresolved" xml:space="preserve"><value>存在尚未核对的上传回执、改名或远端应用，请先完成核对。配置、本地文件和恢复证据已保留。</value></data>
+  <data name="RemoveCachedLinkKept" xml:space="preserve"><value>已保留链接本体，未访问链接目标。</value></data>
+  <data name="RemoveCachedChildrenFailed" xml:space="preserve"><value>子项处理未完成，保留此目录的占位状态。</value></data>
+  <data name="RemoveCachedOwnership" xml:space="preserve"><value>占位身份或索引路径不一致，已保留。</value></data>
+  <data name="RemoveCachedPartialProtected" xml:space="preserve"><value>内容不完整且存在本地修改或未决保护，已保留配置和内容。</value></data>
+  <data name="RemoveCachedPartialRemoved" xml:space="preserve"><value>已移除干净的不完整占位文件，未读取远端。</value></data>
+  <data name="RemoveCachedKept" xml:space="preserve"><value>已保留为普通本地文件或目录。</value></data>
 </root>

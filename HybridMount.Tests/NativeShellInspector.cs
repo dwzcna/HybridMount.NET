@@ -77,7 +77,7 @@ internal static unsafe class NativeShellInspector
     }
     private static (int Result,string? Hash) Icon(string path)
     {
-        var result=NativePreviewInterop.ShellImage(path,32,4,out var bitmap);if(result<0||bitmap==0)return(result,null);
+        var result=NativeThumbnailInterop.ShellImage(path,32,4,out var bitmap);if(result<0||bitmap==0)return(result,null);
         try
         {
             var bytes=new byte[32];if(GetObject(bitmap,32,bytes)!=32)return(result,null);var width=BitConverter.ToInt32(bytes,4);var height=Math.Abs(BitConverter.ToInt32(bytes,8));
@@ -85,7 +85,7 @@ internal static unsafe class NativeShellInspector
             try{if(GetDIBits(dc,bitmap,0,(uint)height,pixels,ref info,0)!=height)return(result,null);}finally{DeleteDC(dc);}
             return(result,Convert.ToHexString(SHA256.HashData(pixels)));
         }
-        finally{NativePreviewInterop.DeleteObject(bitmap);}
+        finally{NativeThumbnailInterop.DeleteObject(bitmap);}
     }
     [StructLayout(LayoutKind.Sequential)]private struct BitmapInfo{public uint Size;public int Width,Height;public ushort Planes,Bits;public uint Compression,ImageSize;public int X,Y;public uint Used,Important;}
     [DllImport("shell32.dll",CharSet=CharSet.Unicode)]private static extern int SHCreateItemFromParsingName(string path,nint context,in Guid id,out nint item);

@@ -237,7 +237,7 @@ public sealed partial class MountManager : IAsyncDisposable
         finally{root.Gate.Release();Notify();}
     }
     public Task<MountDefinition> AddAsync(string name,string directory,bool autoConnect,CancellationToken token=default,FileSourceConfiguration? source=null,SourceCredentials? credentials=null,bool autoUpload=true,IReadOnlyList<FileExclusionRule>? exclusions=null,MountCreationOptions? initial=null)
-        =>OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults()),initial??new()),token);
+        { EnsureNoRemovalBatch();return OwnAsync(cancel=>AddCoreAsync(name,directory,autoConnect,cancel,source,credentials,autoUpload,FileExclusionRules.Validate(exclusions??FileExclusionRules.Defaults()),initial??new()),token); }
     private async Task<MountDefinition> AddCoreAsync(string name,string directory,bool autoConnect,CancellationToken token,FileSourceConfiguration? source,SourceCredentials? credentials,bool autoUpload,IReadOnlyList<FileExclusionRule> exclusions,MountCreationOptions initial)
     {
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
@@ -606,10 +606,16 @@ public sealed partial class MountManager : IAsyncDisposable
     private string QueueCore(Guid id,string operation,string[]? paths)
     {
         _stop.Token.ThrowIfCancellationRequested(); var root=Root(id);
-        if(operation is not("keepOnDevice" or "freeSpace" or "refresh" or "remove" or "clearAndRemove"))throw new ArgumentException("未知挂载操作。");
+        if(operation is not("keepOnDevice" or "freeSpace" or "refresh" or "remove" or "clearAndRemove" or "removeCached"))throw new ArgumentException("未知挂载操作。");
         if(operation=="refresh")RefreshCapacity(root);
-        var removing=operation is "remove" or "clearAndRemove";
-        var mode=operation=="clearAndRemove"?MountRemovalMode.ClearContents:MountRemovalMode.PreserveFiles;
+        var removing=IsRemovalOperation(operation);
+        var mode=RemovalMode(operation);
+        var existing=_jobs.Values.FirstOrDefault(item=>item.Root==id&&IsRemovalOperation(item.Snapshot.Operation)&&item.Snapshot.State is "Queued" or "Running");
+        if(removing&&existing is not null)
+        {
+            if(existing.Snapshot.Operation!=operation)throw new IOException("移除任务已接纳，不能切换方式。");
+            return existing.Snapshot.Id;
+        }
         if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除未完成，不能改用其他模式或执行缓存任务。");
         // 预览可能持有正文保护引用；先在根锁外取消并等待，不能进入清空后才等待oplock释放。
         var previewStop=Task.CompletedTask;
@@ -649,6 +655,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除模式已固定，请继续原来的移除任务。");
                 Update(job,"Running");
                 if(operation=="clearAndRemove") { Update(job,await ClearAndRemoveAsync(root,job).ConfigureAwait(false)?"Completed":"PartialFailure");return; }
+                if(operation=="removeCached") { Update(job,await PreserveCachedAndRemoveAsync(root,job).ConfigureAwait(false)?"Completed":"PartialFailure");return; }
                 if(operation=="remove") { await RemoveAsync(root,job).ConfigureAwait(false);Update(job,"Completed");return; }
                 if(root.Session is null)throw new IOException("挂载尚未连接，请在挂载页连接后重试。");
                 Reconcile(root);
@@ -756,6 +763,8 @@ public sealed partial class MountManager : IAsyncDisposable
         MountRemovalCompletion.VerifyLocal(candidate);var native=CloudFilesNative.RootIdentity(mount.LocalPath,true);
         if(native is not null)MountRemovalCompletion.ValidateNative(candidate);
         else if(MountPathGuard.ContainsCloudPlaceholders(mount.LocalPath))throw new IOException("注册已丢失且残留云占位，保留现场。");
+        else if(mount.RegistrationStage is MountRegistrationStage.Unknown or MountRegistrationStage.Registering&&mount.RemovalStage!=MountRemovalStage.Unregistering&&_repository.HasMaterializedEntries(mount.Id))
+            throw new IOException("注册丢失但存在物化索引，保留配置待恢复。");
         var completion=RemovalCompletion();var journal=completion.Begin(candidate with{Registered=native is not null},mode);MarkRemoval(root,mode);
         if(!journal.ContentCompleted&&mount.RemovalPending&&mount.RemovalStage==MountRemovalStage.Unregistering)journal=completion.ContentComplete(journal);
         return journal;
@@ -832,12 +841,19 @@ public sealed partial class MountManager : IAsyncDisposable
         await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);
     }
     /// <summary>批量结果只累积一次；250毫秒或256项发布，终态强制刷新全部结果。</summary>
+#if HYBRIDMOUNT_HEADLESS_TEST
+    /// <summary>隔离回归的逐项取消检查点；生产程序集不包含委托或调用。</summary>
+    internal Action<string,string>? RemovalItemForTests {get;set;}
+#endif
     private void Result(Job job,string path,string status,string message)
     {
         job.Results.Add(new(path,status,message));
         job.Snapshot=job.Snapshot with{Completed=job.Snapshot.Completed+1,BytesTransferred=job.Snapshot.Operation=="keepOnDevice"&&job.Snapshot.IsDirectory is false&&status=="Completed"?job.Snapshot.TotalBytes:job.Snapshot.BytesTransferred};
         var now=Environment.TickCount64;
         if(job.Results.Count-job.PublishedCount>=256||now-job.LastPublished>=250)Save(job);
+#if HYBRIDMOUNT_HEADLESS_TEST
+        if(IsRemovalOperation(job.Snapshot.Operation))RemovalItemForTests?.Invoke(job.Snapshot.Id,path);
+#endif
     }
     /// <summary>实例级持久化屏障；仅隔离回归使用，不通过界面或IPC配置。</summary>
     internal Action<MountOperationSnapshot>? OperationSavingForTests {get;set;}

@@ -1,6 +1,6 @@
 # 0.0.9.49 验收记录
 
-基线f40d99b（.48），继续codex/native-backend／NativePreview。本地受检补丁整合，不推送、不改动master。
+基线f40d99b（.48），继续codex/native-backend／当时的预览身份。本地受检补丁整合，不推送、不改动master。
 
 ## 来源和实现
 

@@ -4,7 +4,7 @@ namespace HybridMount.Helpers.Windows;
 internal sealed class RootRegistryLease:IDisposable
 {
     private readonly Mutex _mutex;private bool _owned;
-    private RootRegistryLease(){_mutex=new(false,@"Global\HybridMount.NativePreview.RootRegistry."+WindowsIdentity.GetCurrent().User!.Value);}
+    private RootRegistryLease(){_mutex=new(false,@"Global\HybridMount.NET.RootRegistry."+WindowsIdentity.GetCurrent().User!.Value);}
     /// <summary>同步事务必须在同一线程释放；超时不执行后续注册写入，放弃互斥量仍须重新核对所有根证据。</summary>
     internal static RootRegistryLease Acquire()
     {

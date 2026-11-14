@@ -50,7 +50,7 @@ public sealed class StartupService(LoggerService logger) : IStartupService
     /// <summary>有序退出期间只移除当前模式启动入口；不保存偏好或发日志，系统策略仍启用时停止还原。</summary>
     internal static async Task ClearForSettingsResetAsync(bool packaged,string productScope)
     {
-        if(productScope!="HybridMount.NativePreview."+(packaged?"Packaged":"Unpackaged")||packaged!=WinRegisterService.IsPackaged())throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_E122A99B231B"));
+        if(productScope!="HybridMount.NET."+(packaged?"Packaged":"Unpackaged")||packaged!=WinRegisterService.IsPackaged())throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_E122A99B231B"));
         if(packaged)
         {
             var task=await StartupTask.GetAsync(TaskId);task.Disable();

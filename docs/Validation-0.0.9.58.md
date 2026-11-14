@@ -1,6 +1,6 @@
 # 0.0.9.58 WebDAV HTTPS 验收
 
-基于973fbd6（.57），指定补丁原文先经git apply --check后应用；配套改动同样经过受检补丁。保留四工程、HybridMount.exe及NativePreview身份。日志保存artifacts/validation/00958-webdav-https/。
+基于973fbd6（.57），指定补丁原文先经git apply --check后应用；配套改动同样经过受检补丁。保留四工程、HybridMount.exe及当时的预览身份。日志保存artifacts/validation/00958-webdav-https/。
 
 ## 实现
 

@@ -1,6 +1,6 @@
 # 0.0.9.53 验收记录
 
-基线ea6c254（.52），继续codex/native-backend／NativePreview，受检补丁本地实施。
+基线ea6c254（.52），继续codex/native-backend／当时的预览身份，受检补丁本地实施。
 
 ## 实现
 

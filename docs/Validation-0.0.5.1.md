@@ -29,7 +29,7 @@
 |---|---|
 | x64 Debug／Release | 最终各 173/173，无跳过；0051-all-x64-*.trx |
 | 预览管线 | 真实独立工作进程覆盖六种格式、JPEG 方向、窗口合并、预算耗尽、取消、开关默认及隔离、弱版本回退后本地成功、缓存版本／尺寸；PreviewPipelineTests |
-| Shell 接口 | 真实原生 COM、独立管道异步 requestPreview、150ms 回退、旧服务兼容、普通复制／脱水／固定与 EXE 缓存回归；NativePreviewQueueTests／PreviewTests |
+| Shell 接口 | 真实原生 COM、独立管道异步 requestPreview、150ms 回退、旧服务兼容、普通复制／脱水／固定与 EXE 缓存回归；当时的预览身份QueueTests／PreviewTests |
 | 真实 R2 | JPEG 与 MP4 由文件系统上传，读回 SHA-256；脱水后严格读取生成预览，原占位仍未完整水合；0051-real-preview.json |
 | 真实坚果云 | JPEG 与 MP4 冷预览因版本不可靠回退，未水合；显式下载后生成本地缓存；同一记录内临时项为零 |
 | 精确清理 | 四个本轮真实测试文件及两个隔离根全部清理，没有创建远端测试目录，原挂载未改绑 |

@@ -223,6 +223,16 @@ public sealed partial class MountsPage : Page,IDisposable
     private Task RemoveAsync(Guid id)=>ViewModel.RunForMountAsync(id,async selected=>await ViewModel.RunDialogAsync(async()=>
     {
         var mount=selected.Definition;
+        if(mount.RemovalPending&&mount.RemovalMode==MountRemovalMode.PreserveCachedFiles)
+        {
+            var resume=global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,DefaultButton=ContentDialogButton.Close},
+                ("Title",global::HybridMount.Services.Localization.UiText.Message("RemoveCachedOperation")),
+                ("Content",global::HybridMount.Services.Localization.UiText.Message("RemoveCachedResume",mount.LocalPath,selected.Detail)),
+                ("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("RemoveAllKeepCached")),
+                ("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
+            if(await global::HybridMount.Helpers.UI.Ui.ShowAsync(resume)==ContentDialogResult.Primary)ViewModel.QueueRemoval(mount.Id,false,cached:true);
+            return;
+        }
         var unregistered=mount.RegistrationStage==MountRegistrationStage.NotRegistered;
         var message=global::HybridMount.Services.Localization.UiText.Text("Text_745490C041CD",mount.LocalPath);
         if(unregistered)message=global::HybridMount.Services.Localization.UiText.Text("Text_CAFDD55E0A9F",mount.LocalPath);

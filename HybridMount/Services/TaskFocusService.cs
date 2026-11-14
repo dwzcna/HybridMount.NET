@@ -20,7 +20,17 @@ public sealed class TaskFocusService(INavigationService navigation)
         }
         Changed?.Invoke();return navigation.Navigate(ApplicationPage.Tasks);
     }
+    /// <summary>由UI线程明确查看全部任务；清除上一次问题通知留下的挂载和路径筛选。</summary>
+    public bool ShowAll()
+    {
+        lock(_gate)
+        {
+            if(_stopping)return false;
+            _focus=new(null,Array.Empty<string>(),++_revision,IssuesOnly:false);
+        }
+        Changed?.Invoke();return navigation.Navigate(ApplicationPage.Tasks);
+    }
     public void RequestStop(){lock(_gate)_stopping=true;}
 }
 /// <summary>只包含挂载和相对路径的只读定位快照；空路径列表表示挂载全部问题，空字符串表示根及其后代。</summary>
-public sealed record TaskIssueFocus(Guid MountId,IReadOnlyList<string> Paths,long Revision);
+public sealed record TaskIssueFocus(Guid? MountId,IReadOnlyList<string> Paths,long Revision,bool IssuesOnly=true);

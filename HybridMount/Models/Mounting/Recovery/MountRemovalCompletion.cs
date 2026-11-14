@@ -19,7 +19,7 @@ internal sealed record MountRemovalJournal(int Schema,OrphanedMountCandidate Roo
         "ContentComplete" or "Unregistering"=>Mode==MountRemovalMode.ClearContents?"内容已清空，等待注销":"文件已保留，等待注销",
         "NativeRemoved"=>"原生已注销，等待清理 Explorer 入口",
         "Completed"=>ExternalVerified?"注册收尾已核验，等待清除应用记录":"旧版已完成记录，等待核验 Explorer 入口",
-        _=>Root.ShellOnly?"等待清理 Explorer 遗留入口":Mode==MountRemovalMode.ClearContents?"内容清空未完成，请继续清空并移除":"内容处理未完成，请继续下载并移除"
+        _=>Root.ShellOnly?"等待清理 Explorer 遗留入口":Mode==MountRemovalMode.ClearContents?"内容清空未完成，请继续清空并移除":Mode==MountRemovalMode.PreserveCachedFiles?"缓存保留未完成，请继续保留缓存并移除":"内容处理未完成，请继续下载并移除"
     };
 }
 /// <summary>三种移除路径共用的持久化与注销收尾服务。只有内容证据、原生注销和两视图核验一致才完成；启动只读取。</summary>
@@ -154,7 +154,9 @@ internal sealed class MountRemovalCompletion(string directory,IRecoveryShellRegi
         while(pending.TryPop(out var directory))foreach(var path in Directory.EnumerateFileSystemEntries(directory).Order(StringComparer.Ordinal))
         {
             if(++count>1000000)throw new IOException("内容证据条目超过安全上限。");var metadata=LocalFileMetadata.TryRead(path)??throw new IOException("核验期间条目消失。");
-            var value=Path.GetRelativePath(root.LocalPath,path)+"\0"+MountPathGuard.FileIdentity(path)+"\0"+metadata.Length+"\0"+(int)metadata.Attributes+"\0"+File.GetLastWriteTimeUtc(path).Ticks+"\n";hash.AppendData(Encoding.UTF8.GetBytes(value));
+            var tag=LocalFileMetadata.ReadTag(path);var state=LocalFileState.Read(path);
+            var value=Path.GetRelativePath(root.LocalPath,path)+"\0"+state.Identity+"\0"+state.Length+"\0"+(int)metadata.Attributes+"\0"+state.LastWriteTime+"\n";hash.AppendData(Encoding.UTF8.GetBytes(value));
+            if((tag.Attributes&0x400)!=0&&tag.Tag!=0&&!CloudFilesNative.IsCloudTag(tag.Tag))continue;
             if((metadata.Attributes&(FileAttributes.Directory|FileAttributes.ReparsePoint))==FileAttributes.Directory)pending.Push(path);
             if(CloudFilesNative.IsCloudPath(path))throw new IOException("内容处理后仍有云占位，停止注销。");
         }

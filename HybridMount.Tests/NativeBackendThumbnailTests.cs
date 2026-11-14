@@ -50,9 +50,9 @@ public sealed class NativeBackendThumbnailTests
             var start=Start("--shell-server");start.FileName=Path.Combine(isolated,"HybridMount.Stock.exe");using var process=Process.Start(start)!;
             try
             {
-                var until=DateTime.UtcNow.AddSeconds(10);NativePreviewInterop? provider=null;
-                while(provider is null)try{provider=new NativePreviewInterop(path,true,null,true,new Guid("d0037037-4d1c-4c7e-a519-34c76b9bb281"));}catch(System.Runtime.InteropServices.COMException error)when(error.HResult==unchecked((int)0x80040154)&&DateTime.UtcNow<until){await Task.Delay(50);}
-                using(provider){Assert.Equal(0,provider.Thumbnail(64,out var alpha,out var bitmap));try{Assert.Equal(2u,alpha);Assert.InRange(NativePreviewInterop.BitmapWidth(bitmap),1,64);}finally{NativePreviewInterop.DeleteObject(bitmap);}}
+                var until=DateTime.UtcNow.AddSeconds(10);NativeThumbnailInterop? provider=null;
+                while(provider is null)try{provider=new NativeThumbnailInterop(path,true,null,true,new Guid("d0037037-4d1c-4c7e-a519-34c76b9bb281"));}catch(System.Runtime.InteropServices.COMException error)when(error.HResult==unchecked((int)0x80040154)&&DateTime.UtcNow<until){await Task.Delay(50);}
+                using(provider){Assert.Equal(0,provider.Thumbnail(64,out var alpha,out var bitmap));try{Assert.Equal(2u,alpha);Assert.InRange(NativeThumbnailInterop.BitmapWidth(bitmap),1,64);}finally{NativeThumbnailInterop.DeleteObject(bitmap);}}
                 process.Refresh();Assert.DoesNotContain(process.Modules.Cast<ProcessModule>(),module=>module.ModuleName.Equals("coreclr.dll",StringComparison.OrdinalIgnoreCase));Assert.Equal(requests,test.Dav.Server.Requests.Count);Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
             }
             finally{if(!process.HasExited){process.Kill();await process.WaitForExitAsync();}}

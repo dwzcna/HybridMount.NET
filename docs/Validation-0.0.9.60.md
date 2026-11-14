@@ -1,6 +1,6 @@
 # 0.0.9.60 实现与验收（2026-11-10）
 
-基于c32d0e8（0.0.9.59），分支codex/native-backend。四工程、HybridMount.exe与NativePreview身份保留。按版本化补丁检查、应用后删除；用户开头MountsPage.xaml、HomeViewModel.cs、MainWindow.xaml三处修改按明确授权一并提交。不推送、不改master、不操作正式挂载、不重启Explorer，不补跑既有.33停止专项。
+基于c32d0e8（0.0.9.59），分支codex/native-backend。四工程、HybridMount.exe与当时的预览身份保留。按版本化补丁检查、应用后删除；用户开头MountsPage.xaml、HomeViewModel.cs、MainWindow.xaml三处修改按明确授权一并提交。不推送、不改master、不操作正式挂载、不重启Explorer，不补跑既有.33停止专项。
 
 ## 代码完成
 
@@ -34,7 +34,7 @@
 - 属性查询乃至普通线程FSCTL都可能被占位兼容层隐藏。独立fsutil确认真实云标签，线程暴露后原生和夹具均能读取；临时注册后根带云标签，核验改为允许Cloud Files、继续拒绝外部重解析点。
 - 注销临时根可能移除冷项；取消和锁定测试改为核验普通本地文件、注销结果及显式恢复。相关失败日志原样保留，最终回归通过。
 - 首次任务模板引用模板内ActualTheme导致生成代码错误；改为系统ThemeResource与列表项样式。StyleSelector仅实现本版本WinUI支持的双参数方法。对应失败／最终编译日志保留。
-- 首轮Release扩展回归215/218：两项断言要求精确IOException而新增缺证据异常为其子类，另一项仍硬编码正式身份。更新为明确缺证据语义和当前NativePreview作用域后，最终双配置各218/218。
+- 首轮Release扩展回归215/218：两项断言要求精确IOException而新增缺证据异常为其子类，另一项仍硬编码正式身份。更新为明确缺证据语义和当前当时的预览身份作用域后，最终双配置各218/218。
 
 ## 产物
 

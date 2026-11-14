@@ -61,6 +61,8 @@ public static class MountPathGuard
         foreach (var path in Directory.EnumerateFileSystemEntries(directory))
         {
             var attributes=File.GetAttributes(path);
+            var tag=LocalFileMetadata.ReadTag(path);
+            if((tag.Attributes&0x400)!=0&&tag.Tag!=0&&!CloudFilesNative.IsCloudTag(tag.Tag))continue;
             if (CloudFilesNative.Inspect(path) is not null || (attributes & FileAttributes.ReparsePoint)!=0 && CloudFilesNative.IsCloudPath(path)) return true;
             if ((attributes & (FileAttributes.Directory|FileAttributes.ReparsePoint))==FileAttributes.Directory && ContainsCloudPlaceholders(path)) return true;
         }

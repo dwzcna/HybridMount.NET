@@ -2583,4 +2583,27 @@
 有效期：{3} — {4}
 SHA-256：{5}</value></data>
   <data name="CertificateTrustScope" xml:space="preserve"><value>僅對目前掛載與預期伺服器生效，儲存連線後保留。系統驗證失敗時僅接受已確認指紋，位址或異常憑證變更需重新確認。</value></data>
+  <data name="RemoveAllButton.Content" xml:space="preserve"><value>移除所有掛載點</value></data>
+  <data name="RemoveAllTasks.Content" xml:space="preserve"><value>檢視移除工作</value></data>
+  <data name="RemoveAllTitle" xml:space="preserve"><value>移除目前模式的全部掛載</value></data>
+  <data name="RemoveAllConfirmation" xml:space="preserve"><value>共 {0} 個掛載（包括未連線及連線失敗的設定）。保留快取只保留完整本機檔案，未下載完整的乾淨預留位置檔案會被移除；不保留檔案會清空本機內容，包括本機修改。兩種方式都不刪除遠端，保留根目錄。完成後不會自動重設設定或退出。</value></data>
+  <data name="RemoveAllKeepCached" xml:space="preserve"><value>保留已快取檔案</value></data>
+  <data name="RemoveAllDiscard" xml:space="preserve"><value>不保留掛載點檔案</value></data>
+  <data name="RemoveAllEmpty" xml:space="preserve"><value>目前模式沒有已設定掛載。</value></data>
+  <data name="RemoveAllBusy" xml:space="preserve"><value>正在批次移除掛載，暫時不能新增、匯入、重設或開始另一批移除。</value></data>
+  <data name="RemoveAllSnapshotChanged" xml:space="preserve"><value>掛載設定已變更，請重新檢視並確認移除範圍。</value></data>
+  <data name="RemoveAllModeChanged" xml:space="preserve"><value>掛載身分或移除方式已變更，已略過並保留原工作。</value></data>
+  <data name="RemoveAllRunning" xml:space="preserve"><value>正在逐一移除掛載；可在工作頁檢視進度或取消目前工作。離開此頁不會停止已接納的操作。</value></data>
+  <data name="RemoveAllSummary" xml:space="preserve"><value>掛載移除結束：成功 {0}，失敗 {1}，略過／取消 {2}。詳情請見工作頁；未完成項保留設定及復原記錄。</value></data>
+  <data name="RemoveCachedOperation" xml:space="preserve"><value>保留快取並移除</value></data>
+  <data name="RemoveCachedResume" xml:space="preserve"><value>繼續保留已快取檔案並移除：{0}
+{1}
+不會下載未快取內容；已完成的處理不會回復。</value></data>
+  <data name="RemoveCachedUnresolved" xml:space="preserve"><value>存在尚未核對的上傳回條、重新命名或遠端套用，請先完成核對。設定、本機檔案及復原證據已保留。</value></data>
+  <data name="RemoveCachedLinkKept" xml:space="preserve"><value>已保留連結本身，未存取連結目標。</value></data>
+  <data name="RemoveCachedChildrenFailed" xml:space="preserve"><value>子項處理未完成，保留此目錄的預留位置狀態。</value></data>
+  <data name="RemoveCachedOwnership" xml:space="preserve"><value>預留位置身分或索引路徑不一致，已保留。</value></data>
+  <data name="RemoveCachedPartialProtected" xml:space="preserve"><value>內容不完整且存在本機修改或未決保護，已保留設定及內容。</value></data>
+  <data name="RemoveCachedPartialRemoved" xml:space="preserve"><value>已移除乾淨的不完整預留位置檔案，未讀取遠端。</value></data>
+  <data name="RemoveCachedKept" xml:space="preserve"><value>已保留為一般本機檔案或目錄。</value></data>
 </root>

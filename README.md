@@ -1,14 +1,16 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.17.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.18.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 主窗口最小尺寸为 600 × 480 逻辑像素；应用内弹窗统一为 550 逻辑像素宽，上下各至少保留窗口内容区的 5%，长内容滚动查看。
 
 WebDAV、S3和群晖配置中的“协议能力”可在测试连接或连接后展开，显示支持、不支持、声明支持或--。结论仅适用于已验证范围；连接测试保持只读，未验证的写入能力不会因连接成功被标为支持。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.17.1_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.18.0_<架构>.msix`。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
-主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份保持。当前本机任务索引使用新格式，旧数据处理见下文。
+主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类。当前本机任务索引使用新格式，旧数据处理见下文。
+
+设置 → 还原中的“移除所有挂载点”只处理当前运行模式，包含离线和连接失败的配置。确认时选择“保留已缓存文件”或“不保留挂载点文件”：前者保留完整本地文件，仅移除可安全丢弃的不完整占位，不下载缺失内容；后者清空本地内容（包括本地修改）。两者均不删除远端，保留根目录，不自动重置设置或退出。任务页显示逐根进度、失败和取消结果，未完成项保留原移除模式及恢复记录；未知上传回执和未提交快照须先核对。
 
 本地变化与固定／释放属性统一由 `HybridMount.Stock` 使用异步目录监听和 IOCP 捕获，只有已连接根才启用，每根使用 64 KiB 缓冲。普通变化按 200 毫秒合并、最长两秒；改名关联及时交付，溢出和序号断档要求补扫。原生任务管道独立于 CFAPI 控制和正文通道，以挂载 ID、相对路径、任务 ID 和连接代次联系；接纳前先持久化，结果按 ID 确认和重送。退出、断开或移除先停止监听并交付捕获事件，原生独立缩略图行为保持。
 
@@ -96,9 +98,9 @@ WebDAV 与 S3 连接、远端检测和读取失败时显示安全的阶段、TLS
 
 关闭窗口默认隐藏到托盘。`--tray` 或 `--background` 可以静默启动，主窗口按需创建；普通重复启动恢复已有窗口。原生后台故障后，可在挂载页显式批量重新连接；用户已断开的根保持断开，单根失败保留提示供再次尝试。真正退出先停止接纳和取消全部在途工作，等待启动恢复及手动连接完成，再断开 CFAPI；重复退出共用一次收尾。同步根注册保留，未下载文件需再次启动应用才能读取。默认随程序启动连接挂载，Windows 登录启动仍默认关闭。
 
-实验配置位于 `HKCU\Software\HybridMount.NET\NativePreview\<Packaged或Unpackaged>`，挂载定义在该模式子键下的 `Mounts\Packaged` 或 `Mounts\Unpackaged`。运行模式按实际进程包身份判断。索引、任务、日志及凭据使用当前实验数据目录：打包模式为实验包的 LocalState，非打包模式为 `%LOCALAPPDATA%\HybridMount.NET\NativePreview\Unpackaged`；不读取或接管正式安装及另一模式的挂载。
+配置位于 `HKCU\Software\HybridMount.NET\<Packaged或Unpackaged>`，挂载定义在该模式子键下的 `Mounts\Packaged` 或 `Mounts\Unpackaged`。运行模式按实际进程包身份判断。索引、任务、日志及凭据使用当前产品数据目录：打包模式为当前包族的 LocalState，非打包模式为 `%LOCALAPPDATA%\HybridMount.NET\Unpackaged`；不读取或接管正式安装及另一模式的挂载。
 
-缩略图固定保存到 `%LOCALAPPDATA%\HybridMount.NET\NativePreview\<Packaged或Unpackaged>\Mounting\Thumbnails\<挂载GUID-N>.db`，每挂载一库，图片为 BLOB，旁边仅有 SQLite 辅助文件。C# 为唯一写入者，C++ 只读；移除挂载时精确删除对应库。凭据按当前 Windows 用户 DPAPI 加密保存到数据目录的 `Mounting/Credentials`，SQS 凭据在 `Mounting/Sqs/Credentials`；整文件退化缓存、上传快照、固定远端更新快照分别位于 `Mounting/RangeCache`、`Mounting/UploadStaging` 和 `Mounting/RemoteStaging`。这些缓存计入软上限；待上传、冲突或结果不明内容及快照受保护，可能暂时超出上限。
+缩略图固定保存到 `%LOCALAPPDATA%\HybridMount.NET\<Packaged或Unpackaged>\Mounting\Thumbnails\<挂载GUID-N>.db`，每挂载一库，图片为 BLOB，旁边仅有 SQLite 辅助文件。C# 为唯一写入者，C++ 只读；移除挂载时精确删除对应库。凭据按当前 Windows 用户 DPAPI 加密保存到数据目录的 `Mounting/Credentials`，SQS 凭据在 `Mounting/Sqs/Credentials`；整文件退化缓存、上传快照、固定远端更新快照分别位于 `Mounting/RangeCache`、`Mounting/UploadStaging` 和 `Mounting/RemoteStaging`。这些缓存计入软上限；待上传、冲突或结果不明内容及快照受保护，可能暂时超出上限。
 
 排除规则立即阻止上传并显示排除图标。未完整水合的占位暂缓原生 EXCLUDED 标记，保持仅联机且不为状态显示下载正文；正常读取完整后补标记。解除排除按同一文件身份恢复原固定意图。
 

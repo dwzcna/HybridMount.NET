@@ -10,6 +10,8 @@ public:
     void Connect();void Stop();void BeginClear();
     const Json& Root()const;
     bool Active(const std::string& entry)const;
+    /// <summary>仅本地移除流程可用；在会话锁内读取禁止水合状态。</summary>
+    bool IsClearing()const;
     Json Activity(const std::string& entry)const;
     void Transfer(const RuntimeBlock& block);
     bool OwnsFetch(const std::string& id)const;

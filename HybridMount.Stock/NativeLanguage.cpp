@@ -75,7 +75,7 @@ DWORD WINAPI Refresh(void* parameter){
         if(!Ready.load(std::memory_order_acquire))LoadStrings(module);
         auto map=Shared.load();if(!map){const auto name=MapName();if(!name.empty()){auto next=std::make_shared<Mapping>();next->Handle=OpenFileMappingW(FILE_MAP_READ,FALSE,name.c_str());if(next->Handle){next->View=static_cast<const volatile ULONG*>(MapViewOfFile(next->Handle,FILE_MAP_READ,0,0,64));if(next->View){Shared.store(next);map=next;}}}}
         unsigned language{};bool system{};
-        if(!Read(map,language,system)||system){wchar_t choice[64]{};DWORD bytes=sizeof(choice);const auto path=L"Software\\HybridMount.NET\\NativePreview\\"+hm::DeploymentScope();
+        if(!Read(map,language,system)||system){wchar_t choice[64]{};DWORD bytes=sizeof(choice);const auto path=L"Software\\HybridMount.NET\\"+hm::DeploymentScope();
             if(RegGetValueW(HKEY_CURRENT_USER,path.c_str(),L"UiLanguage",RRF_RT_REG_SZ,nullptr,choice,&bytes)==ERROR_SUCCESS&&_wcsicmp(choice,L"en-US")==0)language=0x0409;
             else if(_wcsicmp(choice,L"zh-HK")==0)language=0x0c04;else if(_wcsicmp(choice,L"zh-CN")==0)language=0x0804;else language=SystemLanguage();
         }Language.store(language,std::memory_order_release);

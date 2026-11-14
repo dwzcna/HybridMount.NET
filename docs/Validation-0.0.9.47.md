@@ -1,6 +1,6 @@
 # 0.0.9.47 验收记录
 
-基线：codex/native-backend 的866f0db（.46）。保全既有未提交修改后，以受检补丁完成本版；未推送、未改动master，继续NativePreview身份。
+基线：codex/native-backend 的866f0db（.46）。保全既有未提交修改后，以受检补丁完成本版；未推送、未改动master，继续当时的预览身份。
 
 ## 实现
 

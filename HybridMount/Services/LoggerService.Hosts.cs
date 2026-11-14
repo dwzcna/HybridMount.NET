@@ -8,7 +8,7 @@ namespace HybridMount.Services;
 /// <summary>早于WinUI的维护／Shell／解码宿主只写安全小记录；不创建Logger、托盘、挂载或公共管道。</summary>
 internal static class HostDiagnosticStore
 {
-    internal sealed record Entry([property:JsonConverter(typeof(EvidenceIdConverter))] Guid Id,DateTimeOffset Utc,string Role,string Type,int HResult,int? ExitCode,string? ExpectedBuild=null,string? ActualBuild=null);
+    internal sealed record Entry([property:JsonConverter(typeof(EvidenceIdConverter))] Guid Id,DateTimeOffset Utc,string Role,string Type,int HResult,int? ExitCode,string? ExpectedBuild=null,string? ActualBuild=null,HybridMount.Services.Runtime.NativeChildIdentity? ChildIdentity=null,string? Stage=null);
     /// <summary>仅转换宿主证据Id：兼容原生旧N格式及标准D格式；其他字段和公共协议继续使用各自转换规则。</summary>
     internal sealed class EvidenceIdConverter:JsonConverter<Guid>
     {
@@ -40,20 +40,43 @@ internal static class HostDiagnosticStore
         return Path.Combine(ApplicationPaths.PhysicalDataDirectory,"Logs","HostDiagnostics");
     }
     /// <summary>只记录角色、UTC、类型及代码，不保留参数、路径、异常消息或Data；写入失败不覆盖原退出结果。</summary>
-    internal static bool Record(string role,Exception? error=null,int? exitCode=null,string? directory=null)
+    internal static bool Record(string role,Exception? error=null,int? exitCode=null,string? directory=null,string? stage=null)
     {
         if(role is not("ShellMaintenance" or "ShellServer" or "PreviewWorker" or "Startup" or "NativeRuntime"))return false;
         try
         {
             var path=directory??DirectoryPath();Directory.CreateDirectory(path);
             if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)return false;
-            var row=new Entry(Guid.NewGuid(),DateTimeOffset.UtcNow,role,error is null?"ExitCode":SafeDiagnostic.Field(error.GetType().Name),error?.HResult??0,exitCode);
+            var row=new Entry(Guid.NewGuid(),DateTimeOffset.UtcNow,role,error is null?"ExitCode":SafeDiagnostic.Field(error.GetType().Name),error?.HResult??0,exitCode,Stage:stage);
             var destination=Path.Combine(path,row.Id.ToString("N")+".json");var temporary=destination+".tmp";
             using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.Read))
             {JsonSerializer.Serialize(stream,row);stream.Flush(true);}
             File.Move(temporary,destination);return true;
         }
         catch(Exception){return false;}
+    }
+    /// <summary>父进程直接记录本次子进程实际身份；固定在父应用日志目录，写入失败不改变启动结果。</summary>
+#if HYBRIDMOUNT_HEADLESS_TEST
+    internal static string? ChildIdentityDirectoryForTests {get;set;}
+#endif
+    internal static void RecordChildIdentity(string role,HybridMount.Services.Runtime.NativeChildIdentity proof)
+    {
+        try
+        {
+#if HYBRIDMOUNT_HEADLESS_TEST
+            var path=ChildIdentityDirectoryForTests??Path.Combine(AppContext.BaseDirectory,"HostDiagnostics");
+#else
+            var path=Path.Combine(ApplicationPaths.LogsDirectory,"HostDiagnostics");
+#endif
+            Directory.CreateDirectory(path);
+            if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0||Directory.EnumerateFiles(path,"*.json").Take(256).Count()>=256)return;
+            var row=new Entry(Guid.NewGuid(),DateTimeOffset.UtcNow,role,proof.Matches?"ChildIdentityVerified":"ChildIdentityMismatch",
+                proof.Matches?0:unchecked((int)0x80070005),null,ChildIdentity:proof);
+            var destination=Path.Combine(path,row.Id.ToString("N")+".json");var temporary=destination+".tmp";
+            using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.Read)){JsonSerializer.Serialize(stream,row);stream.Flush(true);}
+            File.Move(temporary,destination);
+        }
+        catch(Exception){ /* 诊断不能覆盖首个启动阶段的失败。 */ }
     }
     internal static int Run(string role,Func<int> action)
     {
@@ -116,7 +139,9 @@ public sealed partial class LoggerService
                         {
                             var message=$"角色={row.Role}；发生UTC={row.Utc:O}；类型={row.Type}；HRESULT=0x{row.HResult:X8}；退出码={row.ExitCode?.ToString()??"无"}";
                             if(row.ExpectedBuild is not null||row.ActualBuild is not null)message+=$"；预期版本={row.ExpectedBuild??"未知"}；实际版本={row.ActualBuild??"未知"}";
-                            foreach(var entry in await AppendBatchAsync([new(source,"Error",message)]))PublishEntry(entry);
+                            if(row.Stage is {} stage)message+=$"；启动阶段={SafeDiagnostic.Field(stage)}";
+                            if(row.ChildIdentity is {} proof)message+=$"；包={proof.ExpectedPackage} -> {proof.ActualPackage}；映像={proof.ExpectedImage} -> {proof.ActualImage}；SID={proof.ExpectedUser} -> {proof.ActualUser}；会话={proof.ExpectedSession} -> {proof.ActualSession}";
+                            foreach(var entry in await AppendBatchAsync([new(source,row.Type=="ChildIdentityVerified"?"Information":"Error",message)]))PublishEntry(entry);
                         }
                         if(File.Exists(captured.Path))
                         {

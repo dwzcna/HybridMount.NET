@@ -22,7 +22,7 @@ try {
     [xml]$props = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\Directory.Build.props') -Raw
     $version = [string]$props.Project.PropertyGroup[0].Version
     $binaryVersion=if(([version]$version).Revision -lt 0) { "$version.0" } else { $version }
-    if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NativePreview') { throw 'MSIX 产品身份或版本不一致。' }
+    if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NET') { throw 'MSIX 产品身份或版本不一致。' }
     if ($manifest.Package.Identity.ProcessorArchitecture -ne $Platform.ToLowerInvariant()) { throw '包声明架构不正确。' }
     # WinUI的编译XAML嵌入PRI；按真实资源URI验证迁移后的窗口、页面、控件和共享样式。
     $resourceWork=Join-Path $PSScriptRoot ("..\artifacts\validation\package-resources-"+$Platform+"-"+$binaryVersion)
@@ -52,14 +52,15 @@ try {
     if(-not $resourceMsbuild){throw '需要Visual Studio MSBuild进行资源契约检查。'}
     & $resourceMsbuild (Join-Path $PSScriptRoot 'HybridMount.ResourceValidation.proj') /nologo /v:minimal "/p:LocalizationPriDump=$resourceXml" "/p:LocalizationMuiRoot=$resourceWork" "/p:Platform=$Platform"
     if($LASTEXITCODE -ne 0){throw '包内三语言资源校验失败。'}
-    # 主入口保持既有虚拟化；隐藏维护入口必须独立使用经隔离验证的win32App／mediumIL组合。
+    # 主入口显式保留打包桌面运行环境；隐藏维护入口使用真实注册视图的win32App／mediumIL组合。
     $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")
     $main=@($apps|Where-Object {$_.Id -eq 'App'})
     $maintenance=@($apps|Where-Object {$_.Id -eq 'ShellMaintenance'})
     if($apps.Count -ne 2 -or $main.Count -ne 1 -or $maintenance.Count -ne 1){throw '应用及隐藏维护入口缺失或重复。'}
     $runtimeNamespace='http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
     $entry=$maintenance[0]
-    if($main[0].Executable -ne 'HybridMount.exe' -or $main[0].EntryPoint -ne 'Windows.FullTrustApplication' -or $entry.HasAttribute('EntryPoint') -or
+    if($main[0].Executable -ne 'HybridMount.exe' -or $main[0].EntryPoint -ne 'Windows.FullTrustApplication' -or
+       $main[0].GetAttribute('RuntimeBehavior',$runtimeNamespace) -ne 'packagedClassicApp' -or $main[0].GetAttribute('TrustLevel',$runtimeNamespace) -ne 'mediumIL' -or $entry.HasAttribute('EntryPoint') -or
        $entry.Executable -ne 'HybridMount.exe' -or $entry.GetAttribute('RuntimeBehavior',$runtimeNamespace) -ne 'win32App' -or
        $entry.GetAttribute('TrustLevel',$runtimeNamespace) -ne 'mediumIL' -or $entry.VisualElements.AppListEntry -ne 'none'){
         throw '隐藏维护入口运行行为不正确，不能据此进行真实Shell清理。'
@@ -112,7 +113,7 @@ try {
         foreach($name in @('CustomStateHandler','ExtendedPropertyHandler','BannersHandler')){$node=$cloud[0].SelectSingleNode("*[local-name()='$name']");if(!$node -or $node.Clsid -ne '00000000-0000-0000-0000-000000000000'){throw '未提供处理器必须明确为GUID_NULL，不得登记虚构COM类。'}}
     }
     $excluded=$manifest.SelectNodes("//*[local-name()='ExcludedDirectory']")
-    if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\NativePreview\Packaged\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
+    if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\Packaged\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
     if(-not $manifest.SelectNodes("//*[local-name()='Capability' and @Name='unvirtualizedResources']").Count){throw '缺少共享缓存所需的受限能力。'}
     Write-Host "包验证通过：$Platform / $version / 自包含 / Shell配置=$ShellProfile / 原生状态及维护入口保留，桌面效果另行验收。"
 

@@ -47,7 +47,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
         try
         {
             var path=Path.Combine(local,"large.exe");var requests=new ConcurrentQueue<IpcRequest>();
-            await using var server=new IpcServerService(logger,NativePreviewInterop.PipeName)
+            await using var server=new IpcServerService(logger,NativeThumbnailInterop.PipeName)
             {
                 Handler=request=>
                 {
@@ -58,7 +58,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
             };server.Start();
             Assert.Null(manager.GetPreview(path,64));Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="GET");
             output.WriteLine("before Shell item: GET="+fixture.Server.Requests.Count(request=>request.Method=="GET"));
-            using(var provider=new NativePreviewInterop(path))
+            using(var provider=new NativeThumbnailInterop(path))
             {
                 output.WriteLine("after Shell item: GET="+fixture.Server.Requests.Count(request=>request.Method=="GET"));
                 var elapsed=Stopwatch.StartNew();Assert.True(provider.Thumbnail(64,out var alpha,out var bitmap)<0);Assert.Equal(0u,alpha);Assert.Equal(0,bitmap);
@@ -72,7 +72,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 while(DateTime.UtcNow<deadline&&(png=manager.GetPreview(path,128)) is null)await Task.Delay(25);
                 Assert.NotNull(png);Assert.Equal(128,BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16)));
                 var gets=fixture.Server.Requests.Count(request=>request.Method=="GET");
-                Assert.Equal(0,provider.Thumbnail(80,out alpha,out bitmap));try{Assert.Equal(2u,alpha);Assert.Equal(80,NativePreviewInterop.BitmapWidth(bitmap));}finally{NativePreviewInterop.DeleteObject(bitmap);}
+                Assert.Equal(0,provider.Thumbnail(80,out alpha,out bitmap));try{Assert.Equal(2u,alpha);Assert.Equal(80,NativeThumbnailInterop.BitmapWidth(bitmap));}finally{NativeThumbnailInterop.DeleteObject(bitmap);}
                 Assert.Equal(gets,fixture.Server.Requests.Count(request=>request.Method=="GET"));
                 output.WriteLine("warm cache ready; dehydrate begins");
                 var releaseEvidence=new ConcurrentQueue<string>();
@@ -85,7 +85,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 output.WriteLine("release verification: "+System.Text.Json.JsonSerializer.Serialize(new{Task=manager.GetOperation(releaseId),State=CloudFilesNative.ReadNative(path,ranges:true),Gets=fixture.Server.Requests.Count(request=>request.Method=="GET")}));
                 output.WriteLine("release publications: "+string.Join(" | ",releaseEvidence));manager.OperationSavingForTests=null;
                 Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));Assert.NotNull(manager.GetPreview(path,64));
-                Assert.Equal(0,provider.Thumbnail(128,out alpha,out bitmap));NativePreviewInterop.DeleteObject(bitmap);
+                Assert.Equal(0,provider.Thumbnail(128,out alpha,out bitmap));NativeThumbnailInterop.DeleteObject(bitmap);
                 Assert.Equal(gets,fixture.Server.Requests.Count(request=>request.Method=="GET"));
                 // 普通 File.Copy 继续按需读取，目标为挂载外的隔离临时文件，不执行 EXE。
                 await manager.SetPinIntentMonitoringForTestsAsync(mount.Id,false); // 本段单独核对只读资源保护；自动UNPIN收尾另有专项。
@@ -107,7 +107,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                 Assert.NotEqual(ExePreviewCache.CacheKey(mount,oldEntry,64),ExePreviewCache.CacheKey(mount,newEntry,64));Assert.Null(manager.GetPreview(path,64));
                 manager.CacheLimitBytes=1;await manager.EnforceCacheLimitAsync();Assert.Null(manager.GetPreview(path,64));Assert.Empty(Directory.EnumerateFiles(ThumbnailCachePaths.DirectoryPath,"*.cache"));
             }
-            using(var other=new NativePreviewInterop(Path.Combine(local,"文件.bin")))
+            using(var other=new NativeThumbnailInterop(Path.Combine(local,"文件.bin")))
             {var count=requests.Count;Assert.Equal(unchecked((int)0x80004001),other.Thumbnail(64,out _,out var bitmap));Assert.Equal(0,bitmap);Assert.Equal(count,requests.Count);}
         }
         finally
@@ -128,7 +128,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
         {
             var path=Path.Combine(local,"shell-probe.exe");
             var before=fixture.Server.Requests.Count(request=>request.Method=="GET");
-            using var native=new NativePreviewInterop(path,true,stage=>output.WriteLine($"{stage}: GET={fixture.Server.Requests.Count(request=>request.Method=="GET")}; full={CloudFilesNative.HasFullContent(path,new FileInfo(path).Length)}"));
+            using var native=new NativeThumbnailInterop(path,true,stage=>output.WriteLine($"{stage}: GET={fixture.Server.Requests.Count(request=>request.Method=="GET")}; full={CloudFilesNative.HasFullContent(path,new FileInfo(path).Length)}"));
             var afterBinding=fixture.Server.Requests.Count(request=>request.Method=="GET");
             Assert.True(native.Thumbnail(32,out _,out var bitmap)<0);Assert.Equal(0,bitmap);
             var afterHandler=fixture.Server.Requests.Count(request=>request.Method=="GET");
@@ -155,7 +155,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
             var path=Path.Combine(local,fixture.Objects.Keys.Single(key=>key.EndsWith(".exe",StringComparison.Ordinal)));
             var watch=Stopwatch.StartNew();var status=await Task.Run(()=>
             {
-                var code=NativePreviewInterop.ShellImage(path,size,flags,out var bitmap);if(bitmap!=0)NativePreviewInterop.DeleteObject(bitmap);return code;
+                var code=NativeThumbnailInterop.ShellImage(path,size,flags,out var bitmap);if(bitmap!=0)NativeThumbnailInterop.DeleteObject(bitmap);return code;
             }).WaitAsync(TimeSpan.FromSeconds(20));
             var gets=fixture.Server.Requests.Where(request=>request.Method=="GET").ToArray();
             var bytes=gets.Sum(request=>request.Headers.TryGetValue("Range",out var range)?long.Parse(range[6..].Split('-')[1])-long.Parse(range[6..].Split('-')[0])+1:fixture.Objects.Values.Max(item=>item.Bytes.Length));
@@ -179,7 +179,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
         await using var manager=new MountManager(repository,logger);var mount=await manager.AddAsync("预览回退测试",local,true,source:fixture.Options);
         try
         {
-            await using var server=new IpcServerService(logger,NativePreviewInterop.PipeName)
+            await using var server=new IpcServerService(logger,NativeThumbnailInterop.PipeName)
             {
                 Handler=request=>
                 {
@@ -190,7 +190,7 @@ public sealed class PreviewTests(ITestOutputHelper output)
                     #pragma warning restore CS0162
                 }
             };server.Start();
-            using var provider=new NativePreviewInterop(Path.Combine(local,"fallback.exe"));var watch=Stopwatch.StartNew();
+            using var provider=new NativeThumbnailInterop(Path.Combine(local,"fallback.exe"));var watch=Stopwatch.StartNew();
             Assert.True(provider.Thumbnail(80,out var alpha,out var bitmap)<0);Assert.Equal(0u,alpha);Assert.Equal(0,bitmap);
             output.WriteLine($"fallback={failure}; elapsedMs={watch.ElapsedMilliseconds}; HTTP GET=0");
             Assert.DoesNotContain(fixture.Server.Requests,request=>request.Method=="GET");

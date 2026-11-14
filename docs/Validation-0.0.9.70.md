@@ -8,7 +8,7 @@
 - 任务页将筛选和动作置于同一行：左侧两个AppBarToggleButton始终保留，宽度不足只折叠文字，不移到省略菜单；右侧动作靠右并动态溢出。依据真实溢出和展开标签宽度合并UI布局，余量足够才恢复文字，临界处保留8DIP余量。普通任务进度不重做筛选测量；卸载／释放拒绝迟到更新，解除新增状态订阅。
 - 筛选互斥、双向绑定、导航保持及清除挂载／路径定位的原语义不变；普通toggle再次点击关闭。操作Click、AccessKey、启用状态和清理历史菜单保留。
 - 挂载卡片的操作及右侧快捷入口增加文字；窄卡缩小容量列，完整图标文字的实际宽度决定可见前缀。隐藏内容的静态翻译先更新再测量，语言或模型变化只合并一次布局；菜单捕获挂载身份、真实配置回显和缩略图能力限制保持。
-- 增加“诊断”短标签，650个资源键×简体中文／英语／香港中文；复用原有其他标签及自动化名称／提示。四工程、HybridMount.exe、NativePreview身份、IPC v2、配置与SQLite格式保持。
+- 增加“诊断”短标签，650个资源键×简体中文／英语／香港中文；复用原有其他标签及自动化名称／提示。四工程、HybridMount.exe、当时的预览身份、IPC v2、配置与SQLite格式保持。
 
 ## 已测试
 
@@ -88,7 +88,7 @@
 - 按只读参考CalendarPage.xaml的CommunityToolkit Segmented实现全部／同步问题／冲突。新增单一索引状态，兼容原IssuesOnly／ConflictsOnly并保持互斥和任务定位；分类变化一次刷新，切回全部不清除已有问题定位。布局及语言变化合并测宽，窄窗仅隐藏标签、保留图标／提示／读屏名；右侧继续使用原生CommandBar溢出菜单。依赖固定CommunityToolkit.WinUI.Controls.Segmented 8.2.251219，无跨仓库引用。
 - 页面按钮基于原生SubtleButtonStyle；AppBarButton沿用系统命令模板，仅将状态主题资源映射到Subtle并使用原生圆角／边框资源，保留Icon、Label、Flyout及溢出。启动卡片Spacing从16收至8，使用紧凑设置行，实际启动说明放在对应行，宽布局移除空行间距。
 - 按只读参考Views/MainWindow.xaml:48，主窗口右下角统一承载即时InfoBar，Margin24／MaxWidth560，可关闭、可滚动，全部关闭时折叠容器。挂载／任务／日志及设置卡片通过可视生命周期注册独立消息；关闭保留正文和业务状态，用户操作同文可重开，后台刷新／导航不重开已关闭消息，释放后拒绝迟到派发。日志加载更早独立保留。模态表单的错误／探测与证书提示采用共享样式并保留对话框内的可操作性；长期断开状态和确认／冲突选择维持所属业务流程。
-- 新增还原卡片。当前模式由原生包身份决定，配置只处理HKCU\Software\HybridMount.NET\NativePreview\<当前模式>，启动项仅处理该模式ProductScope；不按输出目录推断模式。无包数据范围为LocalAppData下HybridMount.NET\NativePreview\Unpackaged；有包范围为Packaged物理缓存目录及当前包族的LocalState、LocalCache、RoamingState、TempState。逐个删除所列应用目录本身，保留共享父目录、另一模式、正式版、程序文件和Windows维护的包Settings／SystemAppData等运行状态，不卸载包。
+- 新增还原卡片。当前模式由原生包身份决定，配置只处理HKCU\Software\HybridMount.NET\当时的预览身份\<当前模式>，启动项仅处理该模式ProductScope；不按输出目录推断模式。无包数据范围为LocalAppData下HybridMount.NET\当时的预览身份\Unpackaged；有包范围为Packaged物理缓存目录及当前包族的LocalState、LocalCache、RoamingState、TempState。逐个删除所列应用目录本身，保留共享父目录、另一模式、正式版、程序文件和Windows维护的包Settings／SystemAppData等运行状态，不卸载包。
 - 预检先检查内存和原始注册表挂载子键、严格WinRT同步根、32／64位注册表及包内／真实Explorer入口，查询故障直接阻止；任何提供程序的有效根与数据目录重叠也阻止。只读核验移除／孤立目录／排除改名恢复记录，未完成、旧记录未验证、损坏及临时意图均保留并阻止还原。完整目录与HKCU路径由确认框展示，默认取消。
 - 确认后在配置锁内再次核验并停止接纳业务；退出流程等待自身原生运行时、页面任务及日志排空，停用语言摘要和生命周期写入，再关闭当前模式启动入口、重验并清理。继续持单实例租约及同步根注册互斥量，清理后不重建日志。目录及祖先以不跟随链接的句柄核验，目录FileId绑定确认快照，逐层非递归删除；文件按固定句柄标记删除并忽略只读位，不修改共享硬链接属性。任何阶段失败不回滚已删内容，最后用InfoBar显示位置、原因及HRESULT，关闭后退出。
 

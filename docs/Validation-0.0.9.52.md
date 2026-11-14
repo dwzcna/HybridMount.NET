@@ -1,6 +1,6 @@
 # 0.0.9.52 验收记录
 
-基线d2a389d（.51），继续codex/native-backend／NativePreview。按受检补丁流程本地整合，不推送、不改动master。
+基线d2a389d（.51），继续codex/native-backend／当时的预览身份。按受检补丁流程本地整合，不推送、不改动master。
 
 ## 来源和实现
 

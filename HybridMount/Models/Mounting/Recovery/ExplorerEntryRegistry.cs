@@ -67,7 +67,7 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
     {
         foreach (var value in new[] { "Packaged", "Unpackaged" })
         {
-            var prefix = "HybridMount.NativePreview." + value + "!" + sid + "!";
+            var prefix = "HybridMount.NET." + value + "!" + sid + "!";
             if (id.StartsWith(prefix, StringComparison.Ordinal) && Guid.TryParseExact(id[prefix.Length..], "N", out var guid) && guid != Guid.Empty)
             { mode = value; return true; }
         }

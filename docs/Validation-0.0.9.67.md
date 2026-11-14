@@ -1,6 +1,6 @@
 # 0.0.9.67 验收记录
 
-基线383d2ba（.66），分支codex/native-backend；保留四工程、HybridMount.exe和NativePreview身份。
+基线383d2ba（.66），分支codex/native-backend；保留四工程、HybridMount.exe和当时的预览身份。
 
 ## 实现与所有权
 

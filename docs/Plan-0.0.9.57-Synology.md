@@ -1,6 +1,6 @@
 # 0.0.9.57 群晖 File Station 审查与修订整合计划
 
-基线为codex/native-backend的0.0.9.56（9656d8179dc585ff2ded2409ffa51684400d5b57），来源为[PR #38](https://github.com/dwzcna/HybridMount.NET/pull/38)固定提交3e496b07767eb87263c72185076e227995eda0c6。按用户确认的安全读写首版及DSM6.2／7.x兼容目标实施。保留HybridMount.exe、四工程、NativePreview包／根／管道／数据身份；不推送、不合并master，不关闭#38或删除来源。
+基线为codex/native-backend的0.0.9.56（9656d8179dc585ff2ded2409ffa51684400d5b57），来源为[PR #38](https://github.com/dwzcna/HybridMount.NET/pull/38)固定提交3e496b07767eb87263c72185076e227995eda0c6。按用户确认的安全读写首版及DSM6.2／7.x兼容目标实施。保留HybridMount.exe、四工程、当时的预览身份包／根／管道／数据身份；不推送、不合并master，不关闭#38或删除来源。
 
 ## 审查结论
 

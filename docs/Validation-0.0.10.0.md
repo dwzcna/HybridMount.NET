@@ -2,7 +2,7 @@
 
 ## 状态和边界
 
-基于master／630a499（0.0.9.71）实施，Directory.Build.props统一版本0.0.10.0。保留HybridMount、HybridMount.Ext、HybridMount.Stock、HybridMount.Tests四工程及HybridMount.exe／NativePreview身份，不恢复discard分支的.72改名、集中DLL或daemon。
+基于master／630a499（0.0.9.71）实施，Directory.Build.props统一版本0.0.10.0。保留HybridMount、HybridMount.Ext、HybridMount.Stock、HybridMount.Tests四工程及HybridMount.exe／当时的预览身份，不恢复discard分支的.72改名、集中DLL或daemon。
 
 首批仅落盘源码和静态检查；用户随后明确授权继续构建、验证、提交并推送GitHub及清理旧分支。本记录列最终实际执行结果。原有HybridMount.Ext/HybridMount.Ext.aps、HybridMount.Lib/保留；未安装新包、未操作正式挂载、未重启Explorer，未改写现场恢复记录。旧版通过结果不作为本版证据。
 

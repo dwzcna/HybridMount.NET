@@ -2,10 +2,10 @@
 
 ## 范围与隔离
 
-基于0.0.9.42的6d4b1a2建立codex/native-backend；不包含.43，不合并或改写master。首次实验版本0.0.9.44，包身份dwzcn.HybridMount.NativePreview，四工程，仅Debug／Release、x64／ARM64。原定代码及自动验证预算4—7个工作日，桌面和实机等待另计。
+基于0.0.9.42的6d4b1a2建立codex/native-backend；不包含.43，不合并或改写master。首次实验版本0.0.9.44，包身份当时的预览包身份，四工程，仅Debug／Release、x64／ARM64。原定代码及自动验证预算4—7个工作日，桌面和实机等待另计。
 
-- 当前账户注册表：HKCU\Software\HybridMount.NET\NativePreview\<Packaged或Unpackaged>；根、公共IPC v2实例和私有管道使用HybridMount.NativePreview.<模式>前缀。
-- 打包数据使用实验包LocalState，非打包使用%LOCALAPPDATA%\HybridMount.NET\NativePreview\Unpackaged；缩略图固定在实验物理目录<模式>\Mounting\Thumbnails\<挂载GUID-N>.db。
+- 当前账户注册表：HKCU\Software\HybridMount.NET\当时的预览身份\<Packaged或Unpackaged>；根、公共IPC v2实例和私有管道使用当时的预览运行身份.<模式>前缀。
+- 打包数据使用实验包LocalState，非打包使用%LOCALAPPDATA%\HybridMount.NET\当时的预览身份\Unpackaged；缩略图固定在实验物理目录<模式>\Mounting\Thumbnails\<挂载GUID-N>.db。
 - 菜单CLSID为59964FC1-D076-4DC1-9778-01F5833A5D4A，缩略图CLSID为A749B295-9CB5-4F08-98D4-00EB47345E09。自动缩略图绑定保持门控，交付包采用Menus和空CloudFiles声明。
 - 仅使用独立随机NTFS测试根、回环协议服务和临时测试包；未操作正式挂载、真实远端或已取消NAS，未重启Explorer。按用户要求不补跑.33停止的移除专项。
 
@@ -72,7 +72,7 @@ FullyQualifiedName!~FailedMountTests&FullyQualifiedName!~OrphanedMountRecoveryTe
 
 ### 真实临时包与包外核验
 
-使用独立随机dwzcn.HybridMount.NativePreview.Probe身份、随机根GUID及隐藏测试relay；正常原生映像从同目录启动，不启动正式主应用。实际包身份、根AUMID=<测试包family>!App和AllowPinning=true已验证，原生进程模块列表无coreclr／clr／hostfxr。独立非打包进程读取Explorer所见注册。临时根和包清理后再次包外核验无残留。
+使用独立随机当时的预览包身份.Probe身份、随机根GUID及隐藏测试relay；正常原生映像从同目录启动，不启动正式主应用。实际包身份、根AUMID=<测试包family>!App和AllowPinning=true已验证，原生进程模块列表无coreclr／clr／hostfxr。独立非打包进程读取Explorer所见注册。临时根和包清理后再次包外核验无残留。
 
 证据：00944-msix-native-external.json、00944-msix-native-proof.json、00944-msix-native-acceptance.json、00944-msix-native-cleanup-audit.json、00944-msix-probe-final.log。非打包正常映像探测见00944-unpackaged-native-proof.json。
 
@@ -89,13 +89,13 @@ FullyQualifiedName!~FailedMountTests&FullyQualifiedName!~OrphanedMountRecoveryTe
 
 独立非打包进程枚举真实HKCU／HKLM的32／64位视图。核对实验前缀、当前SID、测试路径、所有者、唯一引用和精确树快照后，先通过原生运行时注销6个仍存在的测试根，再精确收尾注册。本轮纳入26个残留根注册、3250个测试CLSID及对应入口／隐藏值共3308项；完成后全部目标不存在，旧版基线候选不按前缀批量删除。
 
-仍存在的36个随机测试目录先经原生查询确认无根，再限定到其绝对测试路径删除。190个实验缩略图库先按库内挂载GUID／SID／测试路径或完全空库核验，保存原字节备份后精确删除。独立核验没有NativePreview根、临时包或原生进程残留。旧版.43历史快照有3项当前缺失，不在本轮备份或删除集合内；未按过时快照重建。
+仍存在的36个随机测试目录先经原生查询确认无根，再限定到其绝对测试路径删除。190个实验缩略图库先按库内挂载GUID／SID／测试路径或完全空库核验，保存原字节备份后精确删除。独立核验没有当时的预览身份根、临时包或原生进程残留。旧版.43历史快照有3项当前缺失，不在本轮备份或删除集合内；未按过时快照重建。
 
 证据：00944-test-root-audit-final-before.json、00944-test-cleanup-ownership.json、00944-test-native-before.json、00944-test-native-cleanup.json、00944-test-registry-backup.json、00944-test-registry-extra-backup.json、00944-test-registry-cleanup.json、00944-test-registry-extra-cleanup.json、00944-test-path-native-audit.json、00944-test-directory-cleanup.json、00944-test-cache-cleanup-backup.json、00944-test-cache-cleanup.json、00944-cleanup-final-audit.json。辅助器和原字节备份仅存忽略的artifacts/native-work，不纳入产品。
 
 ## 交付产物
 
-以下产物已重新生成，包含开始同步修复；仍为0.0.9.44、自包含、Menus配置及NativePreview身份。首次交付原哈希见91402f2中的本文件，本表为维护修复后的当前哈希。签名使用已有当前用户证书3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0；未导出私钥。
+以下产物已重新生成，包含开始同步修复；仍为0.0.9.44、自包含、Menus配置及当时的预览身份。首次交付原哈希见91402f2中的本文件，本表为维护修复后的当前哈希。签名使用已有当前用户证书3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0；未导出私钥。
 
 | 架构 | 相对仓库路径 | SHA256 |
 | --- | --- | --- |

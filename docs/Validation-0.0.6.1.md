@@ -72,7 +72,7 @@
 | PreviewTests.ActualShellBindingIsMeasuredSeparatelyFromIdentityOnlyHandler | 1 | Shell 绑定后超时，未修复相关实现 |
 | PreviewTests.ColdAndWarmCloudExePreviewsNeverHydrateAndLocalExtractionSurvivesDehydration | 1 | 管道占用，未修复相关实现 |
 | PreviewTests.RealShellImageFactoryReportsAutomaticExeReads | 3 | 系统图像工厂超时，未修复相关实现 |
-| NativePreviewQueueTests.EnabledColdImageQueuesInBackgroundWhileNativeCallbackReturnsGenericIcon | 1 | 管道占用，未修复相关实现 |
+| 当时的预览身份QueueTests.EnabledColdImageQueuesInBackgroundWhileNativeCallbackReturnsGenericIcon | 1 | 管道占用，未修复相关实现 |
 | NativeExtensionTests.NativeComAndPipeRoundTrip | 1 | 管道占用，未修复相关实现 |
 
 ### 构建入口与交付

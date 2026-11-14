@@ -10,7 +10,7 @@ internal sealed class SettingsResetScope
     internal bool Packaged {get;}
     internal string Mode=>Packaged?"Packaged":"Unpackaged";
     internal string RegistryPath=>ApplicationPaths.RegistryPathFor(Packaged);
-    internal string ProductScope=>"HybridMount.NativePreview."+Mode;
+    internal string ProductScope=>"HybridMount.NET."+Mode;
     internal IReadOnlyList<string> Directories {get;}
     internal string MountDataDirectory {get;}
     private SettingsResetScope(bool packaged,string[] directories,string mountDirectory){Packaged=packaged;Directories=Array.AsReadOnly(directories);MountDataDirectory=mountDirectory;}
@@ -18,7 +18,7 @@ internal sealed class SettingsResetScope
     internal static SettingsResetScope Create(bool packaged,string localAppData,string? packageFamily=null)
     {
         if(!Path.IsPathFullyQualified(localAppData)||localAppData.StartsWith(@"\\",StringComparison.Ordinal))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_C8CADF5A6F81"));
-        var physical=Path.Combine(Path.GetFullPath(localAppData),"HybridMount.NET","NativePreview",packaged?"Packaged":"Unpackaged");
+        var physical=Path.Combine(Path.GetFullPath(localAppData),"HybridMount.NET",packaged?"Packaged":"Unpackaged");
         if(!packaged)return new(false,[physical],Path.Combine(physical,"Mounting"));
         if(string.IsNullOrWhiteSpace(packageFamily)||packageFamily is "." or ".."||packageFamily.IndexOfAny(Path.GetInvalidFileNameChars())>=0||packageFamily.Contains('/')||packageFamily.Contains('\\'))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_C8CADF5A6F81"));
         var package=Path.Combine(Path.GetFullPath(localAppData),"Packages",packageFamily);

@@ -15,9 +15,9 @@ public sealed class ThumbnailHostNativeTests
         {
             using var host=new Host((_,_)=>File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png")),200);
             using var provider=host.Create(path);Assert.Equal(0,provider.Thumbnail(16,out var alpha,out var bitmap));
-            try{Assert.Equal(2u,alpha);Assert.Equal(16,NativePreviewInterop.BitmapWidth(bitmap));}finally{NativePreviewInterop.DeleteObject(bitmap);}
+            try{Assert.Equal(2u,alpha);Assert.Equal(16,NativeThumbnailInterop.BitmapWidth(bitmap));}finally{NativeThumbnailInterop.DeleteObject(bitmap);}
             Thread.Sleep(450);Assert.False(host.Exited); // 活动对象存在时不能按空闲超时释放回调。
-            Assert.Equal(0,provider.Thumbnail(80,out _,out bitmap));try{Assert.InRange(NativePreviewInterop.BitmapWidth(bitmap),1,80);}finally{NativePreviewInterop.DeleteObject(bitmap);}
+            Assert.Equal(0,provider.Thumbnail(80,out _,out bitmap));try{Assert.InRange(NativeThumbnailInterop.BitmapWidth(bitmap),1,80);}finally{NativeThumbnailInterop.DeleteObject(bitmap);}
         });
         var after=CloudFilesNative.Inspect(path)!.Value;Assert.Equal(before.Identity,after.Identity);Assert.Equal(before.Info.PinState,after.Info.PinState);Assert.Equal(before.Info.InSyncState,after.Info.InSyncState);Assert.Equal(before.Info.OnDiskSize,after.Info.OnDiskSize);Assert.Equal(count,test.Dav.Server.Requests.Count);Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
     }
@@ -39,7 +39,7 @@ public sealed class ThumbnailHostNativeTests
             using var host=new Host((_,_)=>{entered.Set();Assert.True(release.Wait(TimeSpan.FromSeconds(10)));return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Assets","SyncIssue.png"));},500);
             using var provider=host.Create(path);
             var stopping=Task.Run(()=>{try{Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));host.Stop();GC.Collect();Thread.Sleep(100);Assert.False(host.Exited);}finally{release.Set();}});
-            Assert.Equal(0,provider.Thumbnail(32,out _,out var bitmap));NativePreviewInterop.DeleteObject(bitmap);stopping.GetAwaiter().GetResult();
+            Assert.Equal(0,provider.Thumbnail(32,out _,out var bitmap));NativeThumbnailInterop.DeleteObject(bitmap);stopping.GetAwaiter().GetResult();
         });
     }
     [Fact(Timeout=15000)]

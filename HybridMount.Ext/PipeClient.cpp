@@ -119,10 +119,21 @@ namespace {
 		modulePath.resize(count);
 		const auto exe = modulePath.substr(0, modulePath.find_last_of(L'\\') + 1) + L"HybridMount.exe";
 		auto command = L"\"" + exe + L"\" --background";
-		STARTUPINFOW startup{ sizeof(startup) };
-		PROCESS_INFORMATION process{};
-		Check(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process) != FALSE);
-		CloseHandle(process.hThread); CloseHandle(process.hProcess);
+        const auto packaged=hm::HasPackageIdentity();DWORD policy=hm::ChildDesktopPolicy();
+        STARTUPINFOEXW startup{};startup.StartupInfo.cb=static_cast<DWORD>(packaged?sizeof(startup):sizeof(STARTUPINFOW));startup.StartupInfo.dwFlags=STARTF_FORCEOFFFEEDBACK;
+        SIZE_T size{};std::vector<BYTE> memory;
+        struct Attributes{LPPROC_THREAD_ATTRIBUTE_LIST Value{};~Attributes(){if(Value)DeleteProcThreadAttributeList(Value);}} attributes;
+        if(packaged){
+            InitializeProcThreadAttributeList(nullptr,1,0,&size);memory.resize(size);auto list=reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(memory.data());
+            Check(InitializeProcThreadAttributeList(list,1,0,&size)!=FALSE);attributes.Value=list;
+            Check(UpdateProcThreadAttribute(attributes.Value,0,PROC_THREAD_ATTRIBUTE_DESKTOP_APP_POLICY,&policy,sizeof(policy),nullptr,nullptr)!=FALSE);startup.lpAttributeList=attributes.Value;
+        }
+        PROCESS_INFORMATION process{};
+        Check(CreateProcessW(exe.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW|CREATE_SUSPENDED|(packaged?EXTENDED_STARTUPINFO_PRESENT:0),nullptr,nullptr,&startup.StartupInfo,&process)!=FALSE);
+        Handle native(process.hProcess),thread(process.hThread);
+        try{hm::VerifyChildPackage(process.hProcess);Check(ResumeThread(process.hThread)!=static_cast<DWORD>(-1));}
+        catch(...){TerminateProcess(process.hProcess,1);throw;}
+
 	}
 	std::atomic<unsigned> MenuRequests{};
 	struct Work { std::wstring operation; std::vector<std::wstring> paths; HMODULE module;~Work(){--MenuRequests;} };

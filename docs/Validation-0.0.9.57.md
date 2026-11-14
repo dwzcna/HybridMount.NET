@@ -30,7 +30,7 @@ Release广泛回归还实际执行原生模块不加载CLR、缓存命中／冷�
 
 ## 独立MSIX与包外Shell
 
-临时包为dwzcn.HybridMount.NativePreview.Probe36a14d22_0.0.9.57_x64__e43t74r3a3xm8，独立CLSID及新GUID根，未安装正式NativePreview产物。使用本版测试程序集、HybridMount.exe验收入口及生产HybridMount.Stock.exe。
+临时包为当时的预览包身份.Probe36a14d22_0.0.9.57_x64__e43t74r3a3xm8，独立CLSID及新GUID根，未安装正式当时的预览身份产物。使用本版测试程序集、HybridMount.exe验收入口及生产HybridMount.Stock.exe。
 
 真实Shell自动取得缓存图和完整本地图片，包外Outside.Passed、主结果Passed和Cleanup均为true；原生固定／释放菜单与状态属性保留。源请求8→8，检查文件内容、身份、Pin、InSync等事实保持。实际AUMID为本轮临时包Family!App，不能冒充正式包安装验收。证据desktop3Synology57-36a14d22/result.json、outside.json及NativeTrace。
 

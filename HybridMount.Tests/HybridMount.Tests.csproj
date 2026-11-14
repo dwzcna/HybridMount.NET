@@ -10,6 +10,9 @@
   </PropertyGroup>
   <!-- 各集合共享本机CFAPI／物理缓存资源；限制集合级并行，单个用例内的1／4／128并发保持真实执行。 -->
   <ItemGroup>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.RemovalBatch.cs" Link="Production\Services\Mounting\MountManager.RemovalBatch.cs"/>
+    <Compile Include="..\HybridMount\Services\Mounting\MountManager.CachedRemoval.cs" Link="Production\Services\Mounting\MountManager.CachedRemoval.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Recovery\MountRemovalBatchModels.cs" Link="Production\Models\Mounting\Recovery\MountRemovalBatchModels.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.HotPaths.cs" Link="Production\Models\Persistence\MountRepository.HotPaths.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.NativeNotifications.cs" Link="Production\Models\Persistence\MountRepository.NativeNotifications.cs"/>
     <Compile Include="..\HybridMount\Models\Persistence\MountRepository.RepeatedTasks.cs" Link="Production\Models\Persistence\MountRepository.RepeatedTasks.cs"/>
@@ -321,6 +324,7 @@
   </Target>
   <ItemGroup>
     <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavCertificateInfo.cs" Link="Production/Models/Mounting/WebDAV/WebDavCertificateInfo.cs"/>
+    <Compile Include="../HybridMount/Services/Runtime/NativeProcessIdentity.cs" Link="Production/Services/Runtime/NativeProcessIdentity.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilities.cs" Link="Production/Models/Mounting/ProtocolCapabilities.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilityCatalog.cs" Link="Production/Models/Mounting/ProtocolCapabilityCatalog.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavProtocolCapabilities.cs" Link="Production/Models/Mounting/WebDAV/WebDavProtocolCapabilities.cs"/>

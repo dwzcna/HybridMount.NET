@@ -1,6 +1,6 @@
 # 0.0.9.59 实现与验收（2026-11-10）
 
-基于88955eb（0.0.9.58），分支codex/native-backend；保留四工程、HybridMount.exe及NativePreview身份。使用global.json固定SDK与本机VS2026、Windows SDK；仅本地提交，不推送或修改master，不重启Explorer，不补跑既有.33停止专项。
+基于88955eb（0.0.9.58），分支codex/native-backend；保留四工程、HybridMount.exe及当时的预览身份。使用global.json固定SDK与本机VS2026、Windows SDK；仅本地提交，不推送或修改master，不重启Explorer，不补跑既有.33停止专项。
 
 ## 实现状态
 

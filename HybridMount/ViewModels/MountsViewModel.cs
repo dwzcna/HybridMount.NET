@@ -283,10 +283,10 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
         return RunMountAsync(id,()=>mount.IsConnected?_manager.DisconnectAsync(id):_manager.ConnectAsync(id));
     }
     /// <summary>确认对话框返回捕获的挂载身份；应用服务重验移除阶段及原模式。</summary>
-    public void QueueRemoval(Guid id,bool clear)
+    public void QueueRemoval(Guid id,bool clear,bool cached=false)
     {
         if(IsStopping)return;
-        try{_manager.Queue(id,clear?"clearAndRemove":"remove");Status=global::HybridMount.Services.Localization.UiText.Text("Text_273A955713B8");}
+        try{_manager.Queue(id,cached?"removeCached":clear?"clearAndRemove":"remove");Status=global::HybridMount.Services.Localization.UiText.Text("Text_273A955713B8");}
         catch(Exception error){Report(error);}
     }
     public void Dispose(){if(_disposed)return;_disposed=true;StatusMessage.Dispose();_manager.Changed-=Changed;_exclusionDrafts.Clear();}

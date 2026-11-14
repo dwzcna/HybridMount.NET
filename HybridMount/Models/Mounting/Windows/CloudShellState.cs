@@ -22,7 +22,7 @@ internal static class CloudShellState
         if(!ShellExtensionPolicy.CustomThumbnailsEnabled)return new(false,packaged,ShellExtensionPolicy.PauseReason);
         try
         {
-            var packages=packaged?new[]{global::Windows.ApplicationModel.Package.Current}:new global::Windows.Management.Deployment.PackageManager().FindPackagesForUser(WindowsIdentity.GetCurrent().User!.Value).Where(p=>p.Id.Name=="dwzcn.HybridMount.NativePreview").ToArray();
+            var packages=packaged?new[]{global::Windows.ApplicationModel.Package.Current}:new global::Windows.Management.Deployment.PackageManager().FindPackagesForUser(WindowsIdentity.GetCurrent().User!.Value).Where(p=>p.Id.Name=="dwzcn.HybridMount.NET").ToArray();
             var registered=packaged&&packages.Any(package=>
             {
                 using var reader=XmlReader.Create(Path.Combine(package.InstalledLocation.Path,"AppxManifest.xml"),new(){DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null,MaxCharactersInDocument=1024*1024});
@@ -97,7 +97,7 @@ internal static class CloudShellState
         try
         {
             var user=WindowsIdentity.GetCurrent().User!.Value;
-            var packages=new global::Windows.Management.Deployment.PackageManager().FindPackagesForUser(user).Where(p=>p.Id.Name=="dwzcn.HybridMount.NativePreview").ToArray();
+            var packages=new global::Windows.Management.Deployment.PackageManager().FindPackagesForUser(user).Where(p=>p.Id.Name=="dwzcn.HybridMount.NET").ToArray();
             if(packages.Length==0)lines.Add("本用户未安装HybridMount MSIX；Windows原生CFAPI状态不依赖自有扩展注册。");
             foreach(var package in packages)
             {

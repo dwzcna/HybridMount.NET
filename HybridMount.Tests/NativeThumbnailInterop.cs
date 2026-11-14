@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace HybridMount.Tests;
 
 /// <summary>测试专用 DLL 的加载与 Shell 接口桥接；构建时限定隔离管道，不替换产品 DLL。</summary>
-internal sealed unsafe class NativePreviewInterop : IDisposable
+internal sealed unsafe class NativeThumbnailInterop : IDisposable
 {
     private readonly nint _library;
     private nint _factory,_initialize,_thumbnail;
@@ -23,7 +23,7 @@ internal sealed unsafe class NativePreviewInterop : IDisposable
             return Path.Combine(directory.FullName,"artifacts","native-tests",RuntimeInformation.ProcessArchitecture==Architecture.Arm64?"ARM64":"x64",configuration,"HybridMount.Ext.dll");
         }
     }
-    internal NativePreviewInterop(string path,bool useShellBinding=false,Action<string>? observe=null,bool nativeServer=false,Guid? serverClass=null)
+    internal NativeThumbnailInterop(string path,bool useShellBinding=false,Action<string>? observe=null,bool nativeServer=false,Guid? serverClass=null)
     {
         var clsid=serverClass??new Guid("A749B295-9CB5-4F08-98D4-00EB47345E09");var factoryId=new Guid("00000001-0000-0000-C000-000000000046");nint factory=0;
         if(nativeServer){var code=CoGetClassObject(in clsid,4,0,in factoryId,out factory);if(code<0)Marshal.ThrowExceptionForHR(code);_factory=factory;}

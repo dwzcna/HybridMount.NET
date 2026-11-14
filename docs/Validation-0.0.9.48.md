@@ -1,6 +1,6 @@
 # 0.0.9.48 验收记录
 
-基线940c7d8（.47），继续codex/native-backend／NativePreview。受检补丁本地整合，不推送、不改动master。
+基线940c7d8（.47），继续codex/native-backend／当时的预览身份。受检补丁本地整合，不推送、不改动master。
 
 ## 来源和修订
 

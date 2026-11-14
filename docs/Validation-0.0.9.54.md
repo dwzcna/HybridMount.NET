@@ -1,6 +1,6 @@
 # 0.0.9.54 验收记录
 
-基线b35f05c（.53），继续codex/native-backend／NativePreview，受检补丁逐批实施。
+基线b35f05c（.53），继续codex/native-backend／当时的预览身份，受检补丁逐批实施。
 
 ## 实现及安全边界
 

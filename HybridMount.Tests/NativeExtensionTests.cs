@@ -15,7 +15,7 @@ public sealed class NativeExtensionTests
         internal NativeExtension()
         {
             Assert.Equal(0,CoIncrementMTAUsage(out _mta));using var apartment=new Apartment();
-            _library = NativeLibrary.Load(NativePreviewInterop.LibraryPath);
+            _library = NativeLibrary.Load(NativeThumbnailInterop.LibraryPath);
             var create = (delegate* unmanaged[Stdcall]<Guid*, Guid*, nint*, int>)NativeLibrary.GetExport(_library, "DllGetClassObject");
             var id = CommandId; var factoryId = new Guid("00000001-0000-0000-C000-000000000046");
             nint factory = 0;
@@ -120,7 +120,7 @@ public sealed class NativeExtensionTests
     {
         await using var test=await UploadFlowTests.Fixture.Create(false);
         var file=Path.Combine(test.Local,"文件.bin");
-        await using var server=new IpcServerService(test.Logger,NativePreviewInterop.PipeName);
+        await using var server=new IpcServerService(test.Logger,NativeThumbnailInterop.PipeName);
         var received=System.Threading.Channels.Channel.CreateUnbounded<IpcRequest>();server.RequestReceived+=request=>received.Writer.TryWrite(request);server.Start();
         using var extension=new NativeExtension();extension.VerifyEnumeration();
         var before=CloudFilesNative.Inspect(file)!.Value;var requests=test.Dav.Server.Requests.Count;

@@ -115,7 +115,7 @@ public static class ShellIntegrationProbe
     private sealed record ImageResult(int HResult,int Width,int Height,int PatternPixels,bool Pattern);
     private static Task<ImageResult> Image(string path)=>Task.Run(()=>
     {
-        var status=NativePreviewInterop.ShellImage(path,64,8,out var bitmap);if(status<0||bitmap==0)return new ImageResult(status,0,0,0,false);
+        var status=NativeThumbnailInterop.ShellImage(path,64,8,out var bitmap);if(status<0||bitmap==0)return new ImageResult(status,0,0,0,false);
         try
         {
             var metadata=new byte[32];Assert.Equal(32,GetObject(bitmap,32,metadata));var width=BitConverter.ToInt32(metadata,4);var height=BitConverter.ToInt32(metadata,8);
@@ -124,7 +124,7 @@ public static class ShellIntegrationProbe
             var count=0;for(var offset=0;offset<pixels.Length;offset+=4)if(pixels[offset+2] is >=167 and <=173&&pixels[offset+3]>240)count++;
             return new ImageResult(status,width,height,count,count>width*height*0.8);
         }
-        finally{NativePreviewInterop.DeleteObject(bitmap);}
+        finally{NativeThumbnailInterop.DeleteObject(bitmap);}
     });
     [StructLayout(LayoutKind.Sequential)]private struct BitmapInfo{public uint Size;public int Width,Height;public ushort Planes,Bits;public uint Compression,ImageSize;public int X,Y;public uint Used,Important;}
     [DllImport("gdi32.dll",EntryPoint="GetObjectW")]private static extern int GetObject(nint bitmap,int length,byte[] data);

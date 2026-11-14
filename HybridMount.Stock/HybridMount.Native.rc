@@ -21,7 +21,7 @@ BEGIN
    VALUE "FileVersion", HYBRIDMOUNT_VERSION_TEXT
    VALUE "InternalName", "HybridMount.Stock\0"
    VALUE "OriginalFilename", "HybridMount.Native.dll\0"
-   VALUE "ProductName", "HybridMount.NativePreview\0"
+   VALUE "ProductName", "HybridMount.NET\0"
    VALUE "ProductVersion", HYBRIDMOUNT_VERSION_TEXT
   END
  END

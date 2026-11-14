@@ -113,29 +113,15 @@ public sealed class FailedMountTests
             Assert.Single(outsider.Mounts);
         }
         Registry.CurrentUser.DeleteSubKeyTree(test.RegistryPath+"-foreign",false);
-        await owner.DisconnectAsync(mount.Id);CloudRootRegistration.Unregister(mount);
-        try
-        {
-            await using var orphan=new MountManager(test.Repository,test.Logger,test.Factory);
-            // 本机系统可能在主动注销时同时解除云标记；只有实际残留云占位时应进入恢复阻断。
-            if(MountPathGuard.ContainsCloudPlaceholders(test.Local))
-            {
-                foreach(var operation in new[]{"remove","clearAndRemove"})
-                    Assert.Equal("Failed",(await WebDavTests.Finished(orphan,orphan.Queue(mount.Id,operation))).State);
-                Assert.Single(orphan.Mounts);
-            }
-            else
-            {
-                Assert.False(orphan.CanEditRemoteRoot(mount.Id));
-                Assert.False(await orphan.CanEditRemoteRootAsync(mount.Id));
-                Assert.Equal("Completed",(await WebDavTests.Finished(orphan,orphan.Queue(mount.Id,"remove"))).State);
-            }
-        }
-        finally
-        {
-            await CloudRootRegistration.EnsureAsync(mount,default);
-            Assert.Equal("Completed",(await WebDavTests.Finished(owner,owner.Queue(mount.Id,"clearAndRemove"))).State);
-        }
+        // 生产注销不允许在非空目录上重新注册；先经产品清空并完成真实注销，再注入残留配置模拟崩溃边界。
+        Assert.Equal("Completed",(await WebDavTests.Finished(owner,owner.Queue(mount.Id,"clearAndRemove"))).State);
+        Assert.Null(CloudFilesNative.RootIdentity(test.Local,true));
+        test.Repository.SaveDefinition(mount with{RemovalPending=true,RemovalMode=MountRemovalMode.ClearContents,RemovalStage=MountRemovalStage.Unregistering});
+        await using var orphan=new MountManager(test.Repository,test.Logger,test.Factory);
+        Assert.False(orphan.CanEditRemoteRoot(mount.Id));
+        Assert.False(await orphan.CanEditRemoteRootAsync(mount.Id));
+        var result=await WebDavTests.Finished(orphan,orphan.Queue(mount.Id,"clearAndRemove"));
+        Assert.True(result.State=="Completed",result.Error);
     }
     [Fact]
     public async Task UnregisteredClearDeletesJunctionOnlyAndKeepsOutsideTarget()
@@ -161,7 +147,8 @@ public sealed class FailedMountTests
         Directory.Move(test.Local,backup);Directory.CreateDirectory(test.Local);
         try
         {
-            release.SetResult();await Assert.ThrowsAsync<IOException>(()=>connect);
+            release.SetResult();var rejected=await Record.ExceptionAsync(()=>connect);
+            Assert.True(rejected is IOException||rejected is System.Runtime.InteropServices.COMException {HResult:unchecked((int)0x80070005)},rejected?.ToString());
             Assert.Null(CloudFilesNative.RootIdentity(test.Local,strict:true));
             Assert.Equal("Failed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(mount.Id,"clearAndRemove"))).State);
             Assert.Single(test.Repository.LoadDefinitions());

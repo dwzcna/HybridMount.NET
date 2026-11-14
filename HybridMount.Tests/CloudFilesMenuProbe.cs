@@ -17,7 +17,7 @@ public static unsafe class CloudFilesMenuProbe
     {
         var report=new Dictionary<string,object?>();MountDefinition? mount=null;string? session=null;var cleanup=false;var success=false;
         try{
-            var package=global::Windows.ApplicationModel.Package.Current;Assert.StartsWith("dwzcn.HybridMount.NativePreview.Probe",package.Id.Name);report["Package"]=package.Id.FullName;
+            var package=global::Windows.ApplicationModel.Package.Current;Assert.StartsWith("dwzcn.HybridMount.NET.Probe",package.Id.Name);report["Package"]=package.Id.FullName;
             NativeThumbnailBindingProbe.RegisterForUninstallAsync(area).GetAwaiter().GetResult();
             using(var proof=JsonDocument.Parse(File.ReadAllText(Path.Combine(area,"uninstall-root.json"))))mount=proof.RootElement.GetProperty("Root").Deserialize<MountDefinition>()!;
             Assert.StartsWith(Path.GetFullPath(area)+Path.DirectorySeparatorChar,Path.GetFullPath(mount.LocalPath),StringComparison.OrdinalIgnoreCase);report["Root"]=mount;

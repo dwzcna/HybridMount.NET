@@ -113,15 +113,15 @@ class LocalDecoder {
         CloseChild();SECURITY_ATTRIBUTES security{sizeof(security),nullptr,TRUE};Handle inputRead,outputWrite;
         WinCheck(CreatePipe(&inputRead.Value,&Input.Value,&security,65536));WinCheck(SetHandleInformation(Input.Value,HANDLE_FLAG_INHERIT,0));
         WinCheck(CreatePipe(&Output.Value,&outputWrite.Value,&security,65536));WinCheck(SetHandleInformation(Output.Value,HANDLE_FLAG_INHERIT,0));
-        SIZE_T length{};InitializeProcThreadAttributeList(nullptr,1,0,&length);std::vector<BYTE> memory(length);auto attributes=reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(memory.data());WinCheck(InitializeProcThreadAttributeList(attributes,1,0,&length));
+        const auto packaged=HasPackageIdentity();const DWORD attributeCount=packaged?2:1;DWORD desktopPolicy=ChildDesktopPolicy();SIZE_T length{};InitializeProcThreadAttributeList(nullptr,attributeCount,0,&length);std::vector<BYTE> memory(length);auto attributes=reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(memory.data());WinCheck(InitializeProcThreadAttributeList(attributes,attributeCount,0,&length));
         struct Attributes{LPPROC_THREAD_ATTRIBUTE_LIST Value;~Attributes(){DeleteProcThreadAttributeList(Value);}} owner{attributes};
         HANDLE inherited[]{inputRead.Value,outputWrite.Value};WinCheck(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited,sizeof(inherited),nullptr,nullptr));
-        STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof(startup);startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES|STARTF_FORCEOFFFEEDBACK;startup.StartupInfo.hStdInput=inputRead.Value;startup.StartupInfo.hStdOutput=outputWrite.Value;startup.lpAttributeList=attributes;
+        if(packaged)WinCheck(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_DESKTOP_APP_POLICY,&desktopPolicy,sizeof(desktopPolicy),nullptr,nullptr));STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof(startup);startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES|STARTF_FORCEOFFFEEDBACK;startup.StartupInfo.hStdInput=inputRead.Value;startup.StartupInfo.hStdOutput=outputWrite.Value;startup.lpAttributeList=attributes;
         Job.Value=CreateJobObjectW(nullptr,nullptr);WinCheck(Job.Value!=nullptr);JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE|JOB_OBJECT_LIMIT_PROCESS_MEMORY;limits.ProcessMemoryLimit=512ULL*1024*1024;WinCheck(SetInformationJobObject(Job.Value,JobObjectExtendedLimitInformation,&limits,sizeof(limits)));
         auto executable=ModuleDirectory()+L"\\HybridMount.Stock.exe";auto arguments=L"\""+executable+L"\" --local-thumbnail-service";PROCESS_INFORMATION info{};const auto started=GetTickCount64();
         WinCheck(CreateProcessW(executable.c_str(),arguments.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW|CREATE_SUSPENDED|EXTENDED_STARTUPINFO_PRESENT,nullptr,ModuleDirectory().c_str(),&startup.StartupInfo,&info));Process.Value=info.hProcess;Handle thread(info.hThread);ChildId=info.dwProcessId;
         if(!AssignProcessToJobObject(Job.Value,Process.Value)){auto error=GetLastError();TerminateProcess(Process.Value,1);throw Failure(HRESULT_FROM_WIN32(error));}
-        WinCheck(ResumeThread(thread.Value)!=static_cast<DWORD>(-1));Reset(inputRead);Reset(outputWrite);
+        VerifyChildPackage(Process.Value);WinCheck(ResumeThread(thread.Value)!=static_cast<DWORD>(-1));Reset(inputRead);Reset(outputWrite);
         Require(Receive(started+5000,stopping).at("kind")=="localReady");++Starts;if(timing){timing->Started=true;timing->Startup=GetTickCount64()-started;}
     }
     void Reap(){

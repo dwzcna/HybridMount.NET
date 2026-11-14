@@ -49,7 +49,7 @@ public sealed class ContractTests
             Assert.True(service.Reload());
             Assert.Equal(new(AppearanceBackdrop.None, AppearanceTheme.Dark), service.Current);
             Assert.Equal("invalid", key.GetValue("AppearanceBackdrop"));
-            Assert.Equal(@"Software\HybridMount.NET\NativePreview\Unpackaged", ApplicationPaths.RegistryPath);
+            Assert.Equal(@"Software\HybridMount.NET\Unpackaged", ApplicationPaths.RegistryPath);
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }
@@ -57,7 +57,7 @@ public sealed class ContractTests
     [InlineData(true,"Packaged")][InlineData(false,"Unpackaged")]
     public void DeploymentRegistryPathsMatchTheDefinitionStoreLayout(bool packaged,string scope)
     {
-        var root=@"Software\HybridMount.NET\NativePreview\"+scope;
+        var root=@"Software\HybridMount.NET\"+scope;
         Assert.Equal(root,ApplicationPaths.RegistryPathFor(packaged));
         Assert.Equal(root+@"\Mounts\"+scope,ApplicationPaths.MountDefinitionsRegistryPathFor(packaged));
         Assert.Equal(ApplicationPaths.RegistryPathFor(WinRegisterService.IsPackaged()),ApplicationPaths.RegistryPath);

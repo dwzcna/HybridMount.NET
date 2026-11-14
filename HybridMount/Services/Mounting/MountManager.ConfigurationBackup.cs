@@ -77,7 +77,7 @@ public sealed partial class MountManager
     /// <summary>只新增并保存；不连接、注册、创建文件源或启动上传。取消保留已保存项，后续条目标记取消。</summary>
     public Task<MountImportBatchResult> ImportConfigurationsAsync(IReadOnlyList<MountImportItem> items, CancellationToken token = default, IProgress<MountImportResult>? progress = null)
     {
-        items = items.ToArray();
+        EnsureNoRemovalBatch();items = items.ToArray();
         return OwnAsync(cancel => Task.Run(async () =>
         {
             ValidateImportCount(items); var results = new List<MountImportResult>(); var canceled = false;
@@ -185,7 +185,7 @@ public sealed partial class MountManager
         var store = new CredentialStore(_repository.DataDirectory);
         lock (_lifetime)
         {
-            ThrowIfStopping(); token.ThrowIfCancellationRequested();
+            ThrowIfStopping();EnsureNoRemovalBatch(); token.ThrowIfCancellationRequested();
             try
             {
                 if (credentials is not null) store.Save(definition.Id, credentials);

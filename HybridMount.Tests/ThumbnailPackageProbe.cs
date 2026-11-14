@@ -98,15 +98,15 @@ public static class ThumbnailPackageProbe
     /// <summary>真实Shell图像工厂THUMBNAILONLY，不直接创建本产品CLSID；像素来自DB而非实际正文。</summary>
     private static ImageResult Image(string path)
     {
-        var status=NativePreviewInterop.ShellImage(path,64,8,out var bitmap);return DescribeImage(status,bitmap);
+        var status=NativeThumbnailInterop.ShellImage(path,64,8,out var bitmap);return DescribeImage(status,bitmap);
     }
     /// <summary>单文件强制提取仍由Windows决定处理器；与显式COM对照独立记录。</summary>
-    internal static object ForcedImage(string path){var status=NativePreviewInterop.ShellCachedImage(path,64,out var bitmap);return DescribeImage(status,bitmap);}
+    internal static object ForcedImage(string path){var status=NativeThumbnailInterop.ShellCachedImage(path,64,out var bitmap);return DescribeImage(status,bitmap);}
     private static ImageResult DescribeImage(int status,nint bitmap)
     {
         if(status<0||bitmap==0)return new(status,0,0,0,false);
         try{var metadata=new byte[32];Assert.Equal(32,GetObject(bitmap,32,metadata));var width=BitConverter.ToInt32(metadata,4);var height=Math.Abs(BitConverter.ToInt32(metadata,8));Assert.InRange(width,1,256);Assert.InRange(height,1,256);var pixels=new byte[width*height*4];var info=new BitmapInfo{Size=40,Width=width,Height=-height,Planes=1,Bits=32};var dc=CreateCompatibleDC(0);try{Assert.Equal(height,GetDIBits(dc,bitmap,0,(uint)height,pixels,ref info,0));}finally{DeleteDC(dc);}var count=0;for(var offset=0;offset<pixels.Length;offset+=4)if(pixels[offset+2] is >=167 and <=173&&pixels[offset+3]>240)count++;return new(status,width,height,count,count>width*height*0.8);}
-        finally{NativePreviewInterop.DeleteObject(bitmap);}
+        finally{NativeThumbnailInterop.DeleteObject(bitmap);}
     }
     /// <summary>另行测量真实包COM激活，不能用它替代上面的Shell自动选择断言。</summary>
     private static unsafe object DirectImage(string path,Guid clsid)
@@ -122,7 +122,7 @@ public static class ThumbnailPackageProbe
             return new{Stage="Thumbnail",HResult=hr,Bitmap=bitmap!=0,Alpha=alpha};
         }
         catch(Exception error){return new{Stage="Exception",error.HResult,Type=error.GetType().Name};}
-        finally{if(bitmap!=0)NativePreviewInterop.DeleteObject(bitmap);if(thumb!=0)Marshal.Release(thumb);if(item!=0)Marshal.Release(item);if(init!=0)Marshal.Release(init);if(initialized>=0)CoUninitialize();}
+        finally{if(bitmap!=0)NativeThumbnailInterop.DeleteObject(bitmap);if(thumb!=0)Marshal.Release(thumb);if(item!=0)Marshal.Release(item);if(init!=0)Marshal.Release(init);if(initialized>=0)CoUninitialize();}
     }
     [DllImport("ole32.dll")]private static extern int CoInitializeEx(nint reserved,uint flags);
     [DllImport("ole32.dll")]private static extern void CoUninitialize();

@@ -89,7 +89,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void ApplyFocus()
     {
         if(_focus?.Current is not {} focus||focus.Revision==_focusRevision)return;
-        _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=true;_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));
+        _focusRevision=focus.Revision;_filterMount=focus.MountId;_filterPaths=focus.Paths;_issuesOnly=focus.IssuesOnly;_conflictsOnly=false;OnPropertyChanged(nameof(ConflictsOnly));
         OnPropertyChanged(nameof(IssuesOnly));OnPropertyChanged(nameof(SelectedTaskFilter));Refresh();SelectedJobId=Operations.FirstOrDefault()?.Id;Refreshed?.Invoke();
     }
     public string? SelectedJobId {get=>_selectedJob;set{if(!_disposed&&SetProperty(ref _selectedJob,value))OnPropertyChanged(nameof(CanCancelSelected));}}

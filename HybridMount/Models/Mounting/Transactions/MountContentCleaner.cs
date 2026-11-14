@@ -91,6 +91,20 @@ internal static class MountContentCleaner
     }
     /// <summary>在原生注销和每根注册收尾期间持有祖先及根的仅属性租约，阻止目录被移动或换成链接；不读取正文。</summary>
     internal static IDisposable HoldRoot(MountDefinition mount)=>new PathLease(mount);
+    /// <summary>持有已核验目录防止祖先替换；不共享删除，不跟随外部链接，调用方在原生解除该目录前释放。</summary>
+    internal static IDisposable HoldDirectory(string path,string identity)
+    {
+        var handle=CloudFilesNative.CreateFile(path,ReadAttributes,3,0,3,OpenNoFollow,0);
+        try
+        {
+            if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
+            var tag=Tag(handle);
+            if(Identity(handle)!=identity||(tag.Attributes&0x10)==0||((tag.Attributes&0x400)!=0&&!CloudFilesNative.IsCloudTag(tag.Tag)))throw new IOException("目录身份或链接状态改变。");
+            return handle;
+        }
+        catch{handle.Dispose();throw;}
+    }
+
     internal static IDisposable HoldEmptyRoot(MountDefinition mount)
     {
         var lease=new PathLease(mount);

@@ -20,7 +20,7 @@ public sealed class SettingsResetScopeTests
     [Fact]
     public void CurrentModeDeletionPreservesOtherModeAndFormalData()
     {
-        using var area=new Area();var own=area.Populate();var other=SettingsResetScope.Create(true,area.Local,"Test.NativePreview_abc").Directories[0];var formal=Path.Combine(area.Local,"HybridMount.NET","formal");
+        using var area=new Area();var own=area.Populate();var other=SettingsResetScope.Create(true,area.Local,"Test.HybridMount_abc").Directories[0];var formal=Path.Combine(area.Local,"HybridMount.NET","formal");
         foreach(var directory in new[]{other,formal}){Directory.CreateDirectory(directory);File.WriteAllText(Path.Combine(directory,"keep.dat"),"original");}
         var plan=new SettingsResetPlan(area.Scope,SettingsResetDirectories.Capture(area.Scope,CancellationToken.None));SettingsResetDirectories.Validate(plan,CancellationToken.None);
         foreach(var proof in plan.Directories)SettingsResetDirectories.Delete(proof);
@@ -29,7 +29,7 @@ public sealed class SettingsResetScopeTests
     [Fact]
     public void PackagedScopeExcludesSharedParentsOtherModeAndRuntimeState()
     {
-        using var area=new Area();var scope=SettingsResetScope.Create(true,area.Local,"Test.NativePreview_abc");var package=Path.Combine(area.Local,"Packages","Test.NativePreview_abc");
+        using var area=new Area();var scope=SettingsResetScope.Create(true,area.Local,"Test.HybridMount_abc");var package=Path.Combine(area.Local,"Packages","Test.HybridMount_abc");
         Assert.Equal(5,scope.Directories.Count);Assert.DoesNotContain(package,scope.Directories);Assert.DoesNotContain(Path.Combine(package,"Settings"),scope.Directories);Assert.DoesNotContain(area.Scope.Directories[0],scope.Directories);Assert.False(scope.SameAs(area.Scope));
         Assert.All(scope.Directories.Skip(1),path=>Assert.StartsWith(package+Path.DirectorySeparatorChar,path));Assert.True(((ICollection<string>)scope.Directories).IsReadOnly);
     }

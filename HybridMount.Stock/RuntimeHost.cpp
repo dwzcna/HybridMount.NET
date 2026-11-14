@@ -12,7 +12,6 @@
 
 namespace hm {
 namespace {
-std::wstring Family(HANDLE process){UINT32 count{};auto status=GetPackageFamilyName(process,&count,nullptr);if(status==APPMODEL_ERROR_NO_PACKAGE)return {};Require(status==ERROR_INSUFFICIENT_BUFFER&&count<=2048);std::wstring result(count,L'\0');Require(GetPackageFamilyName(process,&count,result.data())==ERROR_SUCCESS);result.resize(count-1);return result;}
 [[maybe_unused]] std::wstring ProcessPath(HANDLE process){DWORD count=32768;std::wstring path(count,L'\0');WinCheck(QueryFullProcessImageNameW(process,0,path.data(),&count));path.resize(count);return path;}
 std::wstring User(HANDLE process){HANDLE raw{};WinCheck(OpenProcessToken(process,TOKEN_QUERY,&raw));Handle token(raw);DWORD count{};GetTokenInformation(raw,TokenUser,nullptr,0,&count);Require(count>0&&count<65536);std::vector<BYTE> bytes(count);WinCheck(GetTokenInformation(raw,TokenUser,bytes.data(),count,&count));LPWSTR sid{};WinCheck(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(bytes.data())->User.Sid,&sid));std::wstring result(sid);LocalFree(sid);return result;}
 struct Pipe {
@@ -73,7 +72,7 @@ struct RuntimeHost::Impl {
 RuntimeHost::RuntimeHost(DWORD parent,const std::wstring& nonce):_impl(std::make_unique<Impl>()){
     Require(parent>0&&nonce.size()==32);GuidN(Utf8(nonce));auto& p=*_impl;p.ParentId=parent;p.Parent.Value=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE,FALSE,parent);WinCheck(p.Parent.Value!=nullptr);
     auto authenticate=[](bool valid,const char* stage){if(!valid){RecordNativeFailure("NativeRuntime",E_ACCESSDENIED,stage);Require(false,E_ACCESSDENIED);}};
-    DWORD selfSession{},peerSession{};WinCheck(ProcessIdToSessionId(GetCurrentProcessId(),&selfSession));WinCheck(ProcessIdToSessionId(parent,&peerSession));authenticate(peerSession==selfSession,"ParentSessionMismatch");authenticate(User(p.Parent.Value)==CurrentSid(),"ParentUserMismatch");authenticate(Family(p.Parent.Value)==Family(GetCurrentProcess()),"ParentPackageMismatch");
+    DWORD selfSession{},peerSession{};WinCheck(ProcessIdToSessionId(GetCurrentProcessId(),&selfSession));WinCheck(ProcessIdToSessionId(parent,&peerSession));authenticate(peerSession==selfSession,"ParentSessionMismatch");authenticate(User(p.Parent.Value)==CurrentSid(),"ParentUserMismatch");authenticate(ProcessPackage(p.Parent.Value)==ProcessPackage(GetCurrentProcess()),"ParentPackageMismatch");
 #ifndef HYBRIDMOUNT_NATIVE_TESTS
     authenticate(SamePath(ProcessPath(p.Parent.Value),ModuleDirectory()+L"\\HybridMount.exe"),"ParentImageMismatch");
 #endif

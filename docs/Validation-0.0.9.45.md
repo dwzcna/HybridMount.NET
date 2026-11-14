@@ -2,7 +2,7 @@
 
 ## 实现与边界
 
-基于codex/native-backend的305b62e。四工程、Debug／Release、x64／ARM64；NativePreview包身份与正式产品和另一部署模式隔离。仅使用随机NTFS根、回环WebDAV和独立临时MSIX，不操作正式挂载、真实服务或其他账户，不重启Explorer，不补跑.33停止的三个专项类。
+基于codex/native-backend的305b62e。四工程、Debug／Release、x64／ARM64；当时的预览身份包身份与正式产品和另一部署模式隔离。仅使用随机NTFS根、回环WebDAV和独立临时MSIX，不操作正式挂载、真实服务或其他账户，不重启Explorer，不补跑.33停止的三个专项类。
 
 CloudFiles合法完整子组中未实现处理器明确Clsid=GUID_NULL，不为这些空值登记COM类。仅真实菜单和缩略图CLSID由原生ExeServer提供，独立菜单Verb不变。省略Clsid的旧方案会使系统丢失状态／缩略图关联；desktop3完整子组改为GUID_NULL后两次隔离包复现通过。现代命名空间／仅缩略图子组被26100 SDK及本机包模式验证拒绝；不绕过校验、不升级SDK或全局接管文件类型。原始失败及模式证据保留于00945-binding-*、00945-runtime-manifest-reader.json。
 

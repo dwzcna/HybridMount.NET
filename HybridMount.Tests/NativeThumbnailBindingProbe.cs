@@ -14,7 +14,7 @@ public static class NativeThumbnailBindingProbe
         Directory.CreateDirectory(area);var report=new Dictionary<string,object?>();UploadFlowTests.Fixture? test=null;ThumbnailCacheStore? store=null;ThumbnailCacheRoot? cache=null;var success=false;
         try
         {
-            var generation=File.Exists(Path.Combine(area,"generation-profile"));var observe=File.Exists(Path.Combine(area,"observe-explorer"));var package=global::Windows.ApplicationModel.Package.Current;Assert.StartsWith("dwzcn.HybridMount.NativePreview.Probe",package.Id.Name);report["Package"]=package.Id.FullName;
+            var generation=File.Exists(Path.Combine(area,"generation-profile"));var observe=File.Exists(Path.Combine(area,"observe-explorer"));var package=global::Windows.ApplicationModel.Package.Current;Assert.StartsWith("dwzcn.HybridMount.NET.Probe",package.Id.Name);report["Package"]=package.Id.FullName;
             test=new();test.Local=Path.Combine(area,"root-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(test.Local);test.Registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
             test.Repository=new(Path.Combine(area,"data"),test.Registry);test.Logger=new(Path.Combine(area,"log.db"));test.Manager=new(test.Repository,test.Logger){LocalPreviewsForTests=generation,RemoteThumbnailsForTests=generation,BrowsePreviewsForTests=generation,ObserveExplorerForTests=observe};
             var names=new[]{"cold-"+Guid.NewGuid().ToString("N")+".bmp","local-"+Guid.NewGuid().ToString("N")+".bmp"};

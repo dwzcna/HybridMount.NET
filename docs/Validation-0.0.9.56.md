@@ -6,7 +6,7 @@
 
 主目录／项目恢复HybridMount/HybridMount.csproj，AssemblyName与输出为HybridMount、HybridMount.exe／HybridMount.dll。同步解决方案、Tests源码链接、构建／图标脚本、MSIX主入口／维护／登录启动、原生父映像校验、Shell菜单启动及缩略图能力判断。包检查拒绝夹带旧HybridMount.NET主映像、程序集和运行配置。
 
-NativePreview包身份、AUMID、COM CLSID、根ID、管道、注册表／数据路径保持兼容。ApplicationPaths、IpcMessages、MountBackupCodec、MountDatabase、RegistryMountDefinitionStore与.55文本相同（只迁路径）。Compile260／Page12／ApplicationDefinition1，零遗漏或重复，见source-and-compatibility.json。
+当时的预览身份包身份、AUMID、COM CLSID、根ID、管道、注册表／数据路径保持兼容。ApplicationPaths、IpcMessages、MountBackupCodec、MountDatabase、RegistryMountDefinitionStore与.55文本相同（只迁路径）。Compile260／Page12／ApplicationDefinition1，零遗漏或重复，见source-and-compatibility.json。
 
 已有自有根图标只尝试更新IconResource，先核对根／描述符ID和路径，保留返回的原描述符；按ID查询不可见时尝试目录查询，仍失败则记安全HRESULT并保留注册。不据此重建策略、转换文件、清空或接管根。此项代码已实现，真实旧图标刷新尚未通过验证，见下文。
 

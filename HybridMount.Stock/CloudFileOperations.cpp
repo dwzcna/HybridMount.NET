@@ -199,6 +199,23 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
         if(!local.Directory){LARGE_INTEGER length{};length.QuadPart=-1;Check(CfDehydratePlaceholder(file.Value,LARGE_INTEGER{},length,CF_DEHYDRATE_FLAG_BACKGROUND,nullptr));}
         auto after=InspectPlaceholder(file.Raw);Clean(after);Require(after.Pin==(operation=="trimFile"?info.Pin:CF_PIN_STATE_UNPINNED)&&after.Identity==info.Identity);return {{"changed",true},{"freed",std::to_string(std::max(0LL,info.OnDisk-after.OnDisk))},{"stamp",FileJson(InspectFile(file.Raw))}};
     }
+    // 缓存保留不执行水合：不完整项必须仍干净；完整项仅解除占位，正文不变。
+    if(operation=="preserveCachedLocal"){
+        Require(session!=nullptr&&session->IsClearing(),E_ACCESSDENIED);
+        const auto discard=data.at("discard").get<bool>();auto path=EntryPath(data);
+        ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE|(discard?CF_OPEN_FILE_FLAG_DELETE_ACCESS:CF_OPEN_FILE_FLAG_WRITE_ACCESS));
+        auto before=InspectFile(file.Raw);Require(before.Key()==data.at("proofStamp").get<std::string>()&&before.Links==1,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        auto info=InspectPlaceholder(file.Raw);Identity(data,info);Require(!session->Active(data.at("entryId")),HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));
+        const auto full=before.Directory||HasFullContent(file.Raw,before.Length);
+        Require(discard?!full:full,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));command.CheckCancel();
+        if(discard){
+            Clean(info);Require(!data.at("protected").get<bool>()&&!data.at("deleted").get<bool>(),E_ACCESSDENIED);
+            FILE_DISPOSITION_INFO_EX disposition{};disposition.Flags=FILE_DISPOSITION_FLAG_DELETE|FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
+            WinCheck(SetFileInformationByHandle(file.Raw,FileDispositionInfoEx,&disposition,sizeof(disposition)));return {{"discarded",true}};
+        }
+        Check(CfRevertPlaceholder(file.Value,CF_REVERT_FLAG_NONE,nullptr));
+        auto after=InspectFile(file.Raw);SameContent(before,after);Require(!Maybe(file.Raw).has_value());return {{"discarded",false},{"stamp",FileJson(after)}};
+    }
     if(operation=="revertLocal"){
         auto path=EntryPath(data);ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE|CF_OPEN_FILE_FLAG_WRITE_ACCESS);auto before=InspectFile(file.Raw);auto info=Maybe(file.Raw);if(info){Identity(data,*info);Require(before.Directory||HasFullContent(file.Raw,before.Length));command.CheckCancel();Check(CfRevertPlaceholder(file.Value,CF_REVERT_FLAG_NONE,nullptr));}auto after=InspectFile(file.Raw);SameContent(before,after);Require(!Maybe(file.Raw).has_value());return {{"stamp",FileJson(after)}};
     }

@@ -2,7 +2,7 @@
 
 ## 状态和边界
 
-基于master／0d8b733（0.0.10.0）实施已确认的Ext前台监控方案。版本集中由Directory.Build.props升至0.0.11.0；保留HybridMount、HybridMount.Ext、HybridMount.Stock、HybridMount.Tests四工程、原输出及安装身份dwzcn.HybridMount.NativePreview，不恢复discard分支的.72改名、集中DLL或daemon。
+基于master／0d8b733（0.0.10.0）实施已确认的Ext前台监控方案。版本集中由Directory.Build.props升至0.0.11.0；保留HybridMount、HybridMount.Ext、HybridMount.Stock、HybridMount.Tests四工程、原输出及安装身份当时的预览包身份，不恢复discard分支的.72改名、集中DLL或daemon。
 
 开始菜单和安装显示名称统一为HybridMount.NET，三语言说明移除原生预览版字样；MSIX文件名同步。安装身份是兼容键，本轮不迁移配置或已有挂载。实际安装／升级后的系统显示缓存尚未验收，未安装生产包。
 
@@ -44,7 +44,7 @@
 
 生产已使用desktop3:CloudFiles和ThumbnailProviderHandler，状态继续由StorageProviderItemProperties::SetAsync发布。CustomStateHandler、ExtendedPropertyHandler、BannersHandler保留现有GUID_NULL；ContentUriSource、DesktopIconOverlayHandlers和状态浮窗本轮不新增。清单注册本身不能缩小目录监控或消除同步等待。
 
-使用同一菜单实现，以随机CLSID标签9ca27d87分别构建、签名、安装通配注册和CloudFiles专属注册的独立包，没有重复注册两个菜单。包名为dwzcn.HybridMount.NativePreview.Probe9ca27d87w及Probe9ca27d87c；两者均已卸载。测试根均在各自证据子目录，未接触正式根，没有远端文件源。
+使用同一菜单实现，以随机CLSID标签9ca27d87分别构建、签名、安装通配注册和CloudFiles专属注册的独立包，没有重复注册两个菜单。包名为当时的预览包身份.Probe9ca27d87w及Probe9ca27d87c；两者均已卸载。测试根均在各自证据子目录，未接触正式根，没有远端文件源。
 
 各自执行占位文件、占位目录、新建普通文件、混合选择、根目录选择、目录背景及外部普通文件七类真实IShellFolder／IContextMenu查询。前后持久身份、Pin、InSync、OnDisk和Modified状态保持，冷文件未水合，清理成功。但两种注册的自有HybridMount菜单计数均为0，系统保留／释放菜单仍存在；报告Passed仅代表该探针的保护、执行和清理断言，不能证明自有菜单覆盖完整。传统IContextMenu不代表Windows 11现代菜单UI，查询耗时也包含其他已安装扩展，不能作为本产品回调性能。生产菜单继续保留当前通配注册，现代菜单与CloudFiles专属注册仍待真实界面对照。
 

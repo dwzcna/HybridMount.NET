@@ -38,14 +38,14 @@ public sealed class NativeMenuQueryTests(Xunit.Abstractions.ITestOutputHelper ou
     public async Task SeventeenthForeignItemRejectsWholeSelectionAndNeverDispatchesPartialTargets()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);await test.Manager.SetRemoteDetectionAsync(test.Id,false,60,300);var paths=await Files(test,20);var outside=Path.Combine(test.Dav.Area,"foreign.txt");await File.WriteAllTextAsync(outside,"outside");paths[16]=outside;
-        using var menu=new Probe();using var selection=new Selection(paths);var received=0;await using var server=new IpcServerService(test.Logger,NativePreviewInterop.PipeName);server.RequestReceived+=_=>Interlocked.Increment(ref received);server.Start();
+        using var menu=new Probe();using var selection=new Selection(paths);var received=0;await using var server=new IpcServerService(test.Logger,NativeThumbnailInterop.PipeName);server.RequestReceived+=_=>Interlocked.Increment(ref received);server.Start();
         Assert.NotEqual(0u,await menu.Query(0,selection));var before=menu.Stats();Assert.Equal(0,menu.Invoke(3,selection));await Until(()=>menu.Stats()[10]>before[10]);Assert.Equal(0,received);Assert.Equal("outside",await File.ReadAllTextAsync(outside));Assert.InRange(menu.Stats()[8]-before[8],16UL,16UL);
     }
     [Fact(Timeout=30000)]
     public async Task InvokeRechecksAllFortyTargetsAndPreservesSelectionPaths()
     {
         await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);await test.Manager.SetRemoteDetectionAsync(test.Id,false,60,300);var paths=await Files(test,40);using var menu=new Probe();using var selection=new Selection(paths);var requests=test.Dav.Server.Requests.Count;
-        await using var server=new IpcServerService(test.Logger,NativePreviewInterop.PipeName);var received=new TaskCompletionSource<IpcRequest>(TaskCreationOptions.RunContinuationsAsynchronously);server.RequestReceived+=value=>received.TrySetResult(value);server.Start();
+        await using var server=new IpcServerService(test.Logger,NativeThumbnailInterop.PipeName);var received=new TaskCompletionSource<IpcRequest>(TaskCreationOptions.RunContinuationsAsynchronously);server.RequestReceived+=value=>received.TrySetResult(value);server.Start();
         Assert.Equal(0u,await menu.Query(3,selection));var inspected=menu.Stats()[8];Assert.Equal(0,menu.Invoke(3,selection));var request=await received.Task.WaitAsync(TimeSpan.FromSeconds(8));Assert.Equal("showSyncIssues",request.Operation);Assert.Equal(paths,request.Paths);Assert.True(menu.Stats()[8]-inspected>=40);Assert.Equal(requests,test.Dav.Server.Requests.Count);
     }
     [Fact(Timeout=30000)]
@@ -80,7 +80,7 @@ public sealed class NativeMenuQueryTests(Xunit.Abstractions.ITestOutputHelper ou
         private readonly nint _library,_mta;private nint _factory,_root;private readonly nint[] _children=new nint[3];private static int _live;
         internal Probe()
         {
-            Assert.Equal(0,CoIncrementMTAUsage(out _mta));using var apartment=new Apartment();_library=NativeLibrary.Load(NativePreviewInterop.LibraryPath);Interlocked.Increment(ref _live);
+            Assert.Equal(0,CoIncrementMTAUsage(out _mta));using var apartment=new Apartment();_library=NativeLibrary.Load(NativeThumbnailInterop.LibraryPath);Interlocked.Increment(ref _live);
             unsafe{var get=(delegate* unmanaged[Stdcall]<Guid*,Guid*,nint*,int>)NativeLibrary.GetExport(_library,"DllGetClassObject");var clsid=new Guid("59964FC1-D076-4DC1-9778-01F5833A5D4A");var factoryId=new Guid("00000001-0000-0000-C000-000000000046");nint factory=0;Assert.Equal(0,get(&clsid,&factoryId,&factory));_factory=factory;var commandId=new Guid("A08CE4D0-FA25-44AB-B57C-C7B1C323E0B9");nint root=0;Assert.Equal(0,((delegate* unmanaged[Stdcall]<nint,nint,Guid*,nint*,int>)Table(_factory)[3])(_factory,0,&commandId,&root));_root=root;nint enumerator=0;Assert.Equal(0,((delegate* unmanaged[Stdcall]<nint,nint*,int>)Table(root)[10])(root,&enumerator));try{for(var i=0;i<3;i++){nint child=0;uint fetched=0;Assert.Equal(0,((delegate* unmanaged[Stdcall]<nint,uint,nint*,uint*,int>)Table(enumerator)[3])(enumerator,1,&child,&fetched));_children[i]=child;}}finally{Release(enumerator);}}
         }
         internal unsafe (int Code,uint State) State(int action,Selection selection,bool slow)

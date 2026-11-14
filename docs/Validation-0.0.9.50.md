@@ -1,6 +1,6 @@
 # 0.0.9.50 验收记录
 
-基线ab0eecd（.49），继续codex/native-backend／NativePreview，受检补丁本地整合，不推送或改动master。
+基线ab0eecd（.49），继续codex/native-backend／当时的预览身份，受检补丁本地整合，不推送或改动master。
 
 ## 来源和安全修订
 

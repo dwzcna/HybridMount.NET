@@ -45,6 +45,7 @@ internal sealed partial class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDispo
     private readonly object _checkpointGate=new();private readonly ConcurrentDictionary<long,Guid?> _checkpointMounts=new();
     private readonly ConcurrentDictionary<long,Task> _checkpoints=new();private long _nextCheckpoint;
     private readonly CancellationTokenSource _stop=new();private readonly Process _process;private readonly SafeFileHandle _job;
+    private HybridMount.Models.Thumbnails.BackgroundPreviewProcess? _child;
     private Task _reader=Task.CompletedTask,_stderr=Task.CompletedTask;private Task? _dispose;
     private int _failed;
     private readonly NativeEventInbox _events=new();
@@ -80,20 +81,29 @@ internal sealed partial class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDispo
     private static async Task<NativeRuntimeClient> StartAsync(bool exitDuringHandshake=false)
     {
         var nonce=Guid.NewGuid().ToString("N");var sid=WindowsIdentity.GetCurrent().User?.Value??throw new IOException("当前账户无SID。");var prefix=$"{ApplicationPaths.ProductScope}.runtime.v2.{sid}.{Process.GetCurrentProcess().SessionId}.{nonce}";
-        var control=new NamedPipeServerStream(prefix+".control",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
-        var data=new NamedPipeServerStream(prefix+".data",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
-        var tasks=new NamedPipeServerStream(prefix+".tasks",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
-        Process? process=null;SafeFileHandle? job=null;NativeRuntimeClient? owner=null;
+        NamedPipeServerStream? control=null,data=null,tasks=null;
+        var stage="create-pipes";
+        Process? process=null;SafeFileHandle? job=null;NativeRuntimeClient? owner=null;HybridMount.Models.Thumbnails.BackgroundPreviewProcess? child=null;
         try
         {
+            control=new(prefix+".control",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
+            data=new(prefix+".data",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
+            tasks=new(prefix+".tasks",PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly,65536,65536);
+            stage="verify-image";
             var path=Path.Combine(AppContext.BaseDirectory,"HybridMount.Stock.exe");
             VerifyExecutable(path);
-            var info=new ProcessStartInfo(path){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardError=true};info.ArgumentList.Add(exitDuringHandshake?"--invalid-handshake-test-role":"--runtime");info.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));info.ArgumentList.Add(nonce);
-            process=Process.Start(info)??throw new IOException("未能启动原生运行时。");
-            job=CreateJobObject(0,null);if(job.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
-            var limits=new ExtendedLimits{Basic=new(){Flags=0x2000}};if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf<ExtendedLimits>())||!AssignProcessToJobObject(job,process.Handle))throw new Win32Exception(Marshal.GetLastWin32Error());
-            owner=new(control,data,tasks,process,job);owner._stderr=process.StandardError.BaseStream.CopyToAsync(Stream.Null);
-            using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(12));var token=deadline.Token;
+            stage="create-job";job=CreateJobObject(0,null);if(job.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
+            var limits=new ExtendedLimits{Basic=new(){Flags=0x2000}};
+            if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf<ExtendedLimits>()))throw new Win32Exception(Marshal.GetLastWin32Error());
+            stage="create-suspended";child=HybridMount.Models.Thumbnails.BackgroundPreviewProcess.Start(path,exitDuringHandshake?"--invalid-handshake-test-role":"--runtime",
+                Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),nonce);
+            process=child.Process;
+            stage="assign-job";if(!AssignProcessToJobObject(job,process.Handle))throw new Win32Exception(Marshal.GetLastWin32Error());
+            owner=new(control,data,tasks,process,job){_child=child};
+            owner._stderr=Task.WhenAll(child.Error.CopyToAsync(Stream.Null),child.Output.CopyToAsync(Stream.Null));
+            child.Input.Dispose();
+            stage="verify-identity-and-resume";child.Resume(); // 加入Job后核验实际包／映像／SID／会话，再恢复并进行三管道握手。
+            stage="handshake";using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(12));var token=deadline.Token;
             var handshake=HandshakeAsync(control,data,tasks,process,nonce,token);var exited=process.WaitForExitAsync(token);
             try
             {
@@ -111,7 +121,8 @@ internal sealed partial class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDispo
         catch(Exception error)
         {
             int? exitCode=process is {HasExited:true}?process.ExitCode:null;
-            control.Dispose();data.Dispose();tasks.Dispose();job?.Dispose();if(process is not null){try{if(!process.HasExited){process.Kill();await process.WaitForExitAsync().ConfigureAwait(false);}if(owner is not null)try{await owner._stderr.ConfigureAwait(false);}catch(IOException){/* 创建失败只观察本次stderr收尾，保留握手原因。 */}}finally{process.Dispose();}}
+            HostDiagnosticStore.Record("NativeRuntime",error,exitCode,stage:stage);
+            control?.Dispose();data?.Dispose();tasks?.Dispose();job?.Dispose();if(process is not null){try{if(!process.HasExited){process.Kill();await process.WaitForExitAsync().ConfigureAwait(false);}if(owner is not null)try{await owner._stderr.ConfigureAwait(false);}catch(IOException){/* 创建失败只观察本次stderr收尾，保留握手原因。 */}}finally{if(child is not null)child.Dispose();else process.Dispose();}}
             if(exitCode is {} code)throw HandshakeExited(code,error);
             if(error is OperationCanceledException)throw new IOException("原生后台握手超时，请检查安装文件并重试。",error);
             throw;
@@ -337,7 +348,7 @@ internal sealed partial class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDispo
         var cancellation=_stop.CancelAsync();_control.Dispose();_data.Dispose();_tasks.Dispose();_taskOutgoing.Writer.TryComplete();await Task.WhenAll(_taskReader,_taskWriter).ConfigureAwait(false);await _reader.ConfigureAwait(false);await _dataReader.ConfigureAwait(false);_events.Complete();_previewEvents.Writer.TryComplete();
         await AwaitCheckpointOwnersAsync(Task.WhenAll(_checkpoints.Values.Concat(new[]{_eventWorker,_previewWorker,cancellation}))).ConfigureAwait(false);
         try{await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);}catch(TimeoutException){_job.Dispose();await _process.WaitForExitAsync().ConfigureAwait(false);}
-        await _stderr.ConfigureAwait(false);_job.Dispose();_process.Dispose();
+        await _stderr.ConfigureAwait(false);_job.Dispose();if(_child is not null)_child.Dispose();else _process.Dispose();
     }
     [StructLayout(LayoutKind.Sequential)]private struct BasicLimits{public long ProcessTime,JobTime;public uint Flags;public nuint MinimumWorkingSet,MaximumWorkingSet;public uint ActiveProcesses;public nuint Affinity;public uint Priority,Scheduling;}
     [StructLayout(LayoutKind.Sequential)]private struct IoCounters{public ulong Reads,Writes,Other,ReadBytes,WriteBytes,OtherBytes;}

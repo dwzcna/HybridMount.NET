@@ -110,6 +110,7 @@ void CloudSession::Finish(const std::string& id,NTSTATUS status){
     }
     {std::lock_guard lock(_impl->Gate);auto found=_impl->Fetches.find(id);if(found!=_impl->Fetches.end()&&found->second==fetch)_impl->Fetches.erase(found);}
 }
+bool CloudSession::IsClearing()const{std::lock_guard lock(_impl->Gate);return _impl->Clearing&&!_impl->Stopped;}
 void CloudSession::BeginClear(){auto& p=*_impl;std::vector<std::string> ids;{std::lock_guard lock(p.Gate);p.Clearing=true;for(auto& [id,fetch]:p.Fetches){ids.push_back(id);}}
     for(auto& id:ids){{std::shared_ptr<Impl::Fetch> fetch;{std::lock_guard lock(p.Gate);auto found=p.Fetches.find(id);if(found!=p.Fetches.end())fetch=found->second;}if(fetch){std::lock_guard lock(fetch->Gate);fetch->Canceled=true;}}p.Event("cancelFetch",{{"fetchId",id}});try{Finish(id,CanceledStatus);}catch(...){}}
 }

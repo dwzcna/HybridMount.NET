@@ -42,7 +42,7 @@
 | PreviewTests.ActualShellBindingIsMeasuredSeparatelyFromIdentityOnlyHandler | 1 | Shell 绑定及初始化完成后 120 秒超时 |
 | PreviewTests.ColdAndWarmCloudExePreviewsNeverHydrateAndLocalExtractionSurvivesDehydration | 1 | 隔离测试管道实例被占用 |
 | PreviewTests.RealShellImageFactoryReportsAutomaticExeReads | 3 | 系统图像工厂调用 20 秒超时 |
-| NativePreviewQueueTests.EnabledColdImageQueuesInBackgroundWhileNativeCallbackReturnsGenericIcon | 1 | 隔离测试管道实例被占用 |
+| 当时的预览身份QueueTests.EnabledColdImageQueuesInBackgroundWhileNativeCallbackReturnsGenericIcon | 1 | 隔离测试管道实例被占用 |
 | NativeExtensionTests.NativeComAndPipeRoundTrip | 1 | 隔离测试管道实例被占用 |
 
 原始失败日志、TRX、基线源码和本机诊断辅助工具保留于忽略目录。没有更改 Defender 设置、运行先前被拦截的私有反射／凭据拼接网络命令，或把 SDK 已捕获异常认定为程序崩溃。

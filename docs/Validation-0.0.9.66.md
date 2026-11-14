@@ -1,6 +1,6 @@
 # 0.0.9.66 验收记录
 
-基线aad0e0a（.65），分支codex/native-backend；保留四工程、HybridMount.exe及NativePreview身份。实现、回归和打包分开记录，不将旧源码产物当最终验证。
+基线aad0e0a（.65），分支codex/native-backend；保留四工程、HybridMount.exe及当时的预览身份。实现、回归和打包分开记录，不将旧源码产物当最终验证。
 
 ## 实现
 

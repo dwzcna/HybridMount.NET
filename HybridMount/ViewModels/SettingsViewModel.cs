@@ -22,10 +22,12 @@ public sealed partial class SettingsViewModel : ObservableObject,IDisposable,IAs
     public PageStatusMessage ResetMessage {get;}=new();
     private bool _resetting;
     public bool CanEditSettings=>!_disposed&&!_resetting;
-    public bool CanReset=>CanEditSettings;
-    public bool TryBeginReset(){if(!CanReset)return false;_resetting=true;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));return true;}
+    public bool CanReset=>CanEditSettings&&_mounts?.RemovalBatchActive!=true;
+    public bool CanViewRemovalTasks=>!_disposed&&_mounts is not null;
+    public bool CanRemoveAll=>CanReset&&_mounts is not null&&!_mounts.IsStopping;
+    public bool TryBeginReset(){if(!CanReset)return false;_resetting=true;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));OnPropertyChanged(nameof(CanRemoveAll));return true;}
     public Task DrainSettingsOperationsAsync()=>Task.WhenAll(_startupWork,_cacheWork,_cloudWork);
-    public void EndReset(){if(!_disposed){_resetting=false;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));}}
+    public void EndReset(){if(!_disposed){_resetting=false;OnPropertyChanged(nameof(CanEditSettings));OnPropertyChanged(nameof(CanReset));OnPropertyChanged(nameof(CanRemoveAll));}}
     private void Publish(PageStatusMessage message,string text,string property,bool reopen=true,PageMessageSeverity severity=PageMessageSeverity.Information)
     {if(!_disposed&&(reopen?message.Show(text,severity):message.Update(text,severity)))OnPropertyChanged(property);}
     private double _cacheLimitGiB,_savedCacheLimitGiB;

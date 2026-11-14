@@ -67,6 +67,8 @@
               <CommandBar Style="{StaticResource PageCommandBarStyle}">
                 <AppBarButton IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" Icon="Undo" Click="ResetSettings" x:Uid="/Strings/SettingsPageAppBarButtonClearAllAppSettings" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonClearAllAppSettings"/>
               </CommandBar>
+              <Button Style="{StaticResource SubtleButtonStyle}" Click="RemoveAllMounts" IsEnabled="{x:Bind ViewModel.CanRemoveAll,Mode=OneWay}" x:Uid="/Strings/RemoveAllButton" loc:Ui.ResourceId="/Strings/RemoveAllButton"/>
+              <Button Style="{StaticResource SubtleButtonStyle}" Click="ShowRemovalTasks" IsEnabled="{x:Bind ViewModel.CanViewRemovalTasks,Mode=OneWay}" x:Uid="/Strings/RemoveAllTasks" loc:Ui.ResourceId="/Strings/RemoveAllTasks"/>
               <Button Style="{StaticResource SubtleButtonStyle}" Click="SearchExplorerEntries" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/ExplorerEntrySearchButton" loc:Ui.ResourceId="/Strings/ExplorerEntrySearchButton"/>
             </StackPanel>
           </Border>

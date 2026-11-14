@@ -81,14 +81,11 @@ public sealed class ClearRemovalTests
     {
         await using var test=await Fixture.CreateAsync();
         for(var index=0;index<12;index++)await File.WriteAllTextAsync(Path.Combine(test.Local,$"新增-{index}.txt"),"local");
-        void CancelAfterProgress()
-        {
-            foreach(var job in test.Manager.Operations.Where(item=>item.Operation=="clearAndRemove"&&item.State=="Running"&&item.Completed>0))test.Manager.Cancel(job.Id);
-        }
-        test.Manager.Changed+=CancelAfterProgress;
+        var first=0;
+        test.Manager.RemovalItemForTests=(id,_)=>{if(Interlocked.Increment(ref first)==1)test.Manager.Cancel(id);};
         MountOperationSnapshot canceled;
         try { canceled=await Terminal(test.Manager,test.Manager.Queue(test.Mount.Id,"clearAndRemove")); }
-        finally { test.Manager.Changed-=CancelAfterProgress; }
+        finally { test.Manager.RemovalItemForTests=null; }
         Assert.Equal("Canceled",canceled.State);Assert.True(canceled.Completed>0);Assert.NotEmpty(Directory.EnumerateFileSystemEntries(test.Local));
         await test.RestartAsync();Assert.True(Assert.Single(test.Repository.LoadDefinitions()).RemovalPending);
         Assert.NotEmpty(Directory.EnumerateFileSystemEntries(test.Local));
@@ -154,10 +151,20 @@ public sealed class ClearRemovalTests
         names.CopyTo(bytes,16);
         if(!DeviceIoControl(handle,0x000900a4,bytes,(uint)bytes.Length,0,0,out _,0))throw new Win32Exception(Marshal.GetLastWin32Error());
     }
+    /// <summary>仅清理本用例创建的链接本体；不跟随目标，忽略只读属性，不递归。</summary>
+    internal static void DeleteJunction(string path)
+    {
+        using var handle=CloudFilesNative.CreateFile(path,0x10080,7,0,3,0x02200000,0);
+        if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error());
+        if(!CloudFilesNative.GetFileInformationByHandleEx(handle,9,out var tag,8)||tag.Tag!=0xa0000003)throw new IOException("不是本用例的目录联接。");
+        var flags=0x11u;if(!SetDisposition(handle,21,ref flags,4))throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+    [DllImport("kernel32.dll",EntryPoint="SetFileInformationByHandle",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetDisposition(SafeFileHandle file,int type,ref uint flags,uint length);
     [DllImport("kernel32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)]
     private static extern bool DeviceIoControl(SafeFileHandle file,uint code,byte[] input,uint inputSize,nint output,uint outputSize,out uint returned,nint overlapped);
     /// <summary>隔离根、索引与注册表；失败时先尝试自有挂载移除，无法恢复便保留现场。</summary>
-    private sealed class Fixture : IAsyncDisposable
+    internal sealed class Fixture : IAsyncDisposable
     {
         internal string Area { get; }=Path.Combine(Path.GetTempPath(),"HybridMount.ClearTests",Guid.NewGuid().ToString("N"));
         internal string Local=>Path.Combine(Area,"view");
@@ -191,7 +198,7 @@ public sealed class ClearRemovalTests
                     if(definition.LocalPath!=Local || definition.RootIdentity!=MountPathGuard.FileIdentity(Local))continue;
                     try
                     {
-                        var operation=definition.RemovalPending&&definition.RemovalMode==MountRemovalMode.PreserveFiles?"remove":"clearAndRemove";
+                        var operation=definition.RemovalPending&&definition.RemovalMode==MountRemovalMode.PreserveCachedFiles?"removeCached":definition.RemovalPending&&definition.RemovalMode==MountRemovalMode.PreserveFiles?"remove":"clearAndRemove";
                         await Terminal(recovery,recovery.Queue(definition.Id,operation));
                     }
                     catch(Exception error) { System.Diagnostics.Trace.WriteLine("保留清空测试现场："+error.Message); }

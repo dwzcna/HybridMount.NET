@@ -19,5 +19,16 @@ inline std::wstring ApplicationId(){
     std::wstring result(count,L'\0');if(GetCurrentApplicationUserModelId(&count,result.data())!=ERROR_SUCCESS)throw std::runtime_error("Application identity unavailable");result.resize(count-1);return result;
 }
 /// <summary>实验根与管道前缀；正式产品和另一部署模式不属于本进程。</summary>
-inline std::wstring ProductScope(){return L"HybridMount.NativePreview."+DeploymentScope();}
+inline std::wstring ProductScope(){return L"HybridMount.NET."+DeploymentScope();}
+/// <summary>仅有实际包身份时设置桌面应用策略；保留本次子进程及其后代的包环境。</summary>
+inline DWORD ChildDesktopPolicy(){return PROCESS_CREATION_DESKTOP_APP_BREAKAWAY_OVERRIDE|PROCESS_CREATION_DESKTOP_APP_BREAKAWAY_DISABLE_PROCESS_TREE;}
+inline bool HasPackageIdentity(){return DeploymentScope()==L"Packaged";}
+/// <summary>在恢复隔离子进程前核验实际包全名；查询失败不能当成非打包或继续运行。</summary>
+inline std::wstring ProcessPackage(HANDLE process){
+    UINT32 count{};auto status=GetPackageFullName(process,&count,nullptr);if(status==APPMODEL_ERROR_NO_PACKAGE)return {};
+    if(status!=ERROR_INSUFFICIENT_BUFFER||count<2||count>2048)throw std::runtime_error("Child package query failed");
+    std::wstring value(count,L'\0');if(GetPackageFullName(process,&count,value.data())!=ERROR_SUCCESS)throw std::runtime_error("Child package query failed");value.resize(count-1);return value;
+}
+inline void VerifyChildPackage(HANDLE process){if(ProcessPackage(GetCurrentProcess())!=ProcessPackage(process))throw std::runtime_error("Child package identity mismatch");}
+
 }
