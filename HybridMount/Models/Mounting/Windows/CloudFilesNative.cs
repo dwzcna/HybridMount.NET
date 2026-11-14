@@ -81,6 +81,9 @@ public static class CloudFilesNative
     public static void NotifyItemUpdated(string path)=>ShellChangeNotify(0x2000,0x3005,path,0);
     /// <summary>缩略图已落库后只排队单文件更新，由Shell缓冲合并；不强制刷新或阻塞Explorer的输入与光标。</summary>
     internal static void NotifyThumbnailUpdated(string path)=>ShellChangeNotify(0x2000,0x0005,path,0);
+    /// <summary>精确注册清理完成后每批只发布一次异步关联变更；不等待或重启 Explorer。</summary>
+    internal static void NotifyExplorerNavigationChanged()=>ShellNavigationChanged(0x08000000,0x3000,0,0);
+    [DllImport("shell32.dll",EntryPoint="SHChangeNotify")]private static extern void ShellNavigationChanged(uint change,uint flags,nint first,nint second);
     public static bool IsCloudTag(uint tag) => (tag & 0xffff0fff) == 0x9000001a;
     public static bool IsCloudPath(string path){var value=ReadNative(path);return value.Placeholder is not null||IsCloudTag(value.Tag);}
     public static bool HasFullContent(string path,long size){var result=ReadNative(path,ranges:true);return result.Stamp.Length==size&&(result.Placeholder is null||result.Full);}

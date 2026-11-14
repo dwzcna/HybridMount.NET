@@ -8,8 +8,8 @@ using Microsoft.Win32.SafeHandles;
 
 namespace HybridMount.Services.Shell;
 
-internal sealed record ShellMaintenanceRequest(string Nonce,string Operation,OrphanedMountCandidate? Root=null,RecoveryShellProof? Proof=null);
-internal sealed record ShellMaintenanceReply(RecoveryRegistration[]? Roots=null,RecoveryShellProof? Proof=null,string[]? Remaining=null,string? Error=null,int HResult=0);
+internal sealed record ShellMaintenanceRequest(string Nonce,string Operation,OrphanedMountCandidate? Root=null,RecoveryShellProof? Proof=null, ExplorerEntryCandidate? Entry=null, ExplorerEntryProof? EntryProof=null);
+internal sealed record ShellMaintenanceReply(RecoveryRegistration[]? Roots=null,RecoveryShellProof? Proof=null,string[]? Remaining=null,string? Error=null,int HResult=0, ExplorerEntryCandidate[]? Entries=null);
 /// <summary>一次一进程的私有维护协议。仅接受同映像、同SID及会话的对端，128位随机标识和有界消息；不使用公共IPC。</summary>
 internal static class ShellMaintenanceProcess
 {
@@ -25,7 +25,10 @@ internal static class ShellMaintenanceProcess
     /// <summary>后台调用；已打包时激活经隔离验证的win32App入口。独立进程退出或超时均为失败，不能解释为注册已清除。</summary>
     internal static ShellMaintenanceReply Send(string operation,OrphanedMountCandidate? root=null,RecoveryShellProof? proof=null)
         =>SendAsync(operation,root,proof).GetAwaiter().GetResult();
-    private static async Task<ShellMaintenanceReply> SendAsync(string operation,OrphanedMountCandidate? root,RecoveryShellProof? proof)
+    internal static ShellMaintenanceReply SendExplorer(string operation, ExplorerEntryCandidate? entry=null, ExplorerEntryProof? proof=null)
+        =>SendAsync(operation,null,null,entry,proof).GetAwaiter().GetResult();
+    private static async Task<ShellMaintenanceReply> SendAsync(string operation,OrphanedMountCandidate? root,RecoveryShellProof? proof,
+        ExplorerEntryCandidate? entry=null, ExplorerEntryProof? entryProof=null)
     {
         var nonce=Guid.NewGuid().ToString("N");using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(30));var token=deadline.Token;
         using var pipe=new NamedPipeServerStream(PipeName(nonce),PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous|PipeOptions.CurrentUserOnly);
@@ -34,7 +37,7 @@ internal static class ShellMaintenanceProcess
         await pipe.WaitForConnectionAsync(token).ConfigureAwait(false);
         if(!GetNamedPipeClientProcessId(pipe.SafePipeHandle,out var pid)||pid!=child.Id)throw new IOException("维护通道客户端身份不匹配。");
         ValidatePeer(pid);
-        await WriteAsync(pipe,new ShellMaintenanceRequest(nonce,operation,root,proof),token).ConfigureAwait(false);
+        await WriteAsync(pipe,new ShellMaintenanceRequest(nonce,operation,root,proof,entry,entryProof),token).ConfigureAwait(false);
         var reply=await ReadAsync<ShellMaintenanceReply>(pipe,token).ConfigureAwait(false);
         await child.WaitForExitAsync(token).ConfigureAwait(false);
         if(child.ExitCode!=0)throw new IOException("维护入口未正常完成。");
@@ -64,6 +67,8 @@ internal static class ShellMaintenanceProcess
     internal static ShellMaintenanceReply Dispatch(ShellMaintenanceRequest request)
     {
         // 维护进程不调用WinRT枚举或注销、不构造应用服务，仅访问白名单注册位置。
+        if (request.Operation.StartsWith("explorer", StringComparison.Ordinal)) return DispatchExplorer(request);
+        if (request.Entry is not null || request.EntryProof is not null) throw new IOException("维护参数不匹配。");
         var shell=new RecoveryShellRegistration(includeWinRt:false);
         return request.Operation switch
         {
@@ -73,6 +78,25 @@ internal static class ShellMaintenanceProcess
             "verify" when request.Root is {} root=>new(Remaining:shell.Remaining(root,request.Proof)),
             _=>throw new IOException("维护操作或参数无效。")
         };
+    }
+    /// <summary>跨模式仅限精确导航注册；不构造业务服务、不注销 CFAPI 根或遍历目录内容。</summary>
+    private static ShellMaintenanceReply DispatchExplorer(ShellMaintenanceRequest request)
+    {
+        if (request.Root is not null || request.Proof is not null) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError46"));
+        var shell = new ExplorerEntryRegistration(new ExplorerEntryRegistry(), WindowsIdentity.GetCurrent().User!.Value);
+        if (request.Operation == "explorerDiscover" && request.Entry is null && request.EntryProof is null)
+            return new(Entries: shell.Discover(default));
+        if (request.Entry is not {} entry || request.EntryProof is not {} proof) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError47"));
+        if (request.Operation == "explorerVerify") return new(Remaining: shell.Remaining(entry, proof));
+        if (request.Operation != "explorerRemove") throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError48"));
+        var guard = new ExplorerEntryPathGuard();
+        void Validate()
+        {
+            ExplorerEntryRecovery.VerifyManaged(entry, ExplorerEntryRecovery.ReadPhysicalDefinitions());
+            if (entry.LocalPath is null || guard.Inspect(entry.LocalPath) != entry.Evidence) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError49"));
+        }
+        shell.Remove(entry, proof, Validate, default);
+        return new(Remaining: shell.Remaining(entry, proof));
     }
     private static ShellMaintenanceReply Cleanup(RecoveryShellRegistration shell,OrphanedMountCandidate root,RecoveryShellProof proof)
     {

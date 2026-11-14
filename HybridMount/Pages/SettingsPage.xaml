@@ -67,6 +67,7 @@
               <CommandBar Style="{StaticResource PageCommandBarStyle}">
                 <AppBarButton IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" Icon="Undo" Click="ResetSettings" x:Uid="/Strings/SettingsPageAppBarButtonClearAllAppSettings" loc:Ui.ResourceId="/Strings/SettingsPageAppBarButtonClearAllAppSettings"/>
               </CommandBar>
+              <Button Style="{StaticResource SubtleButtonStyle}" Click="SearchExplorerEntries" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/ExplorerEntrySearchButton" loc:Ui.ResourceId="/Strings/ExplorerEntrySearchButton"/>
             </StackPanel>
           </Border>
           <TextBlock Text="{x:Bind ViewModel.VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>

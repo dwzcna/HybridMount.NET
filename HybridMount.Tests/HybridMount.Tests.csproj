@@ -106,6 +106,9 @@
     <Compile Include="..\HybridMount\Models\Mounting\OrphanedMountModels.cs" Link="Production\Models\Mounting\OrphanedMountModels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\PreviewModels.cs" Link="Production\Models\Mounting\PreviewModels.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\ReadDiagnostics.cs" Link="Production\Models\Mounting\ReadDiagnostics.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Recovery\ExplorerEntryModels.cs" Link="Production\Models\Mounting\Recovery\ExplorerEntryModels.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Recovery\ExplorerEntryRegistry.cs" Link="Production\Models\Mounting\Recovery\ExplorerEntryRegistry.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\Recovery\ExplorerEntryRecovery.cs" Link="Production\Models\Mounting\Recovery\ExplorerEntryRecovery.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Recovery\MountRemovalCompletion.cs" Link="Production\Models\Mounting\Recovery\MountRemovalCompletion.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Recovery\OrphanedDirectoryRecovery.cs" Link="Production\Models\Mounting\Recovery\OrphanedDirectoryRecovery.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\Recovery\OrphanedMountBatch.cs" Link="Production\Models\Mounting\Recovery\OrphanedMountBatch.cs"/>
@@ -283,6 +286,7 @@
     <Compile Include="..\HybridMount\Models\Runtime\NativeEventInbox.cs" Link="Production\Models\Runtime\NativeEventInbox.cs"/>
     <Compile Include="..\HybridMount\Services\Runtime\NativeRuntimeClient.cs" Link="Production\Services\Runtime\NativeRuntimeClient.cs"/>
     <Compile Include="..\HybridMount\Services\Shell\LocalPreviewRequestClient.cs" Link="Production\Services\Shell\LocalPreviewRequestClient.cs"/>
+    <Compile Include="..\HybridMount\Services\Shell\ExplorerEntryMaintenance.cs" Link="Production\Services\Shell\ExplorerEntryMaintenance.cs"/>
     <Compile Include="..\HybridMount\Services\Shell\ShellMaintenanceProcess.cs" Link="Production\Services\Shell\ShellMaintenanceProcess.cs"/>
     <Compile Include="..\HybridMount\Services\Shell\ThumbnailServer.cs" Link="Production\Services\Shell\ThumbnailServer.cs"/>
     <Compile Include="..\HybridMount\Services\ShutdownSequence.cs" Link="Production\Services\ShutdownSequence.cs"/>

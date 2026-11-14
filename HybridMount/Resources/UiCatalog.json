@@ -2848,5 +2848,265 @@
   "TaskWorkflowStep": {
     "Source": "步骤 {0}：{1}；状态：{2}；依赖：{3}；尝试：{4}",
     "LocalizableArguments": []
+  },
+  "ExplorerEntrySearch": {
+    "Source": "从资源管理器检索",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryTitle": {
+    "Source": "Explorer 遗留导航入口",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryRemove": {
+    "Source": "仅移除入口（保留文件）",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryReload": {
+    "Source": "重新检索",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryExplanation": {
+    "Source": "检索当前用户打包版和非打包版的同步根导航入口。有效挂载和受管目录受到保护；不处理手动固定的快速访问项目。",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntrySearching": {
+    "Source": "正在只读检索导航入口…",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryNone": {
+    "Source": "未发现本产品的导航入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryFound": {
+    "Source": "找到 {0} 个入口；请核对状态后选择。",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryNoPath": {
+    "Source": "缺少目标路径",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryReady": {
+    "Source": "可仅移除入口，保留目录和文件",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryRemoved": {
+    "Source": "注册已移除并核验；已通知资源管理器，显示刷新可能稍有延迟。",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryNotStarted": {
+    "Source": "尚未开始",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryConfirm": {
+    "Source": "仅移除以下 Explorer 导航注册，保留目录、文件及应用配置。执行前将重新核验两种运行模式的归属和原生同步根状态。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError01": {
+    "Source": "Explorer 注册数量超过安全限制。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError02": {
+    "Source": "Explorer 注册快照或所有者已经变化。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError03": {
+    "Source": "Explorer 隐藏值已经变化。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError04": {
+    "Source": "缺少当前用户独占的同步根路径证明。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError05": {
+    "Source": "命名空间标识无效。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError06": {
+    "Source": "导航入口的产品身份不匹配。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError07": {
+    "Source": "导航类缺少目标路径证明。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError08": {
+    "Source": "命名空间被其他同步根共享。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError09": {
+    "Source": "目标路径缺失或不同注册视图的路径不一致。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError10": {
+    "Source": "注册所有者不是当前用户。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError11": {
+    "Source": "导航目标路径已经变化。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError12": {
+    "Source": "出现未确认的 Explorer 注册，须重新检索。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError13": {
+    "Source": "出现未确认的隐藏值。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError14": {
+    "Source": "Explorer 注册快照已变化。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError15": {
+    "Source": "导航候选身份无效。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError16": {
+    "Source": "导航命名空间无效。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError17": {
+    "Source": "缺少已确认的注册备份。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError18": {
+    "Source": "备份不属于当前用户。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError19": {
+    "Source": "根备份身份不一致。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError20": {
+    "Source": "入口备份身份不一致。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError21": {
+    "Source": "类备份路径不一致。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError22": {
+    "Source": "类备份缺少产品配对证明。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError23": {
+    "Source": "导航恢复注册范围越界。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError24": {
+    "Source": "隐藏值范围越界。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError25": {
+    "Source": "仅支持本地绝对目录路径。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError26": {
+    "Source": "不能清理磁盘根入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError27": {
+    "Source": "目标磁盘不可访问，不能当作目录已不存在。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError28": {
+    "Source": "目标或其祖先已不是目录。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError29": {
+    "Source": "目标路径包含重解析点，保留入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError30": {
+    "Source": "缺少可核验的路径祖先。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError31": {
+    "Source": "目标仍属于有效的原生同步根，请使用挂载移除入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError32": {
+    "Source": "维护入口未返回导航清单。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError33": {
+    "Source": "应用与真实视图目标不一致。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError34": {
+    "Source": "真实视图仍有导航注册残留。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError35": {
+    "Source": "缺少真实视图核验结果。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError36": {
+    "Source": "入口不属于当前用户的已知运行模式。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError37": {
+    "Source": "入口仍由打包版或非打包版配置管理，请使用该挂载的移除入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError38": {
+    "Source": "入口缺少可核验的目标路径。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError39": {
+    "Source": "该导航入口尚未通过核验。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError40": {
+    "Source": "入口与已有恢复记录身份不同，请先核对原失败记录。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError41": {
+    "Source": "目录状态或身份已经变化，停止清理入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError42": {
+    "Source": "入口恢复记录过大。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError43": {
+    "Source": "入口恢复记录为空。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError44": {
+    "Source": "入口恢复记录身份或版本无效。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError45": {
+    "Source": "入口恢复备份超过安全限制。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError46": {
+    "Source": "导航维护参数不匹配。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError47": {
+    "Source": "缺少导航备份。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError48": {
+    "Source": "未知导航维护操作。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError49": {
+    "Source": "真实视图目录身份已经变化。",
+    "LocalizableArguments": []
+  },
+  "ExplorerRecoveryError50": {
+    "Source": "请选择已通过核验的导航入口。",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntrySearchButton.Content": {
+    "Source": "从资源管理器检索",
+    "LocalizableArguments": []
+  },
+  "ExplorerEntryResetHelp": {
+    "Source": "可使用“从资源管理器检索”处理仅剩导航入口的项目。有效挂载请先正常移除；旧数据无法加载时，请先用 0.0.14.0 完成处理、导出配置并移除挂载。",
+    "LocalizableArguments": []
   }
 }

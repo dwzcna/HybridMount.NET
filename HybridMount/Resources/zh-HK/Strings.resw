@@ -2460,4 +2460,69 @@
   <data name="IndexReadFailed" xml:space="preserve"><value>應用程式資料索引讀取失敗。請查看記錄；目前不會連接掛載或執行工作。</value></data>
   <data name="IndexResetBlocked" xml:space="preserve"><value>無法重設：{0} 請先使用 0.0.14.0 完成未決工作、匯出設定並移除掛載，再重設目前模式的資料。</value></data>
   <data name="TaskWorkflowStep" xml:space="preserve"><value>步驟 {0}：{1}；狀態：{2}；相依：{3}；嘗試：{4}</value></data>
+  <data name="ExplorerEntrySearch" xml:space="preserve"><value>從檔案總管檢索</value></data>
+  <data name="ExplorerEntryTitle" xml:space="preserve"><value>Explorer 遺留導覽入口</value></data>
+  <data name="ExplorerEntryRemove" xml:space="preserve"><value>僅移除入口（保留檔案）</value></data>
+  <data name="ExplorerEntryReload" xml:space="preserve"><value>重新檢索</value></data>
+  <data name="ExplorerEntryExplanation" xml:space="preserve"><value>檢索目前使用者封裝版和非封裝版的同步根導覽入口。有效掛載和受管目錄受到保護；不處理手動釘選的快速存取項目。</value></data>
+  <data name="ExplorerEntrySearching" xml:space="preserve"><value>正在唯讀檢索導覽入口…</value></data>
+  <data name="ExplorerEntryNone" xml:space="preserve"><value>未發現本產品的導覽入口。</value></data>
+  <data name="ExplorerEntryFound" xml:space="preserve"><value>找到 {0} 個入口；請核對狀態後選擇。</value></data>
+  <data name="ExplorerEntryNoPath" xml:space="preserve"><value>缺少目標路徑</value></data>
+  <data name="ExplorerEntryReady" xml:space="preserve"><value>可僅移除入口，保留目錄和檔案</value></data>
+  <data name="ExplorerEntryRemoved" xml:space="preserve"><value>註冊已移除並核驗；已通知檔案總管，顯示更新可能稍有延遲。</value></data>
+  <data name="ExplorerEntryNotStarted" xml:space="preserve"><value>尚未開始</value></data>
+  <data name="ExplorerEntryConfirm" xml:space="preserve"><value>僅移除以下 Explorer 導覽註冊，保留目錄、檔案及應用程式設定。執行前將重新核驗兩種執行模式的歸屬和原生同步根狀態。</value></data>
+  <data name="ExplorerRecoveryError01" xml:space="preserve"><value>Explorer 註冊數量超過安全限制。</value></data>
+  <data name="ExplorerRecoveryError02" xml:space="preserve"><value>Explorer 註冊快照或擁有者已變更。</value></data>
+  <data name="ExplorerRecoveryError03" xml:space="preserve"><value>Explorer 隱藏值已變更。</value></data>
+  <data name="ExplorerRecoveryError04" xml:space="preserve"><value>缺少目前使用者獨佔的同步根路徑證明。</value></data>
+  <data name="ExplorerRecoveryError05" xml:space="preserve"><value>命名空間識別碼無效。</value></data>
+  <data name="ExplorerRecoveryError06" xml:space="preserve"><value>導覽入口的產品身分不符。</value></data>
+  <data name="ExplorerRecoveryError07" xml:space="preserve"><value>導覽類別缺少目標路徑證明。</value></data>
+  <data name="ExplorerRecoveryError08" xml:space="preserve"><value>命名空間由其他同步根共用。</value></data>
+  <data name="ExplorerRecoveryError09" xml:space="preserve"><value>目標路徑缺失或不同註冊檢視的路徑不一致。</value></data>
+  <data name="ExplorerRecoveryError10" xml:space="preserve"><value>註冊擁有者並非目前使用者。</value></data>
+  <data name="ExplorerRecoveryError11" xml:space="preserve"><value>導覽目標路徑已變更。</value></data>
+  <data name="ExplorerRecoveryError12" xml:space="preserve"><value>出現未確認的 Explorer 註冊，須重新檢索。</value></data>
+  <data name="ExplorerRecoveryError13" xml:space="preserve"><value>出現未確認的隱藏值。</value></data>
+  <data name="ExplorerRecoveryError14" xml:space="preserve"><value>Explorer 註冊快照已變更。</value></data>
+  <data name="ExplorerRecoveryError15" xml:space="preserve"><value>導覽候選身分無效。</value></data>
+  <data name="ExplorerRecoveryError16" xml:space="preserve"><value>導覽命名空間無效。</value></data>
+  <data name="ExplorerRecoveryError17" xml:space="preserve"><value>缺少已確認的註冊備份。</value></data>
+  <data name="ExplorerRecoveryError18" xml:space="preserve"><value>備份不屬於目前使用者。</value></data>
+  <data name="ExplorerRecoveryError19" xml:space="preserve"><value>根備份身分不一致。</value></data>
+  <data name="ExplorerRecoveryError20" xml:space="preserve"><value>入口備份身分不一致。</value></data>
+  <data name="ExplorerRecoveryError21" xml:space="preserve"><value>類別備份路徑不一致。</value></data>
+  <data name="ExplorerRecoveryError22" xml:space="preserve"><value>類別備份缺少產品配對證明。</value></data>
+  <data name="ExplorerRecoveryError23" xml:space="preserve"><value>導覽復原註冊範圍越界。</value></data>
+  <data name="ExplorerRecoveryError24" xml:space="preserve"><value>隱藏值範圍越界。</value></data>
+  <data name="ExplorerRecoveryError25" xml:space="preserve"><value>僅支援本機絕對目錄路徑。</value></data>
+  <data name="ExplorerRecoveryError26" xml:space="preserve"><value>不能清理磁碟根入口。</value></data>
+  <data name="ExplorerRecoveryError27" xml:space="preserve"><value>目標磁碟無法存取，不能視為目錄已不存在。</value></data>
+  <data name="ExplorerRecoveryError28" xml:space="preserve"><value>目標或其祖先已不是目錄。</value></data>
+  <data name="ExplorerRecoveryError29" xml:space="preserve"><value>目標路徑包含重新剖析點，保留入口。</value></data>
+  <data name="ExplorerRecoveryError30" xml:space="preserve"><value>缺少可核驗的路徑祖先。</value></data>
+  <data name="ExplorerRecoveryError31" xml:space="preserve"><value>目標仍屬於有效的原生同步根，請使用掛載移除入口。</value></data>
+  <data name="ExplorerRecoveryError32" xml:space="preserve"><value>維護入口未傳回導覽清單。</value></data>
+  <data name="ExplorerRecoveryError33" xml:space="preserve"><value>應用程式與真實檢視目標不一致。</value></data>
+  <data name="ExplorerRecoveryError34" xml:space="preserve"><value>真實檢視仍有導覽註冊殘留。</value></data>
+  <data name="ExplorerRecoveryError35" xml:space="preserve"><value>缺少真實檢視核驗結果。</value></data>
+  <data name="ExplorerRecoveryError36" xml:space="preserve"><value>入口不屬於目前使用者的已知執行模式。</value></data>
+  <data name="ExplorerRecoveryError37" xml:space="preserve"><value>入口仍由封裝版或非封裝版設定管理，請使用該掛載的移除入口。</value></data>
+  <data name="ExplorerRecoveryError38" xml:space="preserve"><value>入口缺少可核驗的目標路徑。</value></data>
+  <data name="ExplorerRecoveryError39" xml:space="preserve"><value>該導覽入口尚未通過核驗。</value></data>
+  <data name="ExplorerRecoveryError40" xml:space="preserve"><value>入口與現有復原記錄身分不同，請先核對原失敗記錄。</value></data>
+  <data name="ExplorerRecoveryError41" xml:space="preserve"><value>目錄狀態或身分已變更，停止清理入口。</value></data>
+  <data name="ExplorerRecoveryError42" xml:space="preserve"><value>入口復原記錄過大。</value></data>
+  <data name="ExplorerRecoveryError43" xml:space="preserve"><value>入口復原記錄為空。</value></data>
+  <data name="ExplorerRecoveryError44" xml:space="preserve"><value>入口復原記錄身分或版本無效。</value></data>
+  <data name="ExplorerRecoveryError45" xml:space="preserve"><value>入口復原備份超過安全限制。</value></data>
+  <data name="ExplorerRecoveryError46" xml:space="preserve"><value>導覽維護參數不符。</value></data>
+  <data name="ExplorerRecoveryError47" xml:space="preserve"><value>缺少導覽備份。</value></data>
+  <data name="ExplorerRecoveryError48" xml:space="preserve"><value>未知導覽維護操作。</value></data>
+  <data name="ExplorerRecoveryError49" xml:space="preserve"><value>真實檢視目錄身分已變更。</value></data>
+  <data name="ExplorerRecoveryError50" xml:space="preserve"><value>請選擇已通過核驗的導覽入口。</value></data>
+  <data name="ExplorerEntrySearchButton.Content" xml:space="preserve"><value>從檔案總管檢索</value></data>
+  <data name="ExplorerEntryResetHelp" xml:space="preserve"><value>可使用「從檔案總管檢索」處理僅剩導覽入口的項目。有效掛載請先正常移除；舊資料無法載入時，請先用 0.0.14.0 完成處理、匯出設定並移除掛載。</value></data>
 </root>

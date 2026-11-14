@@ -171,9 +171,20 @@ public partial class App:Application
         catch(Exception error){_lifecycle?.Record("ExitBoundaryFailure",error,true);Logger?.QueueException("退出","Error","退出边界失败",error);Environment.ExitCode=1;}
     }
     /// <summary>页面只请求应用生命周期动作，挂载检查仍由应用协调器持锁执行。</summary>
-    internal async Task<SettingsResetPlan> InspectSettingsResetAsync(CancellationToken token)
+    private readonly ExplorerEntryMaintenance _explorerMaintenance=new();
+    internal Task<IReadOnlyList<ExplorerEntryCandidate>> DiscoverExplorerEntriesAsync(CancellationToken token) =>
+        RuntimeAvailable?Mounts.DiscoverExplorerEntriesAsync(token):_explorerMaintenance.DiscoverAsync(token);
+    internal Task<IReadOnlyList<ExplorerEntryResult>> RemoveExplorerEntriesAsync(IReadOnlyList<ExplorerEntryCandidate> entries,
+        CancellationToken token,Action<int,int,string> progress) => RuntimeAvailable?
+        Mounts.RemoveExplorerEntriesAsync(entries,token,progress):_explorerMaintenance.RemoveAsync(entries,token,progress);
+    internal async Task<SettingsResetInspection> InspectSettingsResetAsync(CancellationToken token)
     {
-        try{return RuntimeAvailable?await Mounts.InspectSettingsResetAsync(token):await Task.Run(()=>SettingsResetService.Inspect(token),token);}
+        try
+        {
+            var result=RuntimeAvailable?await Mounts.InspectSettingsResetAsync(token):await _explorerMaintenance.RunAsync(SettingsResetService.Inspect,token);
+            return !RuntimeAvailable&&IndexFormat.State=="Old"&&result.BlockedReason is {} reason?
+                result with{BlockedReason=Services.Localization.UiText.Text("IndexResetBlocked",reason)}:result;
+        }
         catch(IOException error)when(!RuntimeAvailable&&IndexFormat.State=="Old")
         {throw new IOException(Services.Localization.UiText.Text("IndexResetBlocked",error.Message),error);}
     }
@@ -182,7 +193,7 @@ public partial class App:Application
     {
         if(_exiting)throw new OperationCanceledException(token);
         if(RuntimeAvailable)await Mounts.BeginSettingsResetAsync(plan,token);
-        else await Task.Run(()=>SettingsResetService.Revalidate(plan,token),token);
+        else await _explorerMaintenance.RunAsync(cancel=>{SettingsResetService.Revalidate(plan,cancel);return true;},token);
         lock(_exitSync){if(_exitTask is not null)throw new OperationCanceledException(token);_settingsReset=plan;}
         await ExitAsync();
     }
@@ -206,6 +217,7 @@ public partial class App:Application
         stages.Run("SignalIpc",()=>{_ = _ipc?.RequestStop();});
         stages.Run("SignalLegacyIpc",()=>{_ = _legacyIpc?.RequestStop();});
         stages.Run("SignalTaskQueue",()=>TasksQueue?.RequestStop());
+        stages.Run("SignalExplorerMaintenance",_explorerMaintenance.RequestStop);
         stages.Run("SignalMounts",()=>Mounts?.RequestStop());
         stages.Run("SignalTaskFocus",()=>TaskFocus?.RequestStop());
         stages.Run("SignalNavigation",()=>Navigation.RequestStop());
@@ -213,6 +225,7 @@ public partial class App:Application
         await stages.RunAsync("IpcStop",()=>_ipc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("LegacyIpcStop",()=>_legacyIpc?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("IssueNotificationsStop",async()=>{if(IssueNotifications is not null){await IssueNotifications.DisposeAsync();}});
+        await stages.RunAsync("ExplorerMaintenanceStop",()=>_explorerMaintenance.DisposeAsync().AsTask());
         await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("TaskQueueStop",()=>TasksQueue?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("NativeRuntimeStop",()=>NativeRuntimeClient.StopSharedAsync());

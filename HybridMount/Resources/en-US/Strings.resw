@@ -2460,4 +2460,69 @@ Use the removal action for that mount.</value></data>
   <data name="IndexReadFailed" xml:space="preserve"><value>The application data index could not be read. Check the logs. Mounts and tasks are stopped.</value></data>
   <data name="IndexResetBlocked" xml:space="preserve"><value>Cannot reset: {0} Use 0.0.14.0 to finish pending work, export configuration, and remove mounts before resetting data for this mode.</value></data>
   <data name="TaskWorkflowStep" xml:space="preserve"><value>Step {0}: {1}; state: {2}; dependency: {3}; attempt: {4}</value></data>
+  <data name="ExplorerEntrySearch" xml:space="preserve"><value>Search File Explorer</value></data>
+  <data name="ExplorerEntryTitle" xml:space="preserve"><value>Leftover Explorer navigation entries</value></data>
+  <data name="ExplorerEntryRemove" xml:space="preserve"><value>Remove entries only (keep files)</value></data>
+  <data name="ExplorerEntryReload" xml:space="preserve"><value>Search again</value></data>
+  <data name="ExplorerEntryExplanation" xml:space="preserve"><value>Find sync-root navigation entries for the current user in both packaged and unpackaged modes. Active mounts and managed folders are protected. Manually pinned Quick Access items are excluded.</value></data>
+  <data name="ExplorerEntrySearching" xml:space="preserve"><value>Searching navigation entries (read-only)…</value></data>
+  <data name="ExplorerEntryNone" xml:space="preserve"><value>No navigation entries for this product were found.</value></data>
+  <data name="ExplorerEntryFound" xml:space="preserve"><value>Found {0} entries. Check their status before selecting.</value></data>
+  <data name="ExplorerEntryNoPath" xml:space="preserve"><value>Target path unavailable</value></data>
+  <data name="ExplorerEntryReady" xml:space="preserve"><value>Ready to remove the entry; folders and files will be kept</value></data>
+  <data name="ExplorerEntryRemoved" xml:space="preserve"><value>Registration removed and verified. File Explorer has been notified; the display may take a moment to refresh.</value></data>
+  <data name="ExplorerEntryNotStarted" xml:space="preserve"><value>Not started</value></data>
+  <data name="ExplorerEntryConfirm" xml:space="preserve"><value>Remove only the Explorer navigation registrations below. Folders, files and app settings will be kept. Ownership in both modes and native sync-root status will be checked again before removal.</value></data>
+  <data name="ExplorerRecoveryError01" xml:space="preserve"><value>Too many Explorer registrations.</value></data>
+  <data name="ExplorerRecoveryError02" xml:space="preserve"><value>The Explorer registration or its owner has changed.</value></data>
+  <data name="ExplorerRecoveryError03" xml:space="preserve"><value>The Explorer hidden value has changed.</value></data>
+  <data name="ExplorerRecoveryError04" xml:space="preserve"><value>Missing proof of an exclusive sync-root path for the current user.</value></data>
+  <data name="ExplorerRecoveryError05" xml:space="preserve"><value>Invalid namespace identifier.</value></data>
+  <data name="ExplorerRecoveryError06" xml:space="preserve"><value>The navigation entry belongs to a different product identity.</value></data>
+  <data name="ExplorerRecoveryError07" xml:space="preserve"><value>The navigation class has no verified target path.</value></data>
+  <data name="ExplorerRecoveryError08" xml:space="preserve"><value>The namespace is shared by another sync root.</value></data>
+  <data name="ExplorerRecoveryError09" xml:space="preserve"><value>The target path is missing or inconsistent between registry views.</value></data>
+  <data name="ExplorerRecoveryError10" xml:space="preserve"><value>The registration is not owned by the current user.</value></data>
+  <data name="ExplorerRecoveryError11" xml:space="preserve"><value>The navigation target path has changed.</value></data>
+  <data name="ExplorerRecoveryError12" xml:space="preserve"><value>An unconfirmed Explorer registration appeared. Search again.</value></data>
+  <data name="ExplorerRecoveryError13" xml:space="preserve"><value>An unconfirmed hidden value appeared.</value></data>
+  <data name="ExplorerRecoveryError14" xml:space="preserve"><value>The Explorer registration snapshot has changed.</value></data>
+  <data name="ExplorerRecoveryError15" xml:space="preserve"><value>Invalid navigation entry identity.</value></data>
+  <data name="ExplorerRecoveryError16" xml:space="preserve"><value>Invalid navigation namespace.</value></data>
+  <data name="ExplorerRecoveryError17" xml:space="preserve"><value>Missing a confirmed registration backup.</value></data>
+  <data name="ExplorerRecoveryError18" xml:space="preserve"><value>The backup does not belong to the current user.</value></data>
+  <data name="ExplorerRecoveryError19" xml:space="preserve"><value>The root backup identity is inconsistent.</value></data>
+  <data name="ExplorerRecoveryError20" xml:space="preserve"><value>The entry backup identity is inconsistent.</value></data>
+  <data name="ExplorerRecoveryError21" xml:space="preserve"><value>The class backup path is inconsistent.</value></data>
+  <data name="ExplorerRecoveryError22" xml:space="preserve"><value>The class backup lacks matching product proof.</value></data>
+  <data name="ExplorerRecoveryError23" xml:space="preserve"><value>The registration is outside the navigation recovery scope.</value></data>
+  <data name="ExplorerRecoveryError24" xml:space="preserve"><value>The hidden value is outside the recovery scope.</value></data>
+  <data name="ExplorerRecoveryError25" xml:space="preserve"><value>Only absolute local folder paths are supported.</value></data>
+  <data name="ExplorerRecoveryError26" xml:space="preserve"><value>Drive-root entries cannot be removed here.</value></data>
+  <data name="ExplorerRecoveryError27" xml:space="preserve"><value>The target drive is unavailable; this does not prove the folder is missing.</value></data>
+  <data name="ExplorerRecoveryError28" xml:space="preserve"><value>The target or an ancestor is no longer a folder.</value></data>
+  <data name="ExplorerRecoveryError29" xml:space="preserve"><value>The path contains a reparse point. The entry is being kept.</value></data>
+  <data name="ExplorerRecoveryError30" xml:space="preserve"><value>No path ancestor can be verified.</value></data>
+  <data name="ExplorerRecoveryError31" xml:space="preserve"><value>The target still belongs to a native sync root. Use the mount removal action.</value></data>
+  <data name="ExplorerRecoveryError32" xml:space="preserve"><value>The maintenance process did not return navigation entries.</value></data>
+  <data name="ExplorerRecoveryError33" xml:space="preserve"><value>The app and physical registry views have different targets.</value></data>
+  <data name="ExplorerRecoveryError34" xml:space="preserve"><value>Navigation registrations remain in the physical registry view.</value></data>
+  <data name="ExplorerRecoveryError35" xml:space="preserve"><value>Missing verification results for the physical registry view.</value></data>
+  <data name="ExplorerRecoveryError36" xml:space="preserve"><value>The entry does not belong to a known mode for the current user.</value></data>
+  <data name="ExplorerRecoveryError37" xml:space="preserve"><value>The entry is still managed by a packaged or unpackaged configuration. Use its mount removal action.</value></data>
+  <data name="ExplorerRecoveryError38" xml:space="preserve"><value>The entry has no verifiable target path.</value></data>
+  <data name="ExplorerRecoveryError39" xml:space="preserve"><value>This navigation entry has not passed verification.</value></data>
+  <data name="ExplorerRecoveryError40" xml:space="preserve"><value>The entry differs from its recovery record. Check the previous failure first.</value></data>
+  <data name="ExplorerRecoveryError41" xml:space="preserve"><value>The folder state or identity has changed. Entry cleanup stopped.</value></data>
+  <data name="ExplorerRecoveryError42" xml:space="preserve"><value>The entry recovery record is too large.</value></data>
+  <data name="ExplorerRecoveryError43" xml:space="preserve"><value>The entry recovery record is empty.</value></data>
+  <data name="ExplorerRecoveryError44" xml:space="preserve"><value>The entry recovery record has an invalid identity or version.</value></data>
+  <data name="ExplorerRecoveryError45" xml:space="preserve"><value>The entry recovery backup exceeds the safety limit.</value></data>
+  <data name="ExplorerRecoveryError46" xml:space="preserve"><value>Navigation maintenance arguments do not match.</value></data>
+  <data name="ExplorerRecoveryError47" xml:space="preserve"><value>Missing navigation backup.</value></data>
+  <data name="ExplorerRecoveryError48" xml:space="preserve"><value>Unknown navigation maintenance operation.</value></data>
+  <data name="ExplorerRecoveryError49" xml:space="preserve"><value>The folder identity in the physical view has changed.</value></data>
+  <data name="ExplorerRecoveryError50" xml:space="preserve"><value>Select verified navigation entries.</value></data>
+  <data name="ExplorerEntrySearchButton.Content" xml:space="preserve"><value>Search File Explorer</value></data>
+  <data name="ExplorerEntryResetHelp" xml:space="preserve"><value>Use Search File Explorer for leftover navigation entries. Remove active mounts normally. If old data cannot be loaded, use 0.0.14.0 to finish pending work, export settings and remove mounts first.</value></data>
 </root>

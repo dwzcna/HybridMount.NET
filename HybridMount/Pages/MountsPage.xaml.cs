@@ -131,7 +131,10 @@ public sealed partial class MountsPage : Page,IDisposable
         var feedback=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
         var count=new TextBlock();var choose=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_9D163C698599")));
         var selectAll=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_BE146CE5330F")));var clearAll=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_F4D4BAE588C4")));
-        var choosing=false;var changing=false;var selecting=true;
+        var choosing=false;var changing=false;var selecting=true;var explorerRequested=false;
+        var explorer=global::HybridMount.Helpers.UI.Ui.Configure(new Button{Style=(Style)Application.Current.Resources["SubtleButtonStyle"]},
+            ("Content",global::HybridMount.Services.Localization.UiText.Message("ExplorerEntrySearch")));
+        void ExplorerRequested(object _,RoutedEventArgs __){explorerRequested=true;_recoveryDialog?.Hide();}
         void UpdateSelection()
         {
             if(_disposed||ViewModel.IsStopping||!selecting)return;
@@ -165,16 +168,20 @@ public sealed partial class MountsPage : Page,IDisposable
             catch(Exception error){if(!ViewModel.IsStopping){feedback.Message=error.Message;feedback.IsOpen=true;}}
             finally{choosing=false;if(!ViewModel.IsStopping){choose.IsEnabled=selectAll.IsEnabled=clearAll.IsEnabled=true;UpdateSelection();}}
         }
-        list.SelectionChanged+=SelectionChanged;list.ContainerContentChanging+=PrepareRow;choose.Click+=Choose;selectAll.Click+=SelectAll;clearAll.Click+=ClearAll;
+        explorer.Click+=ExplorerRequested;list.SelectionChanged+=SelectionChanged;list.ContainerContentChanging+=PrepareRow;choose.Click+=Choose;selectAll.Click+=SelectAll;clearAll.Click+=ClearAll;
         try
         {
-            await ViewModel.DiscoverRecoveryRootsAsync(cancel.Token);if(ViewModel.IsStopping)return;
+            try{await ViewModel.DiscoverRecoveryRootsAsync(cancel.Token);}
+            catch(OperationCanceledException)when(cancel.IsCancellationRequested){return;}
+            catch(Exception error){feedback.Severity=InfoBarSeverity.Warning;feedback.Message=error.Message;feedback.IsOpen=true;}
+            if(ViewModel.IsStopping)return;
             var buttons=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};buttons.Children.Add(selectAll);buttons.Children.Add(clearAll);
-            var panel=new StackPanel{Spacing=12};panel.Children.Add(buttons);panel.Children.Add(count);panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(feedback);
-            if(ViewModel.RecoveryRoots.Count==0){feedback.Message=global::HybridMount.Services.Localization.UiText.Text("Text_8D99B9A09314");feedback.IsOpen=true;}
+            var panel=new StackPanel{Spacing=12};panel.Children.Add(buttons);panel.Children.Add(count);panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(explorer);panel.Children.Add(feedback);
+            if(ViewModel.RecoveryRoots.Count==0&&!feedback.IsOpen){feedback.Message=global::HybridMount.Services.Localization.UiText.Text("Text_8D99B9A09314");feedback.IsOpen=true;}
             _recoveryDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.Services.Localization.UiText.Text("Text_0F25BC7459AB"),Content=panel,PrimaryButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_DE1A9ED63D75"),CloseButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_3FD47EDCE45B"),DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};
             UpdateSelection();
             var selected=await global::HybridMount.Helpers.UI.Ui.ShowAsync(_recoveryDialog);selecting=false;
+            if(explorerRequested&&!ViewModel.IsStopping){await RecoverExplorerEntriesAsync();return;}
             if(selected!=ContentDialogResult.Primary||ViewModel.IsStopping)return;
             var captured=HybridMount.Models.Mounting.Recovery.OrphanedMountBatch.Capture(list.SelectedItems.OfType<OrphanedMountCandidate>());
             var details=string.Join("\n\n",captured.Select(root=>root.LocalPath+"\n"+RecoveryActionDescription(root)));
@@ -207,7 +214,7 @@ public sealed partial class MountsPage : Page,IDisposable
         }
         finally
         {
-            selecting=false;list.SelectionChanged-=SelectionChanged;list.ContainerContentChanging-=PrepareRow;choose.Click-=Choose;selectAll.Click-=SelectAll;clearAll.Click-=ClearAll;
+            selecting=false;explorer.Click-=ExplorerRequested;list.SelectionChanged-=SelectionChanged;list.ContainerContentChanging-=PrepareRow;choose.Click-=Choose;selectAll.Click-=SelectAll;clearAll.Click-=ClearAll;
             cancel.Cancel();_recoveryCancel=null;_recoveryDialog=null;
         }
     });
@@ -235,7 +242,7 @@ public sealed partial class MountsPage : Page,IDisposable
     /// <summary>真正释放才取消对话框和视图订阅；导航离页不停止后台挂载。</summary>
     public void Dispose()
     {_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();_diagnosticDialog?.Hide();_recoveryCancel?.Cancel();_recoveryDialog?.Hide();_configurationDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();
+        if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();_diagnosticDialog?.Hide();_explorerRecovery?.Dispose();_recoveryCancel?.Cancel();_recoveryDialog?.Hide();_configurationDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();
         ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.StateChanged-=UpdatePageState;ViewModel.Dispose();
     }
 }

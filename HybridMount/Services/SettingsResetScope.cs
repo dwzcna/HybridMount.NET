@@ -34,6 +34,18 @@ internal sealed class SettingsResetScope
 }
 internal sealed record SettingsResetDirectoryProof(string Path,string? Identity);
 internal sealed record SettingsResetPlan(SettingsResetScope Scope,IReadOnlyList<SettingsResetDirectoryProof> Directories);
+/// <summary>预检的正常阻止结果没有删除授权；真实查询失败仍由异常报告。</summary>
+internal sealed record SettingsResetInspection(SettingsResetPlan? Plan,string? BlockedReason=null);
+/// <summary>先检查注册阻止条件，再捕获删除范围；被阻止时不扫描应用数据。</summary>
+internal static class SettingsResetPreflight
+{
+    internal static SettingsResetInspection Inspect(SettingsResetScope scope,Func<string?> blocker,
+        Func<IReadOnlyList<SettingsResetDirectoryProof>> capture,Action verifyRecovery)
+    {
+        if(blocker() is {} reason)return new(null,reason);
+        var proofs=capture();verifyRecovery();return new(new(scope,proofs));
+    }
+}
 
 /// <summary>只遍历现有本地元数据；固定目录身份，不跟随重解析链接，删除时逐层使用非递归删除。</summary>
 internal static class SettingsResetDirectories

@@ -174,7 +174,7 @@ internal sealed class RecoveryShellRegistration(bool includeWinRt=true):IRecover
     {if(key.GetValue("") is not string id||id!=root.SyncRootId||key.SubKeyCount!=0)throw new IOException("每根Shell入口归属不匹配。");}
     private static void AssertClass(RegistryKey key,OrphanedMountCandidate root)
     {using var bag=key.OpenSubKey(@"Instance\InitPropertyBag");if(bag?.GetValue("TargetFolderPath") is not string path||!SamePath(path,root.LocalPath))throw new IOException("每根Shell类目标路径不匹配。");}
-    private static string Owner(RegistryKey key)=>key.GetAccessControl(AccessControlSections.Owner).GetOwner(typeof(SecurityIdentifier))!.Value;
+    internal static string Owner(RegistryKey key)=>key.GetAccessControl(AccessControlSections.Owner).GetOwner(typeof(SecurityIdentifier))!.Value;
     private static string? NormalizeGuid(string? raw)=>raw is null?null:Guid.TryParseExact(raw,"B",out var guid)&&guid!=Guid.Empty?guid.ToString("B").ToUpperInvariant():throw new IOException("每根命名空间GUID无效。");
     private static bool SamePath(string a,string b)=>Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)).Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)),StringComparison.OrdinalIgnoreCase);
     private static bool Exists(RegistryHive hive,string path){using var baseKey=RegistryKey.OpenBaseKey(hive,RegistryView.Registry64);using var key=baseKey.OpenSubKey(path);return key is not null;}
@@ -185,7 +185,7 @@ internal sealed class RecoveryShellRegistration(bool includeWinRt=true):IRecover
             foreach(var id in manager.GetSubKeyNames())
             {if(id==own)continue;using var key=manager.OpenSubKey(id);if(string.Equals(key?.GetValue("NamespaceCLSID") as string,guid,StringComparison.OrdinalIgnoreCase))throw new IOException("该Shell类被其他根引用，拒绝清理。");}}
     }
-    private static RecoveryRegistryBackup Backup(RegistryHive hive,string path,RegistryKey key)=>new(hive,path,Owner(key),ReadTree(key));
+    internal static RecoveryRegistryBackup Backup(RegistryHive hive,string path,RegistryKey key)=>new(hive,path,Owner(key),ReadTree(key));
     private void AssertUnchanged(RecoveryRegistryBackup backup,RegistryKey key)
     {if(backup.Owner!=_sid||Owner(key)!=_sid||JsonSerializer.Serialize(backup.Tree)!=JsonSerializer.Serialize(ReadTree(key)))throw new IOException("注册快照或所有者变化，保留现场和备份。");}
     private void AssertHidden(RecoveryHiddenValue value)
@@ -194,14 +194,14 @@ internal sealed class RecoveryShellRegistration(bool includeWinRt=true):IRecover
         if(key is null||!key.GetValueNames().Contains(value.Value.Name,StringComparer.OrdinalIgnoreCase))return;
         if(Owner(key)!=_sid||value.Owner!=_sid||JsonSerializer.Serialize(ReadValue(key,value.Value.Name))!=JsonSerializer.Serialize(value.Value))throw new IOException("隐藏值或所有者变化，保留共享键。");
     }
-    private static RecoveryRegistryValue ReadValue(RegistryKey key,string name)
+    internal static RecoveryRegistryValue ReadValue(RegistryKey key,string name)
     {
         var raw=key.GetValue(name,null,RegistryValueOptions.DoNotExpandEnvironmentNames);var kind=key.GetValueKind(name);
         var data=raw switch{byte[] bytes=>new[]{Convert.ToBase64String(bytes)},string[] strings=>strings,string value=>[value],int number=>[number.ToString(CultureInfo.InvariantCulture)],long number=>[number.ToString(CultureInfo.InvariantCulture)],_=>throw new IOException("注册值类型未知。")};
         if(data.Sum(x=>x.Length)>128*1024)throw new IOException("注册值过长。");return new(name,kind,data);
     }
     /// <summary>有界备份原始类型和值；总消息另受私有协议与日志一MiB限制。</summary>
-    private static RecoveryRegistryTree ReadTree(RegistryKey key,int depth=0)
+    internal static RecoveryRegistryTree ReadTree(RegistryKey key,int depth=0)
     {
         if(depth>10||key.ValueCount>128||key.SubKeyCount>128)throw new IOException("注册内容超出恢复限制。");
         var values=key.GetValueNames().Order(StringComparer.Ordinal).Select(name=>ReadValue(key,name)).ToArray();
