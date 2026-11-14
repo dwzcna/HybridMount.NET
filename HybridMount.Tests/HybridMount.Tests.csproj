@@ -320,6 +320,7 @@
     <Copy SourceFiles="$(TargetDir)runtimes\$(_NativeRid)\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" />
   </Target>
   <ItemGroup>
+    <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavCertificateInfo.cs" Link="Production/Models/Mounting/WebDAV/WebDavCertificateInfo.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilities.cs" Link="Production/Models/Mounting/ProtocolCapabilities.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilityCatalog.cs" Link="Production/Models/Mounting/ProtocolCapabilityCatalog.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavProtocolCapabilities.cs" Link="Production/Models/Mounting/WebDAV/WebDavProtocolCapabilities.cs"/>

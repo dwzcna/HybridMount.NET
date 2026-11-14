@@ -179,7 +179,7 @@ internal sealed class TlsFixture : IAsyncDisposable
     /// <summary>仅供隔离测试显式核验服务器证书，不安装系统信任。</summary>
     public string CertificatePin=>Convert.ToHexString(SHA256.HashData(_certificate.RawData));
     public ConcurrentQueue<string> Methods {get;}=new();
-    public TlsFixture(bool wrongHost=false,bool reset=false,bool stall=false,bool davResponses=false)
+    public TlsFixture(bool wrongHost=false,bool reset=false,bool stall=false,bool davResponses=false,bool expired=false)
     {
         _reset=reset;_stall=stall;_davResponses=davResponses;
         using var rsa=RSA.Create(2048);var request=new CertificateRequest("CN=hybridmount-test",rsa,HashAlgorithmName.SHA256,RSASignaturePadding.Pkcs1);
@@ -187,7 +187,7 @@ internal sealed class TlsFixture : IAsyncDisposable
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection{new("1.3.6.1.5.5.7.3.1")},true));
         var names=new SubjectAlternativeNameBuilder();if(wrongHost)names.AddDnsName("unrelated.example.test");else names.AddIpAddress(System.Net.IPAddress.Loopback);
         request.CertificateExtensions.Add(names.Build());
-        using var generated=request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1),DateTimeOffset.UtcNow.AddDays(1));
+        using var generated=request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(expired?-10:-1),DateTimeOffset.UtcNow.AddDays(expired?-1:1));
         // Windows Schannel 服务端需可用的用户密钥容器；仅导入私钥材料，不安装证书信任，Dispose 清理临时容器。
         var material=generated.Export(X509ContentType.Pfx);
         try{_certificate=X509CertificateLoader.LoadPkcs12(material,null,X509KeyStorageFlags.UserKeySet|X509KeyStorageFlags.Exportable);}

@@ -2371,7 +2371,7 @@
   <data name="WebDAVConfigurationContentDialogTextBlockConnectionSettings.Text" xml:space="preserve"><value>連線設定</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockExcludedFiles.Text" xml:space="preserve"><value>排除檔案</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer.Text" xml:space="preserve"><value>從伺服器擷取容量資料</value></data>
-  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>自簽憑證的指紋必須先經可信任途徑核對才可填入，信任只限此掛載。憑證更新後須重新核驗，請勿填入未經核對的指紋。</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>系統驗證成功時正常接受；驗證失敗時僅接受目前掛載已確認的 SHA-256 指紋。可測試連線後核對憑證詳情。</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings.Text" xml:space="preserve"><value>儲存容量設定</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve"><value>同步及預覽</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom.Text" xml:space="preserve"><value>群暉 WebDAV：https://nas.example.com:5006/共用資料夾/（須在 WebDAV Server 套件啟用 HTTPS）。DSM 5001 請使用群暉 NAS 入口。</value></data>
@@ -2570,4 +2570,17 @@
   <data name="ProtocolPurposeAuthentication" xml:space="preserve"><value>建立或歸還目前帳號的伺服器工作階段。</value></data>
   <data name="ProtocolPurposeChecksum" xml:space="preserve"><value>取得檔案摘要，用於驗證下載及上傳的實際內容。</value></data>
   <data name="ProtocolPurposeCleanup" xml:space="preserve"><value>僅清理已確認歸屬的暫存探測檔案，不開放一般檔案刪除。</value></data>
+  <data name="CertificateClearTrust" xml:space="preserve"><value>清除已確認的憑證</value></data>
+  <data name="CertificateTrustAndRetry" xml:space="preserve"><value>信任此憑證並重試</value></data>
+  <data name="CertificateTrustWarning" xml:space="preserve"><value>伺服器憑證驗證失敗。請核對憑證詳情後再決定是否信任。</value></data>
+  <data name="CertificateExpired" xml:space="preserve"><value>憑證已過期</value></data>
+  <data name="CertificateNotYetValid" xml:space="preserve"><value>憑證尚未生效</value></data>
+  <data name="CertificateNameMismatch" xml:space="preserve"><value>名稱與伺服器位址不符</value></data>
+  <data name="CertificateChainUntrusted" xml:space="preserve"><value>系統無法驗證憑證信任鏈</value></data>
+  <data name="CertificateDetails" xml:space="preserve"><value>伺服器：{0}
+主體：{1}
+簽發者：{2}
+有效期：{3} — {4}
+SHA-256：{5}</value></data>
+  <data name="CertificateTrustScope" xml:space="preserve"><value>僅對目前掛載與預期伺服器生效，儲存連線後保留。系統驗證失敗時僅接受已確認指紋，位址或異常憑證變更需重新確認。</value></data>
 </root>

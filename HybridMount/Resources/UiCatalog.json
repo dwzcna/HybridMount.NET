@@ -3379,5 +3379,41 @@
   "ProtocolPurposeCleanup": {
     "Source": "仅清理已确认归属的临时探测文件，不开放一般文件删除。",
     "LocalizableArguments": []
+  },
+  "CertificateClearTrust": {
+    "Source": "清除已确认的证书",
+    "LocalizableArguments": []
+  },
+  "CertificateTrustAndRetry": {
+    "Source": "信任此证书并重试",
+    "LocalizableArguments": []
+  },
+  "CertificateTrustWarning": {
+    "Source": "服务器证书验证失败。请核对证书详情后再决定是否信任。",
+    "LocalizableArguments": []
+  },
+  "CertificateExpired": {
+    "Source": "证书已过期",
+    "LocalizableArguments": []
+  },
+  "CertificateNotYetValid": {
+    "Source": "证书尚未生效",
+    "LocalizableArguments": []
+  },
+  "CertificateNameMismatch": {
+    "Source": "名称与服务器地址不匹配",
+    "LocalizableArguments": []
+  },
+  "CertificateChainUntrusted": {
+    "Source": "系统无法验证证书信任链",
+    "LocalizableArguments": []
+  },
+  "CertificateDetails": {
+    "Source": "服务器：{0}\n主体：{1}\n颁发者：{2}\n有效期：{3} — {4}\nSHA-256：{5}",
+    "LocalizableArguments": []
+  },
+  "CertificateTrustScope": {
+    "Source": "仅对当前挂载与预期服务器生效，保存连接后保留。系统验证失败时仅接受已确认指纹，地址或异常证书变化需重新确认。",
+    "LocalizableArguments": []
   }
 }

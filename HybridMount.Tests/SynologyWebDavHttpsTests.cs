@@ -37,7 +37,7 @@ public sealed class SynologyWebDavHttpsTests
             Assert.Throws<ArgumentException>(()=>FileSourceFactory.ValidateProtocolOptions(Options with{PinnedCertificateSha256=invalid}));
     }
     [Fact]
-    public void Pin_is_strict_and_does_not_change_default_system_trust()
+    public void Confirmed_exception_is_mount_local_and_preserves_default_system_trust()
     {
         using var key=RSA.Create(2048);
         var request=new CertificateRequest("CN=nas.example.test",key,HashAlgorithmName.SHA256,RSASignaturePadding.Pkcs1);
@@ -46,7 +46,8 @@ public sealed class SynologyWebDavHttpsTests
         Assert.False(WebDavFileSource.AcceptCertificate(certificate,SslPolicyErrors.RemoteCertificateChainErrors,null));
         Assert.True(WebDavFileSource.AcceptCertificate(certificate,SslPolicyErrors.None,null));
         Assert.True(WebDavFileSource.AcceptCertificate(certificate,SslPolicyErrors.RemoteCertificateChainErrors,pin));
-        Assert.False(WebDavFileSource.AcceptCertificate(certificate,SslPolicyErrors.None,new string('0',64)));
+        Assert.True(WebDavFileSource.AcceptCertificate(certificate,SslPolicyErrors.None,new string('0',64)));
+        Assert.False(WebDavFileSource.AcceptCertificate(certificate,SslPolicyErrors.RemoteCertificateChainErrors,new string('0',64)));
         Assert.False(WebDavFileSource.AcceptCertificate(null,SslPolicyErrors.None,pin));
     }
     [Fact]

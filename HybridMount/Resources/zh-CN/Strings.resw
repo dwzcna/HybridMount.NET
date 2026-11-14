@@ -2371,7 +2371,7 @@
   <data name="WebDAVConfigurationContentDialogTextBlockConnectionSettings.Text" xml:space="preserve"><value>连接配置</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockExcludedFiles.Text" xml:space="preserve"><value>排除文件</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer.Text" xml:space="preserve"><value>从服务器抓取容量信息</value></data>
-  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>自签名证书需先通过可信渠道核对指纹后填写，仅信任当前挂载；证书更新后需重新核验。不要填写未经核对的指纹。</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>系统验证成功时正常接受；验证失败时仅接受当前挂载已确认的 SHA-256 指纹。可测试连接后核验证书详情。</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings.Text" xml:space="preserve"><value>保存容量设置</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve"><value>同步与预览</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom.Text" xml:space="preserve"><value>群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。</value></data>
@@ -2570,4 +2570,17 @@
   <data name="ProtocolPurposeAuthentication" xml:space="preserve"><value>建立或归还当前账号的服务端会话。</value></data>
   <data name="ProtocolPurposeChecksum" xml:space="preserve"><value>取得文件摘要，用于验证下载与上传的实际内容。</value></data>
   <data name="ProtocolPurposeCleanup" xml:space="preserve"><value>仅清理已确认归属的临时探测文件，不开放一般文件删除。</value></data>
+  <data name="CertificateClearTrust" xml:space="preserve"><value>清除已确认的证书</value></data>
+  <data name="CertificateTrustAndRetry" xml:space="preserve"><value>信任此证书并重试</value></data>
+  <data name="CertificateTrustWarning" xml:space="preserve"><value>服务器证书验证失败。请核对证书详情后再决定是否信任。</value></data>
+  <data name="CertificateExpired" xml:space="preserve"><value>证书已过期</value></data>
+  <data name="CertificateNotYetValid" xml:space="preserve"><value>证书尚未生效</value></data>
+  <data name="CertificateNameMismatch" xml:space="preserve"><value>名称与服务器地址不匹配</value></data>
+  <data name="CertificateChainUntrusted" xml:space="preserve"><value>系统无法验证证书信任链</value></data>
+  <data name="CertificateDetails" xml:space="preserve"><value>服务器：{0}
+主体：{1}
+颁发者：{2}
+有效期：{3} — {4}
+SHA-256：{5}</value></data>
+  <data name="CertificateTrustScope" xml:space="preserve"><value>仅对当前挂载与预期服务器生效，保存连接后保留。系统验证失败时仅接受已确认指纹，地址或异常证书变化需重新确认。</value></data>
 </root>

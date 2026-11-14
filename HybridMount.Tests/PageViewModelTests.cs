@@ -70,6 +70,21 @@ public sealed class PageViewModelTests
         var result=await vm.SaveConnectionAsync(null,"initial",path,false,new(FileSourceKind.WebDav,"https://example.test/dav/"),new(),initial:new(ThumbnailsEnabled:true,RemoteAutoDetectEnabled:false,RemoteIncrementalSeconds:90,RemoteFullSeconds:600,MaximumCapacityBytes:7_000_000_000));
         var saved=area.Manager.TaskDefinitions[result.Mount.Id];Assert.True(saved.ThumbnailsEnabled);Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(90,saved.RemoteIncrementalSeconds);Assert.Equal(600,saved.RemoteFullSeconds);Assert.Equal(7_000_000_000,saved.MaximumCapacityBytes);Assert.False(saved.AutoConnect);Assert.Contains(result.Mount.Id,factory.Calls);Assert.Contains("连接未完成",result.Message);Assert.Equal(PageMessageSeverity.Error,result.Severity);
     }
+    [Fact(Timeout=20000)]
+    public async Task CertificateFailureRetainsSavedMountAndReturnsOnlyPublicCertificateDetails()
+    {
+        var certificate=new HybridMount.Models.Mounting.WebDAV.WebDavCertificateInfo("https://example.test", "CN=test", "CN=test",
+            DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(-1), new string('A',64),
+            System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors, System.Security.Cryptography.X509Certificates.X509ChainStatusFlags.NotTimeValid);
+        var diagnostic=new ConnectionDiagnostic("OPTIONS",ConnectionFailureKind.Certificate,null,null,null,null,"证书已过期");
+        var factory=new ReconnectFactory{Failure=new SourceConnectionException(diagnostic){Certificate=certificate}};factory.Release.SetResult();
+        await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.Ui);
+        var path=Path.Combine(Path.GetDirectoryName(area.A.LocalPath)!,"certificate-retry");Directory.CreateDirectory(path);
+        var result=await vm.SaveConnectionAsync(null,"certificate",path,false,new(FileSourceKind.WebDav,"https://example.test/dav/"),new());
+        Assert.Same(certificate,result.Certificate);Assert.Equal(PageMessageSeverity.Error,result.Severity);
+        Assert.Equal(result.Mount,area.Manager.TaskDefinitions[result.Mount.Id]);
+        Assert.DoesNotContain("Certificate",System.Text.Json.JsonSerializer.Serialize(result));
+    }
     [Theory]
     [InlineData(0,false)]
     [InlineData(2,false)]
@@ -90,10 +105,11 @@ public sealed class PageViewModelTests
     {var root=Runtime(manager,id);root.GetType().GetField(field)!.SetValue(root,value);}
     private sealed class ReconnectFactory : IFileSourceFactory
     {
+        public Exception? Failure;
         public readonly ConcurrentQueue<Guid> Calls=new();
         public readonly TaskCompletionSource Started=new(TaskCreationOptions.RunContinuationsAsynchronously),Release=new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async Task<IFileSource> CreateAsync(MountDefinition mount,MountRepository repository,bool recovery,CancellationToken token)
-        {Calls.Enqueue(mount.Id);if(Calls.Count==1){Started.TrySetResult();await Release.Task.WaitAsync(token);}throw new IOException("reconnect failed");}
+        {Calls.Enqueue(mount.Id);if(Calls.Count==1){Started.TrySetResult();await Release.Task.WaitAsync(token);}throw Failure??new IOException("reconnect failed");}
     }
     [Fact]
     public async Task Runtime_reconnect_is_empty_without_failures_and_user_disconnect_clears_the_banner()

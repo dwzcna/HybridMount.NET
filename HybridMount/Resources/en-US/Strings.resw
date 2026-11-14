@@ -2371,7 +2371,7 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="WebDAVConfigurationContentDialogTextBlockConnectionSettings.Text" xml:space="preserve"><value>Connection settings</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockExcludedFiles.Text" xml:space="preserve"><value>Excluded files</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockFetchCapacityInformationFromServer.Text" xml:space="preserve"><value>Fetch capacity information from server</value></data>
-  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>For a self-signed certificate, verify the fingerprint through a trusted channel before entering it. Trust applies only to this mount and must be verified again when the certificate changes. Do not enter an unverified fingerprint.</value></data>
+  <data name="WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify.Text" xml:space="preserve"><value>Normal system trust remains active. If validation fails, only the fingerprint confirmed for this mount is accepted. Test the connection to review certificate details.</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSaveCapacitySettings.Text" xml:space="preserve"><value>Save capacity settings</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve"><value>Sync and previews</value></data>
   <data name="WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom.Text" xml:space="preserve"><value>Synology WebDAV: https://nas.example.com:5006/SharedFolder/ (enable HTTPS in the WebDAV Server package). For DSM port 5001, use the Synology NAS option.</value></data>
@@ -2570,4 +2570,17 @@ Use the removal action for that mount.</value></data>
   <data name="ProtocolPurposeAuthentication" xml:space="preserve"><value>Open or close the server session for the current account.</value></data>
   <data name="ProtocolPurposeChecksum" xml:space="preserve"><value>Obtain file digests to verify downloaded and uploaded contents.</value></data>
   <data name="ProtocolPurposeCleanup" xml:space="preserve"><value>Clean up verified temporary probe files only; general file deletion is not enabled.</value></data>
+  <data name="CertificateClearTrust" xml:space="preserve"><value>Clear confirmed certificate</value></data>
+  <data name="CertificateTrustAndRetry" xml:space="preserve"><value>Trust this certificate and retry</value></data>
+  <data name="CertificateTrustWarning" xml:space="preserve"><value>Server certificate validation failed. Review its details before deciding whether to trust it.</value></data>
+  <data name="CertificateExpired" xml:space="preserve"><value>Certificate expired</value></data>
+  <data name="CertificateNotYetValid" xml:space="preserve"><value>Certificate is not yet valid</value></data>
+  <data name="CertificateNameMismatch" xml:space="preserve"><value>Certificate name does not match the server</value></data>
+  <data name="CertificateChainUntrusted" xml:space="preserve"><value>The system could not validate the certificate chain</value></data>
+  <data name="CertificateDetails" xml:space="preserve"><value>Server: {0}
+Subject: {1}
+Issuer: {2}
+Valid: {3} — {4}
+SHA-256: {5}</value></data>
+  <data name="CertificateTrustScope" xml:space="preserve"><value>Applies only to this mount and expected server, and is retained when you save the connection. Failed system validation requires the confirmed fingerprint; address or exceptional certificate changes require confirmation again.</value></data>
 </root>

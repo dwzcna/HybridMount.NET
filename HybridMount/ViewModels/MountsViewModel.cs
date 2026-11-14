@@ -142,7 +142,7 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
             var saved=_manager.TaskDefinitions.Values.FirstOrDefault(x=>id is {} existing?x.Id==existing:!before.Contains(x.Id)&&x.LocalPath.Equals(path,StringComparison.OrdinalIgnoreCase));
             if(saved is null||error is ArgumentException or NotSupportedException)throw;
             if(id is null)_exclusionDrafts.Remove((Guid.Empty,settings.Kind));
-            Report(error);return new(saved,global::HybridMount.Services.Localization.UiText.Text("Text_83F7CCCF2032",error.Message),PageMessageSeverity.Error);
+            Report(error);return new(saved,global::HybridMount.Services.Localization.UiText.Text("Text_83F7CCCF2032",error.Message),PageMessageSeverity.Error,(error as SourceConnectionException)?.Certificate);
         }
         finally{_busyMounts.Remove(busyId);if(!_disposed){Refresh();NotifyStateChanged();}}
     }
@@ -293,4 +293,5 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
 }
 
 /// <summary>配置保存的实际结果；连接失败不冒充未保存，也不自动重试写入。</summary>
-public sealed record MountConnectionSaveResult(MountDefinition Mount,string Message,PageMessageSeverity Severity=PageMessageSeverity.Success);
+public sealed record MountConnectionSaveResult(MountDefinition Mount,string Message,PageMessageSeverity Severity=PageMessageSeverity.Success,
+    [property:System.Text.Json.Serialization.JsonIgnore] HybridMount.Models.Mounting.WebDAV.WebDavCertificateInfo? Certificate=null);

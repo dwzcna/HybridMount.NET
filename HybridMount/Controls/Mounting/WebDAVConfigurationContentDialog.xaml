@@ -16,6 +16,7 @@
                     <StackPanel x:Name="HttpsFields" Spacing="12" Visibility="Collapsed">
                         <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom"/>
                         <TextBox x:Name="CertificatePinField" x:Uid="/Strings/WebDAVConfigurationContentDialogCertificatePinField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogCertificatePinField"/>
+                        <Button x:Name="ClearCertificateTrustButton" Style="{StaticResource SubtleButtonStyle}" Click="ClearCertificateTrust"/>
                         <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify"/>
                     </StackPanel>
                     <StackPanel Spacing="12">
@@ -26,6 +27,10 @@
                     <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" x:Uid="/Strings/WebDAVConfigurationContentDialogHttpWarning" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogHttpWarning"/>
                     <controls:SettingRow x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogAutoConnectField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogAutoConnectField"/></controls:SettingRow>
                 </StackPanel></UserControl>
+                <InfoBar x:Name="CertificateWarning" Style="{StaticResource InstantNotificationStyle}" IsOpen="False" IsClosable="True" Severity="Warning"
+                         Visibility="{x:Bind helpers:TextVisibility.ForFlag(CertificateWarning.IsOpen),Mode=OneWay}">
+                    <InfoBar.ActionButton><Button x:Name="TrustCertificateButton" Style="{StaticResource SubtleButtonStyle}" Click="TrustCertificate"/></InfoBar.ActionButton>
+                </InfoBar>
                 <mounting:ProtocolCapabilitiesView x:Name="CapabilityView"/>
                 <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
                     <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockExcludedFiles" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockExcludedFiles"/>

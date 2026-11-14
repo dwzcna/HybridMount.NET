@@ -88,8 +88,9 @@ public sealed partial class WebDavFileSource
                 }
                 catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
                 {
-                    if(error is OperationCanceledException&&token.IsCancellationRequested)return null;
+                    if(error is OperationCanceledException&&token.IsCancellationRequested&&network.Certificate==System.Net.Security.SslPolicyErrors.None)return null;
                     var failure=error as SourceConnectionException??WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应头／连接",network.Certificate,network.Chain,error is OperationCanceledException,index+1);
+                    if(failure.Diagnostic.Kind==ConnectionFailureKind.Certificate)throw new SourceConnectionException(failure.Diagnostic){Certificate=owner.RejectedCertificate};
                     if(!failure.Diagnostic.Transient||index==attempts-1)throw failure;
                 }
                 var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<index)));

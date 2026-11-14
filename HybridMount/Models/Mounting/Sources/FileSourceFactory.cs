@@ -63,9 +63,14 @@ public sealed class FileSourceFactory : IFileSourceFactory
         }
         catch(OperationCanceledException error)when(!token.IsCancellationRequested)
         {
+            if (observedSource is WebDavFileSource { RejectedCertificate: { } certificate })
+            {
+                var failure=WebDavNetworkDiagnostics.Failure(error,"测试连接",certificate.PolicyErrors,certificate.ChainErrors);
+                return new(false,failure.Message,failure.Diagnostic,observedSource.ProtocolCapabilities,certificate);
+            }
             return (Protocols.TryGetValue(settings.Kind,out var protocol)?protocol.Timeout(error):new(false,"连接测试超时，请检查网络及服务响应。")) with { Capabilities = observedSource?.ProtocolCapabilities };
         }
-        catch(SourceConnectionException error) { return new(false,error.Message,error.Diagnostic,observedSource?.ProtocolCapabilities); }
+        catch(SourceConnectionException error) { token.ThrowIfCancellationRequested(); return new(false,error.Message,error.Diagnostic,observedSource?.ProtocolCapabilities,error.Certificate); }
         catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException)
         { return new(false,error.Message,Capabilities:observedSource?.ProtocolCapabilities); }
     }

@@ -18,6 +18,9 @@ public sealed record ConnectionDiagnostic(string Stage,ConnectionFailureKind Kin
 public sealed class SourceConnectionException(ConnectionDiagnostic diagnostic) : IOException(diagnostic.Display)
 {
     public ConnectionDiagnostic Diagnostic { get; }=diagnostic;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public WebDAV.WebDavCertificateInfo? Certificate { get; init; }
 }
 /// <summary>只读表单探测结果；成功不等于具备上传、删除或条件修改权限。</summary>
-public sealed record ConnectionTestResult(bool Success,string Message,ConnectionDiagnostic? Diagnostic=null,[property:System.Text.Json.Serialization.JsonIgnore] ProtocolCapabilitySnapshot? Capabilities=null);
+public sealed record ConnectionTestResult(bool Success,string Message,ConnectionDiagnostic? Diagnostic=null,[property:System.Text.Json.Serialization.JsonIgnore] ProtocolCapabilitySnapshot? Capabilities=null,
+    [property:System.Text.Json.Serialization.JsonIgnore] WebDAV.WebDavCertificateInfo? Certificate=null);
