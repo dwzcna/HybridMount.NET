@@ -3467,5 +3467,9 @@
   "ProtocolPurposeAccess": {
     "Source": "只读查询精确资源的有效权限；权限结论与正文版本及条件写能力独立。",
     "LocalizableArguments": []
+  },
+  "ProtocolPurposeMetadataCompression": {
+    "Source": "只压缩目录元数据，流式解压并限制展开大小；文件正文与范围读取保持identity表示。",
+    "LocalizableArguments": []
   }
 }

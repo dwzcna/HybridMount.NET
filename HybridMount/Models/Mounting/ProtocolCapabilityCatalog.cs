@@ -7,6 +7,7 @@ public static class ProtocolCapabilityCatalog
     private static ProtocolCapabilityDescriptor Row(string id, string name, string purpose) => new(id, name, "ProtocolPurpose" + purpose);
     private static readonly IReadOnlyList<ProtocolCapabilityDescriptor> Dav = Array.AsReadOnly(new[] {
         Row("dav.options", "RFC 9110 (OPTIONS)", "Discovery"), Row("dav.get", "RFC 9110 (GET)", "Download"),
+        Row("dav.gzip", "RFC 9110 (PROPFIND / REPORT, gzip)", "MetadataCompression"),
         Row("dav.privileges", "RFC 3744 (PROPFIND / current-user-privilege-set)", "Access"),
         Row("dav.head", "RFC 9110 (HEAD)", "Metadata"), Row("dav.digest", "RFC 9530 (Repr-Digest / Want-Repr-Digest)", "RepresentationDigest"),
         Row("dav.range", "RFC 9110 (GET / Range)", "Range"), Row("dav.propfind", "RFC 4918 (PROPFIND)", "Metadata"),

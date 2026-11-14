@@ -31,7 +31,7 @@ public sealed partial class WebDavFileSource
     }
     private readonly AsyncLocal<WireObservation?> _wire=new();
     private readonly AsyncLocal<bool> _strictRead=new();
-    private sealed class WireObservation { public int Status; public bool Identity; public bool Sent; public string? ETag; }
+    private sealed class WireObservation { public int Status; public bool Identity; public bool Sent; public bool Compressed; public string? ETag; }
     private sealed class DavRangeIgnoredException : Exception { }
     private sealed class DavMalformedRangeException : Exception { }
 
@@ -69,6 +69,8 @@ public sealed partial class WebDavFileSource
                 request.Headers.Remove("Accept-Encoding");request.Headers.TryAddWithoutValidation("Accept-Encoding","identity");
                 request.Headers.TryAddWithoutValidation("Want-Repr-Digest","sha-256=10, sha-512=5");
             }
+            if(request.Method.Method is "PROPFIND" or "REPORT")
+            {request.Headers.Remove("Accept-Encoding");request.Headers.TryAddWithoutValidation("Accept-Encoding","gzip");}
             var observation=owner._wire.Value;
             var readOnly=request.Method.Method is "OPTIONS" or "HEAD" or "GET" or "PROPFIND" or "REPORT";
             // 显式零长度正文避免HTTP/1.1把无正文MOVE／DELETE在零响应时当作可重放请求；结果交给上层只读核对。
@@ -94,6 +96,11 @@ public sealed partial class WebDavFileSource
                         try{return await base.SendAsync(current,cancel).ConfigureAwait(false);}
                         finally{owner._networkAttempt.Value=previous;}
                     },token).ConfigureAwait(false);
+                    if(current.Method.Method is "PROPFIND" or "REPORT"&&result.Content.Headers.ContentEncoding.Any(value=>!value.Equals("identity",StringComparison.OrdinalIgnoreCase)))
+                    {
+                        try{result.Content=new WebDavMetadataContent(result.Content);if(observation is not null)observation.Compressed=true;}
+                        catch{result.Dispose();throw;}
+                    }
                     if(current.Method==HttpMethod.Get&&result.StatusCode==HttpStatusCode.OK)
                     {
                         try{result.Content=new WebDavDigestContent(result,current.RequestUri!);}
@@ -105,6 +112,7 @@ public sealed partial class WebDavFileSource
                     if(request.Method==HttpMethod.Options)owner.CaptureOptions(result);
                     return result;
                 }
+                catch(WebDavMetadataEncodingException){throw;}
                 catch(WebDavDigestException){throw;}
                 catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
                 {
@@ -215,6 +223,7 @@ public sealed partial class WebDavFileSource
                     throw new SourcePartialMoveException(failed,"WebDAV");
                 multi.EnsureSucceeded();
             }
+            if(observation.Compressed)request.Options.Set(MetadataCompressedKey,true);
             var response=new HttpResponseMessage((HttpStatusCode)result.StatusCode){RequestMessage=new HttpRequestMessage(request.Method,result.EffectiveUri)};
             response.Content=download is not null?new StreamContent(new DavBodyStream(download,ReadIdleTimeout)):
                 new StringContent(document?.ToString(SaveOptions.DisableFormatting)??"",Encoding.UTF8,"application/xml");
@@ -227,6 +236,7 @@ public sealed partial class WebDavFileSource
         {throw StorageRejected();}
         finally{_wire.Value=previous;}
     }
+    private static readonly HttpRequestOptionsKey<bool> MetadataCompressedKey=new("HybridMount.WebDav.MetadataCompressed");
     private static readonly PropertyName[] MetadataProperties=[new("DAV:","resourcetype"),new("DAV:","getcontentlength"),new("DAV:","getlastmodified"),new("DAV:","getetag"),new("DAV:","current-user-privilege-set")];
 
     /// <summary>输入读取续期无进展计时器；只借用流，退出仍由原上传所有者释放快照。</summary>

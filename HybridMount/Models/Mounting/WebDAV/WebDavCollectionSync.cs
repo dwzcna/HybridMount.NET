@@ -106,6 +106,7 @@ public sealed partial class WebDavFileSource
             }
             if(result.HasMore&&result.SyncToken==syncToken)throw new InvalidRemoteChangeResponseException("DAV 续批令牌未前进，拒绝无限循环。");
             if(string.IsNullOrWhiteSpace(result.SyncToken)||result.SyncToken.Length>65536)throw new InvalidRemoteChangeResponseException("DAV 同步响应缺少有效令牌。");
+            if(observation.Compressed)_protocolEvidence.Record("dav.gzip",ProtocolCapabilityStatus.Supported,collection);
             _protocolEvidence.Record("dav.report", ProtocolCapabilityStatus.Supported, collection);
             return new(entries,deleted,result.SyncToken,result.HasMore);
         }

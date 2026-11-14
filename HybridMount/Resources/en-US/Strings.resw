@@ -2619,4 +2619,5 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="TaskPermissionPending" xml:space="preserve"><value>Permission verification pending</value></data>
   <data name="TaskPermissionBlocked" xml:space="preserve"><value>Permission blocked</value></data>
   <data name="ProtocolPurposeAccess" xml:space="preserve"><value>Read effective privileges for the exact resource, independently of content versions and write preconditions.</value></data>
+  <data name="ProtocolPurposeMetadataCompression" xml:space="preserve"><value>Compress directory metadata only, with bounded streaming decompression. File bodies and ranges use the identity representation.</value></data>
 </root>

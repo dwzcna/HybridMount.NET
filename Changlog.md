@@ -1,5 +1,12 @@
 ﻿# HybridMount.NET 变更记录
 
+## 0.0.18.4 — 有界元数据gzip（2026-11-15）
+
+- 仅PROPFIND／REPORT协商gzip，SocketsHttpHandler自动解压保持关闭；手动流式展开最多64MiB，保留库16Mi字符、单资源／深度及DTD保护，不整份缓冲展开内容。
+- 完整EOF验证CRC及ISIZE并拒绝尾部截断／额外数据，坏编码不转为空目录或推进同步检查点。响应关闭或读取失败归还云请求额度；原元数据期限继续有效。
+- 文件GET／HEAD／Range仍为identity，PUT正文保持原字节；XML表示的摘要不作文件摘要。有效目录／REPORT解析后才发布gzip能力证据，三语言说明同步。
+- 真实本机HTTP、CRC／截断、展开上限、XML保护、检查点及网络额度验证记录见docs/Validation-0.0.18.4.md。
+
 ## 0.0.18.3 — 有效权限与上传预检（2026-11-15）
 
 - 显式请求RFC3744 current-user-privilege-set，Allowed／Denied／Unknown与内容版本独立；有效空集合拒绝，缺失／403／404／异常／未知扩展不推断授权。精确路径和当前连接有界缓存，60秒过期，重试失效、最终写前刷新。
