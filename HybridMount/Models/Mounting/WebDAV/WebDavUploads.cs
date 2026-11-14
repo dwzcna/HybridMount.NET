@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using HybridMount.Models.Mounting;
@@ -166,7 +166,7 @@ public sealed partial class WebDavFileSource
                     if(!string.Equals(actual,condition.BaselineSha256,StringComparison.OrdinalIgnoreCase))throw new SourceConflictException("远端内容已变化，保留两端文件，请处理冲突。");
                 }
             }
-            using var input=new UploadProgressStream(content,progress);
+            using var input=new UploadProgressStream(content,progress,includeSha512:true);
             using var request=new HttpRequestMessage(HttpMethod.Put,Address(path)){Content=new StreamContent(new BorrowedStream(input))};
             if(lease is null)Condition(request,condition.ExpectedVersion);else request.Headers.Add("If",lease.IfHeader);
             using var response=await SendAsync(request,lease?.Cancellation??token,true).ConfigureAwait(false);Success(response);
@@ -176,12 +176,14 @@ public sealed partial class WebDavFileSource
             {
                 var metadata=await GetMetadataAsync(path,lease?.Cancellation??token).ConfigureAwait(false);
                 verificationStage="type-length";if(metadata.IsDirectory||metadata.Size!=input.BytesRead)throw new IOException("上传后类型或长度不符。");
+                var representation=Version(metadata).Representation;
+                if(representation is not null&&!representation.Matches(digest,input.Digest512))throw new WebDavDigestException("上传后HEAD表示摘要与上传快照不符。");
                 if(weakUpdate&&lease is not null)lease.Cancellation.ThrowIfCancellationRequested();
                 if(Strong(receipt))
                 {
                     verificationStage="receipt-version";if(NormalizeTag(Version(metadata).ETag)!=receipt)throw new IOException("上传回执与当前远端版本不同。");
                 }
-                else if(!(weakUpdate&&lease is not null&&WriteCapabilities.ExclusiveLock==CapabilitySupport.Supported&&
+                else if(representation is null&&!(weakUpdate&&lease is not null&&WriteCapabilities.ExclusiveLock==CapabilitySupport.Supported&&
                     Strong(Version(metadata).ETag)))
                 {
                     verificationStage="readback";var readback=await ReadContentHashAsync(path,lease?.Token,lease?.Cancellation??token).ConfigureAwait(false);

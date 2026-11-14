@@ -9,6 +9,7 @@
     <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
   </PropertyGroup>
   <!-- 各集合共享本机CFAPI／物理缓存资源；限制集合级并行，单个用例内的1／4／128并发保持真实执行。 -->
+  <ItemGroup><Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavRepresentationDigest.cs" Link="Production\WebDavRepresentationDigest.cs"/><Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavDigestMetadata.cs" Link="Production\WebDavDigestMetadata.cs"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.RemovalBatch.cs" Link="Production\Services\Mounting\MountManager.RemovalBatch.cs"/>
     <Compile Include="..\HybridMount\Services\Mounting\MountManager.CachedRemoval.cs" Link="Production\Services\Mounting\MountManager.CachedRemoval.cs"/>

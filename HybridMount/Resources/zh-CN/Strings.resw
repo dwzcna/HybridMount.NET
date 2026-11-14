@@ -2613,4 +2613,5 @@ SHA-256：{5}</value></data>
   <data name="CertificateFetchSucceeded" xml:space="preserve"><value>已获取并填入证书指纹；尚未测试 WebDAV 连接。请检查下方证书信息，再使用原有保存或测试按钮。</value></data>
   <data name="CertificateFetchCanceled" xml:space="preserve"><value>获取已取消，原指纹输入保留。</value></data>
   <data name="CertificateFetchUnavailable" xml:space="preserve"><value>未取得服务器叶证书，原指纹输入保留。</value></data>
+  <data name="ProtocolPurposeRepresentationDigest" xml:space="preserve"><value>验证完整正文摘要，识别弱或缺失ETag文件的内容变化；不替代条件写保护。</value></data>
 </root>

@@ -2613,4 +2613,5 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="CertificateFetchSucceeded" xml:space="preserve"><value>Certificate fingerprint filled in. The WebDAV connection has not been tested. Review the details below, then use Save or Test connection.</value></data>
   <data name="CertificateFetchCanceled" xml:space="preserve"><value>Certificate fetching canceled. The existing fingerprint is unchanged.</value></data>
   <data name="CertificateFetchUnavailable" xml:space="preserve"><value>The server leaf certificate was not obtained. The existing fingerprint is unchanged.</value></data>
+  <data name="ProtocolPurposeRepresentationDigest" xml:space="preserve"><value>Verify full representation digests and detect content changes with weak or missing ETags; write preconditions remain required.</value></data>
 </root>

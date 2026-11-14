@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -26,11 +26,11 @@ public sealed partial class WebDavFileSource
         try
         {
             var left=JsonSerializer.Deserialize<VersionInfo>(expected);var right=JsonSerializer.Deserialize<VersionInfo>(observed);
-            return left is not null&&right is not null&&left.Size==right.Size&&left.ModifiedTicks==right.ModifiedTicks&&NormalizeTag(left.ETag)==NormalizeTag(right.ETag);
+            return left is not null&&right is not null&&left.Size==right.Size&&left.ModifiedTicks==right.ModifiedTicks&&NormalizeTag(left.ETag)==NormalizeTag(right.ETag)&&left.Representation==right.Representation;
         }
         catch(JsonException){return false;}
     }
-    public bool HasReliableVersion(SourceEntry entry)=>Strong(Version(entry).ETag);
+    public bool HasReliableVersion(SourceEntry entry)=>Strong(Version(entry).ETag)||Version(entry).Representation is not null;
     private static XElement? Property(DavResourceResponse resource,string name,bool report=false)
     {
         var values=resource.GetProperties(new("DAV:",name)).ToArray();
@@ -101,7 +101,7 @@ public sealed partial class WebDavFileSource
                 var modified=DateTimeOffset.TryParse(Property(resource,"getlastmodified",true)?.Value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)?date.ToUniversalTime():DateTimeOffset.UnixEpoch;
                 var tag=NormalizeTag(Property(resource,"getetag",true)?.Value);
                 if(path!=collection)
-                    entries.Add(ObserveMetadata(new("",path,directory,size,modified,JsonSerializer.Serialize(new VersionInfo(tag,size,modified.UtcTicks)))));
+                    entries.Add(await AttachDigestAsync(ObserveMetadata(new("",path,directory,size,modified,JsonSerializer.Serialize(new VersionInfo(tag,size,modified.UtcTicks)))),limit.Token).ConfigureAwait(false));
             }
             if(result.HasMore&&result.SyncToken==syncToken)throw new InvalidRemoteChangeResponseException("DAV 续批令牌未前进，拒绝无限循环。");
             if(string.IsNullOrWhiteSpace(result.SyncToken)||result.SyncToken.Length>65536)throw new InvalidRemoteChangeResponseException("DAV 同步响应缺少有效令牌。");

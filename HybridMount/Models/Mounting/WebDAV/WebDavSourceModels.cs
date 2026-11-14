@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -14,7 +14,7 @@ namespace HybridMount.Models.Mounting.WebDAV;
 /// <summary>协议内按职责拆分的 Models 实现；公开入口与版本字段保持兼容。</summary>
 public sealed partial class WebDavFileSource
 {
-    private sealed record VersionInfo(string? ETag, long Size, long ModifiedTicks, long Observation=0);
+    private sealed record VersionInfo(string? ETag, long Size, long ModifiedTicks, long Observation=0,WebDavRepresentationDigest? Representation=null);
     private static VersionInfo Version(SourceEntry entry) => JsonSerializer.Deserialize<VersionInfo>(entry.Version) ?? throw new IOException("DAV 版本标记无效。");
     /// <summary>空值保留为缺失；裸值不加引号、不获得强验证能力。</summary>
     private static string? NormalizeTag(string? value)
@@ -34,7 +34,7 @@ public sealed partial class WebDavFileSource
             var a = JsonSerializer.Deserialize<VersionInfo>(left);
             var b = JsonSerializer.Deserialize<VersionInfo>(right);
             return a is not null && b is not null && a.Size == b.Size && a.ModifiedTicks == b.ModifiedTicks && a.Observation==b.Observation &&
-                NormalizeTag(a.ETag) == NormalizeTag(b.ETag);
+                NormalizeTag(a.ETag) == NormalizeTag(b.ETag) && a.Representation==b.Representation;
         }
         catch (JsonException) { return false; }
     }

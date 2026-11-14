@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Helpers.IO;
@@ -11,16 +11,18 @@ internal sealed class UploadProgressStream : Stream
     private readonly IncrementalHash _hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     private readonly long _start;
     private long _bytes;
-    private string? _digest;
-    public UploadProgressStream(Stream inner, IProgress<UploadProgress>? progress)
-    { _inner=inner;_progress=progress;_start=inner.CanSeek?inner.Position:0; }
+    private string? _digest,_digest512;
+    private readonly IncrementalHash? _hash512;
+    public UploadProgressStream(Stream inner, IProgress<UploadProgress>? progress,bool includeSha512=false)
+    { _inner=inner;_progress=progress;_start=inner.CanSeek?inner.Position:0;if(includeSha512)_hash512=IncrementalHash.CreateHash(HashAlgorithmName.SHA512); }
     public long BytesRead=>_bytes;
     public string Digest => _digest ??= Convert.ToHexString(_hash.GetHashAndReset());
+    public string? Digest512=>_hash512 is null?null:_digest512??=Convert.ToHexString(_hash512.GetHashAndReset());
     private void Received(ReadOnlySpan<byte> bytes)
     {
         if(bytes.Length==0)return;
         if(_digest is not null)throw new IOException("摘要发布后不能继续读取上传流。");
-        _hash.AppendData(bytes);_bytes+=bytes.Length;_progress?.Report(new(_bytes,CanSeek?Length-_start:-1));
+        _hash.AppendData(bytes);_hash512?.AppendData(bytes);_bytes+=bytes.Length;_progress?.Report(new(_bytes,CanSeek?Length-_start:-1));
     }
     public override int Read(byte[] buffer,int offset,int count){var read=_inner.Read(buffer,offset,count);Received(buffer.AsSpan(offset,read));return read;}
     public override int Read(Span<byte> buffer){var read=_inner.Read(buffer);Received(buffer[..read]);return read;}
@@ -36,12 +38,12 @@ internal sealed class UploadProgressStream : Stream
     public override long Seek(long offset,SeekOrigin origin)
     {
         var position=_inner.Seek(offset,origin);
-        if(position==_start){_hash.GetHashAndReset();_bytes=0;_digest=null;}
+        if(position==_start){_hash.GetHashAndReset();_hash512?.GetHashAndReset();_bytes=0;_digest=null;_digest512=null;}
         else if(position!=_start+_bytes)throw new IOException("上传流只能顺序读取或重置到起点。");
         return position;
     }
     public override void Flush() { }
     public override void SetLength(long value)=>throw new NotSupportedException();
     public override void Write(byte[] buffer,int offset,int count)=>throw new NotSupportedException();
-    protected override void Dispose(bool disposing){if(disposing)_hash.Dispose();base.Dispose(disposing);}
+    protected override void Dispose(bool disposing){if(disposing){_hash.Dispose();_hash512?.Dispose();}base.Dispose(disposing);}
 }

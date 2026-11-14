@@ -1,4 +1,4 @@
-using System.Net.Security;
+﻿using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using HybridMount.Models.Mounting;
@@ -65,7 +65,7 @@ public sealed class SynologyWebDavHttpsTests
         await using var server=new TlsFixture(davResponses:true);
         var options=Options with{Endpoint=server.Address.AbsoluteUri,PinnedCertificateSha256=server.CertificatePin};
         var result=await new FileSourceFactory().TestConnectionAsync(options,new("test-user","test-password"));
-        Assert.True(result.Success,result.Message);Assert.Equal(new[]{"OPTIONS","PROPFIND"},server.Methods);
+        Assert.True(result.Success,result.Message);Assert.Equal(new[]{"PROPFIND","OPTIONS"},server.Methods);
         var count=server.Connections;
         await using(var source=new WebDavFileSource(options with{PinnedCertificateSha256=null},new(),new WholeFileCache("unused")))
         {

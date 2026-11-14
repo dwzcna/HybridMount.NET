@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -9,7 +9,7 @@ namespace HybridMount.Tests;
 internal sealed class HttpTestServer : IAsyncDisposable
 {
     internal sealed record Request(string Method, string Target, Dictionary<string,string> Headers, byte[] Body);
-    internal sealed record Response(int Status, byte[] Body, Dictionary<string,string>? Headers=null,Task? BeforeBody=null,TaskCompletionSource? HeadersSent=null)
+    internal sealed record Response(int Status, byte[] Body, Dictionary<string,string>? Headers=null,Task? BeforeBody=null,TaskCompletionSource? HeadersSent=null,Dictionary<string,string>? Trailers=null)
     {
         public static Response Text(int status,string body,Dictionary<string,string>? headers=null)=>new(status,Encoding.UTF8.GetBytes(body),headers);
     }
@@ -56,12 +56,23 @@ internal sealed class HttpTestServer : IAsyncDisposable
             var request=new Request(first[0],first[1],headers,body);Requests.Enqueue(request);
             var response=await Handler(request);
             var fields=response.Headers is null?new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase):new(response.Headers,StringComparer.OrdinalIgnoreCase);
-            fields.TryAdd("Content-Length",response.Body.Length.ToString());fields["Connection"]="close";
+            if(response.Trailers is null)fields.TryAdd("Content-Length",response.Body.Length.ToString());
+            else{fields.Remove("Content-Length");fields["Transfer-Encoding"]="chunked";fields["Trailer"]=string.Join(",",response.Trailers.Keys);}
+            fields["Connection"]="close";
             var head=$"HTTP/1.1 {response.Status} Result\r\n"+string.Join("",fields.Select(pair=>$"{pair.Key}: {pair.Value}\r\n"))+"\r\n";
             await stream.WriteAsync(Encoding.ASCII.GetBytes(head),_stop.Token);
             response.HeadersSent?.TrySetResult();
             if(response.BeforeBody is not null)await response.BeforeBody.WaitAsync(_stop.Token);
-            if(request.Method!="HEAD")await stream.WriteAsync(response.Body,_stop.Token);
+            if(request.Method!="HEAD")
+            {
+                if(response.Trailers is null)await stream.WriteAsync(response.Body,_stop.Token);
+                else
+                {
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes(response.Body.Length.ToString("X")+"\r\n"),_stop.Token);
+                    await stream.WriteAsync(response.Body,_stop.Token);
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes("\r\n0\r\n"+string.Join("",response.Trailers.Select(pair=>pair.Key+": "+pair.Value+"\r\n"))+"\r\n"),_stop.Token);
+                }
+            }
         }
         catch(Exception error)when(error is IOException or OperationCanceledException or SocketException){}
     }

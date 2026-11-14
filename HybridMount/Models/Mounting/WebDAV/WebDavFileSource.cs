@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -179,24 +179,29 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
                     response = owned = await SendAsync(request, cancel).ConfigureAwait(false);
                 }
                 Success(response); MatchResponse(entry, response);
-                if (response.StatusCode != HttpStatusCode.OK || response.Content.Headers.ContentLength != entry.Size) throw new IOException("整文件响应状态或长度不一致。");
+                if(Version(entry).Representation is {} bound&&bound.EffectiveUri!=(response.RequestMessage?.RequestUri??Address(entry.Path)).AbsoluteUri)
+                    throw new SourceConflictException("WebDAV正文有效URI与HEAD表示摘要范围不同。");
+                if (response.StatusCode != HttpStatusCode.OK || response.Content.Headers.ContentLength is {} advertisedLength && advertisedLength != entry.Size) throw new IOException("整文件响应状态或长度不一致。");
                 await using var stream = await response.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
                 var bytes = new byte[65536]; long remaining = entry.Size;
                 using var baselineHash=System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                using var secondaryHash=System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA512);
                 while (remaining > 0)
                 {
                     var read = await stream.ReadAsync(bytes.AsMemory(0, (int)Math.Min(bytes.Length, remaining)), cancel).ConfigureAwait(false);
                     if (read == 0) throw new EndOfStreamException();
-                    received+=read;baselineHash.AppendData(bytes,0,read);await output.WriteAsync(bytes.AsMemory(0, read), cancel).ConfigureAwait(false); remaining -= read;
+                    received+=read;baselineHash.AppendData(bytes,0,read);secondaryHash.AppendData(bytes,0,read);await output.WriteAsync(bytes.AsMemory(0, read), cancel).ConfigureAwait(false); remaining -= read;
                 }
                 if (await stream.ReadAsync(new byte[1], cancel).ConfigureAwait(false) != 0) throw new IOException("整文件响应过长。");
+                var sha256=Convert.ToHexString(baselineHash.GetHashAndReset());var sha512=Convert.ToHexString(secondaryHash.GetHashAndReset());
+                if(Version(entry).Representation is {} expected&&!expected.Matches(sha256,sha512))throw new WebDavDigestException("WebDAV正文与HEAD表示摘要不符，未提交缓存。");
                 if (!Strong(Version(entry).ETag))
                 {
                     var after = await GetMetadataAsync(entry.Path, cancel).ConfigureAwait(false);
                     if (!IsSameVersion(entry.Version, after.Version))
                         throw new SourceConflictException("整文件快照下载期间远端元数据变化，请刷新后重试。");
                 }
-                try{ContentBaseline?.Invoke(new(entry.Path,entry.Version,Convert.ToHexString(baselineHash.GetHashAndReset())));}catch{ /* 基线通知不改变读取结果。 */ }
+                try{ContentBaseline?.Invoke(new(entry.Path,entry.Version,sha256));}catch{ /* 基线通知不改变读取结果。 */ }
                 Capabilities = Capabilities with { RangeRead = CapabilitySupport.Unsupported };
                 _protocolEvidence.Record("dav.get", ProtocolCapabilityStatus.Supported, entry.Path);
                 completed=true;

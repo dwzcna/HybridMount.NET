@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using HybridMount.Models.Mounting;
 using WebDAVClient;
 using WebDAVClient.Model;
@@ -49,7 +49,7 @@ public sealed partial class WebDavFileSource
         while(queue.Count>0)
         {
             token.ThrowIfCancellationRequested();var parent=queue.Dequeue();
-            var entries=await PropFindAsync(parent,1,token).ConfigureAwait(false);
+            var entries=await PropFindRawAsync(parent,1,token).ConfigureAwait(false);
             if(entries.Count(x=>x.Path==parent&&x.IsDirectory)!=1)throw new IOException("容量统计目录响应不完整。");
             foreach(var entry in entries)
             {

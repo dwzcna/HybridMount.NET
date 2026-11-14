@@ -118,7 +118,7 @@ public sealed partial class WebDavFileSource
         if (parts.Any(part => part.Contains('/') || part.Contains('\\'))) throw new IOException("WebDAV href 含编码分隔符。");
         return RelativePaths.Normalize(string.Join('/', parts));
     }
-    private async Task<IReadOnlyList<SourceEntry>> PropFindAsync(string path, int depth, CancellationToken token, bool allowMissing=false)
+    private async Task<IReadOnlyList<SourceEntry>> PropFindRawAsync(string path, int depth, CancellationToken token, bool allowMissing=false)
     {
         // 文件元数据使用原始资源 URI；尾斜杠只用于深度 1 的集合枚举。
         path = RelativePaths.Normalize(path); var uri = Address(path, depth != 0);
@@ -179,7 +179,7 @@ public sealed partial class WebDavFileSource
                 response.Content.Headers.LastModified is { } modified && modified.UtcTicks != version.ModifiedTicks)
                 throw new SourceConflictException("读取响应时间与枚举快照不匹配。");
         }
-        if (response.Content.Headers.ContentEncoding.Count != 0) throw new IOException("读取响应采用内容编码，拒绝混淆范围。");
+        if (response.Content.Headers.ContentEncoding.Any(value=>!value.Equals("identity",StringComparison.OrdinalIgnoreCase))) throw new IOException("读取响应采用内容编码，拒绝混淆范围。");
     }
 
 }
