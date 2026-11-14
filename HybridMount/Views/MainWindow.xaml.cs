@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
 {
     private bool _indexWarningDismissed;
     private IDisposable? _localization;private LanguageWindowObserver? _languageWindow;
+    private WindowMinimumSize? _minimumSize;
     private readonly NavigationService _navigation;
     public MainWindowViewModel ViewModel {get;}
     private AppearanceBackdrop? _appliedBackdrop;
@@ -31,6 +32,7 @@ public sealed partial class MainWindow : Window
         ViewModel.Navigated+=SynchronizeSelection;ViewModel.NoticesChanged+=RefreshUploadIssueNotifications;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        _minimumSize = new WindowMinimumSize(this, RootGrid);
         AppWindow.Resize(new SizeInt32(1080, 760));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "HybridMount.ico"));
         AppTitleBar.PaneToggleRequested += (_, _) => Navigation.IsPaneOpen = !Navigation.IsPaneOpen;
@@ -197,7 +199,7 @@ public sealed partial class MainWindow : Window
     public void StopPages()=>_navigation.StopPages();
     public async Task ReleaseResourcesAsync()
     {
-        if(_released)return;foreach(var registration in _pageMessages.ToArray())registration.Dispose();_released=true;NotificationBar.Closed-=MainNotificationClosed;_localization?.Dispose();_localization=null;_languageWindow?.Dispose();_languageWindow=null;App.Current.Preferences.LayoutChanged-=ApplyDensity;
+        if(_released)return;foreach(var registration in _pageMessages.ToArray())registration.Dispose();_released=true;NotificationBar.Closed-=MainNotificationClosed;_localization?.Dispose();_localization=null;_languageWindow?.Dispose();_languageWindow=null;_minimumSize?.Dispose();_minimumSize=null;App.Current.Preferences.LayoutChanged-=ApplyDensity;
         if(_themeSettings is {} settings)
         {
             _themeSettings=null;

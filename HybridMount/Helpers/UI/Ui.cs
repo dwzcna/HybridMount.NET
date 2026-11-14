@@ -51,7 +51,17 @@ public static class Ui
     public static void Set(DependencyObject target,string property,string text)=>For(target).SetMessage(property,UiText.Describe(text));
     public static void Set(DependencyObject target,string property,ResourceMessage message)=>For(target).SetMessage(property,message);
     public static void TrackDialog(ContentDialog dialog)=>Watch(dialog,"Title","PrimaryButtonText","SecondaryButtonText","CloseButtonText");
-    public static global::Windows.Foundation.IAsyncOperation<ContentDialogResult> ShowAsync(ContentDialog dialog){TrackDialog(dialog);return dialog.ShowAsync();}
+    /// <summary>所有应用弹窗共用尺寸约束；显示失败、关闭或取消后都解除窗口尺寸订阅。</summary>
+    public static async Task<ContentDialogResult> ShowAsync(ContentDialog dialog)
+    {
+        TrackDialog(dialog);
+        try
+        {
+            DialogLayout.Prepare(dialog);
+            return await dialog.ShowAsync();
+        }
+        finally { DialogLayout.Release(dialog); }
+    }
     /// <summary>仅重读已有x:Bind，切换前后保持现有滚动位置；返回句柄可与页面生命周期一起释放。</summary>
     public static IDisposable ObserveLanguage(FrameworkElement target,Action update){var state=For(target);state.Callback=update;return state;}
     private static object? Read(DependencyObject target,string property)=>property switch

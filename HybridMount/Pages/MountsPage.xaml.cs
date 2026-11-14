@@ -72,7 +72,7 @@ public sealed partial class MountsPage : Page,IDisposable
         try
         {
             _diagnosticDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.Services.Localization.UiText.Text("Text_57E4A215300D",mount.Definition.Name),CloseButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_3FD47EDCE45B"),
-                Content=new ScrollViewer{Content=text,MinWidth=340,MaxWidth=640,MaxHeight=520,HorizontalScrollMode=ScrollMode.Disabled,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled}};
+                Content=new ScrollViewer{Content=text,MaxHeight=520,HorizontalScrollMode=ScrollMode.Disabled,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled}};
             await global::HybridMount.Helpers.UI.Ui.ShowAsync(_diagnosticDialog);
         }
         finally{_diagnosticDialog=null;}
@@ -127,7 +127,7 @@ public sealed partial class MountsPage : Page,IDisposable
     private async void RecoverOrphanedMounts(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {
         using var cancel=new CancellationTokenSource();_recoveryCancel=cancel;
-        var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,ItemTemplate=(DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.Helpers.UI\"><TextBlock loc:Ui.Source=\"{Binding}\" loc:Ui.Path=\"Display\" TextWrapping=\"Wrap\"/></DataTemplate>"),SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MinWidth=360,MaxWidth=620,MaxHeight=320};
+        var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,ItemTemplate=(DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.Helpers.UI\"><TextBlock loc:Ui.Source=\"{Binding}\" loc:Ui.Path=\"Display\" TextWrapping=\"Wrap\"/></DataTemplate>"),SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MaxHeight=320};
         var feedback=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
         var count=new TextBlock();var choose=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_9D163C698599")));
         var selectAll=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_BE146CE5330F")));var clearAll=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_F4D4BAE588C4")));
@@ -186,17 +186,17 @@ public sealed partial class MountsPage : Page,IDisposable
             var captured=HybridMount.Models.Mounting.Recovery.OrphanedMountBatch.Capture(list.SelectedItems.OfType<OrphanedMountCandidate>());
             var details=string.Join("\n\n",captured.Select(root=>root.LocalPath+"\n"+RecoveryActionDescription(root)));
             if(captured.Any(x=>!x.ShellOnly))details+=global::HybridMount.Services.Localization.UiText.Text("Text_03790D861CB9");
-            var confirmation=new TextBlock{Text=details,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MaxWidth=620};
+            var confirmation=new TextBlock{Text=details,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
             _recoveryDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.Services.Localization.UiText.Text("Text_776A4AD39EDC",captured.Length),Content=new ScrollViewer{Content=confirmation,MaxHeight=420},PrimaryButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_C05166172020"),CloseButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_2CD0F3BE8738"),DefaultButton=ContentDialogButton.Close};
             if(await global::HybridMount.Helpers.UI.Ui.ShowAsync(_recoveryDialog)!=ContentDialogResult.Primary||ViewModel.IsStopping)return;
-            var progress=global::HybridMount.Helpers.UI.Ui.Configure(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MaxWidth=620},("Text",global::HybridMount.Services.Localization.UiText.Message("Text_357694508CEF")));
+            var progress=global::HybridMount.Helpers.UI.Ui.Configure(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},("Text",global::HybridMount.Services.Localization.UiText.Message("Text_357694508CEF")));
             _recoveryDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.Services.Localization.UiText.Text("Text_0D2F94A171FB"),Content=new ScrollViewer{Content=progress,MaxHeight=420},CloseButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_2CD0F3BE8738"),DefaultButton=ContentDialogButton.Close};
             var working=true;long lastProgress=0;
             void CancelClicked(ContentDialog _,ContentDialogButtonClickEventArgs click)
             {if(working){click.Cancel=true;cancel.Cancel();if(_recoveryDialog is {} dialog)global::HybridMount.Helpers.UI.Ui.Set(dialog,"CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_E8E08B0F61DD"));}}
             void ProgressClosing(ContentDialog _,ContentDialogClosingEventArgs closing)
             {if(working&&!_disposed&&!ViewModel.IsStopping){closing.Cancel=true;cancel.Cancel();if(_recoveryDialog is {} dialog)global::HybridMount.Helpers.UI.Ui.Set(dialog,"CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_E8E08B0F61DD"));}}
-            _recoveryDialog.Closing+=ProgressClosing;_recoveryDialog.CloseButtonClick+=CancelClicked;var shown=global::HybridMount.Helpers.UI.Ui.ShowAsync(_recoveryDialog).AsTask();
+            _recoveryDialog.Closing+=ProgressClosing;_recoveryDialog.CloseButtonClick+=CancelClicked;var shown=global::HybridMount.Helpers.UI.Ui.ShowAsync(_recoveryDialog);
             try
             {
                 var result=await ViewModel.ClearRecoveryRootsAsync(captured,cancel.Token,line=>

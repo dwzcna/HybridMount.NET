@@ -44,11 +44,11 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
                 return;
             }
             if(_disposed||App.Current.IsExiting)return;
-            var content=new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true,MaxWidth=560};
+            var content=new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
             global::HybridMount.Helpers.UI.Ui.Bind(content,"Text",()=>global::HybridMount.Services.Localization.UiText.Message("Text_373F72608CC3",plan.Scope.Mode,plan.Scope.RegistryPath,string.Join("\n",plan.Scope.Directories)));
             var dialog=global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=420,Content=content},DefaultButton=ContentDialogButton.Close},
                 ("Title",global::HybridMount.Services.Localization.UiText.Message("Text_0A1224F36CA9")),("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_5F19F9B45A5E")),("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
-            _resetDialog=dialog;var answer=await dialog.ShowAsync();_resetDialog=null;
+            _resetDialog=dialog;var answer=await Ui.ShowAsync(dialog);_resetDialog=null;
             cancel.Token.ThrowIfCancellationRequested();if(answer!=ContentDialogResult.Primary||_disposed||App.Current.IsExiting){ViewModel.ResetMessage.IsOpen=false;return;}
             ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("Text_A963767D29BA"));
             await App.Current.ResetSettingsAndExitAsync(plan,cancel.Token);

@@ -22,7 +22,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
         var list = new ListView
         {
             ItemsSource = rows, SelectionMode = ListViewSelectionMode.Multiple, IsMultiSelectCheckBoxEnabled = true,
-            MinWidth = 360, MaxWidth = 650, MaxHeight = 330,
+            MaxHeight = 330,
             ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
                 "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.Helpers.UI\"><TextBlock loc:Ui.Source=\"{Binding}\" loc:Ui.Path=\"Display\" TextWrapping=\"Wrap\" IsTextSelectionEnabled=\"True\"/></DataTemplate>")
         };
@@ -32,7 +32,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
         var selectAll = Command("Text_BE146CE5330F"); var clearAll = Command("Text_F4D4BAE588C4");
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         commands.Children.Add(selectAll); commands.Children.Add(clearAll);
-        var panel = new StackPanel { Spacing = 12, MaxWidth = 650 };
+        var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(Ui.Configure(new TextBlock { TextWrapping = TextWrapping.Wrap }, ("Text", UiText.Message("ExplorerEntryExplanation"))));
         panel.Children.Add(commands); panel.Children.Add(count); panel.Children.Add(list); panel.Children.Add(feedback);
         var dialog = Ui.Watch(new ContentDialog
@@ -88,7 +88,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
         dialog.SecondaryButtonClick += Reload; dialog.Closing += Closing;
         try
         {
-            var shown = Ui.ShowAsync(dialog).AsTask();
+            var shown = Ui.ShowAsync(dialog);
             await ReloadAsync();
             var result = await shown;
             active = false;
@@ -99,7 +99,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
             _recoveryDialog = Ui.Watch(new ContentDialog
             {
                 XamlRoot = XamlRoot, Title = UiText.Text("ExplorerEntryTitle"), DefaultButton = ContentDialogButton.Close,
-                Content = new ScrollViewer { MaxHeight = 420, Content = new TextBlock { Text = details, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true, MaxWidth = 650 } },
+                Content = new ScrollViewer { MaxHeight = 420, Content = new TextBlock { Text = details, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } },
                 PrimaryButtonText = UiText.Text("ExplorerEntryRemove"), CloseButtonText = UiText.Text("Text_2CD0F3BE8738")
             }, "Title", "PrimaryButtonText", "CloseButtonText");
             if (await Ui.ShowAsync(_recoveryDialog) != ContentDialogResult.Primary || _disposed || stopping()) return;
@@ -118,7 +118,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
     /// <summary>取消只阻止后续入口；当前入口等待注册写入与结果持久化完成，不提前报告成功。</summary>
     private async Task RemoveExplorerEntriesAsync(ExplorerEntryCandidate[] captured, CancellationTokenSource cancel)
     {
-        var text = new TextBlock { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true, MaxWidth = 650 };
+        var text = new TextBlock { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
         var dialog = Ui.Watch(new ContentDialog
         {
             XamlRoot = XamlRoot, Title = UiText.Text("ExplorerEntryTitle"),
@@ -131,7 +131,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
             args.Cancel = true; cancel.Cancel(); Ui.Set(dialog, "CloseButtonText", UiText.Message("Text_E8E08B0F61DD"));
         }
         dialog.Closing += Closing;
-        var shown = Ui.ShowAsync(dialog).AsTask();
+        var shown = Ui.ShowAsync(dialog);
         try
         {
             var results = await App.Current.RemoveExplorerEntriesAsync(captured, cancel.Token, (index, total, name) =>

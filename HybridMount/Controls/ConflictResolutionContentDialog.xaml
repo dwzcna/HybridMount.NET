@@ -3,9 +3,8 @@
     Title="{x:Bind ViewModel.ConflictTitle,Mode=OneWay}" DefaultButton="Close"
     IsPrimaryButtonEnabled="{x:Bind ViewModel.CanResolveWithLocal,Mode=OneWay}" IsSecondaryButtonEnabled="{x:Bind ViewModel.CanResolveWithRemote,Mode=OneWay}"
     PrimaryButtonClick="UseLocal" SecondaryButtonClick="UseRemote" x:Uid="/Strings/ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogContentDialogUseLocalToReplaceRemote">
-    <ContentDialog.Resources><x:Double x:Key="ContentDialogMaxWidth">820</x:Double></ContentDialog.Resources>
-    <ScrollViewer MaxHeight="520" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Spacing="14" MinWidth="440" MaxWidth="720">
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="14">
             <Grid ColumnSpacing="20">
                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                 <StackPanel Spacing="8"><TextBlock FontWeight="SemiBold" x:Uid="/Strings/ConflictResolutionContentDialogTextBlockCurrentLocalVersion" loc:Ui.ResourceId="/Strings/ConflictResolutionContentDialogTextBlockCurrentLocalVersion"/><TextBlock Text="{x:Bind ViewModel.ConflictLocalText,Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/></StackPanel>

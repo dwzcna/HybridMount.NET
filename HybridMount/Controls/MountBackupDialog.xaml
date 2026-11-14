@@ -2,7 +2,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:HybridMount.ViewModels"
     DefaultButton="Primary" Loaded="OnLoaded" PrimaryButtonClick="Submit" Closing="OnClosing" Closed="OnClosed" x:Uid="/Strings/MountBackupDialogContentDialogExportConfiguration" loc:Ui.ResourceId="/Strings/MountBackupDialogContentDialogExportConfiguration">
-    <Grid MinWidth="480" MaxHeight="660">
+    <Grid>
         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <UserControl x:Name="Form"><Grid>
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>

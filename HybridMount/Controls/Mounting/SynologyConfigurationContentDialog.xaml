@@ -1,7 +1,7 @@
 <ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.Mounting.SynologyConfigurationContentDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.Helpers.UI" xmlns:controls="using:HybridMount.Controls">
-    <Grid MinWidth="360" MaxWidth="520" MaxHeight="640"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="12">
                 <TextBlock TextWrapping="Wrap" x:Uid="/Strings/SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd" loc:Ui.ResourceId="/Strings/SynologyConfigurationContentDialogTextBlockThisReleaseSupportsReadingCreatingAnd"/>
