@@ -75,6 +75,17 @@
                     <SolidColorBrush x:Key="MountIssueBadgeBackgroundBrush" Color="{ThemeResource SystemColorHighlightColor}"/><SolidColorBrush x:Key="MountIssueBadgeForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+    <!-- 仅协议表单显式引用，沿用系统Expander模板并把宽度传入内容Presenter。 -->
+    <Style x:Key="ProtocolExpanderStyle" TargetType="Expander">
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="16"/>
+    </Style>
+    <Style x:Key="ProtocolFieldsStyle" TargetType="UserControl">
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
     <!-- 协议弹窗局部操作使用与原生次按钮相同的默认模板，保留主题和全部交互状态。 -->
     <Style x:Key="ProtocolSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"/>
             <!-- 主窗口与页面即时提醒共用原生可关闭InfoBar；宽度受可用窗口约束，正文由原生模板换行。 -->

@@ -46,7 +46,11 @@ public sealed class ProtocolCapabilitiesView : UserControl
             Grid.SetColumn(_probeWarning, narrow ? 0 : 1); Grid.SetRow(_probeWarning, narrow ? 1 : 0);
             Grid.SetColumnSpan(_probeWarning, narrow ? 2 : 1);
         };
-        Loaded += (_, _) => _probeButton.Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"];
+        Loaded += (_, _) =>
+        {
+            _probeButton.Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"];
+            _expander.Style = (Style)Application.Current.Resources["ProtocolExpanderStyle"];
+        };
         panel.Children.Add(_probeActions); panel.Children.Add(_probeProgress); panel.Children.Add(_cleanupRows); Content = panel;
         Ui.ObserveLanguage(this, Render);
         Render();
