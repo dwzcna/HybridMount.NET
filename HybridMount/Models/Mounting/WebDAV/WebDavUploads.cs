@@ -139,6 +139,7 @@ public sealed partial class WebDavFileSource
         IProgress<UploadProgress>? progress=null,CancellationToken token=default)
     {
         path=NonRoot(path);
+        await using var replay=await WebDavUploadReplay.OpenAsync(content,_cache.StorageDirectory,token).ConfigureAwait(false);content=replay.Content;
         var strong=condition.ExpectedVersion is not null&&Strong(System.Text.Json.JsonSerializer.Deserialize<VersionInfo>(condition.ExpectedVersion)?.ETag);
         if(condition.ExpectedVersion is not null&&!strong&&string.IsNullOrEmpty(condition.BaselineSha256))
             throw new SourceConflictException("缺少原始远端内容基线，已保留本地修改；请另存副本。");

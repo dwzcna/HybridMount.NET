@@ -2620,4 +2620,6 @@ SHA-256：{5}</value></data>
   <data name="TaskPermissionBlocked" xml:space="preserve"><value>權限阻止</value></data>
   <data name="ProtocolPurposeAccess" xml:space="preserve"><value>唯讀查詢精確資源的有效權限；權限結論與正文版本及條件寫入能力獨立。</value></data>
   <data name="ProtocolPurposeMetadataCompression" xml:space="preserve"><value>只壓縮目錄中繼資料，串流解壓並限制展開大小；檔案正文與範圍讀取保持identity表示。</value></data>
+  <data name="ProtocolPurposeRedirect" xml:space="preserve"><value>僅跟隨同源、設定根內的301／308；保留方法、正文和保護條件，最多五跳。</value></data>
+  <data name="WebDavRedirectDiagnostic" xml:space="preserve"><value>重新導向（{0}，{1}跳）：{2} → {3}</value></data>
 </root>

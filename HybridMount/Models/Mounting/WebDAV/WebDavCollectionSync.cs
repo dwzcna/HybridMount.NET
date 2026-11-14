@@ -56,7 +56,7 @@ public sealed partial class WebDavFileSource
             var result=await _dav.PropFindAsync(LibraryPath(Address(collection,true)),new PropFindOptions{Depth=DavDepth.Zero,Selection=DavPropertySelection.Selected,
                 Properties=[new("DAV:","supported-report-set"),new("DAV:","sync-token")]},limit.Token).ConfigureAwait(false);
             CheckSyncResponse(result);
-            if(result.Resources.Count!=1||HrefPath(result.Resources[0].Hrefs.Single(),Address(collection,true))!=collection)throw new IOException("DAV 集合发现响应不完整。");
+            if(result.Resources.Count!=1||MapHref(result.Resources[0].Hrefs.Single(),Address(collection,true),result.EffectiveUri)!=collection)throw new IOException("DAV 集合发现响应不完整。");
             var resource=result.Resources[0];
             if(resource.StatusCode is not null and not 200)throw new RemoteSyncException(resource.StatusCode.Value);
             var reports=Property(resource,"supported-report-set");var value=Property(resource,"sync-token")?.Value;
@@ -85,7 +85,7 @@ public sealed partial class WebDavFileSource
             {
                 if(resource.Hrefs.Count!=1||resource.Hrefs.Any(x=>x.StartsWith("//",StringComparison.Ordinal)))throw new InvalidRemoteChangeResponseException("DAV 同步 href 数量无效或包含双斜杠地址。");
                 string path;
-                try{path=HrefPath(resource.Hrefs.Single(),Address(collection,true));}
+                try{path=MapHref(resource.Hrefs.Single(),Address(collection,true),result.Response.EffectiveUri);}
                 catch(Exception error)when(error is IOException or ArgumentException or UriFormatException)
                 {throw new InvalidRemoteChangeResponseException("DAV 同步 href 无效或越过配置根，未跟随该地址。",error);}
                 if(!seen.Add(path)||path!=collection&&RelativePaths.Parent(path)!=collection)throw new InvalidRemoteChangeResponseException("DAV 同步响应包含越界或重复路径。");

@@ -71,75 +71,89 @@ public sealed partial class WebDavFileSource
             }
             if(request.Method.Method is "PROPFIND" or "REPORT")
             {request.Headers.Remove("Accept-Encoding");request.Headers.TryAddWithoutValidation("Accept-Encoding","gzip");}
-            var observation=owner._wire.Value;
             var readOnly=request.Method.Method is "OPTIONS" or "HEAD" or "GET" or "PROPFIND" or "REPORT";
-            // 显式零长度正文避免HTTP/1.1把无正文MOVE／DELETE在零响应时当作可重放请求；结果交给上层只读核对。
-            if(request.Method.Method is "DELETE" or "MOVE")
-            {request.Content??=new ByteArrayContent([]);request.Headers.ExpectContinue=false;}
-            byte[]? content=null;
-            var retryableBody=request.Content is null||request.Content.Headers.ContentLength is >=0 and <=65536;
-            if(readOnly&&request.Content is not null&&retryableBody)content=await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
-            var attempts=readOnly&&retryableBody&&!owner._strictRead.Value?3:1;
-            for(var index=0;index<attempts;index++)
+            // 未知DAV修改方法也必须有明确正文，阻止底层把零响应的无正文请求当作可自动重发。
+            if(!readOnly){request.Content??=new ByteArrayContent([]);request.Headers.ExpectContinue=false;}
+            var observation=owner._wire.Value;
+            var attempts=readOnly&&!owner._strictRead.Value?3:1;var attempt=0;var hops=0;
+            var visited=new HashSet<string>(StringComparer.Ordinal){request.RequestUri.AbsoluteUri};
+            await using var replay=await WebDavRequestReplay.CreateAsync(request,token).ConfigureAwait(false);
+            var current=replay.Request(request.RequestUri);
+            try
             {
-                if(token.IsCancellationRequested)return null;
-                using var clone=index==0?null:Clone(request,content);
-                var current=clone??request;var network=new NetworkAttempt();current.Options.Set(NetworkAttemptKey,network);
-                if(owner._probing.Value)Volatile.Write(ref owner._lastProbeAttempt,network);
-                var networkBegan=System.Diagnostics.Stopwatch.GetTimestamp();
-                if(observation is not null)observation.Sent=true;
-                try
+                while(true)
                 {
-                    var result=await MountingHttpScheduler.SendAsync(owner._queueBinding,readOnly?MountingPriority.Observation:MountingPriority.Transaction,async cancel=>
+                    if(token.IsCancellationRequested)return null;
+                    if(current.Headers.TryGetValues("Destination",out var targets))
+                    {var values=targets.ToArray();if(values.Length==1)WebDavRedirectPolicy.ValidateReference(values[0]);if(values.Length!=1||!Uri.TryCreate(values[0],UriKind.Absolute,out var target))throw WebDavRedirectPolicy.Rejected();WebDavRedirectPolicy.ValidateTarget(owner._endpoint,target);}
+                    var network=new NetworkAttempt();current.Options.Set(NetworkAttemptKey,network);
+                    if(owner._probing.Value)Volatile.Write(ref owner._lastProbeAttempt,network);
+                    var began=System.Diagnostics.Stopwatch.GetTimestamp();if(observation is not null)observation.Sent=true;
+                    HttpResponseMessage? owned=null;
+                    try
                     {
-                        var previous=owner._networkAttempt.Value;owner._networkAttempt.Value=network;
-                        try{return await base.SendAsync(current,cancel).ConfigureAwait(false);}
-                        finally{owner._networkAttempt.Value=previous;}
-                    },token).ConfigureAwait(false);
-                    if(current.Method.Method is "PROPFIND" or "REPORT"&&result.Content.Headers.ContentEncoding.Any(value=>!value.Equals("identity",StringComparison.OrdinalIgnoreCase)))
-                    {
-                        try{result.Content=new WebDavMetadataContent(result.Content);if(observation is not null)observation.Compressed=true;}
-                        catch{result.Dispose();throw;}
+                        var result=owned=await MountingHttpScheduler.SendAsync(owner._queueBinding,readOnly?MountingPriority.Observation:MountingPriority.Transaction,async cancel=>
+                        {
+                            var previous=owner._networkAttempt.Value;owner._networkAttempt.Value=network;
+                            try{return await base.SendAsync(current,cancel).ConfigureAwait(false);}
+                            finally{owner._networkAttempt.Value=previous;}
+                        },token).ConfigureAwait(false);
+                        result.RequestMessage??=current;
+                        network.Trace.Record("HTTP","Response",began,httpStatus:(int)result.StatusCode);
+                        if(result.StatusCode is HttpStatusCode.MovedPermanently or HttpStatusCode.PermanentRedirect)
+                        {
+                            HttpRequestMessage? following=null;
+                            try
+                            {
+                                var target=WebDavRedirectPolicy.Follow(owner._endpoint,current.RequestUri!,result.Headers.TryGetValues("Location",out var locations)?locations:[],visited,hops);
+                                following=replay.Request(target,current);
+                            }
+                            catch{following?.Dispose();throw;}
+                            finally{result.Dispose();owned=null;}
+                            current.Dispose();await replay.DrainAsync().ConfigureAwait(false);current=following;hops++;continue;
+                        }
+                        if(current.Method.Method is "PROPFIND" or "REPORT"&&result.Content.Headers.ContentEncoding.Any(value=>!value.Equals("identity",StringComparison.OrdinalIgnoreCase)))
+                        {
+                            try{result.Content=new WebDavMetadataContent(result.Content);if(observation is not null)observation.Compressed=true;}
+                            catch{result.Dispose();throw;}
+                        }
+                        if(current.Method==HttpMethod.Get&&result.StatusCode==HttpStatusCode.OK)
+                        {
+                            try{result.Content=new WebDavDigestContent(result,current.RequestUri!);}
+                            catch{result.Dispose();throw;}
+                        }
+                        if(observation is not null)
+                        {
+                            observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);
+                            observation.Identity=result.Content.Headers.ContentEncoding.All(value=>value.Equals("identity",StringComparison.OrdinalIgnoreCase));
+                        }
+                        if(hops>0&&result.IsSuccessStatusCode)
+                        {
+                            Volatile.Write(ref owner._lastRedirect,new(request.RequestUri,current.RequestUri!,request.Method.Method,hops));
+                            owner._protocolEvidence.Record("dav.redirect",ProtocolCapabilityStatus.Supported,owner.HrefPath(request.RequestUri.AbsoluteUri,owner._endpoint));
+                        }
+                        owner.ObserveCapabilityHeaders(request,result);if(request.Method==HttpMethod.Options)owner.CaptureOptions(result);
+                        owned=null;return result;
                     }
-                    if(current.Method==HttpMethod.Get&&result.StatusCode==HttpStatusCode.OK)
+                    catch(WebDavRedirectException){throw;}
+                    catch(WebDavMetadataEncodingException){throw;}
+                    catch(WebDavDigestException){throw;}
+                    catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
                     {
-                        try{result.Content=new WebDavDigestContent(result,current.RequestUri!);}
-                        catch{result.Dispose();throw;}
+                        if(error is OperationCanceledException&&token.IsCancellationRequested&&network.Certificate==System.Net.Security.SslPolicyErrors.None)return null;
+                        var failure=error as SourceConnectionException??owner.NetworkFailure(error,request.Method.Method+" 响应头／连接",network,error is OperationCanceledException,attempt+1);
+                        if(!failure.Diagnostic.Transient||failure.Diagnostic.Kind==ConnectionFailureKind.Certificate||++attempt>=attempts)throw failure;
                     }
-                    network.Trace.Record("HTTP","Response",networkBegan,httpStatus:(int)result.StatusCode);
-                    if(observation is not null){observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);observation.Identity=result.Content.Headers.ContentEncoding.All(x=>x.Equals("identity",StringComparison.OrdinalIgnoreCase));}
-                    owner.ObserveCapabilityHeaders(request, result);
-                    if(request.Method==HttpMethod.Options)owner.CaptureOptions(result);
-                    return result;
+                    finally{owned?.Dispose();}
+                    var next=replay.Request(current.RequestUri!,current);current.Dispose();await replay.DrainAsync().ConfigureAwait(false);current=next;
+                    var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<(attempt-1))));
+                    if(!await owner.WaitReadRetryAsync(delay,token).ConfigureAwait(false))return null;
                 }
-                catch(WebDavMetadataEncodingException){throw;}
-                catch(WebDavDigestException){throw;}
-                catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
-                {
-                    if(error is OperationCanceledException&&token.IsCancellationRequested&&network.Certificate==System.Net.Security.SslPolicyErrors.None)return null;
-                    var failure=error as SourceConnectionException??owner.NetworkFailure(error,request.Method.Method+" 响应头／连接",network,error is OperationCanceledException,index+1);
-                    if(failure.Diagnostic.Kind==ConnectionFailureKind.Certificate)throw failure;
-                    if(!failure.Diagnostic.Transient||index==attempts-1)throw failure;
-                }
-                var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<index)));
-                if(!await owner.WaitReadRetryAsync(delay,token).ConfigureAwait(false))return null;
             }
-            throw new InvalidOperationException("DAV 重试状态无效。");
-        }
-        /// <summary>只读 XML 请求仅在有界缓冲后复制；条件、范围与版本头保持一致，写请求从不复制重发。</summary>
-        private static HttpRequestMessage Clone(HttpRequestMessage original,byte[]? body)
-        {
-            var copy=new HttpRequestMessage(original.Method,original.RequestUri){Version=original.Version,VersionPolicy=original.VersionPolicy};
-            foreach(var header in original.Headers)copy.Headers.TryAddWithoutValidation(header.Key,header.Value);
-            foreach(var option in original.Options)copy.Options.Set(new HttpRequestOptionsKey<object?>(option.Key),option.Value);
-            if(original.Content is not null)
-            {
-                copy.Content=new ByteArrayContent(body??[]);
-                foreach(var header in original.Content.Headers)copy.Content.Headers.TryAddWithoutValidation(header.Key,header.Value);
-            }
-            return copy;
+            finally{current.Dispose();await replay.DrainAsync().ConfigureAwait(false);}
         }
     }
+
     private DavPath LibraryPath(Uri uri)
     {
         var path=HrefPath(uri.AbsoluteUri,_endpoint);

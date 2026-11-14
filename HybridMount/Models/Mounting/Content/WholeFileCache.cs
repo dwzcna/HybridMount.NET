@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using HybridMount.Models.Mounting;
@@ -8,6 +8,8 @@ namespace HybridMount.Models.Mounting.Content;
 /// <summary>不可变整文件快照；同会话、路径和版本共享下载，等待者独立取消，读取与回收互斥。</summary>
 public sealed class WholeFileCache(string directory) : IAsyncDisposable
 {
+    /// <summary>仅供协议在本连接缓存内建立受控临时快照，不指向挂载正文目录。</summary>
+    internal string StorageDirectory=>directory;
     private static readonly SemaphoreSlim[] Locks=Enumerable.Range(0,64).Select(_=>new SemaphoreSlim(1,1)).ToArray();
     private static SemaphoreSlim Gate(string path)=>Locks[(StringComparer.OrdinalIgnoreCase.GetHashCode(Path.GetFullPath(path))&int.MaxValue)%Locks.Length];
     private readonly string _session=Guid.NewGuid().ToString("N");

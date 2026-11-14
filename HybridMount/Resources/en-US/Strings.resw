@@ -2620,4 +2620,6 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="TaskPermissionBlocked" xml:space="preserve"><value>Permission blocked</value></data>
   <data name="ProtocolPurposeAccess" xml:space="preserve"><value>Read effective privileges for the exact resource, independently of content versions and write preconditions.</value></data>
   <data name="ProtocolPurposeMetadataCompression" xml:space="preserve"><value>Compress directory metadata only, with bounded streaming decompression. File bodies and ranges use the identity representation.</value></data>
+  <data name="ProtocolPurposeRedirect" xml:space="preserve"><value>Follow up to five same-origin 301/308 redirects within the configured root, preserving methods, bodies and preconditions.</value></data>
+  <data name="WebDavRedirectDiagnostic" xml:space="preserve"><value>Redirect ({0}, {1} hops): {2} → {3}</value></data>
 </root>

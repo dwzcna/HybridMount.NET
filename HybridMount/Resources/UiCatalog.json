@@ -3471,5 +3471,13 @@
   "ProtocolPurposeMetadataCompression": {
     "Source": "只压缩目录元数据，流式解压并限制展开大小；文件正文与范围读取保持identity表示。",
     "LocalizableArguments": []
+  },
+  "ProtocolPurposeRedirect": {
+    "Source": "仅跟随同源、配置根内的301／308；保留方法、正文和保护条件，最多五跳。",
+    "LocalizableArguments": []
+  },
+  "WebDavRedirectDiagnostic": {
+    "Source": "重定向（{0}，{1}跳）：{2} → {3}",
+    "LocalizableArguments": []
   }
 }

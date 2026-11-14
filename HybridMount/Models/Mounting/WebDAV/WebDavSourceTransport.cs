@@ -105,8 +105,9 @@ public sealed partial class WebDavFileSource
     }
     private string HrefPath(string href, Uri requestUri)
     {
-        if (!Uri.TryCreate(requestUri, href, out var uri) || uri.Scheme != _endpoint.Scheme || uri.Authority != _endpoint.Authority || uri.Query.Length != 0 || uri.Fragment.Length != 0)
-            throw new IOException("WebDAV href 指向其他服务器或包含查询。");
+        WebDavRedirectPolicy.ValidateReference(href);
+        if (!Uri.TryCreate(requestUri, href, out var uri))throw new IOException("WebDAV href无效。");
+        WebDavRedirectPolicy.ValidateTarget(_endpoint,uri);
         var escaped = uri.AbsolutePath;
         if (!escaped.StartsWith(_endpoint.AbsolutePath, StringComparison.Ordinal))
         {
@@ -119,6 +120,21 @@ public sealed partial class WebDavFileSource
         if (parts.Any(part => part.Contains('/') || part.Contains('\\'))) throw new IOException("WebDAV href 含编码分隔符。");
         return RelativePaths.Normalize(string.Join('/', parts));
     }
+    /// <summary>只把本次已确认的最终资源及其直接子项映回逻辑请求，其他href不猜测别名关系。</summary>
+    private string MapHref(string href,Uri logical,Uri effective)
+    {
+        var actual=HrefPath(href,effective);var final=HrefPath(effective.AbsoluteUri,_endpoint);var original=HrefPath(logical.AbsoluteUri,_endpoint);
+        if(final==original)return actual;
+        if(actual==final)return original;
+        if(actual.StartsWith(final+"/",StringComparison.Ordinal))return RelativePaths.Normalize((original.Length==0?"":original+"/")+actual[(final.Length+1)..]);
+        throw new IOException("WebDAV href不属于本次重定向的资源映射。");
+    }
+    private sealed record RedirectTrace(Uri LogicalUri,Uri EffectiveUri,string Method,int Hops);
+    private RedirectTrace? _lastRedirect;
+    private string? RedirectDiagnostic=>Volatile.Read(ref _lastRedirect) is {} value?global::HybridMount.Services.Localization.UiText.Text("WebDavRedirectDiagnostic",value.Method,value.Hops,value.LogicalUri.AbsoluteUri,value.EffectiveUri.AbsoluteUri):null;
+#if HYBRIDMOUNT_HEADLESS_TEST
+    internal string? LastRedirectUri=>Volatile.Read(ref _lastRedirect)?.EffectiveUri.AbsoluteUri;
+#endif
     private async Task<IReadOnlyList<SourceEntry>> PropFindRawAsync(string path, int depth, CancellationToken token, bool allowMissing=false)
     {
         // 文件元数据使用原始资源 URI；尾斜杠只用于深度 1 的集合枚举。
@@ -143,7 +159,7 @@ public sealed partial class WebDavFileSource
         foreach (var item in document.Root.Elements(Dav + "response"))
         {
             token.ThrowIfCancellationRequested();
-            var relative = HrefPath(item.Element(Dav + "href")?.Value ?? throw new IOException("DAV 条目缺少 href。"), uri);
+            var relative = MapHref(item.Element(Dav + "href")?.Value ?? throw new IOException("DAV 条目缺少 href。"), uri,response.RequestMessage?.RequestUri??uri);
             if (relative != path && (depth == 0 || RelativePaths.Parent(relative) != path)) throw new IOException("DAV 枚举不是深度 1 的直接子项。");
             if (!names.Add(relative)) throw new IOException("DAV 枚举包含重复路径。");
             var props = new XElement(Dav + "prop");

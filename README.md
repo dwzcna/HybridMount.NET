@@ -1,18 +1,20 @@
 ﻿# HybridMount.NET
 
-当前源码版本 **0.0.18.4**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.18.5**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 主窗口最小尺寸为 600 × 480 逻辑像素；应用内弹窗统一为 550 逻辑像素宽，上下各至少保留窗口内容区的 5%，长内容滚动查看。
 
 WebDAV、S3和群晖配置中的“协议能力”可在测试连接或连接后展开，显示支持、不支持、声明支持或--。结论仅适用于已验证范围；连接测试保持只读，未验证的写入能力不会因连接成功被标为支持。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.18.4_<架构>.msix`。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.18.5_<架构>.msix`。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 WebDAV连接按目标地址族建立TCP，IPv4及IPv4映射地址使用纯IPv4连接；域名有界尝试IPv4／IPv6，保留系统代理及挂载级证书校验。连接测试先读取根集合，再有界查询OPTIONS。HTTPS证书区可独立获取叶证书SHA-256并直接填框；获取不需要账号或本地目录，不代表目录访问成功，请核对显示的证书公开信息。 支持RFC 9530 Repr-Digest（SHA-256／512）：弱或缺失ETag时以HEAD表示摘要补足内容变化判断，完整GET在头／尾摘要校验通过后才发布缓存；摘要不替代强ETag、条件写或独占锁。
 
 WebDAV按RFC3744读取精确资源的有效权限，创建检查父目录bind、修改检查文件write-content、删除检查父目录unbind、移动检查两端父目录。明确拒绝显示“权限阻止”，查询故障显示“权限待核验”，保留本地文件、基线和上传快照，可在调整权限后重试同一任务。未实现可选权限属性时不作允许或拒绝结论，仍须原有经验证的条件／锁保护；最终写前重新核验。
 
 WebDAV只在PROPFIND／REPORT目录元数据请求协商gzip，手动流式解压，展开最多64MiB并继续执行更严格的XML大小／深度／实体保护。损坏、截断及未知编码不采用部分列表；文件GET、HEAD及范围读取保持identity，上传字节不压缩。
+
+WebDAV显式跟随同源且位于配置根内的301／308，最多五跳，保留方法、正文、范围和条件头；拒绝跨源、查询／片段、用户信息及编码逃逸。XML有界重放，上传使用不可变快照，不可寻址流先暂存磁盘；断连、取消和超时不自动重放修改，结果未知继续核对。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类。当前本机任务索引使用新格式，旧数据处理见下文。
 

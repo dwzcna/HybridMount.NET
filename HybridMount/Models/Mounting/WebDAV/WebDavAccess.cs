@@ -58,7 +58,7 @@ public sealed partial class WebDavFileSource:IFileSourceAccess
             if(result.StatusCode is 401 or 403)return RememberAccess(path,null,"Permission");
             if(result.StatusCode!=207||result.Resources.Count!=1)return RememberAccess(path,null,"Uncertain");
             var resource=result.Resources[0];
-            if(resource.Hrefs.Count!=1||HrefPath(resource.Hrefs[0],result.EffectiveUri)!=path||resource.StatusCode is >=400)return RememberAccess(path,null,"Uncertain");
+            if(resource.Hrefs.Count!=1||MapHref(resource.Hrefs[0],Address(path),result.EffectiveUri)!=path||resource.StatusCode is >=400)return RememberAccess(path,null,"Uncertain");
             return AccessResource(resource,path);
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}

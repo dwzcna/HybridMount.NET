@@ -21,7 +21,7 @@ public sealed partial class WebDavFileSource
             {using var response=new HttpResponseMessage((HttpStatusCode)result.StatusCode);Success(response);throw new IOException("配额查询未返回 DAV Multi-Status。");}
             if(result.Resources.Count!=1)throw new IOException("配额响应必须仅包含挂载根。");
             var resource=result.Resources[0];
-            if(resource.Hrefs.Count!=1||HrefPath(resource.Hrefs[0],_endpoint)!=""||resource.StatusCode is >=400)
+            if(resource.Hrefs.Count!=1||MapHref(resource.Hrefs[0],_endpoint,result.EffectiveUri)!=""||resource.StatusCode is >=400)
                 throw new IOException("配额响应范围或资源状态无效。");
             long? Read(PropertyName property)
             {
