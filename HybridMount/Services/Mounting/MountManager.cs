@@ -134,12 +134,17 @@ public sealed partial class MountManager : IAsyncDisposable
     /// <summary>实际连接状态供页面启用操作；不把后台上传视为全页忙碌。</summary>
     private MountSnapshot Snapshot(Runtime root)
     {
-        lock(root.ConnectionSync)return new(root.Definition,root.Status,root.Detail,root.Detection,root.Session is not null,
-            root.Connecting is not null,root.ConnectionStops>0,
-            _jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,_repository.Uploads(root.Definition.Id).Count(UploadAttentionRules.NeedsAttention)+RenameIntents(root.Definition.Id).Count(x=>x.NeedsAttention)+(_renameErrors.ContainsKey(root.Definition.Id)?1:0));
+        // 数据库及恢复日志读取不能占用连接生命周期锁；这里只捕获展示计数，不授予业务执行权。
+        var mount = root.Definition.Id;
+        var attention = _repository.UploadAttentionCount(mount) + RenameIntents(mount).Count(x => x.NeedsAttention) + (_renameErrors.ContainsKey(mount) ? 1 : 0);
+        lock (root.ConnectionSync)
+            return new(root.Definition, root.Status, root.Detail, root.Detection, root.Session is not null,
+                root.Connecting is not null, root.ConnectionStops > 0,
+                _jobs.Values.FirstOrDefault(job => job.Root == mount && job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,
+                root.CapacityStatus, attention);
     }
     /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
-    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).Concat(Operations.Where(row=>row.Operation is "freeSpace" or "keepOnDevice"&&row.State is "Failed" or "PartialFailure")).ToArray();
+    public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.UploadsNeedingAttention().OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).Concat(Operations.Where(row=>row.Operation is "freeSpace" or "keepOnDevice"&&row.State is "Failed" or "PartialFailure")).ToArray();
     public IReadOnlyList<MountOperationSnapshot> Operations=>ReadTaskPresentation().Operations;
     /// <summary>任务、问题、冲突及调度共用一次持久读取；构造与解析在数据库锁外进行。</summary>
     private long _lastTaskReadDiagnostic;
@@ -290,7 +295,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(root.Status=="检查中" || root.Definition.RemovalPending || root.Definition.RegistrationStage!=MountRegistrationStage.NotRegistered)return false;
         lock(root.ConnectionSync)if(root.RemovalRequested || root.Connecting is not null)return false;
         return !CloudRootRegistration.IsOwnedRoot(root.Definition) && !CloudFilesNative.IsCloudPath(root.Definition.LocalPath) && !MountPathGuard.ContainsCloudPlaceholders(root.Definition.LocalPath) &&
-            !_repository.Entries(id).Any(e=>e.Materialized);
+            !_repository.HasMaterializedEntries(id);
     }
     /// <summary>迁移旧配置时同时检查原生、WinRT、占位和索引；丢失的注册不自动接管。</summary>
     private bool InspectRegistration(Runtime root)
@@ -302,7 +307,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(registered)stage=MountRegistrationStage.Registered;
         else if(stage is MountRegistrationStage.Unknown or MountRegistrationStage.Registering)
         {
-            if(_repository.Entries(root.Definition.Id).Any(e=>e.Materialized) && root.Definition.RemovalStage!=MountRemovalStage.Unregistering)
+            if(_repository.HasMaterializedEntries(root.Definition.Id) && root.Definition.RemovalStage!=MountRemovalStage.Unregistering)
                 throw new IOException("注册丢失但存在物化索引，保留配置待恢复。");
             stage=MountRegistrationStage.NotRegistered;
         }
@@ -360,7 +365,7 @@ public sealed partial class MountManager : IAsyncDisposable
             using var queueContext=TasksQueue.Enter(root.QueueBinding,new(Guid.NewGuid().ToString("N"),root.Definition.Id,root.QueueBinding.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"connect"));
             await NativeRuntimeClient.PrepareConnectionAsync().ConfigureAwait(false);token.ThrowIfCancellationRequested();
             var registered=InspectRegistration(root);
-            if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.Entries(root.Definition.Id).Any(entry=>entry.Materialized))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
+            if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.HasMaterializedEntries(root.Definition.Id))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
             root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(root.Definition,_repository,false,token)).ConfigureAwait(false);
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);ObserveUploadSource(root);
             if(root.Source is IMountSourceRuntime preparing)await OutsideRootAsync(root,()=>preparing.BeforeRegistrationAsync(token)).ConfigureAwait(false);

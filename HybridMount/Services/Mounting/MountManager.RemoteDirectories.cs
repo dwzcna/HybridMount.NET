@@ -36,7 +36,7 @@ public sealed partial class MountManager
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))return false;
             var current=_repository.AllRemotePending(root.Definition.Id).SingleOrDefault(x=>x.Id==pending.Id);
             if(current!=pending)return false;
-            var entry=_repository.Entries(root.Definition.Id).FirstOrDefault(x=>x.SourcePath==pending.Path);
+            var entry=_repository.EntryByExactSource(root.Definition.Id,pending.Path);
             if(!DirectoryObservationSafe(root,pending,entry,_repository.Uploads(root.Definition.Id)))return false;
             SaveRemote(pending with{MetadataOnly=true});WakeRemoteDependents(root);return true;
         }

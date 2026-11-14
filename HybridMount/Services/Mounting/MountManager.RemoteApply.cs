@@ -162,7 +162,7 @@ public sealed partial class MountManager
             {
                 var stamp=LocalFileState.Read(path);
                 pending=SaveRemote(pending with{State="Downloading",EntryId=entry.Id,OriginalStamp=stamp.Key,OldVersion=entry.Version,PinState=info.Value.Info.PinState,
-                    UploadGeneration=_repository.Uploads(root.Definition.Id).Where(x=>x.LocalPath==entry.LocalPath).Select(x=>x.Generation).DefaultIfEmpty().Max(),Error=null});
+                    UploadGeneration=_repository.UploadsAtPath(root.Definition.Id,entry.LocalPath).Select(x=>x.Generation).DefaultIfEmpty().Max(),Error=null});
             }
         }
         finally{root.Gate.Release();}
@@ -176,8 +176,8 @@ public sealed partial class MountManager
             var current=RequireRemotePending(pending.Id);
             if(current.State is "Superseded" or "Canceled")return current;
             entry=_repository.EntryById(root.Definition.Id,pending.EntryId??"")??throw new IOException("待提交占位映射已丢失。");
-            var generation=_repository.Uploads(root.Definition.Id).Where(x=>x.LocalPath==entry.LocalPath).Select(x=>x.Generation).DefaultIfEmpty().Max();
-            if(generation!=pending.UploadGeneration||_repository.Uploads(root.Definition.Id).Any(x=>x.LocalPath==entry.LocalPath&&UploadRules.Unfinished(x)))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
+            var generation=_repository.UploadsAtPath(root.Definition.Id,entry.LocalPath).Select(x=>x.Generation).DefaultIfEmpty().Max();
+            if(generation!=pending.UploadGeneration||_repository.UploadsAtPath(root.Definition.Id,entry.LocalPath).Any(UploadRules.Unfinished))throw new SourceConflictException("快照下载期间本地上传代次变化，未提交远端更新。");
             ValidateRemoteSnapshot(pending);
             _previews.Invalidate(root.Definition,entry.Id);
             await CloudRemoteUpdate.ApplyAsync(root.Definition,entry,pending,root.Session!, (change,updated,checkpointToken)=>

@@ -67,7 +67,7 @@ public sealed partial class MountManager
             var candidates=_repository.RemotePendingByIds(changes.Select(item=>item.Id).ToArray()).Where(item=>item.MountId==root.Definition.Id&&item.Scope==runtime.Engine.Scope&&item.Entry is not null&&item.State=="Pending").OrderBy(item=>item.Path.Count(c=>c=='/')).ToArray();
             var paths=candidates.SelectMany(item=>new[]{item.Path,RelativePaths.Parent(item.Path)}).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var index=_repository.EntriesBySources(root.Definition.Id,paths).ToDictionary(item=>item.SourcePath,StringComparer.OrdinalIgnoreCase);
-            var uploads=_repository.Uploads(root.Definition.Id).Where(UploadRules.Unfinished).ToArray();var renames=RenameIntents(root.Definition.Id);
+            var uploads=_repository.UnfinishedUploads(root.Definition.Id).ToArray();var renames=RenameIntents(root.Definition.Id);
             foreach(var level in candidates.GroupBy(item=>item.Path.Count(c=>c=='/')))
             {
                 token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);

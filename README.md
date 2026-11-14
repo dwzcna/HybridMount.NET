@@ -1,8 +1,8 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.16.5**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.16.6**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.16.5_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.16.6_<架构>.msix`。Windows 安装身份沿用 `dwzcn.HybridMount.NativePreview`，以兼容现有安装、配置和挂载；不接管其他部署模式的挂载。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 主工程为 `HybridMount/HybridMount.csproj`，原生后台为 `HybridMount.Stock/HybridMount.Stock.vcxproj`，输出分别是 `HybridMount.exe`、`HybridMount.Stock.exe`。解决方案保留四工程、Debug／Release 和 x64／ARM64；代码按 Services、Models、Commons、ViewModels、Views／Pages、Controls、Helpers、Assets、Resources 归类，包身份保持。当前本机任务索引使用新格式，旧数据处理见下文。
 

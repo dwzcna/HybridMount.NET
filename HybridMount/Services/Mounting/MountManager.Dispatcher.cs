@@ -48,7 +48,7 @@ public sealed partial class MountManager
                 if(!byPath.TryGetValue(ancestor,out var tasks))byPath[ancestor]=tasks=new(StringComparer.Ordinal);tasks.Add(task);
             }
         }
-        foreach(var item in _repository.Uploads(root.Definition.Id).Where(UploadRules.Unfinished))Index(item.LocalPath,item.Id);
+        foreach(var item in _repository.UnfinishedUploads(root.Definition.Id))Index(item.LocalPath,item.Id);
         foreach(var item in _fileOperations.Values.Where(item=>item.Root.Definition.Id==root.Definition.Id&&!MountRepository.TaskStateTerminal(item.Snapshot.State)))Index(item.Entry.LocalPath,item.Snapshot.Id);
         foreach(var item in RenameIntents(root.Definition.Id).Where(item=>!item.Finished)){Index(item.LocalPath,item.Id);Index(item.SourcePath,item.Id);}
         // 只有精确命中已有索引的属性变化才核对固定状态；溢出补扫由既有64项维护消费者继续。

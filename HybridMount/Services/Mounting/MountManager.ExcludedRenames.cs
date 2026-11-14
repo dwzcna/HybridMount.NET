@@ -19,7 +19,25 @@ public sealed partial class MountManager
         catch(Exception error)when(error is IOException or UnauthorizedAccessException){_renameErrors.AddOrUpdate(id,_=>(error.Message,DateTimeOffset.UtcNow),(_,old)=>old.Error==error.Message?old:(error.Message,DateTimeOffset.UtcNow));return [];}
     }
     private IEnumerable<ExcludedRenameIntent> RenameIntents()=>_roots.Keys.SelectMany(RenameIntents);
-    private ExcludedRenameIntent? RenameIntent(string id)=>RenameIntents().FirstOrDefault(x=>x.Id==id);
+    /// <summary>逐挂载只检查已缓存ID索引；读取失败沿用恢复日志诊断和写入屏障。</summary>
+    private ExcludedRenameIntent? RenameIntent(string id)
+    {
+        foreach (var mount in _roots.Keys)
+        {
+            try
+            {
+                var row = RenameJournal(mount).Find(id);
+                _renameErrors.TryRemove(mount, out _);
+                if (row is not null) return row;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                _renameErrors.AddOrUpdate(mount, _ => (error.Message, DateTimeOffset.UtcNow),
+                    (_, old) => old.Error == error.Message ? old : (error.Message, DateTimeOffset.UtcNow));
+            }
+        }
+        return null;
+    }
     private void PublishRename(ExcludedRenameIntent row,Exception? error=null){_repository.SaveOperation(row.Snapshot());RecordStateDiagnostic("排除改名",row.MountId,row.Id,row.Stage,row.Stage is "Failed" or "Conflict" or "OutcomeUnknown" or "Copied"&&row.Error is not null,DiagnosticVersion(row.Error),error);Notify();}
     private ExcludedRenameIntent RenameChange(ExcludedRenameIntent row,Func<ExcludedRenameIntent,ExcludedRenameIntent> change,Exception? error=null)
     {var updated=RenameJournal(row.MountId).Update(row.Id,change)??throw new IOException("改名收尾记录不存在。");PublishRename(updated,error);return updated;}
@@ -61,12 +79,16 @@ public sealed partial class MountManager
         if(notice is null&&!legacy)return;
         var origin=notice?.Entry??entry;var old=notice?.OldPath??origin?.SourcePath;
         if(string.IsNullOrEmpty(old)||old==relative||FileExclusionRules.Matches(root.Definition.ExclusionRules,old))return;
-        var uploads=_repository.Uploads(root.Definition.Id);var upload=uploads.FirstOrDefault(x=>!x.IsCopy&&x.LocalPath==old&&(x.ObservedStamp.Split(':')[0]==stamp.Identity||x.SnapshotIdentity==stamp.Identity));
+        var uploads=_repository.UploadsAtPath(root.Definition.Id,old);var upload=uploads.FirstOrDefault(x=>!x.IsCopy&&(x.ObservedStamp.Split(':')[0]==stamp.Identity||x.SnapshotIdentity==stamp.Identity));
         var path=RelativePaths.ToLocal(root.Definition.LocalPath,relative);var info=CloudFilesNative.Inspect(path);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
         if(origin is not null&&(marker?.MountId!=root.Definition.Id||marker.EntryId!=origin.Id))origin=null;
         // 普通文件经覆盖写入后可能不再带占位标记；精确上传身份与旧版本索引仍可证明原映射。
-        if(origin is null&&upload is {EntryId:not null,ExpectedVersion:not null})
-            origin=_repository.Entries(root.Definition.Id).FirstOrDefault(x=>x.Id==upload.EntryId&&x.SourcePath==upload.SourcePath&&x.Version==upload.ExpectedVersion&&!x.IsDirectory&&(x.LocalPath==old||x.LocalPath==relative));
+        if (origin is null && upload is {EntryId: not null, ExpectedVersion: not null})
+        {
+            var mapped = _repository.EntryById(root.Definition.Id, upload.EntryId);
+            if (mapped is not null && mapped.SourcePath == upload.SourcePath && mapped.Version == upload.ExpectedVersion &&
+                !mapped.IsDirectory && (mapped.LocalPath == old || mapped.LocalPath == relative)) origin = mapped;
+        }
         if(origin is null&&upload is null)return;
         if(legacy&&(origin is null||ExclusionMarkers(root).ExistingMark(stamp.Identity,relative) is not {Phase:"Applied"}))return;
         if(origin is not null&&origin.LocalPath!=relative)_repository.SaveEntry(root.Definition.Id,origin with{LocalPath=relative,Protected=true});

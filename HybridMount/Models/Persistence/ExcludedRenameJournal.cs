@@ -33,6 +33,9 @@ internal sealed class ExcludedRenameJournal(string directory,Guid mount)
     private sealed record Document(int Schema,Guid Mount,bool LegacyChecked,ExcludedRenameIntent[] Items);
     private readonly string _file=Path.Combine(directory,"ExcludedRenames",mount.ToString("N")+".json");
     private readonly object _gate=new();private Document? _document;
+    private ExcludedRenameIntent[]? _viewItems;
+    private IReadOnlyList<ExcludedRenameIntent> _view = Array.Empty<ExcludedRenameIntent>();
+    private IReadOnlyDictionary<string, ExcludedRenameIntent> _byId = new Dictionary<string, ExcludedRenameIntent>();
     internal static string CurrentOwner=>WindowsIdentity.GetCurrent().User?.Value??throw new IOException("无法取得当前账户身份。");
     private Document Load()
     {
@@ -61,7 +64,33 @@ internal sealed class ExcludedRenameJournal(string directory,Guid mount)
         try{using(var stream=new FileStream(temporary,FileMode.Create,FileAccess.Write,FileShare.None)){JsonSerializer.Serialize(stream,document);stream.Flush(true);}File.Move(temporary,_file,true);_document=document;}
         finally{if(File.Exists(temporary))File.Delete(temporary);}
     }
-    internal IReadOnlyList<ExcludedRenameIntent> Read(){lock(_gate)return Load().Items.ToArray();}
+    /// <summary>记录不可变且写入总是替换数组；同一内容复用只读视图，旧读者仍持有原快照。</summary>
+    private void EnsureView(Document document)
+    {
+        if (ReferenceEquals(_viewItems, document.Items)) return;
+        var view = Array.AsReadOnly(document.Items);
+        var byId = document.Items.ToDictionary(row => row.Id, StringComparer.Ordinal);
+        _view = view;
+        _byId = byId;
+        _viewItems = document.Items;
+    }
+    internal IReadOnlyList<ExcludedRenameIntent> Read()
+    {
+        lock (_gate)
+        {
+            EnsureView(Load());
+            return _view;
+        }
+    }
+    /// <summary>在同一已校验文档的内存索引定位ID；损坏日志继续抛错，不静默返回空日志。</summary>
+    internal ExcludedRenameIntent? Find(string id)
+    {
+        lock (_gate)
+        {
+            EnsureView(Load());
+            return _byId.GetValueOrDefault(id);
+        }
+    }
     internal bool LegacyChecked{get{lock(_gate)return Load().LegacyChecked;}}
     internal void MarkLegacyChecked(){lock(_gate){var doc=Load();if(!doc.LegacyChecked)Save(doc with{LegacyChecked=true});}}
     /// <summary>仅首次身份意图插入；调用者不能用旧快照覆盖并发取消或较新的改名。</summary>

@@ -7,15 +7,69 @@ namespace HybridMount.Models.Persistence;
 /// <summary>上传日志与内容基线；锁内使用新连接，避免多个监控事件覆盖在途任务的阶段。</summary>
 public sealed partial class MountRepository
 {
-    public IReadOnlyList<LocalUpload> Uploads(Guid? mount=null)
+    internal const string UnfinishedUploadSql = "(json_extract(json,'$.State') IS NULL OR json_extract(json,'$.State') NOT IN ('Completed','Canceled','Ignored'))";
+    internal const string UploadAttentionSql = "json_type(json,'$.Attention')='object' AND json_extract(json,'$.Attention.ResolvedUtc') IS NULL";
+
+    /// <summary>完整恢复快照保留全部状态及rowid倒序；只在确实需要全部日志的路径调用。</summary>
+    public IReadOnlyList<LocalUpload> Uploads(Guid? mount = null) => SelectUploads(mount, "1=1");
+    /// <summary>只解析未结束上传；取消和忽略仍按原规则排除，不用于需要完整父项状态的依赖快照。</summary>
+    internal IReadOnlyList<LocalUpload> UnfinishedUploads(Guid? mount = null) => SelectUploads(mount, UnfinishedUploadSql);
+    /// <summary>问题筛选在SQL执行，重试中的未解决问题也保留。</summary>
+    internal IReadOnlyList<LocalUpload> UploadsNeedingAttention(Guid? mount = null) => SelectUploads(mount, UploadAttentionSql);
+    /// <summary>路径使用上传日志原有精确比较；避免逐文件读取同挂载全部JSON。</summary>
+    internal IReadOnlyList<LocalUpload> UploadsAtPath(Guid mount, string path) => SelectUploads(mount, "path=$p", path);
+
+    private IReadOnlyList<LocalUpload> SelectUploads(Guid? mount, string predicate, string? path = null)
     {
-        lock(_gate)
+        string[] json;
+        lock (_gate)
         {
-            using var db=Open();using var command=db.CreateCommand();
-            command.CommandText=mount is null?"SELECT json FROM uploads ORDER BY rowid DESC":"SELECT json FROM uploads WHERE mount=$m ORDER BY rowid DESC";
-            if(mount is not null)command.Parameters.AddWithValue("$m",mount.Value.ToString("N"));
-            using var reader=command.ExecuteReader();var rows=new List<LocalUpload>();
-            while(reader.Read())rows.Add(JsonSerializer.Deserialize<LocalUpload>(reader.GetString(0))??throw new IOException("上传记录为空。"));return rows;
+            using var db = Open();
+            json = ReadUploadJson(db, mount, predicate, path);
+        }
+        // 连接和仓库锁归还后再解析，结果仍是查询时取得的不可变快照。
+        return json.Select(value => JsonSerializer.Deserialize<LocalUpload>(value) ?? throw new IOException("上传记录为空。")).ToArray();
+    }
+
+    /// <summary>已有有界事务可复用当前连接；调用者拥有连接、事务和仓库锁。</summary>
+    private static string[] ReadUploadJson(SqliteConnection db, Guid? mount, string predicate, string? path = null, SqliteTransaction? transaction = null)
+    {
+        using var command = db.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT json FROM uploads WHERE " + (mount is null ? "" : "mount=$m AND ") + predicate + " ORDER BY rowid DESC";
+        if (mount is not null) command.Parameters.AddWithValue("$m", mount.Value.ToString("N"));
+        if (path is not null) command.Parameters.AddWithValue("$p", path);
+        using var reader = command.ExecuteReader();
+        var rows = new List<string>();
+        while (reader.Read()) rows.Add(reader.GetString(0));
+        return rows.ToArray();
+    }
+
+    /// <summary>只计数未解决问题，不反序列化上传；在连接状态锁之外调用。</summary>
+    internal int UploadAttentionCount(Guid mount)
+    {
+        lock (_gate)
+        {
+            using var db = Open();
+            using var command = db.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM uploads WHERE mount=$m AND " + UploadAttentionSql;
+            command.Parameters.AddWithValue("$m", mount.ToString("N"));
+            return checked((int)Convert.ToInt64(command.ExecuteScalar()));
+        }
+    }
+
+    /// <summary>后台展示一次取得各挂载的问题计数，不为终态历史分配对象。</summary>
+    internal Dictionary<Guid, int> UploadAttentionCounts()
+    {
+        lock (_gate)
+        {
+            using var db = Open();
+            using var command = db.CreateCommand();
+            command.CommandText = "SELECT mount,COUNT(*) FROM uploads WHERE " + UploadAttentionSql + " GROUP BY mount";
+            using var reader = command.ExecuteReader();
+            var counts = new Dictionary<Guid, int>();
+            while (reader.Read()) counts.Add(Guid.ParseExact(reader.GetString(0), "N"), checked((int)reader.GetInt64(1)));
+            return counts;
         }
     }
     public LocalUpload? Upload(string id)
@@ -39,7 +93,8 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var tx=db.BeginTransaction();
-            foreach(var item in Uploads())
+            foreach(var item in ReadUploadJson(db, null, "1=1", transaction: tx).Select(json =>
+                JsonSerializer.Deserialize<LocalUpload>(json) ?? throw new IOException("上传记录为空。")))
             {
                 var recovered=UploadAttentionRules.Normalize(item,true);
                 if(recovered.Attention is {ResolvedUtc:null,ShellState:"Published"} attention)recovered=recovered with{Attention=attention with{ShellState="Pending"}};

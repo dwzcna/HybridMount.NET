@@ -4,13 +4,13 @@ namespace HybridMount.Models.Persistence;
 
 public sealed partial class MountRepository
 {
-    private IReadOnlyList<MountEntry> SelectEntries(Guid mount,string predicate,IReadOnlyList<string> values)
+    private IReadOnlyList<MountEntry> SelectEntries(Guid mount,string predicate,IReadOnlyList<string?> values)
     {
         lock(_gate)
         {
             using var db=Open();using var query=db.CreateCommand();
             query.CommandText="SELECT e.id,e.source,e.local,e.version,e.directory,e.deleted,e.protected,e.materialized,COALESCE(p.presence,0) FROM entries e LEFT JOIN remote_presence p ON e.mount=p.mount AND e.id=p.id WHERE e.mount=$m AND "+predicate;
-            query.Parameters.AddWithValue("$m",mount.ToString("N"));for(var i=0;i<values.Count;i++)query.Parameters.AddWithValue("$p"+i,values[i]);
+            query.Parameters.AddWithValue("$m",mount.ToString("N"));for(var i=0;i<values.Count;i++)query.Parameters.AddWithValue("$p"+i,(object?)values[i]??DBNull.Value);
             using var rows=query.ExecuteReader();var entries=new List<MountEntry>();while(rows.Read())entries.Add(new(rows.GetString(0),rows.GetString(1),rows.GetString(2),rows.GetString(3),rows.GetInt64(4)!=0,rows.GetInt64(5)!=0,rows.GetInt64(6)!=0,rows.GetInt64(7)!=0,(RemotePresence)rows.GetInt64(8)));return entries;
         }
     }
@@ -18,7 +18,8 @@ public sealed partial class MountRepository
     internal IReadOnlyList<MountEntry> EntriesBySources(Guid mount,IReadOnlyList<string> paths)
     {if(paths.Count==0)return [];if(paths.Count>512)throw new ArgumentOutOfRangeException(nameof(paths));return SelectEntries(mount,"e.source IN ("+string.Join(',',Enumerable.Range(0,paths.Count).Select(i=>"$p"+i))+")",paths);}
     internal MountEntry? EntryBySource(Guid mount,string path)=>SelectEntries(mount,"e.source=$p0",[path]).SingleOrDefault();
-    internal MountEntry? EntryById(Guid mount,string id)=>SelectEntries(mount,"e.id=$p0",[id]).SingleOrDefault();
+    /// <summary>按主键读取单项；没有映射身份时不打开数据库。</summary>
+    internal MountEntry? EntryById(Guid mount, string? id) => id is null ? null : SelectEntries(mount, "e.id=$p0", [id]).SingleOrDefault();
     internal IReadOnlyList<MountEntry> EntriesInSourceSubtree(Guid mount,string path)=>SelectEntries(mount,"e.source >= $p0 AND e.source < $p2 AND (e.source=$p0 OR e.source >= $p1)",[path,path+"/",path+"0"]);
     /// <summary>按本地路径索引读取实际子树；原生改名删除通知不加载整个挂载。</summary>
     internal IReadOnlyList<MountEntry> EntriesInLocalSubtree(Guid mount,string path)=>SelectEntries(mount,"($p0='' OR (e.local COLLATE HM_PATH >= $p0 AND e.local COLLATE HM_PATH < $p2 AND (e.local COLLATE HM_PATH=$p0 OR e.local COLLATE HM_PATH >= $p1)))",[path,path+"/",path+"0"]);

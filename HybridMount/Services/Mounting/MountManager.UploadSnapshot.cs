@@ -43,7 +43,7 @@ public sealed partial class MountManager
             if(current.State is not("Queued" or "Waiting" or "Prepared" or "WaitingCapacity")||current.Error==UploadRules.TypeConflictMessage)return false;
             path=RelativePaths.ToLocal(definition.LocalPath,current.LocalPath);MountPathGuard.ValidateOperation(definition,path);
             stamp=LocalFileState.Read(path);UploadRules.ValidateTypes(current,stamp);
-            mapping=_repository.Entries(current.MountId).FirstOrDefault(x=>x.Id==current.EntryId);
+            mapping=_repository.EntryById(current.MountId,current.EntryId);
             reuse=current.SnapshotPath is not null&&File.Exists(current.SnapshotPath)&&current.SnapshotStamp==stamp.Key&&current.SnapshotGeneration==current.Generation;
             hydrate=!stamp.IsDirectory&&!reuse&&CloudFilesNative.Inspect(path) is not null&&!CloudFilesNative.HasFullContent(path,stamp.Length);
             if(hydrate&&mapping is null)throw new SourceConflictException("部分占位缺少原始映射，无法安全补齐。");
@@ -75,8 +75,8 @@ public sealed partial class MountManager
         {
             Validate();MountPathGuard.ValidateOperation(definition,path!);
             if(hydrate)return null;
-            if(LocalFileState.Read(path!).Key!=stamp!.Key||_repository.Entries(item!.MountId).FirstOrDefault(x=>x.Id==item.EntryId)!=mapping)return null;
-            if(_repository.HasPendingRemote(item.MountId,item.SourcePath)||UploadRules.DeletedSourceAncestor(_repository.Entries(item.MountId),item.SourcePath) is not null)return null;
+            if(LocalFileState.Read(path!).Key!=stamp!.Key||_repository.EntryById(item!.MountId,item.EntryId)!=mapping)return null;
+            if(_repository.HasPendingRemote(item.MountId,item.SourcePath)||_repository.HasDeletedSourceAncestor(item.MountId,item.SourcePath))return null;
             var prepared=UploadPreparation.PublishAttempt(item,update=>ChangeUpload(item.Id,update),x=>x with
             {State="Prepared",SnapshotAttemptId=null,SnapshotPath=reuse?x.SnapshotPath:created,SnapshotSha256=reuse?x.SnapshotSha256:digest,SnapshotStamp=stamp.Key,SnapshotIdentity=stamp.Identity,SnapshotGeneration=item.Generation,Total=stamp.IsDirectory?0:stamp.Length,Bytes=0,Error=null,LastCheckedUtc=null,AutoRetryCount=reuse?x.AutoRetryCount:0,NextAttemptUtc=reuse?x.NextAttemptUtc:null,TransientFailureCount=reuse?x.TransientFailureCount:0,
                 BaselineSha256=x.BaselineSha256??(x.ExpectedVersion is null?null:_repository.Baseline(x.MountId,x.SourcePath,x.ExpectedVersion))});
@@ -101,9 +101,7 @@ public sealed partial class MountManager
         var localPath=RelativePaths.ToLocal(definition.LocalPath,prepared.LocalPath);MountEntry? capturedEntry=null;
         MountEntry Entry()
         {
-            var entries=_repository.Entries(prepared.MountId);
-            var mapped=entries.FirstOrDefault(x=>x.Id==prepared.EntryId&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath)
-                ??entries.FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);
+            var mapped = _repository.EntryForUpload(prepared.MountId, prepared.EntryId, prepared.SourcePath, prepared.LocalPath);
             return new(mapped?.Id??prepared.Id,prepared.SourcePath,prepared.LocalPath,receipt.Version,receipt.IsDirectory,Materialized:true);
         }
         bool Current(UploadCommitCapture capture)=>!root.RemovalRequested&&!root.Definition.RemovalPending&&root.Definition==definition&&ReferenceEquals(root.Session,session)&&ReferenceEquals(root.Source,source)&&
@@ -124,7 +122,7 @@ public sealed partial class MountManager
             if(!Current(recovery))return;
             if(root.RemovalRequested||root.Definition.RemovalPending)throw new OperationCanceledException(token);
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
-            if(UploadRules.DeletedSourceAncestor(_repository.Entries(root.Definition.Id),prepared.SourcePath) is not null)
+            if(_repository.HasDeletedSourceAncestor(root.Definition.Id,prepared.SourcePath))
             {ChangeUpload(prepared.Id,current=>current with{State="Conflict",Error=UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});return;}
             // 完整同内容证明也覆盖同名替换对象；原生仍须在保护句柄内精确重验当前身份和验证戳。
             if(recovery.VerifiedStamp is {} verified)prepared=prepared with{SnapshotGeneration=recovery.Row.Generation,SnapshotIdentity=verified.Identity};
@@ -132,11 +130,8 @@ public sealed partial class MountManager
             UploadRules.ValidateTypes(prepared,remoteDirectory:receipt.IsDirectory);
             if(_repository.Upload(prepared.Id)?.Error==UploadRules.TypeConflictMessage)throw new SourceConflictException(UploadRules.TypeConflictMessage);
             // 远端 StableId 可为空且不保证可用；占位身份始终由本产品维护。
-            var entries=_repository.Entries(prepared.MountId);
-            // 本地同名替换沿用原索引身份；提交事务成功时才解除删除／修改保护，避免产生同路径的旧墓碑。
-            var mapped=entries.FirstOrDefault(x=>x.Id==prepared.EntryId&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath)
-                ??entries.FirstOrDefault(x=>!x.Deleted&&x.SourcePath==prepared.SourcePath&&x.LocalPath==prepared.LocalPath);
-            var entry=new MountEntry(mapped?.Id??prepared.Id,prepared.SourcePath,prepared.LocalPath,receipt.Version,receipt.IsDirectory,Materialized:true);
+            // 本地同名替换优先沿用原索引身份；此处重新查询，不能复用网络之前的映射。
+            var entry = Entry();
             if(exists&&!prepared.IsCopy)
             {
                 MountPathGuard.ValidateOperation(root.Definition,path);

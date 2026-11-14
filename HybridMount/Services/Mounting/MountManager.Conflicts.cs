@@ -46,7 +46,7 @@ public sealed partial class MountManager
                 if(root.RemoteSync?.Engine.Scope!=remoteTask.Scope)throw new IOException("此冲突属于旧连接范围，请重新检测当前远端。");
                 path=remoteTask.Path;upload=_repository.Uploads(definition.Id).FirstOrDefault(x=>!x.IsCopy&&x.SourcePath==path);
             }
-            entry=_repository.Entries(definition.Id).FirstOrDefault(x=>upload?.EntryId is {} id?x.Id==id:x.SourcePath==path);
+            entry=upload?.EntryId is {} id?_repository.EntryById(definition.Id,id):_repository.EntryByExactSource(definition.Id,path);
             var local=upload?.LocalPath??entry?.LocalPath??path;
             if(local!=path)throw new IOException("改名或映射路径不同的冲突请先另存副本，本版不直接替换。");
             var absolute=RelativePaths.ToLocal(definition.LocalPath,local);MountPathGuard.ValidateOperation(definition,absolute);
@@ -65,13 +65,13 @@ public sealed partial class MountManager
             var currentUpload=upload is null?null:_repository.Upload(upload.Id);
             if(root.Definition!=definition||root.Session!=session||root.Source!=source||root.RemovalRequested||root.Definition.RemovalPending||
                 upload is not null&&!SameConflictUpload(root,upload,currentUpload)||_repository.ConflictPendingJson(definition.Id,path)!=pending||
-                _repository.Entries(definition.Id).FirstOrDefault(x=>entry is null?x.SourcePath==path:x.Id==entry.Id)!=entry)
+                (entry is null?_repository.EntryByExactSource(definition.Id,path):_repository.EntryById(definition.Id,entry.Id))!=entry)
                 throw new SourceConflictException("核对期间会话、索引或任务变化，请重新核对。");
             var absolute=RelativePaths.ToLocal(definition.LocalPath,path);
             if(stamp is not null){var current=LocalFileState.Read(absolute);if(!root.ConflictMetadata.Allows(path,stamp.Key,current.Key))throw new SourceConflictException("核对期间本地文件变化，请重新核对。");stamp=current;}upload=currentUpload;
             var common=localError.Length!=0?localError:remoteError;
             if(common.Length==0&&(stamp!.IsDirectory||remote!.IsDirectory||entry?.IsDirectory==true))common="文件／目录类型冲突需先另存处理，本版仅直接替换普通文件。";
-            var related=_repository.Uploads(definition.Id).Where(x=>x.Id!=upload?.Id&&UploadRules.Unfinished(x)&&MountRepository.ConflictRelated(x.SourcePath,path)).ToArray();
+            var related=_repository.UnfinishedUploads(definition.Id).Where(x=>x.Id!=upload?.Id&&MountRepository.ConflictRelated(x.SourcePath,path)).ToArray();
             if(common.Length==0&&(related.Length!=0||upload is not null&&UploadRules.InFlight(upload)))common="相关路径仍有上传或结果待核对，请先完成核对。";
             if(common.Length==0&&_repository.HasConflictHints(definition.Id,path))common="远端事件仍待完整核对，请先刷新。";
             var events=JsonSerializer.Deserialize<RemotePendingChange[]>(pending)??[];
@@ -103,7 +103,7 @@ public sealed partial class MountManager
             throw new SourceConflictException("挂载连接或设置变化，请重新核对。");
         var currentUpload=comparison.Upload is null?null:_repository.Upload(comparison.Upload.Id);
         if(comparison.Upload is not null&&!SameConflictUpload(root,comparison.Upload,currentUpload)||comparison.Upload is null&&_repository.Uploads(comparison.Definition.Id).Any(x=>!x.IsCopy&&x.SourcePath==comparison.Path)||
-            _repository.ConflictPendingJson(comparison.Definition.Id,comparison.Path)!=comparison.PendingJson||_repository.Entries(comparison.Definition.Id).FirstOrDefault(x=>comparison.Entry is null?x.SourcePath==comparison.Path:x.Id==comparison.Entry.Id)!=comparison.Entry)
+            _repository.ConflictPendingJson(comparison.Definition.Id,comparison.Path)!=comparison.PendingJson||(comparison.Entry is null?_repository.EntryByExactSource(comparison.Definition.Id,comparison.Path):_repository.EntryById(comparison.Definition.Id,comparison.Entry.Id))!=comparison.Entry)
             throw new SourceConflictException("任务、索引或远端事件变化，请重新核对。");
         var path=RelativePaths.ToLocal(comparison.Definition.LocalPath,comparison.Path);MountPathGuard.ValidateOperation(comparison.Definition,path);
         var currentStamp=LocalFileState.Read(path);
@@ -225,9 +225,9 @@ public sealed partial class MountManager
     {
         if(root.Definition!=comparison.Definition||root.Session!=comparison.Session||root.Source!=comparison.Source||root.RemovalRequested||root.Definition.RemovalPending||IsStopping||
             _repository.Upload(intent.Id)!=intent||_repository.ConflictPendingJson(intent.MountId,intent.SourcePath)!=comparison.PendingJson||
-            _repository.Entries(intent.MountId).FirstOrDefault(x=>comparison.Entry is null?x.SourcePath==comparison.Path:x.Id==comparison.Entry.Id)!=comparison.Entry)
+            (comparison.Entry is null?_repository.EntryByExactSource(intent.MountId,comparison.Path):_repository.EntryById(intent.MountId,comparison.Entry.Id))!=comparison.Entry)
             throw new SourceConflictException("处理期间连接、设置或事务变化，保留备份并停止。");
-        if(_repository.HasConflictHints(intent.MountId,intent.SourcePath)||_repository.Uploads(intent.MountId).Any(x=>x.Id!=intent.Id&&UploadRules.Unfinished(x)&&MountRepository.ConflictRelated(x.SourcePath,intent.SourcePath)))throw new SourceConflictException("处理期间相关路径出现新任务，请重新核对。");
+        if(_repository.HasConflictHints(intent.MountId,intent.SourcePath)||_repository.UnfinishedUploads(intent.MountId).Any(x=>x.Id!=intent.Id&&MountRepository.ConflictRelated(x.SourcePath,intent.SourcePath)))throw new SourceConflictException("处理期间相关路径出现新任务，请重新核对。");
         if(comparison.Entry is {} active&&root.Session!.IsActive(active.Id))throw new IOException("文件正在读取或下载，请稍后重新核对。");
         MountPathGuard.ValidateOperation(root.Definition,RelativePaths.ToLocal(root.Definition.LocalPath,comparison.Path));
     }

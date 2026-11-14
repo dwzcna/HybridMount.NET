@@ -41,7 +41,7 @@ public sealed partial class MountManager
                 long revision;lock(_displayGate)revision=_displayRevision;
                 try
                 {
-                    var counts=_repository.Uploads().Where(UploadAttentionRules.NeedsAttention).GroupBy(item=>item.MountId).ToDictionary(group=>group.Key,group=>group.Count());
+                    var counts=_repository.UploadAttentionCounts();
                     foreach(var group in RenameIntents().Where(item=>item.NeedsAttention).GroupBy(item=>item.MountId))counts[group.Key]=counts.GetValueOrDefault(group.Key)+group.Count();
                     foreach(var id in _renameErrors.Keys)counts[id]=counts.GetValueOrDefault(id)+1;
                     _stop.Token.ThrowIfCancellationRequested();var immutable=new ReadOnlyDictionary<Guid,int>(counts);var snapshot=CaptureDisplay(immutable);

@@ -25,4 +25,52 @@ public sealed class ExcludedRenameJournalTests
         }
         finally{if(Directory.Exists(directory))Directory.Delete(directory,true);}
     }
+    [Fact]
+    public void ReadOnlyViewsReuseContentAndOlderViewsRemainUnchanged()
+    {
+        var directory = Directory.CreateTempSubdirectory("HybridMount.RenameViews.").FullName;
+        var mount = Guid.NewGuid();
+        try
+        {
+            var journal = new ExcludedRenameJournal(directory, mount);
+            var row = new ExcludedRenameIntent(Guid.NewGuid().ToString("N"), mount, "C:\\unit-root", "root", ExcludedRenameJournal.CurrentOwner,
+                new string('A', 48), "old.txt", "new.bak", "old.txt", "entry", "v", null, 0, "Queued", DateTimeOffset.UtcNow, SourceScope: new string('B', 64));
+            journal.Add(row);
+            var first = journal.Read();
+            Assert.Same(first, journal.Read());
+            journal.MarkLegacyChecked();
+            Assert.Same(first, journal.Read());
+            Assert.Same(row, journal.Find(row.Id));
+            Assert.Throws<NotSupportedException>(() => { ((IList<ExcludedRenameIntent>)first)[0] = row with { Stage = "Canceled" }; });
+            var updated = journal.Update(row.Id, current => current with { CancelRequested = true })!;
+            Assert.False(first[0].CancelRequested);
+            Assert.NotSame(first, journal.Read());
+            Assert.Same(updated, journal.Find(row.Id));
+            var second = row with { Id = Guid.NewGuid().ToString("N"), LocalPath = "second.bak" };
+            journal.Add(second);
+            Assert.Single(first);
+            Assert.Equal(2, journal.Read().Count);
+            Assert.Same(second, journal.Find(second.Id));
+            Assert.Null(journal.Find("missing"));
+            var restored = new ExcludedRenameJournal(directory, mount);
+            Assert.Equal(updated, restored.Find(row.Id));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public void IndexedLookupStillReportsCorruptJournal()
+    {
+        var directory = Directory.CreateTempSubdirectory("HybridMount.RenameCorrupt.").FullName;
+        var mount = Guid.NewGuid();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(directory, "ExcludedRenames"));
+            File.WriteAllText(Path.Combine(directory, "ExcludedRenames", mount.ToString("N") + ".json"), "{broken");
+            var journal = new ExcludedRenameJournal(directory, mount);
+            Assert.Throws<IOException>(() => { journal.Find("missing"); });
+            Assert.Throws<IOException>(() => { journal.Read(); });
+        }
+        finally { Directory.Delete(directory, true); }
+    }
 }

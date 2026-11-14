@@ -21,7 +21,7 @@ public sealed partial class MountManager
             var next=new Dictionary<string,long>(_cacheEntryUsage,StringComparer.OrdinalIgnoreCase);
             if(full)
             {
-                var known=_roots.Values.SelectMany(root=>_repository.Entries(root.Definition.Id).Where(x=>x.Materialized&&!x.Deleted&&!x.IsDirectory).Select(x=>RelativePaths.ToLocal(root.Definition.LocalPath,x.LocalPath))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var known=_roots.Values.SelectMany(root=>_repository.MaterializedFiles(root.Definition.Id).Select(x=>RelativePaths.ToLocal(root.Definition.LocalPath,x.LocalPath))).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 foreach(var stale in next.Keys.Where(x=>!known.Contains(x)).ToArray())next.Remove(stale);
                 paths=known.ToArray();
             }

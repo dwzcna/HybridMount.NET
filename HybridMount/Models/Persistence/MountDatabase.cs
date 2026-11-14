@@ -17,6 +17,7 @@ internal sealed class MountDatabase
                 protected INTEGER NOT NULL,materialized INTEGER NOT NULL,PRIMARY KEY(mount,id));
             CREATE INDEX IF NOT EXISTS entries_source ON entries(mount,source);
             CREATE INDEX IF NOT EXISTS entries_local ON entries(mount,local);
+            CREATE INDEX IF NOT EXISTS entries_materialized ON entries(mount) WHERE materialized=1;
             CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,json TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS operations_file_mount ON operations(json_extract(json,'$.MountId')) WHERE json_extract(json,'$.OperationEntryId') IS NOT NULL;
             CREATE TABLE IF NOT EXISTS task_intents(id TEXT PRIMARY KEY,mount TEXT NOT NULL,session TEXT NOT NULL,sequence INTEGER NOT NULL,path TEXT NOT NULL COLLATE NOCASE,json TEXT NOT NULL,state TEXT NOT NULL,UNIQUE(mount,session,sequence));
@@ -49,6 +50,8 @@ internal sealed class MountDatabase
             CREATE INDEX IF NOT EXISTS remote_pending_mount_path ON remote_pending(mount,path COLLATE NOCASE);
             CREATE INDEX IF NOT EXISTS remote_pending_path_ordinal ON remote_pending(mount,path COLLATE HM_PATH);
             CREATE INDEX IF NOT EXISTS uploads_source_ordinal ON uploads(mount,json_extract(json,'$.SourcePath') COLLATE HM_PATH);
+            CREATE INDEX IF NOT EXISTS uploads_local_path ON uploads(mount,path);
+            CREATE INDEX IF NOT EXISTS uploads_attention ON uploads(mount) WHERE json_type(json,'$.Attention')='object' AND json_extract(json,'$.Attention.ResolvedUtc') IS NULL;
             CREATE INDEX IF NOT EXISTS entries_source_ordinal ON entries(mount,source COLLATE HM_PATH);
             CREATE INDEX IF NOT EXISTS entries_local_ordinal ON entries(mount,local COLLATE HM_PATH);
             """+"\n"+string.Join("\n",protocolStorage.Select(module=>module.SchemaSql))+"\nPRAGMA user_version=7;"; cmd.ExecuteNonQuery();
