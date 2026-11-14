@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using HybridMount.Commons;
 using HybridMount.Models.Mounting;
 
@@ -45,7 +45,7 @@ public sealed partial class MountManager
     {
         var all=_repository.Uploads(root.Definition.Id);
         return all.Where(x=>x.State=="OutcomeUnknown"||x.State=="RemoteCommitted"&&(string.IsNullOrEmpty(x.Error)||x.NextAttemptUtc is not null)||
-            UploadDependenciesReady(all,x)&&(x.State is "Queued" or "Waiting" or "Prepared"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
+            UploadDependenciesReady(all,x)&&(x.State is "Queued" or "Waiting" or "Prepared" or "PermissionPending"&&!FileExclusionRules.Matches(root.Definition,x)&&!RenameBlocksSource(root.Definition.Id,x.SourcePath)&&(root.SchedulingEnabled||x.ExplicitRequest)&&!x.CancelRequested&&!_repository.HasPendingRemote(root.Definition.Id,x.SourcePath))).ToArray();
     }
     /// <summary>父目录失败／取消／结果未知均保留子项屏障，重新启动从持久记录重建。</summary>
     private static bool UploadDependenciesReady(IEnumerable<LocalUpload> all,LocalUpload item)=>OperationDependencies.UploadReady(all,item);
@@ -71,6 +71,8 @@ public sealed partial class MountManager
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
             if(prepared.State=="OutcomeUnknown"){await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
             if(prepared.State=="RemoteCommitted"){await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
+            if(prepared.State=="PermissionPending")prepared=ChangeUpload(prepared.Id,current=>current with{State=current.SnapshotPath is null?"Queued":"Prepared"});
+            if(prepared is null)return;
             if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest)||!UploadDependenciesReady(_repository.Uploads(root.Definition.Id),prepared))return;
             await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             await UploadCheckpointAsync("BeforePrepare",prepared).ConfigureAwait(false);
@@ -122,6 +124,11 @@ public sealed partial class MountManager
         catch(CapacitySettingsChangedException){ChangeUpload(selected.Id,x=>x.State=="Prepared"?x with{LastCheckedUtc=null}:x);}
         catch(CapacityWaitingException error){ChangeUpload(selected.Id,x=>x.CancelRequested?x with{State="Canceled"}:x.State=="Prepared"?x with{State="WaitingCapacity",Error=error.Message,LastCheckedUtc=DateTimeOffset.UtcNow}:x,error);}
         catch(StagingSpaceException error)when(preparing){failure=error;Fail(x=>StagingDiskSpace.Wait(x,error,DateTimeOffset.UtcNow));}
+        catch(SourcePermissionException error)
+        {
+            failure=error;Fail(item=>item with{State=error.Pending?"PermissionPending":"PermissionBlocked",Error=error.Message,
+                LastCheckedUtc=DateTimeOffset.UtcNow,NextAttemptUtc=error.Pending?DateTimeOffset.UtcNow.AddSeconds(60):null,Access=error.Access});
+        }
         catch(SourceConflictException error){failure=error;Fail(x=>x with{State="Conflict",Error=error.Message,LastCheckedUtc=null});}
         catch(NotSupportedException error){failure=error;Fail(x=>x with{State="Conflict",Error=error.Message+" 可另存为新文件。",LastCheckedUtc=null});}
         catch(Exception error){failure=error;HandleUploadFailure(selected.Id,error,preparing,stopping,Fail);}

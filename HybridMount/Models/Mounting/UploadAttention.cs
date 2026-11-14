@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>独立于历史和索引的上传问题；展示发布阶段也随原上传JSON持久化，旧记录默认无此字段。</summary>
 public sealed record UploadAttention(string Reason,string Stage,DateTimeOffset OccurredUtc,long Generation,
@@ -10,7 +10,7 @@ public sealed record UploadAttention(string Reason,string Stage,DateTimeOffset O
 public static class UploadAttentionRules
 {
     public static bool NeedsAttention(LocalUpload item)=>item.Attention is {ResolvedUtc:null};
-    public static bool IsFailureState(LocalUpload item)=>item.State is "Failed" or "Conflict" or "ResolutionPending" or "OutcomeUnknown" or "WaitingCapacity"||item.State=="RemoteCommitted"&&!string.IsNullOrEmpty(item.Error);
+    public static bool IsFailureState(LocalUpload item)=>item.State is "Failed" or "Conflict" or "ResolutionPending" or "OutcomeUnknown" or "WaitingCapacity" or "PermissionPending" or "PermissionBlocked"||item.State=="RemoteCommitted"&&!string.IsNullOrEmpty(item.Error);
     public static bool IsRetrying(string state)=>state is "Queued" or "Waiting" or "Prepared" or "Sending" or "RemoteCommitted";
     public static bool IsRetryInProgress(string state,UploadAttention? attention)=>attention is {ResolvedUtc:null,FailureActive:false}&&(IsRetrying(state)||state=="OutcomeUnknown");
     /// <summary>同一路径可有原上传和副本问题；单项完成不能清除其余问题，选择最近原因并显示总数。</summary>

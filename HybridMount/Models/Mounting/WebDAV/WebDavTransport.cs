@@ -227,7 +227,7 @@ public sealed partial class WebDavFileSource
         {throw StorageRejected();}
         finally{_wire.Value=previous;}
     }
-    private static readonly PropertyName[] MetadataProperties=[new("DAV:","resourcetype"),new("DAV:","getcontentlength"),new("DAV:","getlastmodified"),new("DAV:","getetag")];
+    private static readonly PropertyName[] MetadataProperties=[new("DAV:","resourcetype"),new("DAV:","getcontentlength"),new("DAV:","getlastmodified"),new("DAV:","getetag"),new("DAV:","current-user-privilege-set")];
 
     /// <summary>输入读取续期无进展计时器；只借用流，退出仍由原上传所有者释放快照。</summary>
     private sealed class DavUploadBody(Stream inner,Action progressed) : Stream

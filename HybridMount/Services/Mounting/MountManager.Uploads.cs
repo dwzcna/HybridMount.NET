@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using HybridMount.Models.Mounting;
 
 namespace HybridMount.Services.Mounting;
@@ -135,6 +135,7 @@ public sealed partial class MountManager
     {
         if(IsStopping)return false;if(RetryRemovalOperation(id))return true;if(RetryFileOperation(id))return true;if(RetryExcludedRename(id) is {} renameRetry)return renameRetry;if(_repository.Upload(id)?.Resolution is not null)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(!UploadRules.CanRetry(item)||(RenameOwnsUpload(item)||FileExclusionRules.Matches(root.Definition,item))&&!UploadRules.InFlight(item))return false;
+        if(root.Source is IFileSourceAccess access)access.InvalidateAccess();
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);
         ChangeUpload(id,x=>x with{State=UploadRules.RetryState(x),CancelRequested=false,ExplicitRequest=true,Error=null,LastCheckedUtc=null,NextAttemptUtc=null,TransientFailureCount=x.State=="RemoteCommitted"?0:x.TransientFailureCount,Attention=x.Attention is {} a?a with{RetryRequested=true}:null});root.Uploads?.Wake();return true;
     }

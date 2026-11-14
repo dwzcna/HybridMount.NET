@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -42,6 +42,8 @@ public sealed partial class WebDavFileSource : IExcludedRenameSource
         using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true,destination:destination).ConfigureAwait(false);
         path = NonRoot(path); destination = NonRoot(destination);
         if (RelativePaths.Contains(path, destination)) throw new ArgumentException("不能移入自身。");
+        await RequireAccessAsync(RelativePaths.Parent(path),SourcePrivilege.Unbind,token,false).ConfigureAwait(false);
+        await RequireAccessAsync(RelativePaths.Parent(destination),SourcePrivilege.Bind,token,false).ConfigureAwait(false);
         await VerifyMutationAsync("MOVE",RelativePaths.Parent(destination),token).ConfigureAwait(false);
         using var request = new HttpRequestMessage(new HttpMethod("MOVE"), Address(path)); Condition(request, expectedVersion);
         request.Headers.Add("Destination", Address(destination).AbsoluteUri); request.Headers.Add("Overwrite", "F");
@@ -56,7 +58,7 @@ public sealed partial class WebDavFileSource : IExcludedRenameSource
     {
         using var sourceContext=MountingHttpScheduler.EnterSourceOperation(_queueBinding,CloudOperationChannel.Upload,path);
         using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token,subtree:true).ConfigureAwait(false);
-        path = NonRoot(path); await VerifyMutationAsync("DELETE",RelativePaths.Parent(path),token).ConfigureAwait(false);
+        path = NonRoot(path); await RequireAccessAsync(RelativePaths.Parent(path),SourcePrivilege.Unbind,token,false).ConfigureAwait(false);await VerifyMutationAsync("DELETE",RelativePaths.Parent(path),token).ConfigureAwait(false);
         var metadata = await GetMetadataAsync(path, token).ConfigureAwait(false);
         if (metadata.IsDirectory)
             await foreach (var _ in ListAsync(path, token).ConfigureAwait(false)) throw new NotSupportedException("首版仅允许删除空远端目录，避免递归条件覆盖不完整。");

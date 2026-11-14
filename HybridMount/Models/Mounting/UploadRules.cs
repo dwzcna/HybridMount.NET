@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>上传意图、类型、变化与删除屏障的纯规则；不读文件、数据库或原生占位状态。</summary>
 public static class UploadRules
@@ -48,7 +48,7 @@ public static class UploadRules
     /// <summary>综合稳定期、旧记录检查间隔和新退避时间，返回本代次最早允许调度的时刻。</summary>
     public static DateTimeOffset AttemptUtc(LocalUpload item)
     {
-        var checkedAt=item.State is "Waiting" or "RemoteCommitted"&&item.NextAttemptUtc is {} next?next:
+        var checkedAt=item.State is "Waiting" or "RemoteCommitted" or "PermissionPending"&&item.NextAttemptUtc is {} next?next:
             item.LastCheckedUtc is {} last?last+TimeSpan.FromSeconds(item.State is "OutcomeUnknown" or "WaitingCapacity"?60:3):DateTimeOffset.MinValue;
         var stable=item.ChangedUtc+TimeSpan.FromSeconds(2);return checkedAt>stable?checkedAt:stable;
     }
@@ -101,6 +101,6 @@ public static class UploadRules
         =>entries.FirstOrDefault(entry=>entry.RemotePresence==RemotePresence.Deleted&&SourceContains(entry.SourcePath,path));
     public static bool InFlightOrCompleted(LocalUpload? item)=>item is not null&&(InFlight(item)||item.State is "Completed" or "Canceled" or "Ignored");
     /// <summary>重试只恢复可重试状态；已经发送的未知结果和回执仍先核对。</summary>
-    public static bool CanRetry(LocalUpload item)=>item.State is "Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation" or "WaitingCapacity"||item.State=="RemoteCommitted"&&!string.IsNullOrEmpty(item.Error);
+    public static bool CanRetry(LocalUpload item)=>item.State is "Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "Ignored" or "AwaitingConfirmation" or "WaitingCapacity" or "PermissionPending" or "PermissionBlocked"||item.State=="RemoteCommitted"&&!string.IsNullOrEmpty(item.Error);
     public static string RetryState(LocalUpload item)=>item.State=="OutcomeUnknown"?item.State:item.Receipt is not null?"RemoteCommitted":"Queued";
 }

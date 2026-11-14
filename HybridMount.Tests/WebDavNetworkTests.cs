@@ -101,6 +101,9 @@ public sealed class WebDavNetworkTests
         var attempts=0;var applied=false;using var stop=new CancellationTokenSource();
         var handler=new FaultHandler(async (request,token)=>
         {
+            if(request.Method.Method=="PROPFIND")return new HttpResponseMessage((System.Net.HttpStatusCode)207){Content=new StringContent("""
+                <d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/</d:href><d:propstat><d:status>HTTP/1.1 200 OK</d:status><d:prop><d:current-user-privilege-set><d:privilege><d:all/></d:privilege></d:current-user-privilege-set></d:prop></d:propstat></d:response></d:multistatus>
+                """)};
             Assert.Equal("MKCOL",request.Method.Method);Interlocked.Increment(ref attempts);applied=true;
             if(cancel){stop.CancelAfter(40);await Task.Delay(Timeout.InfiniteTimeSpan,token);}throw Reset();
         });

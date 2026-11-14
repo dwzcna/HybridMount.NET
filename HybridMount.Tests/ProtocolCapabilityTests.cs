@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using HybridMount.Models.Mounting;
 using HybridMount.Models.Mounting.Synology;
 
@@ -243,7 +243,8 @@ public sealed class ProtocolCapabilityTests
             ? Task.FromResult(HttpTestServer.Response.Text(403, "PRIVATE-RESPONSE")) : original(request);
         var result = await new FileSourceFactory().TestConnectionAsync(fixture.Options, new("user", "app-password"));
         Assert.False(result.Success); Assert.NotNull(result.Capabilities);
-        Assert.Equal(ProtocolCapabilityStatus.Supported, ProtocolCapabilitySummary.Read(result.Capabilities, "dav.options").Status);
+        Assert.Equal(ProtocolCapabilityStatus.Unknown, ProtocolCapabilitySummary.Read(result.Capabilities, "dav.options").Status);
+        Assert.DoesNotContain(fixture.Server.Requests, request => request.Method == "OPTIONS");
         var value = ProtocolCapabilitySummary.Read(result.Capabilities, "dav.propfind");
         Assert.Equal(ProtocolCapabilityStatus.Unknown, value.Status); Assert.Equal(ProtocolCapabilityReason.Permission, value.Reason);
         Assert.DoesNotContain("PRIVATE-RESPONSE", JsonSerializer.Serialize(result.Capabilities));

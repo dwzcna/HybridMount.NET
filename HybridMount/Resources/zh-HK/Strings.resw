@@ -2614,4 +2614,9 @@ SHA-256：{5}</value></data>
   <data name="CertificateFetchCanceled" xml:space="preserve"><value>取得已取消，保留原有指紋輸入。</value></data>
   <data name="CertificateFetchUnavailable" xml:space="preserve"><value>未能取得伺服器葉憑證，保留原有指紋輸入。</value></data>
   <data name="ProtocolPurposeRepresentationDigest" xml:space="preserve"><value>驗證完整正文摘要，識別弱或缺失ETag檔案的內容變化；不替代條件寫入保護。</value></data>
+  <data name="SourcePermissionBlocked" xml:space="preserve"><value>遠端權限不允許此操作：{0}（{1}）。本機檔案、基線和快照已保留；請調整權限後重試。</value></data>
+  <data name="SourcePermissionPending" xml:space="preserve"><value>遠端權限尚未核驗：{0}（{1}）。目標寫入暫緩，保留本機檔案和快照。</value></data>
+  <data name="TaskPermissionPending" xml:space="preserve"><value>權限待核驗</value></data>
+  <data name="TaskPermissionBlocked" xml:space="preserve"><value>權限阻止</value></data>
+  <data name="ProtocolPurposeAccess" xml:space="preserve"><value>唯讀查詢精確資源的有效權限；權限結論與正文版本及條件寫入能力獨立。</value></data>
 </root>

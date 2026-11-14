@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>空版本只允许创建；摘要必须来自原始远端快照，不能取自修改后的本地文件。</summary>
 public sealed record UploadPrecondition(string? ExpectedVersion, string? BaselineSha256 = null);
@@ -34,6 +34,7 @@ public sealed record LocalUpload(string Id,Guid MountId,string LocalPath,string 
     DateTimeOffset? LastCheckedUtc=null,UploadAttention? Attention=null,int AutoRetryCount=0,
     DateTimeOffset? NextAttemptUtc=null,int TransientFailureCount=0,string? SnapshotAttemptId=null,string? ExclusionResumeState=null,ConflictResolution? Resolution=null,string? ConflictRecoveryPath=null)
 {
+    public SourceAccessSnapshot? Access {get;init;}
     /// <summary>本次上传从开始处理至服务器确认的总秒数；旧记录缺失时不推测平均速度。</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] public double TransferDurationSeconds {get;init;}
     /// <summary>同一上传的界面和持久历史使用相同描述；副本明确显示远端新路径。</summary>

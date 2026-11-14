@@ -100,6 +100,7 @@ public sealed partial class WebDavFileSource
                 if(!directory&&(!long.TryParse(Property(resource,"getcontentlength",true)?.Value,NumberStyles.None,CultureInfo.InvariantCulture,out size)||size<0))throw new InvalidRemoteChangeResponseException("DAV 同步文件缺少长度。");
                 var modified=DateTimeOffset.TryParse(Property(resource,"getlastmodified",true)?.Value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var date)?date.ToUniversalTime():DateTimeOffset.UnixEpoch;
                 var tag=NormalizeTag(Property(resource,"getetag",true)?.Value);
+                AccessResource(resource,path);
                 if(path!=collection)
                     entries.Add(await AttachDigestAsync(ObserveMetadata(new("",path,directory,size,modified,JsonSerializer.Serialize(new VersionInfo(tag,size,modified.UtcTicks)))),limit.Token).ConfigureAwait(false));
             }

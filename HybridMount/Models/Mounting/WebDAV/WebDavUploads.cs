@@ -125,7 +125,7 @@ public sealed partial class WebDavFileSource
         using var sourceWorkflow=_queueBinding is null?null:await _queueBinding.Queue.AcquireCurrentWorkflowAsync(token).ConfigureAwait(false);
         path=NonRoot(path);var strong=condition.ExpectedVersion is not null&&Strong(System.Text.Json.JsonSerializer.Deserialize<VersionInfo>(condition.ExpectedVersion)?.ETag);
         if(condition.ExpectedVersion is not null&&!strong&&string.IsNullOrEmpty(condition.BaselineSha256))throw new SourceConflictException("缺少原始远端内容基线，已保留本地修改；请另存副本。");
-        var parent=RelativePaths.Parent(path);await VerifyPutCapabilitiesAsync(parent,token).ConfigureAwait(false);
+        var parent=RelativePaths.Parent(path);await RequireAccessAsync(condition.ExpectedVersion is null?parent:path,condition.ExpectedVersion is null?SourcePrivilege.Bind:SourcePrivilege.WriteContent,token,false).ConfigureAwait(false);await VerifyPutCapabilitiesAsync(parent,token).ConfigureAwait(false);
         if(condition.ExpectedVersion is null?WriteCapabilities.CreateOnly==CapabilitySupport.Supported:strong&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported)return;
         try{await VerifyLocksAsync(parent,token).ConfigureAwait(false);}
         catch(NotSupportedException)when(condition.ExpectedVersion is null){await VerifyCreateMoveAsync(parent,token).ConfigureAwait(false);return;}
@@ -142,6 +142,7 @@ public sealed partial class WebDavFileSource
         var strong=condition.ExpectedVersion is not null&&Strong(System.Text.Json.JsonSerializer.Deserialize<VersionInfo>(condition.ExpectedVersion)?.ETag);
         if(condition.ExpectedVersion is not null&&!strong&&string.IsNullOrEmpty(condition.BaselineSha256))
             throw new SourceConflictException("缺少原始远端内容基线，已保留本地修改；请另存副本。");
+        await RequireAccessAsync(condition.ExpectedVersion is null?RelativePaths.Parent(path):path,condition.ExpectedVersion is null?SourcePrivilege.Bind:SourcePrivilege.WriteContent,token,false).ConfigureAwait(false);
         await VerifyPutCapabilitiesAsync(RelativePaths.Parent(path),token).ConfigureAwait(false);
         var direct=condition.ExpectedVersion is null?WriteCapabilities.CreateOnly==CapabilitySupport.Supported:
             strong&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported;

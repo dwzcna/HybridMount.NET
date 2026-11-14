@@ -28,6 +28,7 @@ public sealed partial class WebDavFileSource
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token, bool mutation = false,bool strictRead=false)
     {
         token.ThrowIfCancellationRequested();
+        if(mutation)await CheckRequestAccessAsync(request,token).ConfigureAwait(false);
         if(mutation)await PrepareTemporaryRequestAsync(request,token).ConfigureAwait(false);
         var previousStrict=_strictRead.Value;_strictRead.Value=previousStrict||strictRead;
         try
@@ -125,7 +126,7 @@ public sealed partial class WebDavFileSource
         using var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), uri);
         request.Headers.Add("Depth", depth.ToString(CultureInfo.InvariantCulture));
         request.Content = new StringContent("""
-            <?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/></d:prop></d:propfind>
+            <?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/><d:current-user-privilege-set/></d:prop></d:propfind>
             """, Encoding.UTF8, "application/xml");
         using var response = await SendAsync(request, token).ConfigureAwait(false);
         if(allowMissing&&response.StatusCode==HttpStatusCode.NotFound)return [];
@@ -150,6 +151,10 @@ public sealed partial class WebDavFileSource
                 if (StatusCode(propstat.Element(Dav + "status")?.Value) == 200)
                     props.Add(propstat.Element(Dav + "prop")?.Elements().Select(element => new XElement(element)));
             if (props.Element(Dav + "resourcetype") is not { } resource) throw new IOException("DAV 部分条目读取失败，拒绝不完整快照。");
+            var accessValues=props.Elements(Dav+"current-user-privilege-set").ToArray();
+            var accessReason=accessValues.Length>1?"Malformed":accessValues.Length==1?"Verified":
+                item.Elements(Dav+"propstat").Any(part=>StatusCode(part.Element(Dav+"status")?.Value)==403&&part.Element(Dav+"prop")?.Element(Dav+"current-user-privilege-set") is not null)?"Permission":"Missing";
+            RememberAccess(relative,accessValues.Length==1?accessValues[0]:null,accessReason);
             var directory = resource.Element(Dav + "collection") is not null;
             long size = 0;
             if (!directory && (!long.TryParse(props.Element(Dav + "getcontentlength")?.Value, NumberStyles.None, CultureInfo.InvariantCulture, out size) || size < 0))

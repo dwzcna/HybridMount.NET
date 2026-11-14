@@ -2614,4 +2614,9 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="CertificateFetchCanceled" xml:space="preserve"><value>Certificate fetching canceled. The existing fingerprint is unchanged.</value></data>
   <data name="CertificateFetchUnavailable" xml:space="preserve"><value>The server leaf certificate was not obtained. The existing fingerprint is unchanged.</value></data>
   <data name="ProtocolPurposeRepresentationDigest" xml:space="preserve"><value>Verify full representation digests and detect content changes with weak or missing ETags; write preconditions remain required.</value></data>
+  <data name="SourcePermissionBlocked" xml:space="preserve"><value>Remote permissions deny this operation: {0} ({1}). Local files, baseline and snapshot are retained; retry after adjusting permissions.</value></data>
+  <data name="SourcePermissionPending" xml:space="preserve"><value>Remote permissions are not verified: {0} ({1}). Target writes are deferred; local files and snapshot are retained.</value></data>
+  <data name="TaskPermissionPending" xml:space="preserve"><value>Permission verification pending</value></data>
+  <data name="TaskPermissionBlocked" xml:space="preserve"><value>Permission blocked</value></data>
+  <data name="ProtocolPurposeAccess" xml:space="preserve"><value>Read effective privileges for the exact resource, independently of content versions and write preconditions.</value></data>
 </root>
