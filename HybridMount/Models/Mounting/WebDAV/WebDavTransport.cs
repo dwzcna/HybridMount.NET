@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Xml.Linq;
@@ -61,6 +61,7 @@ public sealed partial class WebDavFileSource
         {
             if(token.IsCancellationRequested)return null;
             owner.HrefPath(request.RequestUri!.AbsoluteUri,owner._endpoint);
+            request.Version=HttpVersion.Version11;request.VersionPolicy=HttpVersionPolicy.RequestVersionExact;
             if(credentials.UserName.Length!=0)
                 request.Headers.Authorization=new AuthenticationHeaderValue("Basic",Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials.UserName+":"+credentials.Password)));
             var observation=owner._wire.Value;
@@ -77,10 +78,18 @@ public sealed partial class WebDavFileSource
                 if(token.IsCancellationRequested)return null;
                 using var clone=index==0?null:Clone(request,content);
                 var current=clone??request;var network=new NetworkAttempt();current.Options.Set(NetworkAttemptKey,network);
+                if(owner._probing.Value)Volatile.Write(ref owner._lastProbeAttempt,network);
+                var networkBegan=System.Diagnostics.Stopwatch.GetTimestamp();
                 if(observation is not null)observation.Sent=true;
                 try
                 {
-                    var result=await MountingHttpScheduler.SendAsync(owner._queueBinding,readOnly?MountingPriority.Observation:MountingPriority.Transaction,cancel=>base.SendAsync(current,cancel),token).ConfigureAwait(false);
+                    var result=await MountingHttpScheduler.SendAsync(owner._queueBinding,readOnly?MountingPriority.Observation:MountingPriority.Transaction,async cancel=>
+                    {
+                        var previous=owner._networkAttempt.Value;owner._networkAttempt.Value=network;
+                        try{return await base.SendAsync(current,cancel).ConfigureAwait(false);}
+                        finally{owner._networkAttempt.Value=previous;}
+                    },token).ConfigureAwait(false);
+                    network.Trace.Record("HTTP","Response",networkBegan,httpStatus:(int)result.StatusCode);
                     if(observation is not null){observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);observation.Identity=result.Content.Headers.ContentEncoding.All(x=>x.Equals("identity",StringComparison.OrdinalIgnoreCase));}
                     owner.ObserveCapabilityHeaders(request, result);
                     if(request.Method==HttpMethod.Options)owner.CaptureOptions(result);
@@ -89,8 +98,8 @@ public sealed partial class WebDavFileSource
                 catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException or System.Security.Authentication.AuthenticationException or System.Net.Sockets.SocketException)
                 {
                     if(error is OperationCanceledException&&token.IsCancellationRequested&&network.Certificate==System.Net.Security.SslPolicyErrors.None)return null;
-                    var failure=error as SourceConnectionException??WebDavNetworkDiagnostics.Failure(error,request.Method.Method+" 响应头／连接",network.Certificate,network.Chain,error is OperationCanceledException,index+1);
-                    if(failure.Diagnostic.Kind==ConnectionFailureKind.Certificate)throw new SourceConnectionException(failure.Diagnostic){Certificate=owner.RejectedCertificate};
+                    var failure=error as SourceConnectionException??owner.NetworkFailure(error,request.Method.Method+" 响应头／连接",network,error is OperationCanceledException,index+1);
+                    if(failure.Diagnostic.Kind==ConnectionFailureKind.Certificate)throw failure;
                     if(!failure.Diagnostic.Transient||index==attempts-1)throw failure;
                 }
                 var delay=TimeSpan.FromMilliseconds(Math.Min(2000,Math.Max(0,owner.ReadRetryDelay.TotalMilliseconds)*(1<<index)));

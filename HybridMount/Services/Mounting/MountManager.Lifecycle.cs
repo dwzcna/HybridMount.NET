@@ -1,4 +1,4 @@
-using HybridMount.Models.Mounting;
+﻿using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -40,6 +40,9 @@ public sealed partial class MountManager
             if(!result.Success){if(result.Diagnostic is {} diagnostic)_logger.QueueException("连接测试","Warning","只读连接测试失败",new SourceConnectionException(diagnostic));else _logger.Queue("连接测试","Warning","只读连接测试失败，请核对表单和连接设置。");}
             return result;
         },token);
+    /// <summary>无凭据获取由应用拥有；只验证HTTPS地址，关闭和退出取消并等待连接资源归还。</summary>
+    internal Task<Models.Mounting.WebDAV.WebDavCertificateInfo> FetchCertificateAsync(string address,CancellationToken token=default)
+        =>OwnAsync(cancel=>Models.Mounting.WebDAV.WebDavCertificateFetcher.FetchCertificateAsync(address,cancel),token);
     private Task OwnAsync(Func<CancellationToken,Task> action,CancellationToken token)
         =>OwnAsync(async cancel=>{await action(cancel).ConfigureAwait(false);return true;},token);
     /// <summary>表单探测会话由应用生命周期拥有；退出与迟到结果均释放尚未交接的认证。</summary>

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
@@ -171,6 +171,8 @@
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavCreateMove.cs" Link="Production\Models\Mounting\WebDAV\WebDavCreateMove.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavFileSource.cs" Link="Production\Models\Mounting\WebDAV\WebDavFileSource.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavLocks.cs" Link="Production\Models\Mounting\WebDAV\WebDavLocks.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavCertificateFetcher.cs" Link="Production\Models\Mounting\WebDAV\WebDavCertificateFetcher.cs"/>
+    <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavTcpConnector.cs" Link="Production\Models\Mounting\WebDAV\WebDavTcpConnector.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavNetworkDiagnostics.cs" Link="Production\Models\Mounting\WebDAV\WebDavNetworkDiagnostics.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavPreviewRanges.cs" Link="Production\Models\Mounting\WebDAV\WebDavPreviewRanges.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\WebDAV\WebDavRuntimeContext.cs" Link="Production\Models\Mounting\WebDAV\WebDavRuntimeContext.cs"/>

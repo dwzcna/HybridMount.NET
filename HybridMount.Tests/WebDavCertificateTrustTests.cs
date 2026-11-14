@@ -1,4 +1,4 @@
-using System.Net.Security;
+﻿using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
@@ -29,11 +29,42 @@ public sealed class WebDavCertificateTrustTests
         var pin=Assert.IsType<string>(trust.Confirm("draft",server.Address));
         Assert.Null(trust.Confirm("draft",server.Address));
         var accepted=await new FileSourceFactory().TestConnectionAsync(options with {PinnedCertificateSha256=pin},new());
-        Assert.True(accepted.Success,accepted.Message);Assert.Equal(new[]{"OPTIONS","PROPFIND"},server.Methods);
+        Assert.True(accepted.Success,accepted.Message);Assert.Equal(new[]{"PROPFIND","OPTIONS"},server.Methods);
         Assert.Null(accepted.Certificate);Assert.DoesNotContain("private-",JsonSerializer.Serialize(result));
         Assert.DoesNotContain("Sha256",JsonSerializer.Serialize(result));
         var other=await new FileSourceFactory().TestConnectionAsync(options,new());
         Assert.Equal(ConnectionFailureKind.Certificate,other.Diagnostic?.Kind);Assert.Equal(2,server.Methods.Count);
+    }
+    [Theory(Timeout=15000)]
+    [InlineData(false,false)] [InlineData(true,false)] [InlineData(false,true)]
+    public async Task Fetch_captures_public_leaf_without_sending_any_http(bool expired,bool wrongHost)
+    {
+        await using var server=new TlsFixture(wrongHost:wrongHost,davResponses:true,expired:expired);
+        var certificate=await WebDavCertificateFetcher.FetchCertificateAsync(server.Address.AbsoluteUri,default);
+        Assert.Equal(server.CertificatePin,certificate.Sha256);
+        Assert.Equal(64,certificate.Sha256.Length);Assert.Empty(server.Methods);Assert.Equal(1,server.Connections);
+    }
+    [Theory(Timeout=15000)]
+    [InlineData(false)] [InlineData(true)]
+    public async Task Fetch_stalled_tls_obeys_its_deadline_and_caller_cancellation(bool caller)
+    {
+        await using var server=new TlsFixture(stall:true);using var cancel=new CancellationTokenSource();
+        if(caller)cancel.CancelAfter(50);
+        var work=WebDavCertificateFetcher.FetchCertificateAsync(server.Address.AbsoluteUri,cancel.Token,TimeSpan.FromMilliseconds(150));
+        if(caller)await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>work);
+        else Assert.Equal(ConnectionFailureKind.Timeout,(await Assert.ThrowsAsync<SourceConnectionException>(()=>work)).Diagnostic.Kind);
+        Assert.Empty(server.Methods);
+    }
+    [Fact(Timeout=15000)]
+    public async Task Concurrent_rejections_keep_each_requests_certificate()
+    {
+        await using var first=new TlsFixture();await using var second=new TlsFixture(wrongHost:true);
+        var factory=new FileSourceFactory();
+        var tasks=new[]{factory.TestConnectionAsync(new(FileSourceKind.WebDav,first.Address.AbsoluteUri),new()),
+            factory.TestConnectionAsync(new(FileSourceKind.WebDav,second.Address.AbsoluteUri),new())};
+        var results=await Task.WhenAll(tasks);
+        Assert.Equal(first.CertificatePin,results[0].Certificate?.Sha256);Assert.Equal(second.CertificatePin,results[1].Certificate?.Sha256);
+        Assert.Empty(first.Methods);Assert.Empty(second.Methods);
     }
     [Fact]
     public void DraftChangesAndReturningToOriginalRetireCertificateCandidate()

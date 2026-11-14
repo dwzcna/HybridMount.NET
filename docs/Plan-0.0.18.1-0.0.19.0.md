@@ -40,3 +40,12 @@
 - https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo.currentculture?view=net-10.0
 - https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/mrtcore/localize-strings
 - https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/mrtcore/mrtcore-overview
+
+## 0.0.19.0 菜单增量（2026-11-15）
+
+- 挂载菜单入口改为“移除挂载”，确认流程和实际移除模式不变；“查看结果”改为“查看详情”。
+- “清理历史任务”的清除已完成、清除失败、清除所有三项提升为同级菜单；“打开所在位置”和第一个清理项之间插入分隔符。
+- 三项均使用Grid叠加FontIcon：E74D基底，依次叠加F0B7、EA83、EA81。保留三项既有清理范围与确认保护；用符合IconElement槽类型的复合图标承载，保留原生菜单模板与视觉状态。
+- 同步三语言，实际WinUI检查菜单间距、叠加、焦点、溢出、明暗和高对比度；未执行的人工项如实列待测。
+
+- 设置页“移除所有挂载点”移到“清空所有程序设置”左侧，沿用同一按钮样式并增加E8CD FontIcon；隐藏“查看移除任务”和“从资源管理器检索”按钮，后台处理暂保留。窄窗仍需换行并保留可达性。

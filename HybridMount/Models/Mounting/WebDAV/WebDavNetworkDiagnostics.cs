@@ -1,4 +1,4 @@
-using System.Net.Security;
+﻿using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -13,6 +13,7 @@ internal static class WebDavNetworkDiagnostics
         X509ChainStatusFlags chain=X509ChainStatusFlags.NoError,bool timeout=false,int attempts=1)
     {
         var errors=new List<Exception>();for(var item=error;item is not null&&errors.Count<8;item=item.InnerException)errors.Add(item);
+        timeout|=errors.Any(item=>item is TimeoutException);
         var http=errors.OfType<HttpRequestException>().FirstOrDefault();var socket=errors.OfType<SocketException>().FirstOrDefault();
         var transport=http?.HttpRequestError??errors.OfType<HttpIOException>().FirstOrDefault()?.HttpRequestError;
         var tls=transport==HttpRequestError.SecureConnectionError||errors.Any(x=>x is AuthenticationException);
@@ -41,7 +42,25 @@ internal static class WebDavNetworkDiagnostics
 public sealed partial class WebDavFileSource
 {
     private sealed class NetworkAttempt
-    {public SslPolicyErrors Certificate;public X509ChainStatusFlags Chain;}
+    {
+        public SslPolicyErrors Certificate;public X509ChainStatusFlags Chain;
+        public readonly WebDavConnectionTrace Trace=new();
+        public WebDavCertificateInfo? Rejected;
+    }
+    private readonly AsyncLocal<NetworkAttempt?> _networkAttempt=new();
+    private NetworkAttempt? _lastProbeAttempt;
+    private readonly AsyncLocal<bool> _probing=new();
+    private readonly WebDavTcpConnector _tcp=new();
+    private SourceConnectionException NetworkFailure(Exception error,string stage,NetworkAttempt? attempt=null,bool timeout=false,int attempts=1)
+    {
+        attempt??=Volatile.Read(ref _lastProbeAttempt);
+        var failure=WebDavNetworkDiagnostics.Failure(error,stage,attempt?.Certificate??SslPolicyErrors.None,attempt?.Chain??X509ChainStatusFlags.NoError,timeout,attempts);
+        var diagnostic=failure.Diagnostic with{TransportStages=attempt?.Trace.Snapshot};
+        if(_endpoint.Scheme=="https"&&attempt?.Trace is {Started:true,TcpConnected:false})
+            diagnostic=diagnostic with{Explanation=diagnostic.Explanation+" "+global::HybridMount.Services.Localization.UiText.Text("WebDavBeforeCertificate")};
+        return new(diagnostic){Certificate=attempt?.Rejected};
+    }
+    internal SourceConnectionException ProbeTimeout(Exception error)=>NetworkFailure(error,"测试连接",timeout:true);
     private static readonly HttpRequestOptionsKey<NetworkAttempt> NetworkAttemptKey=new("HybridMount.WebDav.NetworkAttempt");
     internal TimeSpan ReadRetryDelay {get;set;}=TimeSpan.FromMilliseconds(200);
     /// <summary>规范化当前挂载的 SHA-256 指纹；空值沿用系统信任，格式错误或 HTTP 地址在连接前失败。</summary>
@@ -60,24 +79,40 @@ public sealed partial class WebDavFileSource
         =>certificate is not null&&(errors==SslPolicyErrors.None || pin is not null &&
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(certificate.RawData))==pin);
     /// <summary>信任仅属于此客户端；禁止重定向及跨挂载共享，不修改系统证书存储。</summary>
-    private HttpMessageHandler CreateHttpHandler(string? pin)=>new HttpClientHandler
+    private HttpMessageHandler CreateHttpHandler(string? pin)=>new SocketsHttpHandler
     {
         AllowAutoRedirect=false,UseCookies=false,MaxConnectionsPerServer=4,AutomaticDecompression=System.Net.DecompressionMethods.None,
-        ServerCertificateCustomValidationCallback=(request,certificate,chain,errors)=>
+        ConnectTimeout=TimeSpan.FromSeconds(15),
+        ConnectCallback=(context,token)=>_tcp.ConnectAsync(context.DnsEndPoint,
+            context.InitialRequestMessage.Options.TryGetValue(NetworkAttemptKey,out var attempt)?attempt.Trace:null,token),
+        SslOptions=new SslClientAuthenticationOptions
         {
-            var expected=request.RequestUri is { Scheme: "https" } address && address.Authority == _endpoint.Authority;
-            var accepted=expected && AcceptCertificate(certificate,errors,pin);
-            var flags=X509ChainStatusFlags.NoError;
-            if(chain is not null)foreach(var status in chain.ChainStatus)flags |= status.Status;
-            if(!accepted && expected && certificate is not null)
-                Volatile.Write(ref _rejectedCertificate, WebDavCertificateInfo.Capture(_endpoint,certificate,errors,flags));
-            if(request.Options.TryGetValue(NetworkAttemptKey,out var attempt))
+            RemoteCertificateValidationCallback=(sender,certificate,chain,errors)=>
             {
-                // 只保留结构化拒绝原因；已收到证书拒绝时不以超时覆盖，且不自动重试。
-                attempt.Certificate=accepted?SslPolicyErrors.None:errors==SslPolicyErrors.None?SslPolicyErrors.RemoteCertificateChainErrors:errors;
-                if(!accepted)attempt.Chain=flags;
+                X509Certificate2? owned=null;
+                try
+                {
+                    var leaf=certificate as X509Certificate2??(certificate is null?null:owned=X509CertificateLoader.LoadCertificate(certificate.GetRawCertData()));
+                    var expected=sender is SslStream ssl&&string.Equals(ssl.TargetHostName.Trim('[',']'),_endpoint.IdnHost.Trim('[',']'),StringComparison.OrdinalIgnoreCase);
+                    var accepted=leaf is not null&&(errors==SslPolicyErrors.None||expected&&AcceptCertificate(leaf,errors,pin));var flags=X509ChainStatusFlags.NoError;
+                    if(chain is not null)foreach(var status in chain.ChainStatus)flags|=status.Status;
+                    var attempt=_networkAttempt.Value;
+                    if(!accepted&&expected&&leaf is not null)
+                    {
+                        var details=WebDavCertificateInfo.Capture(_endpoint,leaf,errors,flags);
+                        Volatile.Write(ref _rejectedCertificate,details);
+                        if(attempt is not null)attempt.Rejected=details;
+                    }
+                    if(attempt is not null)
+                    {
+                        attempt.Certificate=accepted?SslPolicyErrors.None:errors==SslPolicyErrors.None?SslPolicyErrors.RemoteCertificateChainErrors:errors;
+                        if(!accepted)attempt.Chain=flags;
+                        attempt.Trace.Record(expected?"TLS":"ProxyTLS",accepted?"Validated":"Rejected",attempt.Trace.TlsStartedAt);
+                    }
+                    return accepted;
+                }
+                finally{owned?.Dispose();}
             }
-            return accepted;
         }
     };
 }

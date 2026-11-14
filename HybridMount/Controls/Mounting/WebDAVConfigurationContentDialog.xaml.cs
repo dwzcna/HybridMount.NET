@@ -1,4 +1,4 @@
-using HybridMount.Models.Mounting;
+﻿using HybridMount.Models.Mounting;
 using HybridMount.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,7 +16,9 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private MountDefinition? _existing;
     private FileSourceKind _kind;
     private readonly bool _httpsOnly;
-    private CancellationTokenSource? _testing;
+    private CancellationTokenSource? _testing,_fetching;
+    private long _certificateFetchRevision;
+    private HybridMount.Models.Mounting.WebDAV.WebDavCertificateInfo? _fetchedCertificate;
     private bool _loading=true,_submitting,_picking,_disposed,_stopping,_savingSwitch;
     private string? _httpWarningContext;
     public MountsViewModel ViewModel=>_model;
@@ -81,7 +83,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
         if(_existing is not null&&mount is null){CancelForShutdown();return;}
-        var busy=_savingSwitch||_submitting||_picking||_testing is not null||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
+        var busy=_savingSwitch||_submitting||_picking||(_testing is not null||_fetching is not null)||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
         ExclusionFields.IsEnabled=!busy;ConnectionFields.IsEnabled=!busy;SettingsFields.IsEnabled=!busy;
         IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
         if(mount is null||_savingSwitch)return;
@@ -128,7 +130,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     }
     private async void ChooseFolder(object sender,RoutedEventArgs args)
     {
-        if(Stopped||_submitting||_picking||_testing is not null)return;_picking=true;Refresh();
+        if(Stopped||_submitting||_picking||(_testing is not null||_fetching is not null))return;_picking=true;Refresh();
         try
         {
             var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
@@ -147,11 +149,11 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             SecondaryButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_0ADDD7784578");
             IsSecondaryButtonEnabled=false;testing.Cancel();return;
         }
-        if(!_submitting&&!_picking)await ProbeConnectionAsync();
+        if(!_submitting&&!_picking&&_fetching is null)await ProbeConnectionAsync();
     }
     private async Task ProbeConnectionAsync()
     {
-        if(Stopped||!ValidateFields(false))return;
+        if(Stopped||_fetching is not null||!ValidateFields(false))return;
         using var cancel=new CancellationTokenSource();_testing=cancel;
         var identity=CertificateIdentity();_certificateTrust.Begin(identity);CertificateWarning.IsOpen=false;
         Refresh();SecondaryButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_49BE72E6045C");
@@ -182,9 +184,32 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         finally{_testing=null;if(!Stopped){SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
     }
     private string CertificateIdentity() => ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials());
+    /// <summary>成功直接填框，不添加确认步骤；任何输入变化或关闭均拒绝迟到结果，失败保持原输入。</summary>
+    private async void FetchCertificate(object sender,RoutedEventArgs args)
+    {
+        if(Stopped||_fetching is not null||_testing is not null||_submitting||_picking)return;
+        var address=EndpointField.Text.Trim();
+        _fieldFeedback.Begin();
+        try{var endpoint=FileSourceFactory.Endpoint(new(FileSourceKind.WebDav,address));_fieldFeedback.Check(endpoint.Scheme=="https",EndpointField,global::HybridMount.Services.Localization.UiText.Text("CertificateFetchHttpsRequired"));}
+        catch(ArgumentException error){_fieldFeedback.Check(false,EndpointField,error.Message);}
+        if(!_fieldFeedback.Complete(this))return;
+        using var cancel=new CancellationTokenSource();_fetching=cancel;var revision=_certificateFetchRevision;
+        Refresh();ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchRunning");ProbeBar.IsOpen=true;
+        try
+        {
+            var certificate=await _model.FetchCertificateAsync(address,cancel.Token);
+            if(Stopped||cancel.IsCancellationRequested||revision!=_certificateFetchRevision||address!=EndpointField.Text.Trim())return;
+            CertificatePinField.Text=certificate.Sha256;_fetchedCertificate=certificate;
+            _capabilityBinding?.Refresh();UpdateCertificatePresentation();
+            ProbeBar.Severity=InfoBarSeverity.Success;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchSucceeded");
+        }
+        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchCanceled");}}
+        catch(Exception error){if(!Stopped&&revision==_certificateFetchRevision){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=error.Message;}}
+        finally{_fetching=null;if(!Stopped)Refresh();}
+    }
     private async void TrustCertificate(object sender,RoutedEventArgs args)
     {
-        if(Stopped||_testing is not null||_submitting||_picking||_certificateTrust.Candidate is null)return;
+        if(Stopped||(_testing is not null||_fetching is not null)||_submitting||_picking||_certificateTrust.Candidate is null)return;
         var settings=ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true);
         if(_certificateTrust.Confirm(CertificateIdentity(),FileSourceFactory.Endpoint(settings)) is not {} pin)return;
         CertificatePinField.Text=pin;CertificateWarning.IsOpen=false;
@@ -192,7 +217,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     }
     private void ClearCertificateTrust(object sender,RoutedEventArgs args)
     {
-        if(Stopped||_testing is not null||_submitting)return;
+        if(Stopped||(_testing is not null||_fetching is not null)||_submitting)return;
         CertificatePinField.Text="";InvalidateCertificateCandidate();_capabilityBinding?.Refresh();
     }
     /// <summary>证书详情仅来自TLS回调已复制的公开字段；展示／语言切换不重新连接服务器。</summary>
@@ -200,10 +225,15 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     {
         var https=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme=="https";
         HttpsFields.Visibility=https?Visibility.Visible:Visibility.Collapsed;
-        ClearCertificateTrustButton.Content=global::HybridMount.Services.Localization.UiText.Text("CertificateClearTrust");
-        ClearCertificateTrustButton.IsEnabled=!string.IsNullOrWhiteSpace(CertificatePinField.Text)&&_testing is null&&!_submitting;
+        ClearCertificateTrustLabel.Text=global::HybridMount.Services.Localization.UiText.Text("CertificateClearTrust");
+        ClearCertificateTrustButton.IsEnabled=!string.IsNullOrWhiteSpace(CertificatePinField.Text)&&_testing is null&&_fetching is null&&!_submitting;
         TrustCertificateButton.Content=global::HybridMount.Services.Localization.UiText.Text("CertificateTrustAndRetry");
-        TrustCertificateButton.IsEnabled=_certificateTrust.Candidate is not null&&_testing is null&&!_submitting;
+        TrustCertificateButton.IsEnabled=_certificateTrust.Candidate is not null&&_testing is null&&_fetching is null&&!_submitting;
+        FetchCertificateLabel.Text=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchButton");
+        FetchCertificateButton.IsEnabled=https&&_testing is null&&_fetching is null&&!_submitting&&!_picking;
+        FetchedCertificateDetails.Visibility=_fetchedCertificate is null?Visibility.Collapsed:Visibility.Visible;
+        FetchedCertificateDetails.Text=_fetchedCertificate is {} fetched?global::HybridMount.Services.Localization.UiText.Text("CertificateDetails",fetched.Server,fetched.Subject,fetched.Issuer,
+            fetched.NotBeforeUtc.ToLocalTime().ToString("g"),fetched.NotAfterUtc.ToLocalTime().ToString("g"),fetched.Sha256):"";
         if(_certificateTrust.Candidate is not {} certificate){CertificateWarning.IsOpen=false;return;}
         var reasons=new List<string>();var now=DateTimeOffset.UtcNow;
         if(now>certificate.NotAfterUtc)reasons.Add(global::HybridMount.Services.Localization.UiText.Text("CertificateExpired"));
@@ -215,7 +245,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
                 certificate.NotBeforeUtc.ToLocalTime().ToString("g"),certificate.NotAfterUtc.ToLocalTime().ToString("g"),certificate.Sha256)+"\n"+
             global::HybridMount.Services.Localization.UiText.Text("CertificateTrustScope");
     }
-    private void InvalidateCertificateCandidate(){_certificateTrust.Invalidate();CertificateWarning.IsOpen=false;}
+    private void InvalidateCertificateCandidate(){_certificateFetchRevision++;_fetchedCertificate=null;_certificateTrust.Invalidate();CertificateWarning.IsOpen=false;}
     private void CertificateInputChanging(TextBox sender,TextBoxBeforeTextChangingEventArgs args)
     {if(!_loading&&args.NewText!=sender.Text)InvalidateCertificateCandidate();}
     private void CertificatePasswordChanging(PasswordBox sender,PasswordBoxPasswordChangingEventArgs args)
@@ -242,7 +272,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     }
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
-        args.Cancel=true;if(Stopped||_submitting||_picking||_testing is not null)return;
+        args.Cancel=true;if(Stopped||_submitting||_picking||(_testing is not null||_fetching is not null))return;
         if(!ValidateFields(true))return;var deferral=args.GetDeferral();_submitting=true;Refresh();ErrorBar.IsOpen=false;
         try
         {
@@ -264,13 +294,13 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         finally{_submitting=false;if(!Stopped)Refresh();deferral.Complete();}
     }
     private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args)
-    {if(_testing is {} testing)testing.Cancel();if(!_stopping&&(_submitting||_picking||(_existing is {} mount&&_model.IsBusy(mount.Id))))args.Cancel=true;}
+    {_fetching?.Cancel();if(_testing is {} testing)testing.Cancel();if(!_stopping&&(_submitting||_picking||(_existing is {} mount&&_model.IsBusy(mount.Id))))args.Cancel=true;}
     private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
     /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
-    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();Hide();Dispose();}
+    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();_fetching?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();ClearSecrets();
+        if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();_fetching?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         _certificateTrust.Invalidate();EndpointField.TextChanged-=EndpointChanged;EndpointField.BeforeTextChanging-=EndpointChanging;
         UserField.BeforeTextChanging-=CertificateInputChanging;CertificatePinField.BeforeTextChanging-=CertificateInputChanging;

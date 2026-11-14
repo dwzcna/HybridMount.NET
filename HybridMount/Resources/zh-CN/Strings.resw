@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2606,4 +2606,11 @@ SHA-256：{5}</value></data>
   <data name="RemoveCachedPartialProtected" xml:space="preserve"><value>内容不完整且存在本地修改或未决保护，已保留配置和内容。</value></data>
   <data name="RemoveCachedPartialRemoved" xml:space="preserve"><value>已移除干净的不完整占位文件，未读取远端。</value></data>
   <data name="RemoveCachedKept" xml:space="preserve"><value>已保留为普通本地文件或目录。</value></data>
+  <data name="WebDavBeforeCertificate" xml:space="preserve"><value>尚未进入证书校验。</value></data>
+  <data name="CertificateFetchButton" xml:space="preserve"><value>获取证书指纹</value></data>
+  <data name="CertificateFetchHttpsRequired" xml:space="preserve"><value>获取证书指纹只需有效的 HTTPS 服务器地址。</value></data>
+  <data name="CertificateFetchRunning" xml:space="preserve"><value>正在获取服务器叶证书；不发送 WebDAV 凭据或读取文件。</value></data>
+  <data name="CertificateFetchSucceeded" xml:space="preserve"><value>已获取并填入证书指纹；尚未测试 WebDAV 连接。请检查下方证书信息，再使用原有保存或测试按钮。</value></data>
+  <data name="CertificateFetchCanceled" xml:space="preserve"><value>获取已取消，原指纹输入保留。</value></data>
+  <data name="CertificateFetchUnavailable" xml:space="preserve"><value>未取得服务器叶证书，原指纹输入保留。</value></data>
 </root>

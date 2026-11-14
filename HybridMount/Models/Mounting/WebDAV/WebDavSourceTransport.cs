@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -74,14 +74,33 @@ public sealed partial class WebDavFileSource
             throw new IOException(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
                 ? "WebDAV 认证或权限不足，请检查账号与应用密码。" : $"WebDAV 返回 HTTP {(int)response.StatusCode}；未跟随重定向。");
     }
+    internal TimeSpan ProbeDeadline {get;set;}=TimeSpan.FromSeconds(120);
+    internal TimeSpan OptionsDeadline {get;set;}=TimeSpan.FromSeconds(5);
+    /// <summary>总预算内先验证集合，随后有界读取OPTIONS；可选方法失败不撤销已验证的目录读取，用户取消仍停止。</summary>
     public async Task ProbeAsync(CancellationToken token = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Options, _endpoint);
-        using var response = await SendAsync(request, token).ConfigureAwait(false);
-        // 有些服务器不实现 OPTIONS，但仍支持 PROPFIND；认证错误不得忽略。
-        if (response.StatusCode is not (HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented)) Success(response);
-        var root = await GetMetadataAsync("", token).ConfigureAwait(false);
-        if (!root.IsDirectory) throw new IOException("WebDAV 根必须是集合目录。");
+        using var budget=CancellationTokenSource.CreateLinkedTokenSource(token);budget.CancelAfter(ProbeDeadline);
+        var previous=_probing.Value;_probing.Value=true;Volatile.Write(ref _lastProbeAttempt,null);
+        try
+        {
+            var root=await GetMetadataAsync("",budget.Token).ConfigureAwait(false);
+            if(!root.IsDirectory)throw new IOException("WebDAV 根必须是集合目录。");
+            using var options=CancellationTokenSource.CreateLinkedTokenSource(budget.Token);options.CancelAfter(OptionsDeadline);
+            try
+            {
+                using var request=new HttpRequestMessage(HttpMethod.Options,_endpoint);
+                using var response=await SendAsync(request,options.Token).ConfigureAwait(false);
+                if(response.StatusCode is not(HttpStatusCode.MethodNotAllowed or HttpStatusCode.NotImplemented or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))Success(response);
+            }
+            catch(OperationCanceledException)when(!budget.IsCancellationRequested)
+            {_protocolEvidence.Record("dav.options",ProtocolCapabilityStatus.Unknown,"",ProtocolCapabilityReason.Uncertain);}
+            catch(SourceConnectionException error)when(error.Diagnostic.Kind==ConnectionFailureKind.Timeout&&!budget.IsCancellationRequested)
+            {_protocolEvidence.Record("dav.options",ProtocolCapabilityStatus.Unknown,"",ProtocolCapabilityReason.Uncertain);}
+            budget.Token.ThrowIfCancellationRequested();
+        }
+        catch(OperationCanceledException error)when(!token.IsCancellationRequested)
+        {throw NetworkFailure(error,"PROPFIND 测试连接",timeout:true);}
+        finally{_probing.Value=previous;}
     }
     private string HrefPath(string href, Uri requestUri)
     {

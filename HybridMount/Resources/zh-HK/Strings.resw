@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2606,4 +2606,11 @@ SHA-256：{5}</value></data>
   <data name="RemoveCachedPartialProtected" xml:space="preserve"><value>內容不完整且存在本機修改或未決保護，已保留設定及內容。</value></data>
   <data name="RemoveCachedPartialRemoved" xml:space="preserve"><value>已移除乾淨的不完整預留位置檔案，未讀取遠端。</value></data>
   <data name="RemoveCachedKept" xml:space="preserve"><value>已保留為一般本機檔案或目錄。</value></data>
+  <data name="WebDavBeforeCertificate" xml:space="preserve"><value>尚未進入憑證驗證。</value></data>
+  <data name="CertificateFetchButton" xml:space="preserve"><value>取得憑證指紋</value></data>
+  <data name="CertificateFetchHttpsRequired" xml:space="preserve"><value>取得憑證指紋只需有效的 HTTPS 伺服器地址。</value></data>
+  <data name="CertificateFetchRunning" xml:space="preserve"><value>正在取得伺服器葉憑證；不傳送 WebDAV 憑據或讀取檔案。</value></data>
+  <data name="CertificateFetchSucceeded" xml:space="preserve"><value>已取得並填入憑證指紋；尚未測試 WebDAV 連線。請檢查下方憑證資訊，再使用原有儲存或測試按鈕。</value></data>
+  <data name="CertificateFetchCanceled" xml:space="preserve"><value>取得已取消，保留原有指紋輸入。</value></data>
+  <data name="CertificateFetchUnavailable" xml:space="preserve"><value>未能取得伺服器葉憑證，保留原有指紋輸入。</value></data>
 </root>

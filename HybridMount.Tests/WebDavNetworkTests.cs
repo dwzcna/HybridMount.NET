@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -82,7 +82,7 @@ public sealed class WebDavNetworkTests
         var attempts=0;var handler=new FaultHandler((request,token)=>{Interlocked.Increment(ref attempts);throw Reset();});
         await using var source=new WebDavFileSource(new(FileSourceKind.WebDav,"https://example.test/dav/"),new("secret-user","secret-password"),new WholeFileCache("unused"),handler){ReadRetryDelay=TimeSpan.Zero};
         var failure=await Assert.ThrowsAsync<SourceConnectionException>(()=>source.ProbeAsync());
-        Assert.Equal(3,attempts);Assert.Equal(3,failure.Diagnostic.Attempts);Assert.DoesNotContain("secret",failure.Message);Assert.Contains("OPTIONS",failure.Diagnostic.Stage);
+        Assert.Equal(3,attempts);Assert.Equal(3,failure.Diagnostic.Attempts);Assert.DoesNotContain("secret",failure.Message);Assert.Contains("PROPFIND",failure.Diagnostic.Stage);
     }
     [Fact]
     public async Task Cancellation_during_backoff_remains_cancellation_and_stops_promptly()

@@ -1,4 +1,4 @@
-<ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.Mounting.WebDAVConfigurationContentDialog"
+﻿<ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.Mounting.WebDAVConfigurationContentDialog"
                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                xmlns:mounting="using:HybridMount.Controls.Mounting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views" xmlns:vm="using:HybridMount.ViewModels">
     <Grid>
@@ -16,7 +16,11 @@
                     <StackPanel x:Name="HttpsFields" Spacing="12" Visibility="Collapsed">
                         <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom"/>
                         <TextBox x:Name="CertificatePinField" x:Uid="/Strings/WebDAVConfigurationContentDialogCertificatePinField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogCertificatePinField"/>
-                        <Button x:Name="ClearCertificateTrustButton" Style="{StaticResource SubtleButtonStyle}" Click="ClearCertificateTrust"/>
+                        <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Button x:Name="FetchCertificateButton" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="FetchCertificate"><TextBlock x:Name="FetchCertificateLabel" TextWrapping="Wrap"/></Button>
+                            <Button x:Name="ClearCertificateTrustButton" Grid.Column="1" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="ClearCertificateTrust"><TextBlock x:Name="ClearCertificateTrustLabel" TextWrapping="Wrap"/></Button>
+                        </Grid>
+                        <TextBlock x:Name="FetchedCertificateDetails" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed"/>
                         <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockForASelfSignedCertificateVerify"/>
                     </StackPanel>
                     <StackPanel Spacing="12">

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HybridMount.Services.Mounting;
@@ -117,6 +117,9 @@ public sealed partial class MountsViewModel : ObservableObject,IDisposable
     /// <summary>只读探测继续由应用登记、取消和等待；页面关闭使用自己的等待令牌。</summary>
     public Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,CancellationToken token)
         =>_manager.TestConnectionAsync(settings,credentials,token);
+    /// <summary>不依赖账号、本地目录或原指纹的证书获取；生命周期由应用协调器拥有。</summary>
+    internal Task<Models.Mounting.WebDAV.WebDavCertificateInfo> FetchCertificateAsync(string address,CancellationToken token)
+        =>_manager.FetchCertificateAsync(address,token);
     /// <summary>只读群晖探测保留应用所有权；表单取消不影响其他挂载。</summary>
     internal Task<Models.Mounting.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,CancellationToken token,
         Models.Mounting.Synology.SynologySessionTicket? previous=null)

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2606,4 +2606,11 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="RemoveCachedPartialProtected" xml:space="preserve"><value>Content is incomplete and protected by local changes or pending work. Configuration and content are preserved.</value></data>
   <data name="RemoveCachedPartialRemoved" xml:space="preserve"><value>Removed a clean incomplete placeholder without reading remote content.</value></data>
   <data name="RemoveCachedKept" xml:space="preserve"><value>Kept as a regular local file or folder.</value></data>
+  <data name="WebDavBeforeCertificate" xml:space="preserve"><value>Certificate validation has not started.</value></data>
+  <data name="CertificateFetchButton" xml:space="preserve"><value>Get certificate fingerprint</value></data>
+  <data name="CertificateFetchHttpsRequired" xml:space="preserve"><value>Enter a valid HTTPS server address to fetch its certificate fingerprint.</value></data>
+  <data name="CertificateFetchRunning" xml:space="preserve"><value>Fetching the server leaf certificate without sending WebDAV credentials or reading files.</value></data>
+  <data name="CertificateFetchSucceeded" xml:space="preserve"><value>Certificate fingerprint filled in. The WebDAV connection has not been tested. Review the details below, then use Save or Test connection.</value></data>
+  <data name="CertificateFetchCanceled" xml:space="preserve"><value>Certificate fetching canceled. The existing fingerprint is unchanged.</value></data>
+  <data name="CertificateFetchUnavailable" xml:space="preserve"><value>The server leaf certificate was not obtained. The existing fingerprint is unchanged.</value></data>
 </root>

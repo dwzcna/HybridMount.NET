@@ -1,4 +1,4 @@
-using HybridMount.Commons;
+﻿using HybridMount.Commons;
 using HybridMount.Models.Mounting;
 using HybridMount.Models.Mounting.Synology;
 
@@ -45,12 +45,13 @@ public sealed class FileSourceFactory : IFileSourceFactory
         catch { await source.DisposeAsync().ConfigureAwait(false); throw; }
     }
     /// <summary>按当前表单执行只读探测；不接触仓库、凭据密文、注册根或分片恢复。</summary>
-    /// <param name="timeout">默认三十秒；调用者可取消，重复提交由界面防护。</param>
+    /// <param name="timeout">WebDAV由协议统一120秒；其他默认三十秒，调用者可缩短或取消，重复提交由界面防护。</param>
     public async Task<ConnectionTestResult> TestConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,
         CancellationToken token=default,TimeSpan? timeout=null)
     {
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(timeout??TimeSpan.FromSeconds(30));
+        if(timeout is {} limit)deadline.CancelAfter(limit);
+        else if(settings.Kind!=FileSourceKind.WebDav)deadline.CancelAfter(TimeSpan.FromSeconds(30));
         var temporary=Path.Combine(Path.GetTempPath(),"HybridMount.ReadOnlyProbe",Guid.NewGuid().ToString("N"));
         IFileSource? observedSource = null;
         try
@@ -63,10 +64,9 @@ public sealed class FileSourceFactory : IFileSourceFactory
         }
         catch(OperationCanceledException error)when(!token.IsCancellationRequested)
         {
-            if (observedSource is WebDavFileSource { RejectedCertificate: { } certificate })
+            if(observedSource is WebDavFileSource dav)
             {
-                var failure=WebDavNetworkDiagnostics.Failure(error,"测试连接",certificate.PolicyErrors,certificate.ChainErrors);
-                return new(false,failure.Message,failure.Diagnostic,observedSource.ProtocolCapabilities,certificate);
+                var failure=dav.ProbeTimeout(error);return new(false,failure.Message,failure.Diagnostic,dav.ProtocolCapabilities,failure.Certificate);
             }
             return (Protocols.TryGetValue(settings.Kind,out var protocol)?protocol.Timeout(error):new(false,"连接测试超时，请检查网络及服务响应。")) with { Capabilities = observedSource?.ProtocolCapabilities };
         }
