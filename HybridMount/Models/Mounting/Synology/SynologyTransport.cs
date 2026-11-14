@@ -74,6 +74,10 @@ public sealed partial class SynologyFileSource
             var version=supported.Value.FirstOrDefault(value=>value>=min&&value<=max);
             if(version!=0)found.Add(supported.Key,new(path,version,item.TryGetProperty("requestFormat",out var format)&&format.GetString()=="JSON"));
         }
+        token.ThrowIfCancellationRequested();
+        _protocolEvidence.Record("syno.info", ProtocolCapabilityStatus.Supported, "@server");
+        foreach (var api in found.Keys) if (CapabilityId(api) is { } id)
+            _protocolEvidence.Record(id, ProtocolCapabilityStatus.Advertised, "@server", ProtocolCapabilityReason.Declared);
         foreach(var required in new[]{"SYNO.API.Auth","SYNO.FileStation.List","SYNO.FileStation.MD5","SYNO.FileStation.Download"})
             if(!found.ContainsKey(required))throw new NotSupportedException("群晖缺少安全读取所需的兼容接口："+required);
         token.ThrowIfCancellationRequested();
@@ -167,7 +171,16 @@ public sealed partial class SynologyFileSource
         {
             using var request=new HttpRequestMessage(HttpMethod.Post,address){Content=new FormUrlEncodedContent(fields)};
             using var response=await SendAsync(request,mutation,deadline.Token).ConfigureAwait(false);
-            return await ParseResponseAsync(response,mutation,deadline.Token).ConfigureAwait(false);
+            var data = await ParseResponseAsync(response,mutation,deadline.Token).ConfigureAwait(false);
+            ObserveCapabilityJson(fields, data);
+            return data;
+        }
+        catch (SynologyApiException error)
+        {
+            if (fields.TryGetValue("api", out var api) && CapabilityId(api) is { } id)
+                _protocolEvidence.Record(id, error.Code is 102 or 103 ? ProtocolCapabilityStatus.Unsupported : ProtocolCapabilityStatus.Unknown,
+                    CapabilityScope(fields), error.Code is 102 or 103 ? ProtocolCapabilityReason.None : ProtocolCapabilityReason.Permission);
+            throw;
         }
         catch(OperationCanceledException)when(!token.IsCancellationRequested&&!mutation){throw Failure("响应",ConnectionFailureKind.Timeout,"群晖 API 响应超时。",transient:true);}
         catch(Exception error)when(mutation&&error is not(SynologyApiException or SourceOutcomeUnknownException or SourceRequestRejectedException or SourceConnectionException))

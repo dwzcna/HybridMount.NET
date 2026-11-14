@@ -33,10 +33,18 @@ public sealed partial class MountManager
             try
             {
                 await using var client=CreateQueueClient(mount.Source!,options,keys);var attributes=await client.AttributesAsync(deadline.Token).ConfigureAwait(false);SqsQueueClient.VerifyAttributes(options,attributes);
-                return new ConnectionTestResult(true,"队列属性读取成功；未接收或确认消息，消费权限在运行时验证。请为每台机器配置独立 Standard Queue。");
+                var evidence = new ProtocolCapabilityTracker(FileSourceKind.S3);
+                evidence.Record("sqs.attributes", ProtocolCapabilityStatus.Supported, "@queue");
+                return new ConnectionTestResult(true,"队列属性读取成功；未接收或确认消息，消费权限在运行时验证。请为每台机器配置独立 Standard Queue。",Capabilities:evidence.Snapshot);
             }
             catch(OperationCanceledException)when(!cancel.IsCancellationRequested){return new(false,"SQS 只读连接测试超时。");}
-            catch(IOException error){return new(false,error.Message);}
+            catch(IOException error)
+            {
+                var evidence = new ProtocolCapabilityTracker(FileSourceKind.S3);
+                evidence.Record("sqs.attributes", ProtocolCapabilityStatus.Unknown, "@queue",
+                    error is SqsOperationException { Status: 401 or 403 } ? ProtocolCapabilityReason.Permission : ProtocolCapabilityReason.Uncertain);
+                return new(false,error.Message,Capabilities:evidence.Snapshot);
+            }
         },token);
     /// <summary>按挂载保存非秘密配置和独立 DPAPI 凭据，失败恢复原凭据；停止旧订阅后再启动新设置，不持根锁等待。</summary>
     public Task SetSqsConfigurationAsync(Guid id,SqsConfiguration options,SourceCredentials? credentials=null,CancellationToken token=default)
@@ -50,7 +58,7 @@ public sealed partial class MountManager
                 try
                 {
                     if(options.CredentialMode==SqsCredentialMode.SeparateKeys)SqsStore().Save(id,keys);
-                    var definition=root.Definition with{Sqs=options};_repository.SaveDefinition(definition);root.Definition=definition;
+                    var definition=root.Definition with{Sqs=options};_repository.SaveDefinition(definition);root.Definition=definition;(root.Source as S3FileSource)?.ClearQueueCapabilities();
                 }
                 catch{SqsStore().Save(id,previous);throw;}
                 if(options.CredentialMode!=SqsCredentialMode.SeparateKeys)try{SqsStore().Delete(id);}catch(IOException e){_logger.Queue("SQS 配置","Warning",e.GetType().Name);}
@@ -67,11 +75,11 @@ public sealed partial class MountManager
     {
         try
         {
-            root.Detection=root.Detection with{QueueMode="正在连接",QueueError=null};Notify();var mount=root.Definition;
+            root.Detection=root.Detection with{QueueMode="正在连接",QueueError=null};Notify();var mount=root.Definition;var capabilitySource=root.Source as S3FileSource;
             await using var lease=await QueueEvents.SubscribeAsync(new(mount,runtime.Engine.Scope,time=>
             {
                 if(!RemoteSessionCurrent(root,runtime))return;root.Detection=root.Detection with{LastEventUtc=time,PendingHints=_repository.S3EventHints(mount.Id,runtime.Engine.Scope).Count(x=>x.State=="Pending")};Notify();runtime.Wake();
-            },error=>{if(RemoteSessionCurrent(root,runtime)){root.Detection=root.Detection with{QueueError=error,QueueMode=error is null?"正在监听":"故障，完整对账继续"};Notify();}}),options,QueueCredentials(mount,options),runtime.Stop.Token).ConfigureAwait(false);
+            },error=>{if(RemoteSessionCurrent(root,runtime)){root.Detection=root.Detection with{QueueError=error,QueueMode=error is null?"正在监听":"故障，完整对账继续"};Notify();}},id=>{if(RemoteSessionCurrent(root,runtime)&&root.Definition.Sqs==options&&root.Definition.CredentialRevision==mount.CredentialRevision&&ReferenceEquals(root.Source,capabilitySource))capabilitySource?.RecordQueueCapability(id);}),options,QueueCredentials(mount,options),runtime.Stop.Token).ConfigureAwait(false);
             root.Detection=root.Detection with{QueueMode="正在监听"};Notify();await Task.Delay(Timeout.InfiniteTimeSpan,runtime.Stop.Token).ConfigureAwait(false);
         }
         catch(OperationCanceledException)when(runtime.Stop.IsCancellationRequested){}

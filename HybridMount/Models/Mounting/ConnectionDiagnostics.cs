@@ -20,4 +20,4 @@ public sealed class SourceConnectionException(ConnectionDiagnostic diagnostic) :
     public ConnectionDiagnostic Diagnostic { get; }=diagnostic;
 }
 /// <summary>只读表单探测结果；成功不等于具备上传、删除或条件修改权限。</summary>
-public sealed record ConnectionTestResult(bool Success,string Message,ConnectionDiagnostic? Diagnostic=null);
+public sealed record ConnectionTestResult(bool Success,string Message,ConnectionDiagnostic? Diagnostic=null,[property:System.Text.Json.Serialization.JsonIgnore] ProtocolCapabilitySnapshot? Capabilities=null);

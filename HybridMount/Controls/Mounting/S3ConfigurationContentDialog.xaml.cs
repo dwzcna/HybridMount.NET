@@ -9,6 +9,7 @@ namespace HybridMount.Controls.Mounting;
 public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
     private IDisposable? _localization;
+    private ProtocolCapabilityDialogBinding? _capabilityBinding;
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
     private MountDefinition? _existing;
@@ -49,7 +50,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
-            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_loading=false;Refresh();UpdateHttpWarning();
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.S3, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),new { Options = SqsOptions(), Keys = SqsKeys() }), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null);_loading=false;Refresh();UpdateHttpWarning();
             if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
@@ -67,6 +68,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     }
     private void Refresh()
     {
+        _capabilityBinding?.Refresh();
         if(_disposed)return;
         if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
@@ -141,11 +143,12 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         ErrorBar.IsOpen=false;global::HybridMount.Helpers.UI.Ui.Set(ProbeBar,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_17D7F8B86E5F"));ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");ProbeBar.IsOpen=true;
         try
         {
+            _capabilityBinding?.BeginTest();
             var result=await _model.TestConnectionAsync(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),cancel.Token);
-            if(!Stopped){ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;}
+            if(!Stopped){_capabilityBinding?.CompleteTest(result.Capabilities);ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;}
         }
-        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");}}
-        catch(Exception){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_F96BBA110AEF");}}
+        catch(OperationCanceledException){_capabilityBinding?.CancelTest();if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");}}
+        catch(Exception){if(!Stopped){_capabilityBinding?.CompleteTest(null);ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_F96BBA110AEF");}}
         finally{_testing=null;if(!Stopped){SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
     }
     /// <summary>在禁用控件或发起请求之前校验草稿，字段错误保持原输入并聚焦首个错误。</summary>
@@ -185,7 +188,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();_sqsProbe?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {_localization?.Dispose();_localization=null;
+    {_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         EndpointField.TextChanged-=EndpointChanged;
@@ -219,8 +222,8 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         if(_sqsProbe is {} running){running.Cancel();SqsTestButton.Content=global::HybridMount.Services.Localization.UiText.Text("Text_0ADDD7784578");SqsTestButton.IsEnabled=false;return;}
         if(_submitting||_picking||_testing is not null||_sqsSaving)return;
         using var cancel=new CancellationTokenSource();_sqsProbe=cancel;Refresh();SqsTestButton.Content=global::HybridMount.Services.Localization.UiText.Text("Text_49BE72E6045C");global::HybridMount.Helpers.UI.Ui.Set(ProbeBar,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_1FB57F246534"));ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_C5BE73B72FD5");ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.IsOpen=true;
-        try{var result=await _model.TestSqsConnectionAsync(_existing.Id,SqsOptions(),SqsKeys(),cancel.Token);if(!Stopped){ProbeBar.Message=result.Message;ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;}}
-        catch(OperationCanceledException){if(!Stopped){ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_5CC6147C2C9A");ProbeBar.Severity=InfoBarSeverity.Informational;}}
+        try{_capabilityBinding?.BeginQueueTest();var result=await _model.TestSqsConnectionAsync(_existing.Id,SqsOptions(),SqsKeys(),cancel.Token);if(!Stopped){_capabilityBinding?.CompleteQueueTest(result.Capabilities);ProbeBar.Message=result.Message;ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;}}
+        catch(OperationCanceledException){_capabilityBinding?.CancelTest();if(!Stopped){ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_5CC6147C2C9A");ProbeBar.Severity=InfoBarSeverity.Informational;}}
         catch(Exception error){if(!Stopped){ProbeBar.Message=error.Message;ProbeBar.Severity=InfoBarSeverity.Error;}}
         finally{_sqsProbe=null;if(!Stopped){SqsTestButton.Content=global::HybridMount.Services.Localization.UiText.Text("Text_D76876D823BF");Refresh();}}
     }

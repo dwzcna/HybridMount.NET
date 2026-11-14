@@ -40,8 +40,8 @@ public sealed partial class SynologyFileSource
             try{using var different=new MemoryStream(RandomNumberGenerator.GetBytes(33));await UploadFileAsync(key,different,null,token).ConfigureAwait(false);}
             catch(SourceConflictException){rejected=true;}
             if(!rejected||await Md5Async(key,token).ConfigureAwait(false)!=expected)
-            {WriteCapabilities=WriteCapabilities with{CreateOnly=CapabilitySupport.Unsupported};throw new NotSupportedException("群晖未可靠拒绝同名上传，已停用新建。");}
-            token.ThrowIfCancellationRequested();_verifiedParents.Add(parent);WriteCapabilities=WriteCapabilities with{CreateOnly=CapabilitySupport.Supported};
+            {WriteCapabilities=WriteCapabilities with{CreateOnly=CapabilitySupport.Unsupported};_protocolEvidence.Verified("syno.create", CapabilitySupport.Unsupported, parent);throw new NotSupportedException("群晖未可靠拒绝同名上传，已停用新建。");}
+            token.ThrowIfCancellationRequested();_verifiedParents.Add(parent);WriteCapabilities=WriteCapabilities with{CreateOnly=CapabilitySupport.Supported};_protocolEvidence.Verified("syno.create", CapabilitySupport.Supported, parent);
         }
         catch{_blockedParents.Add(parent);throw;}
         finally
@@ -119,6 +119,7 @@ public sealed partial class SynologyFileSource
         {
             var entry=await FingerprintAsync(await GetRawMetadataAsync(path,token).ConfigureAwait(false),token).ConfigureAwait(false);
             if(entry.IsDirectory||entry.Size!=length||ContentMd5(entry)!=md5)throw new IOException("群晖上传后内容核对失败。");
+            _protocolEvidence.Record("syno.upload", ProtocolCapabilityStatus.Supported, path);
             return new(entry,digest);
         }
         catch(Exception){throw new SourceOutcomeUnknownException("群晖上传后核对",new IOException("文件可能已上传，请先只读核对远端内容。"));}

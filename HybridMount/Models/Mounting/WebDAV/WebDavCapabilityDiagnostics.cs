@@ -12,6 +12,13 @@ public sealed partial class WebDavFileSource
         if(!response.IsSuccessStatusCode)return;
         string? HeaderValue(string name)=>response.Headers.TryGetValues(name,out var values)||response.Content.Headers.TryGetValues(name,out values)?string.Join(", ",values):null;
         static string Safe(string? value)=>new((value??"").Where(c=>!char.IsControl(c)).Take(4096).ToArray());
+        _protocolEvidence.Record("dav.options", ProtocolCapabilityStatus.Supported, "");
+        foreach (var method in Safe(HeaderValue("Allow")).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var id = "dav." + method.ToLowerInvariant();
+            if (id != "dav.report" && ProtocolCapabilityCatalog.For(FileSourceKind.WebDav).Any(row => row.Id == id))
+                _protocolEvidence.Record(id, ProtocolCapabilityStatus.Advertised, "", ProtocolCapabilityReason.Declared);
+        }
         var dav=Safe(HeaderValue("DAV"));
         CapabilitySnapshot=new(DateTimeOffset.UtcNow,Safe(HeaderValue("Allow")),Safe(HeaderValue("Accept-Patch")),
             dav.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Contains("sabredav-partialupdate",StringComparer.OrdinalIgnoreCase));

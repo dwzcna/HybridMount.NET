@@ -66,6 +66,7 @@ public sealed partial class S3FileSource
                 var create=await Check(null).ConfigureAwait(false);
                 var update=await Check("\"hybridmount-never-match-"+Guid.NewGuid().ToString("N")+"\"").ConfigureAwait(false);
                 WriteCapabilities=WriteCapabilities with{CreateOnly=create,ConditionalUpdate=update};
+                _protocolEvidence.Verified("s3.create", create, parent); _protocolEvidence.Verified("s3.update", update, parent);
                 Capabilities=Capabilities with{ConditionalWrite=create==CapabilitySupport.Supported&&update==CapabilitySupport.Supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
                 _writesVerified=true;
             }
@@ -90,6 +91,7 @@ public sealed partial class S3FileSource
                 {
                     var supported=await CallCore(()=>_client.DeleteObjectAsync(new(){BucketName=_bucket,Key=key,IfMatch="\"hybridmount-never-match\""},token),token,true,ExpectedResult.PreconditionRejected).ConfigureAwait(false) is null;
                     WriteCapabilities=WriteCapabilities with{ConditionalDelete=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
+                    _protocolEvidence.Verified("s3.conditionalDelete", WriteCapabilities.ConditionalDelete, parent);
                     _deleteVerified=true;
                 }
                 finally{await CleanupProbeKeysAsync(key).ConfigureAwait(false);}
@@ -108,14 +110,17 @@ public sealed partial class S3FileSource
             {
                 await PutProbeAsync(second,[47],token).ConfigureAwait(false);
                 var head=await HeadAsync(first,token).ConfigureAwait(false);
+                var conditionObserved = true;
                 try
                 {
                     _copyVerified=await CallCore(()=>_client.CopyObjectAsync(new(){SourceBucket=_bucket,SourceKey=first,DestinationBucket=_bucket,DestinationKey=second,
                         ETagToMatch=head.ETag,IfNoneMatch="*"},token),token,true,ExpectedResult.PreconditionRejected).ConfigureAwait(false) is null;
                 }
-                catch(IOException){_copyVerified=false;}
+                catch(IOException){_copyVerified=false;conditionObserved=false;}
                 _copyProbeVerified=true;
                 WriteCapabilities=WriteCapabilities with{ConditionalMove=_copyVerified?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
+                if(conditionObserved)_protocolEvidence.Verified("s3.conditionalMove", WriteCapabilities.ConditionalMove, parent);
+                else _protocolEvidence.Record("s3.conditionalMove", ProtocolCapabilityStatus.Unknown, parent, ProtocolCapabilityReason.Uncertain);
             }
             finally{await CleanupProbeKeysAsync(first,second).ConfigureAwait(false);}
         }

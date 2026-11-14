@@ -117,7 +117,7 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
             {
                 while(received<count){var read=await response.ResponseStream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
                 var extra=await response.ResponseStream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("S3 范围响应包含多余字节。");
-                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return Tuple.Create(count);
+                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};_protocolEvidence.Record("s3.range", ProtocolCapabilityStatus.Supported, entry.Path);_protocolEvidence.Record("s3.get", ProtocolCapabilityStatus.Supported, entry.Path);completed=true;return Tuple.Create(count);
             }
             finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
         },token).ConfigureAwait(false);return result.Item1;
@@ -141,7 +141,7 @@ public sealed partial class S3FileSource : IExcludedRenameSource, IFileSource, I
                 if(response.HttpStatusCode!=HttpStatusCode.PartialContent||!ContentRangeHeaderValue.TryParse(response.ContentRange,out var range)||range.Unit!="bytes"||
                     range.From!=start||range.To!=offset+length-1||range.Length!=entry.Size||response.ContentLength!=remaining||response.ETag!=etag||
                     version.VersionId is not null&&response.VersionId!=version.VersionId)throw new SourceConflictException("S3 范围、长度或版本响应不匹配。");
-                try{await transfer.ReadAsync(response.ResponseStream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return Tuple.Create(true);}
+                try{await transfer.ReadAsync(response.ResponseStream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};_protocolEvidence.Record("s3.range", ProtocolCapabilityStatus.Supported, entry.Path);_protocolEvidence.Record("s3.get", ProtocolCapabilityStatus.Supported, entry.Path);completed=true;return Tuple.Create(true);}
                 finally{ReadDiagnostic?.Invoke(new("range",transfer.Consumed-before,null,completed));}
             },token).ConfigureAwait(false);
         }

@@ -65,6 +65,7 @@ public sealed partial class WebDavFileSource
                     if(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)Success(response);
                     var support=response.StatusCode==HttpStatusCode.PreconditionFailed?CapabilitySupport.Supported:CapabilitySupport.Unsupported;
                     WriteCapabilities=create?WriteCapabilities with{CreateOnly=support}:WriteCapabilities with{ConditionalUpdate=support};
+                    _protocolEvidence.Verified(create ? "dav.create" : "dav.update", support, parent);
                 }
                 _writesVerified=true;
                 Capabilities=Capabilities with{ConditionalWrite=WriteCapabilities.CreateOnly==CapabilitySupport.Supported&&WriteCapabilities.ConditionalUpdate==CapabilitySupport.Supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};
@@ -93,6 +94,7 @@ public sealed partial class WebDavFileSource
                 if(supported&&method=="MOVE")supported=await VerifyMoveNoOverwriteAsync(path,parent,token).ConfigureAwait(false);
                 if(method=="DELETE"){_deleteVerified=true;WriteCapabilities=WriteCapabilities with{ConditionalDelete=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};}
                 else{_moveVerified=true;WriteCapabilities=WriteCapabilities with{ConditionalMove=supported?CapabilitySupport.Supported:CapabilitySupport.Unsupported};}
+                _protocolEvidence.Verified(method == "DELETE" ? "dav.conditionalDelete" : "dav.conditionalMove", supported ? CapabilitySupport.Supported : CapabilitySupport.Unsupported, parent);
                 if(!supported)throw new NotSupportedException("服务器未通过此方法的条件写验证，已保留用户内容。");
             }
             finally{await CleanupProbesAsync(path,destination).ConfigureAwait(false);}

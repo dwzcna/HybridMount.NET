@@ -2,7 +2,7 @@ namespace HybridMount.Models.Mounting.Synology;
 
 /// <summary>只读探测结果；会话只在当前应用内一次性交接，不序列化或显示认证材料。</summary>
 public sealed record SynologyProbeResult(bool Success,string Message,IReadOnlyList<SynologySharedFolder> Shares,
-    [property:System.Text.Json.Serialization.JsonIgnore] SourceCredentials? Credentials=null,string? CertificateSha256=null,int? AuthenticationCode=null):IAsyncDisposable
+    [property:System.Text.Json.Serialization.JsonIgnore] SourceCredentials? Credentials=null,string? CertificateSha256=null,int? AuthenticationCode=null,ProtocolCapabilitySnapshot? Capabilities=null):IAsyncDisposable
 {
     internal SynologySessionTicket? Session {get;init;}
     public override string ToString()=>"群晖只读连接测试结果";

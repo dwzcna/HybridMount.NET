@@ -7,7 +7,7 @@ namespace HybridMount.Services.Observers;
 /// <summary>同进程同队列一个 receiver；跨机器必须使用独立队列，消息确认以所有相关挂载提示持久化为界。</summary>
 internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? factory=null,TasksQueueService? tasksQueue=null) : IAsyncDisposable
 {
-    internal sealed record Subscriber(MountDefinition Mount,string Scope,Action<DateTimeOffset> Wake,Action<string?> Error);
+    internal sealed record Subscriber(MountDefinition Mount,string Scope,Action<DateTimeOffset> Wake,Action<string?> Error, Action<string>? Capability=null);
     private sealed class Group(string key,string fingerprint,ISqsQueueClient client)
     {
         public readonly string Key=key,Fingerprint=fingerprint;
@@ -32,6 +32,7 @@ internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConf
         var endpoint=SqsQueueClient.Validate(subscriber.Mount.Source!,options);var key=endpoint.AbsoluteUri.TrimEnd('/');
         var bytes=JsonSerializer.SerializeToUtf8Bytes(new{Default=options.CredentialMode==SqsCredentialMode.DefaultCredentials||options.CredentialMode==SqsCredentialMode.ReuseS3&&subscriber.Mount.Source!.UseDefaultCredentials,credentials.AccessKey,credentials.SecretKey,credentials.SessionToken});
         string fingerprint;try{fingerprint=Convert.ToHexString(SHA256.HashData(bytes));}finally{CryptographicOperations.ZeroMemory(bytes);}
+        IAsyncDisposable result;
         await _gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -48,9 +49,20 @@ internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConf
                 group=replacement;_groups[key]=group;group.Subscribers.Add(subscriber.Mount.Id,subscriber);group.Work=tasksQueue is null?Task.Run(()=>RunAsync(group)):tasksQueue.RunObserverAsync(new MountingObserver("sqs:"+Hash(group.Key),null,cancel=>RunAsync(group,cancel)),group.Stop.Token);
             }
             else group.Subscribers.Add(subscriber.Mount.Id,subscriber);
-            return new Lease(this,key,subscriber.Mount.Id);
+            result = new Lease(this,key,subscriber.Mount.Id);
         }
         finally{_gate.Release();}
+        try { subscriber.Capability?.Invoke("sqs.attributes"); } catch { }
+        return result;
+    }
+    /// <summary>从已有成功请求发布只读能力；复制订阅后释放控制锁，展示回调不能阻断消息处理。</summary>
+    private async Task PublishCapabilityAsync(Group group, string id)
+    {
+        Subscriber[] targets;
+        await _gate.WaitAsync(group.Stop.Token).ConfigureAwait(false);
+        try { targets = group.Subscribers.Values.ToArray(); }
+        finally { _gate.Release(); }
+        foreach (var target in targets) try { target.Capability?.Invoke(id); } catch { }
     }
     private async Task RunAsync(Group group,CancellationToken observerToken=default)
     {
@@ -63,6 +75,7 @@ internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConf
                 try
                 {
                     var messages=await group.Client.ReceiveAsync(group.Stop.Token).ConfigureAwait(false);
+                    await PublishCapabilityAsync(group, "sqs.receive").ConfigureAwait(false);
                     foreach(var message in messages)
                     {
                         var parsed=S3EventParser.Parse(message.Body);Subscriber[] targets;
@@ -87,6 +100,7 @@ internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConf
                         finally{_gate.Release();}
                         foreach(var target in targets)target.Wake(DateTimeOffset.UtcNow);
                         await group.Client.AcknowledgeAsync(message,group.Stop.Token).ConfigureAwait(false);
+                        await PublishCapabilityAsync(group, "sqs.ack").ConfigureAwait(false);
                     }
                     failures=0;await ReportAsync(group,null).ConfigureAwait(false);
                     // 正常服务长轮询空响应约 20 秒；异常提前空响应也不能形成热循环。

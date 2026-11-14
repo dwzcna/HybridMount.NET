@@ -2651,87 +2651,87 @@
   "Text_5C55A67935AF": {
     "Source": "全部",
     "LocalizableArguments": []
-},
+  },
   "Text_DDDE08946298": {
     "Source": "还原",
     "LocalizableArguments": []
-},
+  },
   "Text_0A1224F36CA9": {
     "Source": "清空所有程序设置",
     "LocalizableArguments": []
-},
+  },
   "Text_2A13ECC4FB51": {
     "Source": "仅清理当前运行模式的设置、日志和缓存。没有挂载点或待恢复记录时才可执行；完成后退出程序。",
     "LocalizableArguments": []
-},
+  },
   "Text_BFE711C7C723": {
     "Source": "正在核验当前运行模式的挂载及数据目录…",
     "LocalizableArguments": []
-},
+  },
   "Text_373F72608CC3": {
     "Source": "这将永久删除当前运行模式（{0}）的全部设置、日志和缓存，并退出程序。\n\n注册表：HKCU\\{1}\n\n数据目录：\n{2}\n\n已删除的内容无法恢复。",
     "LocalizableArguments": []
-},
+  },
   "Text_5F19F9B45A5E": {
     "Source": "清空并退出",
     "LocalizableArguments": []
-},
+  },
   "Text_A963767D29BA": {
     "Source": "正在停止当前模式的后台服务并清空设置…",
     "LocalizableArguments": []
-},
+  },
   "Text_0CFCBC69FEFE": {
     "Source": "当前模式仍有挂载配置，请先移除所有挂载。",
     "LocalizableArguments": []
-},
+  },
   "Text_3CE4692D3A00": {
     "Source": "当前模式仍有同步根或 Explorer 入口，请先处理遗留挂载。",
     "LocalizableArguments": []
-},
+  },
   "Text_A96A9F9A256A": {
     "Source": "数据目录与有效同步根重叠，无法还原设置。",
     "LocalizableArguments": []
-},
+  },
   "Text_4057AC6E04F7": {
     "Source": "仍有待核验或未完成的恢复记录，请先处理遗留挂载或同步问题。",
     "LocalizableArguments": []
-},
+  },
   "Text_E122A99B231B": {
     "Source": "运行模式或数据目录已变化，请重新核验并确认。",
     "LocalizableArguments": []
-},
+  },
   "Text_ABA53AA1CD13": {
     "Source": "目录身份已变化，请重新核验并确认：{0}",
     "LocalizableArguments": []
-},
+  },
   "Text_CBE71FBB20D3": {
     "Source": "数据目录或其祖先含重解析链接，无法安全清理：{0}",
     "LocalizableArguments": []
-},
+  },
   "Text_9E9FE4E789B7": {
     "Source": "无法核验数据目录：{0}",
     "LocalizableArguments": []
-},
+  },
   "Text_C8CADF5A6F81": {
     "Source": "无法核验包数据目录。",
     "LocalizableArguments": []
-},
+  },
   "Text_975DCC9648CA": {
     "Source": "系统策略仍启用当前应用的登录启动，无法完成还原。",
     "LocalizableArguments": []
-},
+  },
   "Text_5BBAD56EBA28": {
     "Source": "还原未完成",
     "LocalizableArguments": []
-},
+  },
   "Text_317016430E4E": {
     "Source": "还原未完成（{0}，0x{1:X8}）：\n{2}\n\n已清理的内容不会回滚。关闭此提示后程序退出，下次启动可重新核验。",
     "LocalizableArguments": []
-},
+  },
   "Text_542813A4B00F": {
     "Source": "后台服务未完整退出，已保留设置和数据目录。",
     "LocalizableArguments": []
-},
+  },
   "CloudRecommendation": {
     "Source": "建议值：{0}（CPU 逻辑处理器数 ÷ 2）。有效范围 1—128，默认 4；保存后生效。",
     "LocalizableArguments": []
@@ -2760,30 +2760,100 @@
     "Source": "等待通道或路径：{0}",
     "LocalizableArguments": []
   },
-"TaskCanceling": {"Source": "取消中", "LocalizableArguments": []},
-"TaskDeferred": {"Source": "暂缓", "LocalizableArguments": []},
-"TaskAlreadyCompleted": {"Source": "任务已经完成。", "LocalizableArguments": []},
-"TaskChangedSelectAgain": {"Source": "任务状态已变化，请重新选择。", "LocalizableArguments": []},
-"FileReleaseLocalProtected": {"Source": "文件被本地修改或排除规则保护。", "LocalizableArguments": []},
-"FileReleaseUploadPending": {"Source": "等待本地上传完成。", "LocalizableArguments": []},
-"FileReleaseRemotePending": {"Source": "等待远端变更核对。", "LocalizableArguments": []},
-"FileReleaseReadActive": {"Source": "文件仍有活动读取，等待占用释放。", "LocalizableArguments": []},
-"FileReleaseIntentChanged": {"Source": "文件的固定或释放意图已改变。", "LocalizableArguments": []},
-"FileReleaseGuardPending": {"Source": "等待释放保护条件就绪。", "LocalizableArguments": []},
-"FileReleaseRecheck": {"Source": "等待重新核验释放条件。", "LocalizableArguments": []},
-"FileReleaseQueued": {"Source": "等待本地释放核验。", "LocalizableArguments": []},
-"FileReleaseCompleted": {"Source": "释放已完成。", "LocalizableArguments": []},
-"FileReleaseChanged": {"Source": "释放意图已改变。", "LocalizableArguments": []},
-"FilePinCancelPending": {"Source": "固定下载正在取消，请等待收尾后重新固定。", "LocalizableArguments": []}
-,
-"FileTaskFailure": {"Source": "阶段：{0}；HRESULT={1}；{2}", "LocalizableArguments": [2]},
-"FileCancelSessionChanged": {"Source": "取消前下载连接已变化。", "LocalizableArguments": []},
-"FileCancelVersionChanged": {"Source": "取消固定前文件身份或内容版本已变化。", "LocalizableArguments": []},
-"FileCancelInProgress": {"Source": "固定取消已在处理。", "LocalizableArguments": []},
-"FileReleaseOwnershipMismatch": {"Source": "释放意图不属于此文件，已保留内容。", "LocalizableArguments": []},
-"FileReleaseIdentityChanged": {"Source": "释放文件身份已变化。", "LocalizableArguments": []},
-"FileReleaseVersionChanged": {"Source": "释放内容版本已变化，请重新核对。", "LocalizableArguments": []},
-"FileReleaseIdentityBefore": {"Source": "释放前文件身份已变化，保留内容。", "LocalizableArguments": []},
+  "TaskCanceling": {
+    "Source": "取消中",
+    "LocalizableArguments": []
+  },
+  "TaskDeferred": {
+    "Source": "暂缓",
+    "LocalizableArguments": []
+  },
+  "TaskAlreadyCompleted": {
+    "Source": "任务已经完成。",
+    "LocalizableArguments": []
+  },
+  "TaskChangedSelectAgain": {
+    "Source": "任务状态已变化，请重新选择。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseLocalProtected": {
+    "Source": "文件被本地修改或排除规则保护。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseUploadPending": {
+    "Source": "等待本地上传完成。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseRemotePending": {
+    "Source": "等待远端变更核对。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseReadActive": {
+    "Source": "文件仍有活动读取，等待占用释放。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseIntentChanged": {
+    "Source": "文件的固定或释放意图已改变。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseGuardPending": {
+    "Source": "等待释放保护条件就绪。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseRecheck": {
+    "Source": "等待重新核验释放条件。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseQueued": {
+    "Source": "等待本地释放核验。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseCompleted": {
+    "Source": "释放已完成。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseChanged": {
+    "Source": "释放意图已改变。",
+    "LocalizableArguments": []
+  },
+  "FilePinCancelPending": {
+    "Source": "固定下载正在取消，请等待收尾后重新固定。",
+    "LocalizableArguments": []
+  },
+  "FileTaskFailure": {
+    "Source": "阶段：{0}；HRESULT={1}；{2}",
+    "LocalizableArguments": [
+      2
+    ]
+  },
+  "FileCancelSessionChanged": {
+    "Source": "取消前下载连接已变化。",
+    "LocalizableArguments": []
+  },
+  "FileCancelVersionChanged": {
+    "Source": "取消固定前文件身份或内容版本已变化。",
+    "LocalizableArguments": []
+  },
+  "FileCancelInProgress": {
+    "Source": "固定取消已在处理。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseOwnershipMismatch": {
+    "Source": "释放意图不属于此文件，已保留内容。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseIdentityChanged": {
+    "Source": "释放文件身份已变化。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseVersionChanged": {
+    "Source": "释放内容版本已变化，请重新核对。",
+    "LocalizableArguments": []
+  },
+  "FileReleaseIdentityBefore": {
+    "Source": "释放前文件身份已变化，保留内容。",
+    "LocalizableArguments": []
+  },
   "BackupPasswordMinimum": {
     "Source": "启用密码保护时至少需要 8 个字符。",
     "LocalizableArguments": []
@@ -2808,11 +2878,28 @@
     "Source": "配置备份包含无效连接参数或选项。",
     "LocalizableArguments": []
   },
-  "RecoveryManagedDirectory": {"Source": "目录仍由挂载“{0}”管理。\n目录：{1}\n所属模式：{2}\n请使用该挂载的移除入口。", "LocalizableArguments": [2]},
-  "RecoveryModePackaged": {"Source": "有包运行", "LocalizableArguments": []},
-  "RecoveryModeUnpackaged": {"Source": "无包运行", "LocalizableArguments": []},
-  "TaskRemoteScanProgress": {"Source": "远端扫描：已发现 {0} 项", "LocalizableArguments": []},
-  "TaskRemoteApplyProgress": {"Source": "核对远端更改：{0} / {1}", "LocalizableArguments": []},
+  "RecoveryManagedDirectory": {
+    "Source": "目录仍由挂载“{0}”管理。\n目录：{1}\n所属模式：{2}\n请使用该挂载的移除入口。",
+    "LocalizableArguments": [
+      2
+    ]
+  },
+  "RecoveryModePackaged": {
+    "Source": "有包运行",
+    "LocalizableArguments": []
+  },
+  "RecoveryModeUnpackaged": {
+    "Source": "无包运行",
+    "LocalizableArguments": []
+  },
+  "TaskRemoteScanProgress": {
+    "Source": "远端扫描：已发现 {0} 项",
+    "LocalizableArguments": []
+  },
+  "TaskRemoteApplyProgress": {
+    "Source": "核对远端更改：{0} / {1}",
+    "LocalizableArguments": []
+  },
   "IndexOldResetRequired": {
     "Source": "检测到旧版应用数据格式。请前往“设置 → 还原”重置当前运行模式的应用数据，然后重新导入 .hmxbk 配置。",
     "LocalizableArguments": []
@@ -3107,6 +3194,190 @@
   },
   "ExplorerEntryResetHelp": {
     "Source": "可使用“从资源管理器检索”处理仅剩导航入口的项目。有效挂载请先正常移除；旧数据无法加载时，请先用 0.0.14.0 完成处理、导出配置并移除挂载。",
+    "LocalizableArguments": []
+  },
+  "ProtocolCapabilitiesHeader": {
+    "Source": "协议能力",
+    "LocalizableArguments": []
+  },
+  "ProtocolCapabilitiesHint": {
+    "Source": "测试连接或连接后查看。修改连接参数后需要重新测试。",
+    "LocalizableArguments": []
+  },
+  "ProtocolCapabilitiesScope": {
+    "Source": "结果仅适用于当前账号已验证的范围，不代表所有子目录；声明支持尚未实测。",
+    "LocalizableArguments": []
+  },
+  "ProtocolCapabilitiesHistory": {
+    "Source": "已断开：以下为上次连接的历史证据，仅适用于当时已验证的范围。",
+    "LocalizableArguments": []
+  },
+  "ProtocolStatusUnknown": {
+    "Source": "--",
+    "LocalizableArguments": []
+  },
+  "ProtocolStatusAdvertised": {
+    "Source": "声明支持",
+    "LocalizableArguments": []
+  },
+  "ProtocolStatusSupported": {
+    "Source": "支持",
+    "LocalizableArguments": []
+  },
+  "ProtocolStatusUnsupported": {
+    "Source": "不支持",
+    "LocalizableArguments": []
+  },
+  "ProtocolScopeRoot": {
+    "Source": "配置根目录",
+    "LocalizableArguments": []
+  },
+  "ProtocolScopeServer": {
+    "Source": "服务器会话／共享发现",
+    "LocalizableArguments": []
+  },
+  "ProtocolScopeQueue": {
+    "Source": "当前队列订阅",
+    "LocalizableArguments": []
+  },
+  "ProtocolEvidenceDetails": {
+    "Source": "证据范围：{0}；最近验证：{1}",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonDeclared": {
+    "Source": "服务端声明支持，尚未进行实际验证。",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonPermission": {
+    "Source": "认证或权限不足，无法据此判断接口是否受支持。",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonUncertain": {
+    "Source": "尚未取得可验证的结果。",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonRangeIgnored": {
+    "Source": "服务端忽略了范围请求，不能使用严格片段读取。",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonConditionIgnored": {
+    "Source": "未通过该范围的条件保护验证。",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonMixedScopes": {
+    "Source": "不同路径的实测结果不一致，不能汇总为全部支持或不支持。",
+    "LocalizableArguments": []
+  },
+  "ProtocolReasonQuotaMissing": {
+    "Source": "服务端明确未提供所查询的配额属性。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeDiscovery": {
+    "Source": "读取服务端声明的接口和版本。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeDownload": {
+    "Source": "读取文件正文，用于下载和水合。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeRange": {
+    "Source": "只读取文件片段，可用于缩略图等；要求范围及版本校验通过。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMetadata": {
+    "Source": "读取目录列表、文件属性或共享信息。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeQuota": {
+    "Source": "查询服务器报告的账户／目录配额，不等于物理磁盘容量。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeChanges": {
+    "Source": "读取集合增量变化，减少重复完整扫描。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeUpload": {
+    "Source": "上传文件内容；普通上传成功不代表条件覆盖安全。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeCreateOnly": {
+    "Source": "仅在目标不存在时创建，避免覆盖已有内容。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeUpdate": {
+    "Source": "依据已知版本提交内容，防止覆盖并发修改。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeDirectory": {
+    "Source": "在目标范围创建新目录。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeDelete": {
+    "Source": "删除目标；条件删除能力另行验证。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeConditionalDelete": {
+    "Source": "仅在目标版本匹配时删除。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMove": {
+    "Source": "移动、重命名或复制目标；防覆盖条件另行验证。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeConditionalMove": {
+    "Source": "验证源版本和目标防覆盖条件；权限可能随路径不同。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeLock": {
+    "Source": "验证独占锁，用于受保护的写入流程。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeUnlock": {
+    "Source": "归还本次流程持有的锁。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMultipartStart": {
+    "Source": "启动大文件分片上传。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMultipartPart": {
+    "Source": "上传单个文件分片。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMultipartCopy": {
+    "Source": "在服务端分片复制大对象。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMultipartComplete": {
+    "Source": "合并已上传的分片；条件完成另行验证。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeMultipartAbort": {
+    "Source": "中止并清理本程序创建的未完成分片上传。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeQueueAttributes": {
+    "Source": "读取并核对队列身份及属性。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeQueueReceive": {
+    "Source": "接收远端变更消息；不会在测试连接时调用。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeQueueConfirm": {
+    "Source": "提示持久化后确认消息，避免重复处理。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeAuthentication": {
+    "Source": "建立或归还当前账号的服务端会话。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeChecksum": {
+    "Source": "取得文件摘要，用于验证下载与上传的实际内容。",
+    "LocalizableArguments": []
+  },
+  "ProtocolPurposeCleanup": {
+    "Source": "仅清理已确认归属的临时探测文件，不开放一般文件删除。",
     "LocalizableArguments": []
   }
 }

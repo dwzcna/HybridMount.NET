@@ -60,7 +60,9 @@ public sealed partial class WebDavFileSource
             var resource=result.Resources[0];
             if(resource.StatusCode is not null and not 200)throw new RemoteSyncException(resource.StatusCode.Value);
             var reports=Property(resource,"supported-report-set");var value=Property(resource,"sync-token")?.Value;
-            return reports?.Descendants(Dav+"sync-collection").Any()==true&&!string.IsNullOrWhiteSpace(value);
+            var supported = reports?.Descendants(Dav+"sync-collection").Any()==true&&!string.IsNullOrWhiteSpace(value);
+            if (supported) _protocolEvidence.Record("dav.report", ProtocolCapabilityStatus.Advertised, collection, ProtocolCapabilityReason.Declared);
+            return supported;
         }
         catch(WebDAVException){throw new IOException("DAV 集合发现响应格式无效。");}
         catch(OperationCanceledException error)when(!token.IsCancellationRequested){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 集合发现",timeout:true);}
@@ -103,6 +105,7 @@ public sealed partial class WebDavFileSource
             }
             if(result.HasMore&&result.SyncToken==syncToken)throw new InvalidRemoteChangeResponseException("DAV 续批令牌未前进，拒绝无限循环。");
             if(string.IsNullOrWhiteSpace(result.SyncToken)||result.SyncToken.Length>65536)throw new InvalidRemoteChangeResponseException("DAV 同步响应缺少有效令牌。");
+            _protocolEvidence.Record("dav.report", ProtocolCapabilityStatus.Supported, collection);
             return new(entries,deleted,result.SyncToken,result.HasMore);
         }
         catch(System.Xml.XmlException error)when(observation.Status==207){throw new InvalidRemoteChangeResponseException("DAV 同步 REPORT XML 无效。",error);}

@@ -141,6 +141,7 @@ public sealed partial class WebDavFileSource
             result.Add(ObserveMetadata(new("", relative, directory, size, modified, JsonSerializer.Serialize(new VersionInfo(tag, size, modified.UtcTicks)))));
         }
         if (!names.Contains(path)) throw new IOException("DAV 响应缺少请求目录自身，拒绝不完整快照。");
+        if (result.Any(item => item.Path == path)) _protocolEvidence.Record("dav.propfind", ProtocolCapabilityStatus.Supported, path);
         return result;
     }
     private static int StatusCode(string? value) => value?.Split(' ', StringSplitOptions.RemoveEmptyEntries) is { Length: >= 2 } parts && int.TryParse(parts[1], out var code) ? code : 0;

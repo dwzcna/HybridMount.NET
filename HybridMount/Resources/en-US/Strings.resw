@@ -2524,4 +2524,50 @@ Use the removal action for that mount.</value></data>
   <data name="ExplorerRecoveryError50" xml:space="preserve"><value>Select verified navigation entries.</value></data>
   <data name="ExplorerEntrySearchButton.Content" xml:space="preserve"><value>Search File Explorer</value></data>
   <data name="ExplorerEntryResetHelp" xml:space="preserve"><value>Use Search File Explorer for leftover navigation entries. Remove active mounts normally. If old data cannot be loaded, use 0.0.14.0 to finish pending work, export settings and remove mounts first.</value></data>
+  <data name="ProtocolCapabilitiesHeader" xml:space="preserve"><value>Protocol capabilities</value></data>
+  <data name="ProtocolCapabilitiesHint" xml:space="preserve"><value>Test or connect to view capabilities. Test again after changing connection settings.</value></data>
+  <data name="ProtocolCapabilitiesScope" xml:space="preserve"><value>Results apply only to the verified scopes for this account, not every subfolder. Advertised support has not been tested.</value></data>
+  <data name="ProtocolCapabilitiesHistory" xml:space="preserve"><value>Disconnected: historical evidence from the previous connection, limited to its verified scopes.</value></data>
+  <data name="ProtocolStatusUnknown" xml:space="preserve"><value>--</value></data>
+  <data name="ProtocolStatusAdvertised" xml:space="preserve"><value>Advertised</value></data>
+  <data name="ProtocolStatusSupported" xml:space="preserve"><value>Supported</value></data>
+  <data name="ProtocolStatusUnsupported" xml:space="preserve"><value>Unsupported</value></data>
+  <data name="ProtocolScopeRoot" xml:space="preserve"><value>Configured root</value></data>
+  <data name="ProtocolScopeServer" xml:space="preserve"><value>Server session / share discovery</value></data>
+  <data name="ProtocolScopeQueue" xml:space="preserve"><value>Current queue subscription</value></data>
+  <data name="ProtocolEvidenceDetails" xml:space="preserve"><value>Evidence scopes: {0}; last observed: {1}</value></data>
+  <data name="ProtocolReasonDeclared" xml:space="preserve"><value>Advertised by the server; not yet tested.</value></data>
+  <data name="ProtocolReasonPermission" xml:space="preserve"><value>Authentication or permission failed; interface support remains unknown.</value></data>
+  <data name="ProtocolReasonUncertain" xml:space="preserve"><value>No verifiable result is available.</value></data>
+  <data name="ProtocolReasonRangeIgnored" xml:space="preserve"><value>The server ignored the range request; strict partial reads are unavailable.</value></data>
+  <data name="ProtocolReasonConditionIgnored" xml:space="preserve"><value>Conditional protection did not pass verification in this scope.</value></data>
+  <data name="ProtocolReasonMixedScopes" xml:space="preserve"><value>Verified results differ by path; a single supported or unsupported result would be misleading.</value></data>
+  <data name="ProtocolReasonQuotaMissing" xml:space="preserve"><value>The server explicitly omitted the requested quota properties.</value></data>
+  <data name="ProtocolPurposeDiscovery" xml:space="preserve"><value>Read advertised interfaces and versions.</value></data>
+  <data name="ProtocolPurposeDownload" xml:space="preserve"><value>Read file contents for downloads and hydration.</value></data>
+  <data name="ProtocolPurposeRange" xml:space="preserve"><value>Read selected byte ranges for thumbnails and other uses; range and version validation are required.</value></data>
+  <data name="ProtocolPurposeMetadata" xml:space="preserve"><value>Read directory listings, file metadata, or share information.</value></data>
+  <data name="ProtocolPurposeQuota" xml:space="preserve"><value>Query account or directory quota reported by the server, not physical disk capacity.</value></data>
+  <data name="ProtocolPurposeChanges" xml:space="preserve"><value>Read incremental collection changes to reduce repeated full scans.</value></data>
+  <data name="ProtocolPurposeUpload" xml:space="preserve"><value>Upload file contents; success does not prove safe conditional overwrites.</value></data>
+  <data name="ProtocolPurposeCreateOnly" xml:space="preserve"><value>Create only when the destination does not exist.</value></data>
+  <data name="ProtocolPurposeUpdate" xml:space="preserve"><value>Commit contents against a known version to protect concurrent changes.</value></data>
+  <data name="ProtocolPurposeDirectory" xml:space="preserve"><value>Create directories within the target scope.</value></data>
+  <data name="ProtocolPurposeDelete" xml:space="preserve"><value>Delete a target; conditional deletion is verified separately.</value></data>
+  <data name="ProtocolPurposeConditionalDelete" xml:space="preserve"><value>Delete only when the target version matches.</value></data>
+  <data name="ProtocolPurposeMove" xml:space="preserve"><value>Move, rename, or copy a target; overwrite protection is verified separately.</value></data>
+  <data name="ProtocolPurposeConditionalMove" xml:space="preserve"><value>Verify source version and destination overwrite protection; permissions may differ by path.</value></data>
+  <data name="ProtocolPurposeLock" xml:space="preserve"><value>Verify exclusive locks used in protected write workflows.</value></data>
+  <data name="ProtocolPurposeUnlock" xml:space="preserve"><value>Release locks owned by the current workflow.</value></data>
+  <data name="ProtocolPurposeMultipartStart" xml:space="preserve"><value>Start a multipart upload for a large file.</value></data>
+  <data name="ProtocolPurposeMultipartPart" xml:space="preserve"><value>Upload an individual part.</value></data>
+  <data name="ProtocolPurposeMultipartCopy" xml:space="preserve"><value>Copy large objects in parts on the server.</value></data>
+  <data name="ProtocolPurposeMultipartComplete" xml:space="preserve"><value>Complete uploaded parts; conditional completion is verified separately.</value></data>
+  <data name="ProtocolPurposeMultipartAbort" xml:space="preserve"><value>Abort and clean up incomplete multipart uploads owned by this application.</value></data>
+  <data name="ProtocolPurposeQueueAttributes" xml:space="preserve"><value>Read and verify queue identity and attributes.</value></data>
+  <data name="ProtocolPurposeQueueReceive" xml:space="preserve"><value>Receive remote-change messages; not called by connection tests.</value></data>
+  <data name="ProtocolPurposeQueueConfirm" xml:space="preserve"><value>Acknowledge messages after persisting their hints.</value></data>
+  <data name="ProtocolPurposeAuthentication" xml:space="preserve"><value>Open or close the server session for the current account.</value></data>
+  <data name="ProtocolPurposeChecksum" xml:space="preserve"><value>Obtain file digests to verify downloaded and uploaded contents.</value></data>
+  <data name="ProtocolPurposeCleanup" xml:space="preserve"><value>Clean up verified temporary probe files only; general file deletion is not enabled.</value></data>
 </root>

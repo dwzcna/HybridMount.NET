@@ -52,20 +52,22 @@ public sealed class FileSourceFactory : IFileSourceFactory
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(timeout??TimeSpan.FromSeconds(30));
         var temporary=Path.Combine(Path.GetTempPath(),"HybridMount.ReadOnlyProbe",Guid.NewGuid().ToString("N"));
+        IFileSource? observedSource = null;
         try
         {
             if(!_adapters.TryGetValue(settings.Kind,out var adapter))throw new NotSupportedException("此协议尚未提供连接测试。");
             await using var source=adapter(settings,credentials,temporary);
+            observedSource = source;
             await source.ProbeAsync(deadline.Token).ConfigureAwait(false);
-            return new(true,"只读连接测试成功；未保存挂载，也未验证远端写入权限。");
+            return new(true,"只读连接测试成功；未保存挂载，也未验证远端写入权限。",Capabilities:source.ProtocolCapabilities);
         }
         catch(OperationCanceledException error)when(!token.IsCancellationRequested)
         {
-            return Protocols.TryGetValue(settings.Kind,out var protocol)?protocol.Timeout(error):new(false,"连接测试超时，请检查网络及服务响应。");
+            return (Protocols.TryGetValue(settings.Kind,out var protocol)?protocol.Timeout(error):new(false,"连接测试超时，请检查网络及服务响应。")) with { Capabilities = observedSource?.ProtocolCapabilities };
         }
-        catch(SourceConnectionException error) { return new(false,error.Message,error.Diagnostic); }
+        catch(SourceConnectionException error) { return new(false,error.Message,error.Diagnostic,observedSource?.ProtocolCapabilities); }
         catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException)
-        { return new(false,error.Message); }
+        { return new(false,error.Message,Capabilities:observedSource?.ProtocolCapabilities); }
     }
     /// <summary>群晖表单只读登录及共享发现；保留一次性内存票据，创建连接无需重复使用 OTP。</summary>
     internal async Task<SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,
@@ -83,16 +85,16 @@ public sealed class FileSourceFactory : IFileSourceFactory
             if(settings.Prefix.Length!=0)await source.ProbeAsync(deadline.Token).ConfigureAwait(false);
             deadline.Token.ThrowIfCancellationRequested();
             var result=new SynologyProbeResult(true,shares.Count==0?"登录成功，但账号没有可访问的共享文件夹。":"只读连接测试成功；首版支持读取、经验证的新建和另存副本。",shares,source.DeviceCredentials)
-                {Session=new(source)};
+                {Session=new(source), Capabilities=source.ProtocolCapabilities};
             source=null;return result;
         }
         catch(SourceConnectionException error)
         {
             var code=error.Diagnostic.Kind==ConnectionFailureKind.Authentication&&int.TryParse(error.Diagnostic.ServiceCode,out var value)?(int?)value:null;
-            return new(false,error.Message,[],CertificateSha256:error.Diagnostic.Kind==ConnectionFailureKind.Certificate?source?.ServerCertificateSha256:null,AuthenticationCode:code);
+            return new(false,error.Message,[],CertificateSha256:error.Diagnostic.Kind==ConnectionFailureKind.Certificate?source?.ServerCertificateSha256:null,AuthenticationCode:code,Capabilities:source?.ProtocolCapabilities);
         }
-        catch(OperationCanceledException)when(!token.IsCancellationRequested){return new(false,"群晖连接测试超时，请核对地址、端口及 File Station 服务。",[]);}
-        catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException){return new(false,error.Message,shares);}
+        catch(OperationCanceledException)when(!token.IsCancellationRequested){return new(false,"群晖连接测试超时，请核对地址、端口及 File Station 服务。",[],Capabilities:source?.ProtocolCapabilities);}
+        catch(Exception error)when(error is IOException or ArgumentException or NotSupportedException){return new(false,error.Message,shares,Capabilities:source?.ProtocolCapabilities);}
         finally{if(source is not null)await source.DisposeAsync().ConfigureAwait(false);}
     }
     /// <summary>公共层通过适配策略校验，SDK／签名／条件规则留在对应模块；不建立连接。</summary>

@@ -319,4 +319,13 @@
     <PropertyGroup><_NativeRid>win-x64</_NativeRid><_NativeRid Condition="'$(Platform)'=='ARM64'">win-arm64</_NativeRid></PropertyGroup>
     <Copy SourceFiles="$(TargetDir)runtimes\$(_NativeRid)\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" />
   </Target>
+  <ItemGroup>
+    <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilities.cs" Link="Production/Models/Mounting/ProtocolCapabilities.cs"/>
+    <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilityCatalog.cs" Link="Production/Models/Mounting/ProtocolCapabilityCatalog.cs"/>
+    <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavProtocolCapabilities.cs" Link="Production/Models/Mounting/WebDAV/WebDavProtocolCapabilities.cs"/>
+    <Compile Include="../HybridMount/Models/Mounting/S3/S3ProtocolCapabilities.cs" Link="Production/Models/Mounting/S3/S3ProtocolCapabilities.cs"/>
+    <Compile Include="../HybridMount/Models/Mounting/Synology/SynologyProtocolCapabilities.cs" Link="Production/Models/Mounting/Synology/SynologyProtocolCapabilities.cs"/>
+    <Compile Include="../HybridMount/Services/Mounting/MountManager.ProtocolCapabilities.cs" Link="Production/Services/Mounting/MountManager.ProtocolCapabilities.cs"/>
+    <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilityDraftSession.cs" Link="Production/Models/Mounting/ProtocolCapabilityDraftSession.cs"/>
+  </ItemGroup>
 </Project>

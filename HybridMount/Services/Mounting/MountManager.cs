@@ -25,6 +25,12 @@ public sealed partial class MountManager : IAsyncDisposable
         public int RemovalRequests;
         public CloudMountSession? Session;
         public IFileSource? Source;
+        public IFileSource? ProtocolSource;
+        public Action? ProtocolObserver;
+        public ProtocolCapabilitySnapshot? LastProtocolCapabilities;
+        public long ProtocolCredentialRevision;
+        public FileSourceConfiguration? ProtocolSourceConfiguration;
+        public int ProtocolPending;
         public MountQueueBinding? QueueBinding;
         public UploadRuntime? Uploads;
         public readonly ConflictMetadataChanges ConflictMetadata=new();
@@ -141,7 +147,7 @@ public sealed partial class MountManager : IAsyncDisposable
             return new(root.Definition, root.Status, root.Detail, root.Detection, root.Session is not null,
                 root.Connecting is not null, root.ConnectionStops > 0,
                 _jobs.Values.FirstOrDefault(job => job.Root == mount && job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,
-                root.CapacityStatus, attention);
+                root.CapacityStatus, attention, ReadProtocolCapabilities(root));
     }
     /// <summary>当前上传问题包括没有索引或已清除历史的文件；只读，不自动恢复上传。</summary>
     public IReadOnlyList<MountOperationSnapshot> UploadIssues=>_repository.UploadsNeedingAttention().OrderBy(x=>x.Attention!.OccurredUtc).Select(UploadSnapshot).Concat(RenameIntents().Where(x=>x.NeedsAttention).Select(x=>x.Snapshot())).Concat(RenameJournalIssues()).Concat(Operations.Where(row=>row.Operation is "freeSpace" or "keepOnDevice"&&row.State is "Failed" or "PartialFailure")).ToArray();
@@ -367,6 +373,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.HasMaterializedEntries(root.Definition.Id))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
             root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(root.Definition,_repository,false,token)).ConfigureAwait(false);
+            ObserveProtocolCapabilities(root);
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);ObserveUploadSource(root);
             if(root.Source is IMountSourceRuntime preparing)await OutsideRootAsync(root,()=>preparing.BeforeRegistrationAsync(token)).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
@@ -572,7 +579,7 @@ public sealed partial class MountManager : IAsyncDisposable
         RequestUploadStop(root);RequestPinStop(root);var previewStop=_previews.CancelMountAsync(root.Definition.Id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
         RequestCapacityStop(root);var errors=new List<Exception>();
         try{await Task.WhenAll(previewStop,reads,StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root)).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
-        await _fileDispatcher.RemoveAsync(root.Definition.Id).ConfigureAwait(false);UnobserveUploadSource(root);var session=root.Session;var source=root.Source;root.Session=null;root.Source=null;
+        await _fileDispatcher.RemoveAsync(root.Definition.Id).ConfigureAwait(false);UnobserveUploadSource(root);UnobserveProtocolCapabilities(root);var session=root.Session;var source=root.Source;root.Session=null;root.Source=null;
         try{if(session is not null)await session.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         try{if(source is not null)await source.DisposeAsync().ConfigureAwait(false);}catch(Exception error){errors.Add(error);}
         if(root.QueueBinding is {} binding){try{await TasksQueue.RetireMountAsync(binding).ConfigureAwait(false);}catch(Exception error){errors.Add(error);}root.QueueBinding=null;}
@@ -790,6 +797,7 @@ public sealed partial class MountManager : IAsyncDisposable
             root.QueueBinding??=TasksQueue.StartMount(mount.Id);
             using var queueContext=TasksQueue.Enter(root.QueueBinding,new(job.Snapshot.Id,mount.Id,root.QueueBinding.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"remove"));
             root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(mount,_repository,true,job.Cancel.Token)).ConfigureAwait(false);
+            ObserveProtocolCapabilities(root);
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);
             root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>QueueLocalPreview(root,entry));ConnectSession(root);
         }

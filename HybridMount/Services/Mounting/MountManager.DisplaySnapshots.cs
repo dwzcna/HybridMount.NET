@@ -16,7 +16,7 @@ public sealed partial class MountManager
     internal string? DisplaySnapshotError=>Volatile.Read(ref _displayError);
     /// <summary>纯内存字段只用于展示，权限与操作仍由业务执行前重新核验。</summary>
     private MountSnapshot MemorySnapshot(Runtime root,int issues)=>new(root.Definition,root.Status,root.Detail,root.Detection,root.Session is not null,
-        root.Connecting is not null,root.ConnectionStops>0,_jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,issues);
+        root.Connecting is not null,root.ConnectionStops>0,_jobs.Values.FirstOrDefault(job=>job.Root==root.Definition.Id&&job.Snapshot.State is "Queued" or "Running")?.Snapshot.Operation,root.CapacityStatus,issues,ReadProtocolCapabilities(root));
     private IReadOnlyList<MountSnapshot> CaptureDisplay(IReadOnlyDictionary<Guid,int> counts)=>Array.AsReadOnly(_roots.Values.Select(root=>MemorySnapshot(root,counts.GetValueOrDefault(root.Definition.Id))).OrderBy(row=>row.Definition.Name).ThenBy(row=>row.Definition.Id).ToArray());
     /// <summary>进度通知仅发布轻量状态并合并一次后台查询；代次屏障禁止旧查询覆盖新定义或退出状态。</summary>
     internal void RefreshDisplaySnapshot()

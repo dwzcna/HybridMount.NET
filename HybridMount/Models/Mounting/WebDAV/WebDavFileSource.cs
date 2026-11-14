@@ -94,7 +94,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
             {
                 while(received<count){var read=await stream.ReadAsync(buffer[received..count],token).ConfigureAwait(false);if(read==0)throw new EndOfStreamException();received+=read;}
                 var extra=await stream.ReadAsync(new byte[1],token).ConfigureAwait(false);received+=extra;if(extra!=0)throw new IOException("范围响应包含多余字节。");
-                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return count;
+                Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};_protocolEvidence.Record("dav.range", ProtocolCapabilityStatus.Supported, entry.Path);_protocolEvidence.Record("dav.get", ProtocolCapabilityStatus.Supported, entry.Path);completed=true;return count;
             }
             finally{ReadDiagnostic?.Invoke(new("range",received,null,completed));}
         }
@@ -141,7 +141,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
                         if(response.StatusCode!=HttpStatusCode.PartialContent||range?.Unit!="bytes"||range.From!=start||range.To!=offset+length-1||range.Length!=entry.Size||response.Content.Headers.ContentLength!=remaining)
                             throw new IOException("WebDAV Content-Range 或长度无效。");
                         await using var stream=await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-                        try{await transfer.ReadAsync(stream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};completed=true;return;}
+                        try{await transfer.ReadAsync(stream,token).ConfigureAwait(false);Capabilities=Capabilities with{RangeRead=CapabilitySupport.Supported};_protocolEvidence.Record("dav.range", ProtocolCapabilityStatus.Supported, entry.Path);_protocolEvidence.Record("dav.get", ProtocolCapabilityStatus.Supported, entry.Path);completed=true;return;}
                         finally{ReadDiagnostic?.Invoke(new("range",transfer.Consumed-before,null,completed));}
                     }
                 }
@@ -198,6 +198,7 @@ public sealed partial class WebDavFileSource : IFileSource, IReadDiagnosticsSour
                 }
                 try{ContentBaseline?.Invoke(new(entry.Path,entry.Version,Convert.ToHexString(baselineHash.GetHashAndReset())));}catch{ /* 基线通知不改变读取结果。 */ }
                 Capabilities = Capabilities with { RangeRead = CapabilitySupport.Unsupported };
+                _protocolEvidence.Record("dav.get", ProtocolCapabilityStatus.Supported, entry.Path);
                 completed=true;
             }
             finally { owned?.Dispose();ReadDiagnostic?.Invoke(new("whole_file",received,reason,completed)); }

@@ -32,6 +32,6 @@ public sealed partial class WebDavFileSource : IPreviewReadDiagnostics
         if(response.StatusCode!=HttpStatusCode.PartialContent){Volatile.Write(ref _previewRangeDiagnostic,"服务器未返回206范围响应");return new(false,0);}
         if(!Strong(receivedTag)){Volatile.Write(ref _previewRangeDiagnostic,"HTTP响应没有合法强版本标签");return new(false,0);}
         if(range?.Unit!="bytes"||range.From!=offset||range.To!=offset+count-1||range.Length!=entry.Size||response.Content.Headers.ContentLength!=count||receivedTag!=tag)throw new SourceConflictException("预览范围或版本变化，未发布缓存。");
-        Volatile.Write(ref _previewRangeDiagnostic,"严格范围与版本已验证");await using var stream=await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);await stream.ReadExactlyAsync(buffer[..count],token).ConfigureAwait(false);return new(true,count);
+        Volatile.Write(ref _previewRangeDiagnostic,"严格范围与版本已验证");await using var stream=await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);await stream.ReadExactlyAsync(buffer[..count],token).ConfigureAwait(false);_protocolEvidence.Record("dav.range", ProtocolCapabilityStatus.Supported, entry.Path);_protocolEvidence.Record("dav.get", ProtocolCapabilityStatus.Supported, entry.Path);return new(true,count);
     }
 }

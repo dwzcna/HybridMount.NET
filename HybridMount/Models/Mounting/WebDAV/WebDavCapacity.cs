@@ -31,7 +31,11 @@ public sealed partial class WebDavFileSource
                 if(value.StatusCode is <200 or >=300)throw new SourceRequestRejectedException(value.StatusCode.Value,"远端配额属性读取失败。");
                 var xml=value.Value.ToElement();return xml.HasElements?null:RemoteCapacity.ParseBytes(xml.Value);
             }
-            return new("服务器报告的账户／目录配额（非物理磁盘容量）",Read(QuotaAvailable),Read(QuotaUsed));
+            var available = Read(QuotaAvailable); var used = Read(QuotaUsed);
+            var missing = resource.GetProperties(QuotaAvailable).Any(p => p.StatusCode == 404) && resource.GetProperties(QuotaUsed).Any(p => p.StatusCode == 404);
+            _protocolEvidence.Record("dav.quota", available is not null || used is not null ? ProtocolCapabilityStatus.Supported :
+                missing ? ProtocolCapabilityStatus.Unsupported : ProtocolCapabilityStatus.Unknown, "", missing ? ProtocolCapabilityReason.QuotaMissing : ProtocolCapabilityReason.None);
+            return new("服务器报告的账户／目录配额（非物理磁盘容量）", available, used);
         }
         catch(OperationCanceledException error)when(!token.IsCancellationRequested){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 远端配额",timeout:true);}
         catch(HttpRequestException error){throw WebDavNetworkDiagnostics.Failure(error,"PROPFIND 远端配额");}

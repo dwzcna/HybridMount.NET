@@ -151,9 +151,9 @@ public sealed partial class WebDavFileSource
                 await lease.DisposeAsync().ConfigureAwait(false);lease=null;
                 await using(var created=await AcquireLockAsync(empty,token).ConfigureAwait(false))
                 {WriteCapabilities=WriteCapabilities with{LockCreate=created.Status==201?CapabilitySupport.Supported:CapabilitySupport.Unsupported};}
-                _lockVerified=true;WriteCapabilities=WriteCapabilities with{ExclusiveLock=CapabilitySupport.Supported};
+                _lockVerified=true;WriteCapabilities=WriteCapabilities with{ExclusiveLock=CapabilitySupport.Supported};_protocolEvidence.Verified("dav.lock", CapabilitySupport.Supported, parent);
             }
-            catch(NotSupportedException){_lockVerified=true;WriteCapabilities=WriteCapabilities with{ExclusiveLock=CapabilitySupport.Unsupported,LockCreate=CapabilitySupport.Unsupported};throw;}
+            catch(NotSupportedException){_protocolEvidence.Verified("dav.lock", CapabilitySupport.Unsupported, parent);_lockVerified=true;WriteCapabilities=WriteCapabilities with{ExclusiveLock=CapabilitySupport.Unsupported,LockCreate=CapabilitySupport.Unsupported};throw;}
             finally
             {if(lease is not null)await lease.DisposeAsync().ConfigureAwait(false);await CleanupProbesAsync(path,empty).ConfigureAwait(false);}
         }

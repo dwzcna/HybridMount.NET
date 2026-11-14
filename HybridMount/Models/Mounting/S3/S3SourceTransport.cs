@@ -22,11 +22,13 @@ public sealed partial class S3FileSource
     internal Action<string>? HttpAttemptForTests {get;set;}
     /// <summary>请求及正文的无进展截止；持续传输会续期，调用方取消仍立即生效。</summary>
     internal TimeSpan InactivityTimeout {get;set;}=TimeSpan.FromSeconds(120);
-    private sealed class ResponseHints { internal string? Region,RequestId; internal bool Certificate,Mutation;internal int MutationSends; }
+    private sealed class ResponseHints { internal string? Region,RequestId; internal string? CapabilityId; internal string CapabilityScope=""; internal bool Certificate,Mutation;internal int MutationSends; }
     private static readonly AsyncLocal<ResponseHints?> Hints=new();
     public S3FileSource(FileSourceConfiguration options, SourceCredentials credentials, string workDirectory, long multipartThreshold = 16L * 1024 * 1024, IAmazonS3? client = null)
     {
         var endpoint = ValidateOptions(options);
+        _capabilityEndpointPath = Uri.UnescapeDataString(endpoint.AbsolutePath).Trim('/'); if (_capabilityEndpointPath.Length > 0) _capabilityEndpointPath += "/";
+        _capabilityPathStyle = options.PathStyle;
         _diagnosticContext=$"SigV4；签名区域 {options.Region}"+(options.Region=="us-east-1"?"（默认值，尚待服务确认）":"（配置值）")+
             $"；寻址 {(options.PathStyle?"Path-Style":"Virtual-Host")}；凭据来源 {(options.UseDefaultCredentials?"SDK 默认凭据链":"表单／DPAPI 访问密钥")}";
 
@@ -80,6 +82,7 @@ public sealed partial class S3FileSource
                 if(Hints.Value is {} failed && (error.HttpRequestError==HttpRequestError.SecureConnectionError || error.InnerException is System.Security.Authentication.AuthenticationException))failed.Certificate=true;
                 throw;
             }
+            owner.ObserveCapabilityRequest(request, response);
             response.Content=new S3IdleContent(response.Content,()=>owner.InactivityTimeout);
             if(Hints.Value is {} hints)
             {
@@ -157,7 +160,7 @@ public sealed partial class S3FileSource
         {
             token.ThrowIfCancellationRequested();
             var previousHints=Hints.Value;var hints=new ResponseHints{Mutation=mutation};Hints.Value=hints;
-            try { return await action().ConfigureAwait(false); }
+            try { var result = await action().ConfigureAwait(false); ObserveCapabilityResult(result, hints); return result; }
             catch(AmazonS3Exception error) when((expected&ExpectedResult.Missing)!=0&&error.StatusCode==HttpStatusCode.NotFound&&error.ErrorCode!="NoSuchBucket") {return null;}
             catch(AmazonS3Exception error) when((expected&ExpectedResult.PreconditionRejected)!=0&&error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict) {return null;}
             catch (AmazonS3Exception error) when (error.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict)

@@ -152,10 +152,10 @@ public sealed partial class S3FileSource
                     }
                     finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await AbortAsync(record,cleanup.Token).ConfigureAwait(false);File.Delete(journal); }
                 }
-                _multipartVerified = true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Supported};
+                _multipartVerified = true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Supported};_protocolEvidence.Verified("s3.conditionalComplete", CapabilitySupport.Supported, keyParent[_prefix.Length..].TrimEnd('/'));
             }
             catch(Exception error)when(error is NotSupportedException||UnsupportedMultipart(error))
-            {_multipartVerified=true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Unsupported};}
+            {_multipartVerified=true;WriteCapabilities=WriteCapabilities with{MultipartComplete=CapabilitySupport.Unsupported};_protocolEvidence.Verified("s3.conditionalComplete", CapabilitySupport.Unsupported, keyParent[_prefix.Length..].TrimEnd('/'));}
             finally { using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20)); await DeleteKeyAsync(key, null, cleanup.Token).ConfigureAwait(false); }
         }
         finally { _probeGate.Release(); }

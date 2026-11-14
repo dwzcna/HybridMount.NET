@@ -82,6 +82,7 @@ public sealed partial class WebDavFileSource
                 {
                     var result=await MountingHttpScheduler.SendAsync(owner._queueBinding,readOnly?MountingPriority.Observation:MountingPriority.Transaction,cancel=>base.SendAsync(current,cancel),token).ConfigureAwait(false);
                     if(observation is not null){observation.Status=(int)result.StatusCode;observation.ETag=NormalizeTag(result.Headers.TryGetValues("ETag",out var tags)?tags.SingleOrDefault():null);observation.Identity=result.Content.Headers.ContentEncoding.All(x=>x.Equals("identity",StringComparison.OrdinalIgnoreCase));}
+                    owner.ObserveCapabilityHeaders(request, result);
                     if(request.Method==HttpMethod.Options)owner.CaptureOptions(result);
                     return result;
                 }

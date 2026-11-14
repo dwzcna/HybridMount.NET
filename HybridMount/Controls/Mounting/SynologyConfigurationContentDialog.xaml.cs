@@ -9,6 +9,7 @@ namespace HybridMount.Controls.Mounting;
 public sealed partial class SynologyConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
     private IDisposable? _localization;
+    private ProtocolCapabilityDialogBinding? _capabilityBinding;
     private readonly HybridMount.Helpers.UI.FormFieldFeedback _fieldFeedback=new();
     private MountsViewModel _model=null!;
     private readonly MountDefinition? _existing;
@@ -45,7 +46,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
             PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
-            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_loading=false;Refresh();UpdatePin();UpdateHttpWarning();
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.Synology, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false),ReadCredentials() with { SessionToken = "" }), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false) with { Prefix = "" }, ReadCredentials() with { SessionToken = "" }));_loading=false;Refresh();UpdatePin();UpdateHttpWarning();
             if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
@@ -58,6 +59,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     }
     private void Refresh()
     {
+        _capabilityBinding?.Refresh();
         if(_disposed)return;if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} existing?_model.FindMount(existing.Id):null;if(_existing is not null&&mount is null){CancelForShutdown();return;}
         var busy=_savingSwitch||_submitting||_picking||_testing is not null||mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit;
@@ -107,24 +109,25 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_49BE72E6045C"));ErrorBar.IsOpen=false;ProbeBar.IsOpen=true;ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");
         try
         {
-            var settings=ReadSettings(false);var result=await _model.TestSynologyConnectionAsync(settings,ReadCredentials(),OtpField.Password,cancel.Token,_probe?.Session);
+            var settings=ReadSettings(false);_capabilityBinding?.BeginTest();var result=await _model.TestSynologyConnectionAsync(settings,ReadCredentials(),OtpField.Password,cancel.Token,_probe?.Session);
             if(Stopped){await result.DisposeAsync();return false;}
             if(_probe is not null)await _probe.DisposeAsync();_probe=result;OtpField.Password="";ProbeBar.Message=result.Message;ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;
             if(result.CertificateSha256 is {} fingerprint){_certificateCandidate=fingerprint;CertificateBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_7070A69BB3D7",fingerprint);CertificateBar.IsOpen=true;}
             if(result.AuthenticationCode is 403 or 404 or 406){OtpField.Visibility=Visibility.Visible;OtpField.Focus(FocusState.Programmatic);}
-            if(result.Credentials is null)return false;
+            if(result.Credentials is null){_capabilityBinding?.CompleteTest(result.Capabilities);return false;}
             _deviceToken=result.Credentials.SessionToken;
             var selected=ShareField.SelectedItem as SynologySharedFolder;
             _loading=true;
             try{ShareField.ItemsSource=result.Shares;ShareField.SelectedItem=result.Shares.FirstOrDefault(x=>x.Path==selected?.Path);if(ShareField.SelectedItem is null&&_rootEditable&&result.Shares.Count>0)ShareField.SelectedIndex=0;}
             finally{_loading=false;}
+            _capabilityBinding?.CompleteTest(result.Capabilities, serverDiscovery: settings.Prefix.Length == 0);
             if(!result.Success)return false;
             CertificateBar.IsOpen=false;_certificateCandidate=null;
             _verified=settings.Prefix.Length!=0&&settings.Prefix==Prefix?Identity(settings):null;
             if(result.Shares.Count==0){ShowError(global::HybridMount.Services.Localization.UiText.Text("Text_553CA8C4287A"));return false;}
             return true;
         }
-        catch(OperationCanceledException){if(!Stopped)ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");return false;}
+        catch(OperationCanceledException){_capabilityBinding?.CancelTest();if(!Stopped)ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");return false;}
         catch(Exception error){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=error.Message;}return false;}
         finally{_testing=null;if(!Stopped){OtpField.Password="";SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
     }
@@ -191,7 +194,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
-    {_localization?.Dispose();_localization=null;
+    {_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }

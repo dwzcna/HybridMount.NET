@@ -1,6 +1,6 @@
 <ContentDialog xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Controls.Mounting.WebDAVConfigurationContentDialog"
                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views" xmlns:vm="using:HybridMount.ViewModels">
+               xmlns:mounting="using:HybridMount.Controls.Mounting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views" xmlns:vm="using:HybridMount.ViewModels">
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
@@ -26,6 +26,7 @@
                     <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" x:Uid="/Strings/WebDAVConfigurationContentDialogHttpWarning" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogHttpWarning"/>
                     <controls:SettingRow x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts"><ToggleSwitch x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogAutoConnectField" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogAutoConnectField"/></controls:SettingRow>
                 </StackPanel></UserControl>
+                <mounting:ProtocolCapabilitiesView x:Name="CapabilityView"/>
                 <Expander HorizontalAlignment="Stretch" x:Uid="/Strings/WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogExpanderExcludedFilesAdvanced"><UserControl x:Name="ExclusionFields"><StackPanel Spacing="8">
                     <TextBlock FontWeight="SemiBold" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockExcludedFiles" loc:Ui.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockExcludedFiles"/>
                     <ListView x:Name="ExclusionList" SelectionMode="None" MaxHeight="220" HorizontalContentAlignment="Stretch">

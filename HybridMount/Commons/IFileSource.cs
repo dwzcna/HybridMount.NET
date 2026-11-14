@@ -5,6 +5,9 @@ namespace HybridMount.Commons;
 public interface IFileSource : IAsyncDisposable
 {
     FileSourceCapabilities Capabilities { get; }
+    /// <summary>只读当前连接的展示证据；访问不得联网或打开数据库。</summary>
+    ProtocolCapabilitySnapshot? ProtocolCapabilities => null;
+    event Action? ProtocolCapabilitiesChanged { add { } remove { } }
     /// <summary>按具体写操作查询已验证能力；旧适配器保持未知。</summary>
     SourceWriteCapabilities WriteCapabilities => new();
     /// <summary>不透明版本默认严格相等；协议只能归一化可证明等价的表示。</summary>

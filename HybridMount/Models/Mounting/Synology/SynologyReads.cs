@@ -59,8 +59,10 @@ public sealed partial class SynologyFileSource
         _=ContentMd5(entry);using var shared=Share("snapshot:"+entry.Path+":"+entry.Version);
         try
         {
-            return await _cache.ReadVerifiedAsync(_endpoint.AbsoluteUri+_root,entry,offset,buffer[..count],
+            var read = await _cache.ReadVerifiedAsync(_endpoint.AbsoluteUri+_root,entry,offset,buffer[..count],
                 (output,cancel)=>DownloadSnapshotAsync(entry,output,cancel),token,SnapshotTotalDeadline,SnapshotPriority(),SnapshotMetric,Share("snapshot:"+entry.Path+":"+entry.Version)).ConfigureAwait(false);
+            _protocolEvidence.Record("syno.download", ProtocolCapabilityStatus.Supported, entry.Path);
+            return read;
         }
         catch(TimeoutException){throw Failure("完整快照",ConnectionFailureKind.Timeout,"群晖整文件读取超过总期限，未返回正文。",transient:true);}
         catch(SharedWorkCapacityException){throw Failure("快照排队",ConnectionFailureKind.Network,"群晖整文件读取队列已满，请稍后重试。",transient:true);}
