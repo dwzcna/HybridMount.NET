@@ -47,8 +47,7 @@ internal sealed class ProtocolCapabilityProbeBinding : IDisposable
             if (!_disposed && IsRunning && _capabilities.DraftRevision == _activeRevision && value is not null) _view.ShowProbe(value);
         };
         _read = read; _validate = validate; _refresh = refresh; _error = error;
-        view.ProbeRequested += Requested;
-        view.CleanupRequested += Cleanup;
+        view.Actions.SetHandlers(() => StartAsync(null), () => _cancel?.Cancel(), run => StartAsync(run), problem => error(problem.Message));
         view.HistoryRequested += History;
         owner.Closed += Closed;
         owner.Closing += Closing;
@@ -58,14 +57,6 @@ internal sealed class ProtocolCapabilityProbeBinding : IDisposable
     {
         if (!_disposed) _view.SetProbeAvailability(available || IsRunning, IsRunning);
     }
-
-    private async void Requested(object? sender, EventArgs args)
-    {
-        if (IsRunning) { _cancel?.Cancel(); return; }
-        await StartAsync(null);
-    }
-
-    private async void Cleanup(object? sender, Guid run) => await StartAsync(run);
 
     /// <summary>同步捕获并校验草稿后再启动应用任务；迟到结果通过原草稿代次门禁，取消不产生新的成功证据。</summary>
     private async Task StartAsync(Guid? cleanup)
@@ -138,7 +129,7 @@ internal sealed class ProtocolCapabilityProbeBinding : IDisposable
         _disposed = true;
         _cancel?.Cancel();
         _progressTimer.Stop();
-        _view.ProbeRequested -= Requested; _view.CleanupRequested -= Cleanup; _view.HistoryRequested -= History;
+        _view.Actions.Dispose(); _view.HistoryRequested -= History;
         _owner.Closed -= Closed; _owner.Closing -= Closing;
     }
     /// <summary>后台只发布不可变快照，窗口线程每250毫秒合并显示。</summary>

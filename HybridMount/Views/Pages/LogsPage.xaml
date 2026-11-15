@@ -21,11 +21,11 @@
         <toolkit:SegmentedItem x:Name="ErrorFilter" x:Uid="/Strings/LogsPageErrorFilter" loc:UserInterface.ResourceId="/Strings/LogsPageErrorFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Cancel"/><TextBlock x:Name="ErrorFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/LogsPageErrorFilterLabel" loc:UserInterface.ResourceId="/Strings/LogsPageErrorFilterLabel"/></StackPanel></toolkit:SegmentedItem>
       </toolkit:Segmented>
       <Border Style="{StaticResource PageCommandGroupStyle}" Grid.Column="1"><CommandBar x:Name="LogActions" HorizontalContentAlignment="Right" Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/LogsPageCommandBarLogActions" loc:UserInterface.ResourceId="/Strings/LogsPageCommandBarLogActions">
-        <AppBarButton Icon="Download" IsEnabled="{x:Bind ViewModel.CanLoadMore,Mode=OneWay}" Click="OlderClicked" x:Uid="/Strings/LogsPageAppBarButtonLoadEarlier" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonLoadEarlier"/>
-        <AppBarButton Icon="Refresh" AccessKey="R" Click="RefreshClicked" x:Uid="/Strings/LogsPageAppBarButtonRefresh" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonRefresh"/>
+        <AppBarButton Icon="Download" Command="{x:Bind ViewModel.LoadOlderCommand}" x:Uid="/Strings/LogsPageAppBarButtonLoadEarlier" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonLoadEarlier"/>
+        <AppBarButton Icon="Refresh" AccessKey="R" Command="{x:Bind ViewModel.RefreshCommand}" x:Uid="/Strings/LogsPageAppBarButtonRefresh" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonRefresh"/>
         <AppBarButton Icon="Copy" AccessKey="C" Click="CopyClicked" x:Uid="/Strings/LogsPageAppBarButtonCopy" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonCopy"/>
-        <AppBarButton Icon="Save" AccessKey="E" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ExportClicked" x:Uid="/Strings/LogsPageAppBarButtonExport" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonExport"/>
-        <AppBarButton Icon="Delete" AccessKey="D" IsEnabled="{x:Bind ViewModel.CanInteract,Mode=OneWay}" Click="ClearClicked" x:Uid="/Strings/LogsPageAppBarButtonClear" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonClear"/>
+        <AppBarButton Icon="Save" AccessKey="E" Command="{x:Bind ViewModel.ExportCommand}" x:Uid="/Strings/LogsPageAppBarButtonExport" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonExport"/>
+        <AppBarButton Icon="Delete" AccessKey="D" Command="{x:Bind ViewModel.ClearCommand}" x:Uid="/Strings/LogsPageAppBarButtonClear" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonClear"/>
         <AppBarButton Icon="Document" AccessKey="L" Click="LifecycleClicked" x:Uid="/Strings/LogsPageAppBarButtonLifecycleRecords" loc:UserInterface.ResourceId="/Strings/LogsPageAppBarButtonLifecycleRecords"/>
       </CommandBar></Border>
     </Grid>

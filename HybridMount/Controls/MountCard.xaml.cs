@@ -27,7 +27,13 @@ public sealed partial class MountCard : UserControl
         UpdateSelection();
     }
     private void Detach(){if(_observed is {} item)item.PropertyChanged-=PresentationChanged;_observed=null;_flyoutMount=null;if(_initialized)MoreButton.Flyout?.Hide();}
-    private void PresentationChanged(object? sender,PropertyChangedEventArgs args)=>UpdateSelection();
+    private void PresentationChanged(object? sender,PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(MountListItemViewModel.IsSelected)) UpdateSelection();
+        else if (args.PropertyName is nameof(MountListItemViewModel.ConnectionText) or nameof(MountListItemViewModel.ThumbnailText)
+            or nameof(MountListItemViewModel.DetectionText) or nameof(MountListItemViewModel.RemoveText)
+            or nameof(MountListItemViewModel.CanConfigureThumbnails)) QueueOverflow();
+    }
     private void UpdateSelection()
     {if(!_initialized)return;var selected=Item?.IsSelected==true;StatusPanel.Visibility=selected?Visibility.Collapsed:Visibility.Visible;ActionsGrid.Visibility=selected?Visibility.Visible:Visibility.Collapsed;QueueOverflow();}
     private void PerformAction(object sender,RoutedEventArgs args)

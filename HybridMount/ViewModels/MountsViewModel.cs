@@ -43,9 +43,10 @@ public sealed partial class MountsViewModel : ObservableObject, IDisposable
     public Guid? SelectedMountId { get => _selected; set { if (!_disposed && SetProperty(ref _selected, value)) { OnPropertyChanged(nameof(Selected)); NotifyStateChanged(); } } }
     public MountSnapshot? Selected => Mounts.FirstOrDefault(x => x.Definition.Id == _selected);
     public MountSnapshot RequireSelected() => Selected ?? throw new InvalidOperationException(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("SelectAMountFirst", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+    /// <summary>仅用于执行入口的互斥检查，不可作为界面的禁用条件。</summary>
     public bool DialogBusy => _dialogBusy || _runtimeReconnecting;
     public bool HasRuntimeFailedMounts => _manager.HasRuntimeFailedMounts;
-    public bool CanReconnectRuntimeFailed => !IsStopping && !DialogBusy && _busyMounts.Count == 0 && _cancelingConnections.Count == 0 && HasRuntimeFailedMounts;
+    public bool CanReconnectRuntimeFailed => !IsStopping && !_runtimeReconnecting && _busyMounts.Count == 0 && _cancelingConnections.Count == 0 && HasRuntimeFailedMounts;
     public IAsyncRelayCommand ReconnectRuntimeFailedCommand { get; }
     public bool IsStopping => _disposed || _manager.IsStopping;
     public bool IsBusy(Guid id) => _busyMounts.Contains(id);
@@ -90,7 +91,7 @@ public sealed partial class MountsViewModel : ObservableObject, IDisposable
     public ObservableCollection<MountSnapshot> Mounts { get; } = [];
     public ObservableCollection<MountListItemViewModel> Items { get; } = [];
     public MountsViewModel(MountManager manager, IUIDispatcher dispatcher, LoggerService? logger = null, ShellThumbnailCapability? thumbnailCapability = null)
-    { ThumbnailCapability = thumbnailCapability ?? CloudShellState.ThumbnailCapability(); _manager = manager; _dispatcher = dispatcher; _logger = logger; ReconnectRuntimeFailedCommand = new AsyncRelayCommand(ReconnectRuntimeFailedAsync, () => CanReconnectRuntimeFailed); _manager.Changed += Changed; Refresh(); }
+    { ThumbnailCapability = thumbnailCapability ?? CloudShellState.ThumbnailCapability(); _manager = manager; _dispatcher = dispatcher; _logger = logger; InitializePageCommands(); ReconnectRuntimeFailedCommand = new AsyncRelayCommand(ReconnectRuntimeFailedAsync, () => CanReconnectRuntimeFailed); _manager.Changed += Changed; Refresh(); }
     private void Changed()
     {
         if (_disposed || Interlocked.Exchange(ref _pending, 1) != 0) return;
@@ -100,25 +101,32 @@ public sealed partial class MountsViewModel : ObservableObject, IDisposable
     private void Refresh()
     {
         if (_disposed) return;
-        try { var snapshots = _manager.DisplayMounts; if (_manager.DisplaySnapshotError is { } error && StatusMessage.Update(error, PageMessageSeverity.Error)) OnPropertyChanged(nameof(Status)); Refreshing?.Invoke(); SnapshotCollections.Reconcile(Mounts, snapshots, x => x.Definition.Id); RefreshItems(snapshots); OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(HasRuntimeFailedMounts)); NotifyReconnectState(); Refreshed?.Invoke(); }
+        try { var snapshots = _manager.DisplayMounts; if (_manager.DisplaySnapshotError is { } error && StatusMessage.Update(error, PageMessageSeverity.Error)) OnPropertyChanged(nameof(Status)); Refreshing?.Invoke(); SnapshotCollections.Reconcile(Mounts, snapshots, x => x.Definition.Id); RefreshItems(snapshots); OnPropertyChanged(nameof(Selected)); NotifyReconnectState(); NotifyPageCommands(); Refreshed?.Invoke(); }
         catch (Exception error) { if (StatusMessage.Update(global::HybridMount.Models.Localization.ResourceMessage.Raw(error.Message), PageMessageSeverity.Error)) OnPropertyChanged(nameof(Status)); _manager.ReportDiagnosticException("挂载页面", "挂载快照读取失败", error); }
     }
     private void RefreshItems(IReadOnlyList<MountSnapshot> snapshots)
     {
         var previous = Items.ToDictionary(x => x.Id); var rows = snapshots.Select(snapshot => previous.GetValueOrDefault(snapshot.Definition.Id) ?? new MountListItemViewModel(snapshot)).ToArray();
-        foreach (var row in rows) row.Update(snapshots.First(x => x.Definition.Id == row.Id), row.Id == _selected, IsBusy(row.Id), IsStopping, DialogBusy, IsCanceling(row.Id), CanConfigureThumbnails);
+        foreach (var row in rows) row.Update(snapshots.First(x => x.Definition.Id == row.Id), row.Id == _selected, IsBusy(row.Id), IsStopping, _runtimeReconnecting, IsCanceling(row.Id), CanConfigureThumbnails);
         SnapshotCollections.Reconcile(Items, rows, x => x.Id);
     }
     private void NotifyStateChanged()
     {
-        if (!_disposed) NotifyReconnectState();
-        foreach (var row in Items) row.Update(row.Snapshot, row.Id == _selected, IsBusy(row.Id), IsStopping, DialogBusy, IsCanceling(row.Id), CanConfigureThumbnails);
+        if (!_disposed) { NotifyReconnectState(); NotifyPageCommands(); }
+        foreach (var row in Items) row.Update(row.Snapshot, row.Id == _selected, IsBusy(row.Id), IsStopping, _runtimeReconnecting, IsCanceling(row.Id), CanConfigureThumbnails);
         if (!_disposed) StateChanged?.Invoke();
     }
-    private void NotifyReconnectState() { OnPropertyChanged(nameof(CanReconnectRuntimeFailed)); ReconnectRuntimeFailedCommand.NotifyCanExecuteChanged(); }
+    private bool _publishedReconnect, _publishedRuntimeFailure;
+    private void NotifyReconnectState()
+    {
+        var failed = HasRuntimeFailedMounts;
+        if (_publishedRuntimeFailure != failed) { _publishedRuntimeFailure = failed; OnPropertyChanged(nameof(HasRuntimeFailedMounts)); }
+        var can = CanReconnectRuntimeFailed;
+        if (_publishedReconnect != can) { _publishedReconnect = can; OnPropertyChanged(nameof(CanReconnectRuntimeFailed)); ReconnectRuntimeFailedCommand.NotifyCanExecuteChanged(); }
+    }
     public async Task ReconnectRuntimeFailedAsync()
     {
-        if (!CanReconnectRuntimeFailed) return; _runtimeReconnecting = true; NotifyStateChanged();
+        if (IsStopping || _runtimeReconnecting || _busyMounts.Count != 0 || _cancelingConnections.Count != 0) return; _runtimeReconnecting = true; NotifyStateChanged();
         try { await _manager.ReconnectRuntimeFailedAsync(); }
         catch (OperationCanceledException) when (_manager.IsStopping) { }
         catch (Exception error) { Report(error); }
@@ -193,15 +201,15 @@ public sealed partial class MountsViewModel : ObservableObject, IDisposable
         finally { _busyMounts.Remove(id); if (!_disposed) { Refresh(); NotifyStateChanged(); } }
     }
     public Task RunSelectedAsync(Func<MountSnapshot, Task> work) => Selected is { } selected ? RunMountAsync(selected.Definition.Id, () => work(selected)) : Task.CompletedTask;
-    /// <summary>所有对话框和选择器共享页面忙碌状态，实际控件由 Page 展示。</summary>
+    /// <summary>模态链只防重复接纳，不发布禁用或全挂载刷新；视图负责原生遮罩及所属窗口。</summary>
     public async Task RunDialogAsync(Func<Task> work)
     {
-        if (IsStopping || DialogBusy) return; _dialogBusy = true; NotifyStateChanged();
+        if (IsStopping || DialogBusy) return; _dialogBusy = true;
         try { await work(); }
         catch (OperationCanceledException) when (_manager.IsStopping) { }
         catch (MountManager.ConnectionStoppedException) { Status = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheConnectionHasStopped", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!; }
         catch (Exception error) { Report(error); }
-        finally { _dialogBusy = false; if (!_disposed) { Refresh(); NotifyStateChanged(); } }
+        finally { _dialogBusy = false; }
     }
     public void PublishStatus(string text, PageMessageSeverity severity = PageMessageSeverity.Information) { if (!_disposed && StatusMessage.Show(text, severity)) OnPropertyChanged(nameof(Status)); }
     private void Report(Exception error) { if (_disposed) return; PublishStatus(error.Message, PageMessageSeverity.Error); _manager.ReportDiagnosticException("挂载", "挂载页面操作未完成", error); }
@@ -322,5 +330,5 @@ public sealed partial class MountsViewModel : ObservableObject, IDisposable
         try { _manager.Queue(id, cached ? "removeCached" : clear ? "clearAndRemove" : "remove"); Status = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("RemovalTaskSubmittedViewProgressAndPerItemResultsOnTheTasks", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!; }
         catch (Exception error) { Report(error); }
     }
-    public void Dispose() { if (_disposed) return; _disposed = true; StatusMessage.Dispose(); _manager.Changed -= Changed; _exclusionDrafts.Clear(); }
+    public void Dispose() { if (_disposed) return; _disposed = true; _dialogPresenter = null; StatusMessage.Dispose(); _manager.Changed -= Changed; _exclusionDrafts.Clear(); }
 }

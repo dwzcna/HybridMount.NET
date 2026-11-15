@@ -47,7 +47,7 @@
               <TextBlock Text="{x:Bind ViewModel.CloudRecommendation,Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
               <NumberBox Value="{x:Bind ViewModel.CloudConcurrencyValue,Mode=TwoWay}" Minimum="1" Maximum="128" SmallChange="1" SpinButtonPlacementMode="Inline" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" HorizontalAlignment="Left" Width="280" x:Uid="/Strings/SettingsCloudInput" loc:UserInterface.ResourceId="/Strings/SettingsCloudInput"/>
               <helpers:ActionPanel ContentAlignment="Right" x:Name="CloudActions" Style="{StaticResource ActionPanelStyle}">
-                <Button x:Name="CloudSaveButton" Style="{StaticResource ActionButtonStyle}" Click="SaveCloudConcurrency" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" x:Uid="/Strings/SettingsCloudSave" loc:UserInterface.ResourceId="/Strings/SettingsCloudSave" HorizontalAlignment="Right">
+                <Button x:Name="CloudSaveButton" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.SaveCloudCommand}" x:Uid="/Strings/SettingsCloudSave" loc:UserInterface.ResourceId="/Strings/SettingsCloudSave" HorizontalAlignment="Right">
                   <Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE74E;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/SettingsCloudSaveText" loc:UserInterface.ResourceId="/Strings/SettingsCloudSaveText"/></Grid>
                 </Button>
               </helpers:ActionPanel>
@@ -61,10 +61,10 @@
                 <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" x:Uid="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic" loc:UserInterface.ResourceId="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic"/>
               </Grid>
               <helpers:ActionPanel ContentAlignment="Right" x:Name="CacheActions" Style="{StaticResource ActionPanelStyle}">
-                <Button x:Name="CacheSaveButton" Style="{StaticResource ActionButtonStyle}" Click="SaveCache" IsEnabled="{x:Bind ViewModel.CanEditCache,Mode=OneWay}" x:Uid="/Strings/SettingsCacheSave" loc:UserInterface.ResourceId="/Strings/SettingsCacheSave" HorizontalAlignment="Right">
+                <Button x:Name="CacheSaveButton" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.SaveCacheCommand}" x:Uid="/Strings/SettingsCacheSave" loc:UserInterface.ResourceId="/Strings/SettingsCacheSave" HorizontalAlignment="Right">
                   <Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE74E;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/SettingsCacheSaveText" loc:UserInterface.ResourceId="/Strings/SettingsCacheSaveText"/></Grid>
                 </Button>
-                <Button x:Name="CacheTrimButton" Style="{StaticResource ActionButtonStyle}" Click="TrimCache" IsEnabled="{x:Bind ViewModel.CanEditCache,Mode=OneWay}" x:Uid="/Strings/SettingsCacheTrim" loc:UserInterface.ResourceId="/Strings/SettingsCacheTrim" HorizontalAlignment="Right">
+                <Button x:Name="CacheTrimButton" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.TrimCacheCommand}" x:Uid="/Strings/SettingsCacheTrim" loc:UserInterface.ResourceId="/Strings/SettingsCacheTrim" HorizontalAlignment="Right">
                   <Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE74D;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/SettingsCacheTrimText" loc:UserInterface.ResourceId="/Strings/SettingsCacheTrimText"/></Grid>
                 </Button>
               </helpers:ActionPanel>
@@ -75,10 +75,10 @@
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockReset" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockReset"/>
               <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor"/>
               <helpers:ActionPanel ContentAlignment="Right" x:Name="ResetActions" Style="{StaticResource ActionPanelStyle}">
-                <Button x:Name="RemoveAllButton" Style="{StaticResource ActionButtonStyle}" Click="RemoveAllMounts" IsEnabled="{x:Bind ViewModel.CanRemoveAll,Mode=OneWay}" x:Uid="/Strings/SettingsRemoveAll" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAll" HorizontalAlignment="Right">
+                <Button x:Name="RemoveAllButton" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.RemoveAllCommand}" x:Uid="/Strings/SettingsRemoveAll" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAll" HorizontalAlignment="Right">
                   <Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8CD;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/SettingsRemoveAllText" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAllText"/></Grid>
                 </Button>
-                <Button x:Name="ResetSettingsButton" Style="{StaticResource ActionButtonStyle}" Click="ResetSettings" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/SettingsReset" loc:UserInterface.ResourceId="/Strings/SettingsReset" HorizontalAlignment="Right">
+                <Button x:Name="ResetSettingsButton" Style="{StaticResource ActionButtonStyle}" Command="{x:Bind ViewModel.ResetCommand}" x:Uid="/Strings/SettingsReset" loc:UserInterface.ResourceId="/Strings/SettingsReset" HorizontalAlignment="Right">
                   <Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE7A7;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/SettingsResetText" loc:UserInterface.ResourceId="/Strings/SettingsResetText"/></Grid>
                 </Button>
               </helpers:ActionPanel>

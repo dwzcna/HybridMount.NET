@@ -3,8 +3,8 @@ namespace HybridMount.Services.Mounting;
 public sealed partial class MountManager
 {
     private int _runtimeReconnecting;
-    /// <summary>只读当前故障标记，不启动原生进程或恢复用户已经断开的挂载。</summary>
-    public bool HasRuntimeFailedMounts=>_roots.Values.Any(root=>{lock(root.ConnectionSync)return root.RuntimeFailed&&!root.RemovalRequested&&!root.Definition.RemovalPending;});
+    /// <summary>只读已发布故障投影；界面不等待任何根连接锁，业务执行另行重验。</summary>
+    public bool HasRuntimeFailedMounts=>Volatile.Read(ref _displayRuntimeFailed)!=0;
     /// <summary>应用拥有的串行批量重连；逐根等待旧收尾并重新核验，单根失败继续，重复提交合并。</summary>
     public Task ReconnectRuntimeFailedAsync(CancellationToken token=default)=>OwnAsync(async cancel=>
     {

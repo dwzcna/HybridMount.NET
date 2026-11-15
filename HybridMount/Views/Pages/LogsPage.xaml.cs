@@ -1,3 +1,4 @@
+using HybridMount.Models.UI;
 ﻿using HybridMount;
 using HybridMount.Infrastructure.Settings;
 using HybridMount.Models.Localization;
@@ -24,7 +25,7 @@ public sealed partial class LogsPage : Page, IDisposable
     public LogsViewModel ViewModel { get; } = new(App.Current.Logger,App.Current.UIDispatcher);
     /// <summary>页面出现时重新读取 SQLite 快照。</summary>
     private readonly PageScrollBookmark _viewport=new();
-    public LogsPage(){try{InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();_header?.Invalidate();});NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}_header=new(LogToolbar,LogFilters,LogActions,SetFilterLabels);Loaded+=PageLoaded;}
+    public LogsPage(){try{InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();_header?.Invalidate();});NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}_header=new(LogToolbar,LogFilters,LogActions,SetFilterLabels);ViewModel.SetDialogPresenter(PresentDialogAsync);Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(LogList);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(LogList);base.OnNavigatedFrom(args);}
     private async void PageLoaded(object sender,RoutedEventArgs args){_viewport.Restore(LogList);await ViewModel.RefreshAsync(reopenStatus:false);}
@@ -45,8 +46,6 @@ public sealed partial class LogsPage : Page, IDisposable
         Grid.SetColumnSpan(LogSearch,inline?1:2);Grid.SetColumn(DateFilter,inline?1:0);
         Grid.SetColumnSpan(DateFilter,inline?1:2);Grid.SetRow(DateFilter,inline?0:1);
     }
-    private async void RefreshClicked(object sender, RoutedEventArgs args) => await ViewModel.RefreshAsync();
-    private async void OlderClicked(object sender,RoutedEventArgs args)=>await ViewModel.LoadOlderAsync();
     /// <summary>只打开本应用安全生命周期证据目录，不附带注册表、连接配置或正文备份。</summary>
     private async void LifecycleClicked(object sender,RoutedEventArgs args)
     {
@@ -58,9 +57,9 @@ public sealed partial class LogsPage : Page, IDisposable
         try { var package = new DataPackage(); package.SetText(ViewModel.ExportText()); Clipboard.SetContent(package); }
         catch (Exception error) { ViewModel.ReportError(error); }
     }
-    private async void ExportClicked(object sender, RoutedEventArgs args)
+    private Task PresentDialogAsync(LogDialogKind kind)=>kind==LogDialogKind.Export?ExportAsync():ConfirmClearAsync();
+    private async Task ExportAsync()
     {
-        if(!ViewModel.TryBeginDialog())return;
         try
         {
             var query=ViewModel.CaptureExportQuery();
@@ -69,22 +68,19 @@ public sealed partial class LogsPage : Page, IDisposable
             WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
             var file = await picker.PickSaveFileAsync();
             if(file is not null&&!App.Current.IsExiting)
-            {var export=await ViewModel.ExportAsync(query);if(!App.Current.IsExiting)await FileIO.WriteTextAsync(file,export.Text);}
+            {await ViewModel.ExportToAsync(query,async export=>{if(!App.Current.IsExiting)await FileIO.WriteTextAsync(file,export.Text);});}
         }
         catch (Exception error) { ViewModel.ReportError(error); }
-        finally {ViewModel.EndDialog();}
     }
-    private async void ClearClicked(object sender, RoutedEventArgs args)
+    private async Task ConfirmClearAsync()
     {
-        if(!ViewModel.TryBeginDialog())return;
         try
         {
             var dialog = global::HybridMount.UI.UserInterface.Configure(new ContentDialog { XamlRoot = XamlRoot,DefaultButton = ContentDialogButton.Close },("Title",global::HybridMount.Models.Localization.ResourceMessage.Create("ClearLogs")),("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("ClearTheRuntimeLogsSavedOnThisComputer")),("PrimaryButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("Clear")),("CloseButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("Cancel")));
             if (await global::HybridMount.UI.UserInterface.ShowAsync(dialog) == ContentDialogResult.Primary) await ViewModel.ClearAsync();
         }
         catch (Exception error) { ViewModel.ReportError(error); }
-        finally {ViewModel.EndDialog();}
     }
     /// <summary>真正退出时解除日志订阅。</summary>
-    public void Dispose(){_header?.Dispose();_header=null;_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
+    public void Dispose(){_header?.Dispose();_header=null;_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.SetDialogPresenter(null);ViewModel.Dispose();}
 }

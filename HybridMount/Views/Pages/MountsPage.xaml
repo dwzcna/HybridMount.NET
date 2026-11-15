@@ -17,16 +17,16 @@
                 </InfoBar.ActionButton>
             </InfoBar>
             <Grid x:Name="MountToolbar" Grid.Row="1" Style="{StaticResource PageToolbarStyle}"><Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/MountsPageCommandBarMountActions" loc:UserInterface.ResourceId="/Strings/MountsPageCommandBarMountActions">
-                <AppBarButton x:Name="AddButton" Icon="Add" AccessKey="N" x:Uid="/Strings/MountsPageAddButton" loc:UserInterface.ResourceId="/Strings/MountsPageAddButton">
+                <AppBarButton x:Name="AddButton" IsEnabled="{x:Bind ViewModel.CanOpenDialog,Mode=OneWay}" Icon="Add" AccessKey="N" x:Uid="/Strings/MountsPageAddButton" loc:UserInterface.ResourceId="/Strings/MountsPageAddButton">
                     <AppBarButton.Flyout><MenuFlyout>
-                        <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
-                        <MenuFlyoutItem Click="CreateS3Mount" x:Uid="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage" loc:UserInterface.ResourceId="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage"/>
-                        <MenuFlyoutItem Click="CreateSynologyMount" x:Uid="/Strings/MountsPageMenuFlyoutItemSynologyNAS" loc:UserInterface.ResourceId="/Strings/MountsPageMenuFlyoutItemSynologyNAS"/>
+                        <MenuFlyoutItem Text="WebDAV" Command="{x:Bind ViewModel.CreateWebDavCommand}"/>
+                        <MenuFlyoutItem Command="{x:Bind ViewModel.CreateS3Command}" x:Uid="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage" loc:UserInterface.ResourceId="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage"/>
+                        <MenuFlyoutItem Command="{x:Bind ViewModel.CreateSynologyCommand}" x:Uid="/Strings/MountsPageMenuFlyoutItemSynologyNAS" loc:UserInterface.ResourceId="/Strings/MountsPageMenuFlyoutItemSynologyNAS"/>
                     </MenuFlyout></AppBarButton.Flyout>
                 </AppBarButton>
-                <AppBarButton x:Name="ExportButton" Icon="Save" AccessKey="E" Click="ExportConfigurations" x:Uid="/Strings/MountsPageExportButton" loc:UserInterface.ResourceId="/Strings/MountsPageExportButton"/>
-                <AppBarButton x:Name="ImportButton" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations" x:Uid="/Strings/MountsPageImportButton" loc:UserInterface.ResourceId="/Strings/MountsPageImportButton"/>
-                <AppBarButton x:Name="RecoveryButton" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts" x:Uid="/Strings/MountsPageRecoveryButton" loc:UserInterface.ResourceId="/Strings/MountsPageRecoveryButton"/>
+                <AppBarButton x:Name="ExportButton" Icon="Save" AccessKey="E" Command="{x:Bind ViewModel.ExportConfigurationsCommand}" x:Uid="/Strings/MountsPageExportButton" loc:UserInterface.ResourceId="/Strings/MountsPageExportButton"/>
+                <AppBarButton x:Name="ImportButton" Icon="OpenFile" AccessKey="I" Command="{x:Bind ViewModel.ImportConfigurationsCommand}" x:Uid="/Strings/MountsPageImportButton" loc:UserInterface.ResourceId="/Strings/MountsPageImportButton"/>
+                <AppBarButton x:Name="RecoveryButton" Icon="Repair" AccessKey="R" Command="{x:Bind ViewModel.RecoverMountsCommand}" x:Uid="/Strings/MountsPageRecoveryButton" loc:UserInterface.ResourceId="/Strings/MountsPageRecoveryButton"/>
             </CommandBar></Border></Grid>
         <ListView x:Name="MountList" Grid.Row="3" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
                   SelectionMode="Single"

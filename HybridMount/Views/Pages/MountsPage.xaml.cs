@@ -1,3 +1,5 @@
+using HybridMount.UI.Presentation;
+using HybridMount.Models.UI;
 using HybridMount;
 using HybridMount.Commons.UI;
 using HybridMount.Controls;
@@ -25,6 +27,13 @@ public sealed partial class MountsPage : Page,IDisposable
     public MountsViewModel ViewModel {get;}=new(App.Current.Mounts,App.Current.UIDispatcher,App.Current.Logger);
     private bool _restoringSelection,_disposed;
     private MountBackupDialog? _backupDialog;
+    /// <summary>文件选择只属于视图，回调返回后再进入有界读取和预览；取消不刷新挂载。</summary>
+    internal Func<Task<string?>> SelectBackupFileAsync { get; set; } = async () =>
+    {
+        var picker=new global::Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hmxbk");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+        return (await picker.PickSingleFileAsync())?.Path;
+    };
     private IMountConfigurationDialog? _configurationDialog;
     private ContentDialog? _diagnosticDialog,_recoveryDialog;
     private CancellationTokenSource? _recoveryCancel;
@@ -37,7 +46,7 @@ public sealed partial class MountsPage : Page,IDisposable
             if(_restoringSelection)return;_viewport.Capture(MountList);
             ViewModel.SelectedMountId=(MountList.SelectedItem as MountListItemViewModel)?.Id;_viewport.Restore(MountList);_=ViewModel.ReadCapacityAsync(ViewModel.SelectedMountId);
         };
-        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.StateChanged+=UpdatePageState;Loaded+=PageLoaded;UpdatePageState();
+        ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.SetDialogPresenter(PresentDialogAsync);Loaded+=PageLoaded;
     }
     private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(MountList);
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(MountList);RestoreSelection();if(App.Current.TaskFocus.TakeExportProtection() is {} protection)DispatcherQueue.TryEnqueue(async()=>{if(!_disposed)await ShowExportConfigurationsAsync(protection);});if(App.Current.TaskFocus.TakeConfiguration() is {} mount)DispatcherQueue.TryEnqueue(async()=>{if(!_disposed)await EditSettingsAsync(mount);});}
@@ -47,9 +56,8 @@ public sealed partial class MountsPage : Page,IDisposable
     {
         if(_disposed)return;_restoringSelection=true;
         try{MountList.SelectedItem=ViewModel.Items.FirstOrDefault(x=>x.Id==ViewModel.SelectedMountId);}finally{_restoringSelection=false;}
-        UpdatePageState();_viewport.Restore(MountList);
+        _viewport.Restore(MountList);
     }
-    private void UpdatePageState(){if(_disposed)return;AddButton.IsEnabled=ExportButton.IsEnabled=ImportButton.IsEnabled=RecoveryButton.IsEnabled=!ViewModel.DialogBusy&&!ViewModel.IsStopping;}
     /// <summary>按钮携带本行身份；点击未选中行的打开或诊断不会改写当前选择。</summary>
     private async void CardAction(object? sender,MountCardActionEventArgs args)
     {
@@ -110,41 +118,48 @@ public sealed partial class MountsPage : Page,IDisposable
         }
         finally{_configurationDialog?.Dispose();_configurationDialog=null;}
     }
-    private async void CreateWebDavMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav);
-    private async void CreateS3Mount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.S3);
-    private async void CreateSynologyMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.Synology);
+    /// <summary>命令接纳后只展示对应模态流程；不计算业务可用状态。</summary>
+    private Task PresentDialogAsync(MountDialogKind kind) => kind switch
+    {
+        MountDialogKind.NewWebDav => ShowConfigurationCoreAsync(FileSourceKind.WebDav),
+        MountDialogKind.NewS3 => ShowConfigurationCoreAsync(FileSourceKind.S3),
+        MountDialogKind.NewSynology => ShowConfigurationCoreAsync(FileSourceKind.Synology),
+        MountDialogKind.Import => ImportConfigurationsAsync(),
+        MountDialogKind.Export => ShowExportConfigurationsCoreAsync(),
+        MountDialogKind.Recovery => RecoverOrphanedMountsAsync(),
+        _ => Task.CompletedTask
+    };
     /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与可选加密写入由应用服务执行。</summary>
-    private async void ExportConfigurations(object sender,RoutedEventArgs args)=>await ShowExportConfigurationsAsync();
-    private Task ShowExportConfigurationsAsync(bool protection=false)=>ViewModel.RunDialogAsync(async()=>
+    private Task ShowExportConfigurationsAsync(bool protection=false)=>ViewModel.RunDialogAsync(()=>ShowExportConfigurationsCoreAsync(protection));
+    private async Task ShowExportConfigurationsCoreAsync(bool protection=false)
     {
         try { _backupDialog=new MountBackupDialog(protectionInitially:protection){XamlRoot=XamlRoot};await global::HybridMount.UI.UserInterface.ShowAsync(_backupDialog);if(!ViewModel.IsStopping&&_backupDialog.AcceptedTaskId is {} taskId)App.Current.TaskFocus.ShowTask(taskId);if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage; }
         finally { _backupDialog=null; }
-    });
+    }
     /// <summary>文件选择只接受 .hmxbk；自动识别保护模式后预览，保存不会自动连接。</summary>
-    private async void ImportConfigurations(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
+    private async Task ImportConfigurationsAsync()
     {
-        var picker=new global::Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hmxbk");
-        WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
-        var file=await picker.PickSingleFileAsync();if(file is null||App.Current.IsExiting)return;
+        var path=await SelectBackupFileAsync();if(path is null||App.Current.IsExiting)return;
         MountBackupItem? imported=null;
         try
         {
-            _backupDialog=new MountBackupDialog(file.Path){XamlRoot=XamlRoot};await global::HybridMount.UI.UserInterface.ShowAsync(_backupDialog);
+            _backupDialog=new MountBackupDialog(path){XamlRoot=XamlRoot};await global::HybridMount.UI.UserInterface.ShowAsync(_backupDialog);
             imported=_backupDialog.TakeSelectedConfiguration();
             if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage;
         }
         finally { _backupDialog=null; }
         if(imported is not null&&!ViewModel.IsStopping)await ShowConfigurationCoreAsync(imported.Source.Kind,imported:imported);
-    });
+    }
     /// <summary>多选只捕获快照；确认后应用串行处理，取消时对话框等待当前项及临时连接收尾。</summary>
-    private async void RecoverOrphanedMounts(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
+    private async Task RecoverOrphanedMountsAsync()
     {
         using var cancel=new CancellationTokenSource();_recoveryCancel=cancel;
+        using var selection=new RecoverySelectionViewModel();
         var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,ItemTemplate=(DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.UI\"><TextBlock loc:UserInterface.Source=\"{Binding}\" loc:UserInterface.Path=\"Display\" TextWrapping=\"Wrap\"/></DataTemplate>"),SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MaxHeight=320};
         var feedback=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
-        var count=new TextBlock();var choose=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectOldMountFolder")));
-        var selectAll=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectAllEligibleItems")));var clearAll=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("DeselectAll")));
-        var choosing=false;var changing=false;var selecting=true;var explorerRequested=false;
+        var count=new TextBlock();var choose=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"],Command=selection.ChooseCommand},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectOldMountFolder")));
+        var selectAll=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"],Command=selection.SelectAllCommand},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectAllEligibleItems")));var clearAll=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"],Command=selection.ClearAllCommand},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("DeselectAll")));
+        var changing=false;var selecting=true;var explorerRequested=false;
         var explorer=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["SubtleButtonStyle"]},
             ("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntrySearch")));
         void ExplorerRequested(object _,RoutedEventArgs __){explorerRequested=true;_recoveryDialog?.Hide();}
@@ -156,20 +171,20 @@ public sealed partial class MountsPage : Page,IDisposable
                 changing=true;try{foreach(var invalid in list.SelectedItems.OfType<OrphanedMountCandidate>().Where(x=>!x.CanRemove).ToArray())list.SelectedItems.Remove(invalid);}finally{changing=false;}
             }
             global::HybridMount.UI.UserInterface.Set(count,"Text",global::HybridMount.Models.Localization.ResourceMessage.Create("ItemsSelected", list.SelectedItems.Count));
-            if(_recoveryDialog is {} dialog){dialog.IsPrimaryButtonEnabled=!choosing&&list.SelectedItems.Count>0;global::HybridMount.UI.UserInterface.Set(dialog,"PrimaryButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("ProcessSelectedDetails", list.SelectedItems.Count));}
+            if(_recoveryDialog is {} dialog){selection.UpdateSelection(list.SelectedItems.Count,ViewModel.RecoveryRoots.Any(root=>root.CanRemove));global::HybridMount.UI.UserInterface.Set(dialog,"PrimaryButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("ProcessSelectedDetails", list.SelectedItems.Count));}
         }
         void SelectionChanged(object _,SelectionChangedEventArgs __)=>UpdateSelection();
         void PrepareRow(ListViewBase _,ContainerContentChangingEventArgs change)
         {change.ItemContainer.IsEnabled=change.InRecycleQueue||change.Item is OrphanedMountCandidate{CanRemove:true};}
-        void SelectAll(object _,RoutedEventArgs __){foreach(var item in ViewModel.RecoveryRoots.Where(x=>x.CanRemove))if(!list.SelectedItems.Contains(item))list.SelectedItems.Add(item);}
-        void ClearAll(object _,RoutedEventArgs __)=>list.SelectedItems.Clear();
-        async void Choose(object _,RoutedEventArgs __)
+        void SelectAll(){foreach(var item in ViewModel.RecoveryRoots.Where(x=>x.CanRemove))if(!list.SelectedItems.Contains(item))list.SelectedItems.Add(item);}
+        void ClearAll()=>list.SelectedItems.Clear();
+        async Task ChooseAsync()
         {
-            choosing=true;choose.IsEnabled=selectAll.IsEnabled=clearAll.IsEnabled=false;UpdateSelection();
             try
             {
                 var picker=new global::Windows.Storage.Pickers.FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
-                var folder=await picker.PickSingleFolderAsync();if(folder is null||cancel.IsCancellationRequested||ViewModel.IsStopping)return;
+                var folder=await picker.PickSingleFolderAsync().AsTask(cancel.Token);if(folder is null||cancel.IsCancellationRequested||ViewModel.IsStopping)return;
+                selection.SetInspecting(true);
                 var inspected=await ViewModel.AddRecoveryRootAsync(folder.Path,cancel.Token);
                 if(inspected.Managed is not null){feedback.Severity=InfoBarSeverity.Warning;global::HybridMount.UI.UserInterface.Set(feedback, "Message", inspected.Message);feedback.IsOpen=true;return;}
                 if(!ViewModel.IsStopping&&ViewModel.SelectedRecoveryRoot is {} added)
@@ -179,9 +194,10 @@ public sealed partial class MountsPage : Page,IDisposable
             }
             catch(OperationCanceledException)when(cancel.IsCancellationRequested){}
             catch(Exception error){if(!ViewModel.IsStopping){global::HybridMount.UI.UserInterface.Set(feedback, "Message", error.Message);feedback.IsOpen=true;}}
-            finally{choosing=false;if(!ViewModel.IsStopping){choose.IsEnabled=selectAll.IsEnabled=clearAll.IsEnabled=true;UpdateSelection();}}
+            finally{selection.SetInspecting(false);if(!ViewModel.IsStopping&&selecting)UpdateSelection();}
         }
-        explorer.Click+=ExplorerRequested;list.SelectionChanged+=SelectionChanged;list.ContainerContentChanging+=PrepareRow;choose.Click+=Choose;selectAll.Click+=SelectAll;clearAll.Click+=ClearAll;
+        selection.SetHandlers(ChooseAsync,SelectAll,ClearAll,error=>{if(selecting&&!ViewModel.IsStopping)ViewModel.ReportError(error.Message);});
+        explorer.Click+=ExplorerRequested;list.SelectionChanged+=SelectionChanged;list.ContainerContentChanging+=PrepareRow;
         try
         {
             try{await ViewModel.DiscoverRecoveryRootsAsync(cancel.Token);}
@@ -191,7 +207,9 @@ public sealed partial class MountsPage : Page,IDisposable
             var buttons=new ActionPanel{Style=(Style)Application.Current.Resources["ActionPanelStyle"]};buttons.Children.Add(selectAll);buttons.Children.Add(clearAll);
             var panel=new StackPanel{Spacing=12};panel.Children.Add(buttons);panel.Children.Add(count);panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(explorer);panel.Children.Add(feedback);
             if(ViewModel.RecoveryRoots.Count==0&&!feedback.IsOpen){global::HybridMount.UI.UserInterface.Set(feedback, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("NoVerifiableLegacyMountsWereFoundSelectAnOldMountFolderTo"));feedback.IsOpen=true;}
-            _recoveryDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("LegacyMounts", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,Content=panel,PrimaryButtonText=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProcessSelected", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,CloseButtonText=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Close", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};
+            _recoveryDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("LegacyMounts", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,Content=panel,PrimaryButtonText=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProcessSelected", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,CloseButtonText=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Close", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,DefaultButton=ContentDialogButton.Close};
+            _recoveryDialog.SetBinding(ContentDialog.IsPrimaryButtonEnabledProperty,new Microsoft.UI.Xaml.Data.Binding{Source=selection,Path=new PropertyPath(nameof(selection.CanConfirm)),Mode=Microsoft.UI.Xaml.Data.BindingMode.OneWay});
+            _recoveryDialog.PrimaryButtonClick+=(_,args)=>{if(selection.IsChoosing)args.Cancel=true;};
             UpdateSelection();
             var selected=await global::HybridMount.UI.UserInterface.ShowAsync(_recoveryDialog);selecting=false;
             if(explorerRequested&&!ViewModel.IsStopping){await RecoverExplorerEntriesAsync();return;}
@@ -227,14 +245,15 @@ public sealed partial class MountsPage : Page,IDisposable
         }
         finally
         {
-            selecting=false;explorer.Click-=ExplorerRequested;list.SelectionChanged-=SelectionChanged;list.ContainerContentChanging-=PrepareRow;choose.Click-=Choose;selectAll.Click-=SelectAll;clearAll.Click-=ClearAll;
+            selecting=false;explorer.Click-=ExplorerRequested;list.SelectionChanged-=SelectionChanged;list.ContainerContentChanging-=PrepareRow;
             cancel.Cancel();_recoveryCancel=null;_recoveryDialog=null;
         }
-    });
+    }
     /// <summary>确认逐项标明内容影响，不把入口清理与清空根目录混为同一操作。</summary>
     private static string RecoveryActionDescription(OrphanedMountCandidate root)=>root.OrphanedDirectory?global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheOriginalProviderCannotBeVerifiedATemporaryLocalProviderWillTake", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!:root.ShellOnly?global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("RemoveOnlyTheCurrentUserSLegacyExplorerEntryKeepTheFolder", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ClearAllLocalContentThenUnregisterOfflineKeepTheEmptyRootFolder", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
-    private Task RemoveAsync(Guid id)=>ViewModel.RunForMountAsync(id,async selected=>await ViewModel.RunDialogAsync(async()=>
+    private Task RemoveAsync(Guid id)=>ViewModel.RunDialogAsync(async()=>
     {
+        if(ViewModel.FindMount(id) is not {} selected || !MountActionState.From(selected,ViewModel.IsBusy(id),ViewModel.IsStopping).CanRemove)return;
         var mount=selected.Definition;
         if(mount.RemovalPending&&mount.RemovalMode==MountRemovalMode.PreserveCachedFiles)
         {
@@ -264,11 +283,11 @@ public sealed partial class MountsPage : Page,IDisposable
             if(await global::HybridMount.UI.UserInterface.ShowAsync(confirm)!=ContentDialogResult.Primary)return;
         }
         ViewModel.QueueRemoval(mount.Id,result==ContentDialogResult.Secondary);
-    }));
+    });
     /// <summary>真正释放才取消对话框和视图订阅；导航离页不停止后台挂载。</summary>
     public void Dispose()
     {_localization?.Dispose();_localization=null;
         if(_disposed)return;_disposed=true;Loaded-=PageLoaded;_viewport.Stop();_diagnosticDialog?.Hide();_explorerRecovery?.Dispose();_recoveryCancel?.Cancel();_recoveryDialog?.Hide();_configurationDialog?.CancelForShutdown();_backupDialog?.CancelForShutdown();
-        ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.StateChanged-=UpdatePageState;ViewModel.Dispose();
+        ViewModel.Refreshing-=CaptureScroll;ViewModel.Refreshed-=RestoreSelection;ViewModel.SetDialogPresenter(null);ViewModel.Dispose();
     }
 }

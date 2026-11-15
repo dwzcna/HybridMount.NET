@@ -1,3 +1,4 @@
+using HybridMount.ViewModels;
 using HybridMount.Models.Mounting.Capabilities;
 using HybridMount.Infrastructure.Protocols.Capabilities;
 using HybridMount.Models.Localization;
@@ -20,13 +21,12 @@ public sealed class ProtocolCapabilitiesView : UserControl
     private readonly Dictionary<string, (TextBlock Status, TextBlock Details)> _fields = [];
     private readonly Grid _probeActions = new() { ColumnSpacing = 12, RowSpacing = 8 };
     private readonly Button _probeButton = new();
+    public ProtocolCapabilityActionsViewModel Actions { get; } = new();
     private readonly TextBlock _probeWarning = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _probeProgress = new() { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
     private readonly StackPanel _cleanupRows = new() { Spacing = 8 };
     private CapabilityProbeRun? _probe;
     private bool _probeRunning;
-    public event EventHandler? ProbeRequested;
-    public event EventHandler<Guid>? CleanupRequested;
     public event EventHandler? HistoryRequested;
     private FileSourceKind _kind;
     private bool _sqs, _history;
@@ -44,7 +44,7 @@ public sealed class ProtocolCapabilitiesView : UserControl
         _probeActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _probeActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _probeActions.Children.Add(_probeButton); Grid.SetColumn(_probeWarning, 1); _probeActions.Children.Add(_probeWarning);
-        _probeButton.Click += (_, _) => ProbeRequested?.Invoke(this, EventArgs.Empty);
+        _probeButton.Command = Actions.ProbeCommand;
         _probeActions.SizeChanged += (_, _) =>
         {
             var narrow = _probeActions.ActualWidth < 420;
@@ -63,6 +63,7 @@ public sealed class ProtocolCapabilitiesView : UserControl
     /// <summary>UI线程更新不可变快照；相同快照不重建行，保留展开状态和外层滚动位置。</summary>
     public void Show(FileSourceKind kind, ProtocolCapabilitySnapshot? snapshot, bool history, bool sqs)
     {
+        if (_kind == kind && _sqs == sqs && ReferenceEquals(_snapshot, snapshot) && _history == history && _fields.Count > 0) return;
         if (_kind != kind || _sqs != sqs || _fields.Count == 0)
         {
             _kind = kind; _sqs = sqs; _rows.Children.Clear(); _rows.Children.Add(_summary); _fields.Clear();
@@ -83,11 +84,9 @@ public sealed class ProtocolCapabilitiesView : UserControl
     private void Render()
     {
         global::HybridMount.UI.UserInterface.Set(_expander, "Header", global::HybridMount.Models.Localization.ResourceMessage.Create("ProtocolCapabilitiesHeader"));
-        _expander.IsEnabled = true;
         _hint.Visibility = _snapshot is null ? Visibility.Visible : Visibility.Collapsed;
         _hint.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolCapabilitiesHint", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
         _summary.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(_history ? "ProtocolCapabilitiesHistory" : "ProtocolCapabilitiesScope", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
-        foreach (var retry in _cleanupRows.Children.OfType<StackPanel>().SelectMany(panel => panel.Children).OfType<Button>()) retry.IsEnabled = !_probeRunning;
         _probeButton.Content = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(_probeRunning ? "CapabilityProbeCancel" : "CapabilityProbeStart", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
         _probeWarning.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeWarning", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
         _probeProgress.Text = _probe is null ? "" : global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(ProbeStageKey(_probe.Stage), global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! + "\n" +
@@ -122,7 +121,8 @@ public sealed class ProtocolCapabilitiesView : UserControl
     /// <summary>UI线程只切换接纳状态；能力清单在检测和清理期间仍可展开。</summary>
     internal void SetProbeAvailability(bool available, bool running)
     {
-        _probeRunning = running; _probeButton.IsEnabled = available; Render();
+        if (_probeRunning == running && Actions.Available == available) return;
+        _probeRunning = running; Actions.Publish(available, running); Render();
     }
     internal void ShowProbe(CapabilityProbeRun? run) { _probe = run; Render(); }
 
@@ -144,10 +144,10 @@ public sealed class ProtocolCapabilitiesView : UserControl
                 details.Children.Add(new TextBlock { Text = CapabilityProbePresentation.ResourceDetails(item), IsTextSelectionEnabled = true, TextWrapping = TextWrapping.Wrap });
             var retry = global::HybridMount.UI.UserInterface.Configure(new Button
             {
-                IsEnabled = !_probeRunning,
+                Command = Actions.CleanupCommand,
+                CommandParameter = run.RunId,
                 Style = (Style)Application.Current.Resources["ActionButtonStyle"]
             }, ("Content", global::HybridMount.Models.Localization.ResourceMessage.Create("CapabilityProbeRetryCleanup")));
-            retry.Click += (_, _) => CleanupRequested?.Invoke(this, run.RunId);
             details.Children.Add(retry);
         };
         _cleanupRows.Children.Add(selection); _cleanupRows.Children.Add(details);

@@ -11,6 +11,7 @@ public sealed partial class MountManager
     private IReadOnlyList<MountSnapshot> _displayMounts=Array.Empty<MountSnapshot>();
     private IReadOnlyDictionary<Guid,int> _displayIssues=new ReadOnlyDictionary<Guid,int>(new Dictionary<Guid,int>());
     private string? _displayError;
+    private int _displayRuntimeFailed;
     /// <summary>界面只读不可变内存快照；不持仓库锁、不查询SQLite、不调用CFAPI。</summary>
     internal IReadOnlyList<MountSnapshot> DisplayMounts=>Volatile.Read(ref _displayMounts);
     internal string? DisplaySnapshotError=>Volatile.Read(ref _displayError);
@@ -24,9 +25,10 @@ public sealed partial class MountManager
         if(IsStopping)return;long revision;IReadOnlyDictionary<Guid,int> counts;
         lock(_displayGate){revision=++_displayRevision;counts=_displayIssues;}
         var snapshot=CaptureDisplay(counts);
+        var runtimeFailed=_roots.Values.Any(root=>root.RuntimeFailed&&!root.RemovalRequested&&!root.Definition.RemovalPending);
         lock(_displayGate)
         {
-            if(IsStopping)return;if(revision==_displayRevision)Volatile.Write(ref _displayMounts,snapshot);
+            if(IsStopping)return;if(revision==_displayRevision){Volatile.Write(ref _displayMounts,snapshot);Volatile.Write(ref _displayRuntimeFailed,runtimeFailed?1:0);}
             if(_displayWake.CurrentCount==0)_displayWake.Release();
         }
     }
@@ -44,13 +46,13 @@ public sealed partial class MountManager
                     var counts=_repository.UploadAttentionCounts();
                     foreach(var group in RenameIntents().Where(item=>item.NeedsAttention).GroupBy(item=>item.MountId))counts[group.Key]=counts.GetValueOrDefault(group.Key)+group.Count();
                     foreach(var id in _renameErrors.Keys)counts[id]=counts.GetValueOrDefault(id)+1;
-                    _stop.Token.ThrowIfCancellationRequested();var immutable=new ReadOnlyDictionary<Guid,int>(counts);var snapshot=CaptureDisplay(immutable);
+                    _stop.Token.ThrowIfCancellationRequested();var immutable=new ReadOnlyDictionary<Guid,int>(counts);var snapshot=CaptureDisplay(immutable);var runtimeFailed=_roots.Values.Any(root=>root.RuntimeFailed&&!root.RemovalRequested&&!root.Definition.RemovalPending);
                     bool changed;
                     lock(_displayGate)
                     {
                         if(IsStopping||revision!=_displayRevision)continue;
                         changed=_displayError is not null||!_displayMounts.SequenceEqual(snapshot);
-                        _displayIssues=immutable;Volatile.Write(ref _displayMounts,snapshot);Volatile.Write(ref _displayError,null);
+                        _displayIssues=immutable;Volatile.Write(ref _displayMounts,snapshot);Volatile.Write(ref _displayRuntimeFailed,runtimeFailed?1:0);Volatile.Write(ref _displayError,null);
                     }
                     if(changed)NotifyChanged();
                 }

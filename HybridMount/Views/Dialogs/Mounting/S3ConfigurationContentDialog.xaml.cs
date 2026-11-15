@@ -21,6 +21,13 @@ namespace HybridMount.Views.Dialogs.Mounting;
 public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
     private IDisposable? _localization;
+    public ProtocolInteractionViewModel Interaction { get; } = new();
+    /// <summary>所属窗口的目录选择适配；返回null代表取消，不触发业务验证或远端请求。</summary>
+    internal Func<Task<string?>> SelectFolderAsync { get; set; } = async () =>
+    {
+        var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+        return (await picker.PickSingleFolderAsync())?.Path;
+    };
     private ProtocolCapabilityDialogBinding? _capabilityBinding;
     private ProtocolCapabilityProbeBinding? _probeBinding;
     private readonly HybridMount.UI.FormFieldFeedback _fieldFeedback=new();
@@ -44,6 +51,10 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     public S3ConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,MountBackupItem? imported=null)
     {
         InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());_model=model;_kind=FileSourceKind.S3;_existing=existing;
+        Interaction.SetHandler(ExecuteInteractionAsync, error =>
+        {
+            if (!Stopped) { global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message); ErrorBar.IsOpen = true; }
+        });
         try
         {
             NameField.Text=existing?.Name??(_kind==FileSourceKind.S3?global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("S3Mount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
@@ -51,8 +62,8 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             if(existing is not null)
             {
                 var editable=false;var source=existing.Source!;
-                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
-                EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;HttpField.IsChecked=source.AllowHttp;HttpField.IsEnabled=editable;
+                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;
+                EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;HttpField.IsChecked=source.AllowHttp;
                 AutoConnectField.IsOn=existing.AutoConnect;
                 LoadProtocol(existing,model.ReadCredentials(existing.Id),editable);LoadSqs(existing);SettingsFields.Visibility=Visibility.Visible;
             }
@@ -85,24 +96,50 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         try
         {
             var editable=await _model.CanEditRemoteRootAsync(id).ConfigureAwait(false);
-            dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;HttpField.IsEnabled=editable;BucketField.IsReadOnly=!editable;PrefixField.IsReadOnly=!editable;});
+            dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;BucketField.IsReadOnly=!editable;PrefixField.IsReadOnly=!editable;PublishInteraction();});
         }
         catch(Exception error){dispatcher.TryEnqueue(()=>{if(Stopped)return;global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;});}
     }
+    /// <summary>命令与原生窗口操作之间的薄适配；返回完整Task，由交互模型持有。</summary>
+    private Task ExecuteInteractionAsync(string action, object? parameter)
+    {
+        switch (action)
+        {
+            case "ChooseFolder": return ChooseFolderAsync();
+            case "AddExclusionRule": AddExclusionRuleCore(); return Task.CompletedTask;
+            case "AddDefaultExclusionRules": AddDefaultExclusionRulesCore(); return Task.CompletedTask;
+            case "SaveExclusions": return SaveExclusionsAsync();
+            case "SaveCapacity": return SaveCapacityAsync();
+            case "RecheckCapacity": return RecheckCapacityAsync();
+            case "SaveIntervals": return SaveIntervalsAsync();
+            case "TestSqs": return TestSqsAsync();
+            case "SaveSqs": return SaveSqsAsync();
+            default: return Task.CompletedTask;
+        }
+    }
+    /// <summary>只读取当前草稿和已发布快照；UI线程即时更新可用性，选择器往返不调用此方法。</summary>
+    private void PublishInteraction()
+    {
+        if (_model is null) return;
+        var mount = _existing is { } saved ? _model.FindMount(saved.Id) : null;
+        Interaction.Publish(new ProtocolInteractionState(
+            Stopped: Stopped, Existing: _existing is not null,
+            SavedBusy: _savingSwitch || mount is not null && !MountActionState.From(mount, _model.IsBusy(mount.Definition.Id)).CanEdit,
+            Submitting: _submitting, Testing: _testing is not null, TestCanceling: _testing?.IsCancellationRequested == true,
+            Probing: _probeBinding?.IsRunning == true, CapacityAutomatic: CapacityAuto.IsOn,
+            CapacityAvailable: mount?.IsConnected == true && CapacityRules.Enabled(mount.Definition),
+            RootEditable: !EndpointField.IsReadOnly, SqsTesting: _sqsProbe is not null, SqsCanceling: _sqsProbe?.IsCancellationRequested == true, SqsSaving: _sqsSaving, SeparateSqsKeys: SqsMode.SelectedIndex == (int)SqsCredentialMode.SeparateKeys, UseDefaultCredentials: DefaultCredentialsField.IsChecked == true,
+            ThumbnailsAvailable: _model.CanConfigureThumbnails));
+        _probeBinding?.Refresh(Interaction.CanSubmit);
+    }
     private void Refresh()
     {
-        _capabilityBinding?.Refresh();
         if(_disposed)return;
         if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
         if(_existing is not null&&mount is null){CancelForShutdown();return;}
-        var busy=_probeBinding?.IsRunning==true||_savingSwitch||_submitting||_picking||_testing is not null||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
-        var sqsBusy=_probeBinding?.IsRunning==true||_sqsProbe is not null||_sqsSaving;
-        _probeBinding?.Refresh(!busy&&!sqsBusy);
-        ExclusionFields.IsEnabled=!busy&&!sqsBusy;ConnectionFields.IsEnabled=!busy&&!sqsBusy;SettingsFields.IsEnabled=!busy;
-        IsPrimaryButtonEnabled=!busy&&!sqsBusy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&!sqsBusy&&(_testing is not null||!busy);
-        SqsFields.IsEnabled=!sqsBusy;SqsSaveButton.IsEnabled=!sqsBusy;SqsTestButton.IsEnabled=!_sqsSaving;
-        foreach(var control in new Control[]{CapacityAuto,SaveCapacityButton,ThumbnailToggle,RemoteAuto,IncrementalField,FullField,SaveIntervalsButton})control.IsEnabled=!sqsBusy;
+        PublishInteraction();
+        _capabilityBinding?.Refresh();
         if(mount is null||_savingSwitch)return;
         var settings=mount.Definition;var capacity=_model.CapacitySettingsDraft(settings);var detection=_model.Draft(settings);_loading=true;
         try
@@ -110,29 +147,29 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             AutoConnectField.IsOn=settings.AutoConnect;
             CapacityAuto.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;CapacityAuto.IsOn=capacity.Automatic;
             MaximumField.Text=capacity.Text;CapacityUnit.SelectedIndex=capacity.Unit=="TB"?1:0;
-            MaximumField.IsEnabled=CapacityUnit.IsEnabled=!capacity.Automatic&&!sqsBusy;
-            CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);RecheckButton.IsEnabled=!sqsBusy&&mount.IsConnected&&CapacityRules.Enabled(settings);
+
+            CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);
             ThumbnailToggle.Visibility=_model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=_model.CanConfigureThumbnails?mount.ThumbnailDisplay:"";
             RemoteAuto.IsOn=detection.Enabled;IncrementalField.Value=detection.Incremental;FullField.Value=detection.Full;
             IncrementalField.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
             SqsEnabled.IsOn=settings.Sqs?.Enabled==true;DetectionDescription.Text=MountsViewModel.DetectionSummary(mount);SqsDescription.Text=mount.SqsDisplay;
 
         }
-        finally{_loading=false;}
+        finally{_loading=false;PublishInteraction();}
     }
-    private void AddExclusionRule(object sender,RoutedEventArgs args){if(!Stopped)_model.AddExclusionRule(ExclusionOwner,_kind);}
-    private void AddDefaultExclusionRules(object sender,RoutedEventArgs args){if(!Stopped)_model.AddDefaultExclusionRules(ExclusionOwner,_kind);}
-    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&sender is FrameworkElement{Tag:FileExclusionRuleViewModel row})_model.RemoveExclusionRule(ExclusionOwner,_kind,row);}
-    private async void SaveExclusions(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
+    private void AddExclusionRuleCore(){if(!Stopped)_model.AddExclusionRule(ExclusionOwner,_kind);}
+    private void AddDefaultExclusionRulesCore(){if(!Stopped)_model.AddDefaultExclusionRules(ExclusionOwner,_kind);}
+    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&Interaction.CanEditSettings&&sender is FrameworkElement{Tag:FileExclusionRuleViewModel row})_model.RemoveExclusionRule(ExclusionOwner,_kind,row);}
+    private async Task SaveExclusionsAsync(){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
     private void CaptureCapacity(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateCapacityDraft(mount.Id,CapacityAuto.IsOn,MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}
     private void CaptureDetection(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateDraft(mount.Id,RemoteAuto.IsOn,IncrementalField.Value,FullField.Value);}
     private void CapacityTextChanged(object sender,TextChangedEventArgs args)=>CaptureCapacity();
     private void CapacityUnitChanged(object sender,SelectionChangedEventArgs args)=>CaptureCapacity();
-    private async void CapacityModeChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else MaximumField.IsEnabled=CapacityUnit.IsEnabled=!CapacityAuto.IsOn;}
+    private async void CapacityModeChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else PublishInteraction();}
     private void IntervalChanged(NumberBox sender,NumberBoxValueChangedEventArgs args)=>CaptureDetection();
-    private async void SaveCapacity(object sender,RoutedEventArgs args){if(Stopped||_existing is null)return;CaptureCapacity();await _model.SaveCapacityAsync(_existing.Id);}
-    private async void RecheckCapacity(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
-    private async void SaveIntervals(object sender,RoutedEventArgs args){if(Stopped||_existing is null)return;CaptureDetection();await _model.SaveDetectionAsync(_existing.Id);}
+    private async Task SaveCapacityAsync(){if(Stopped||_existing is null)return;CaptureCapacity();await _model.SaveCapacityAsync(_existing.Id);}
+    private async Task RecheckCapacityAsync(){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
+    private async Task SaveIntervalsAsync(){if(Stopped||_existing is null)return;CaptureDetection();await _model.SaveDetectionAsync(_existing.Id);}
     private async void RemoteAutoChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetRemoteDetectionEnabledAsync(mount.Id,RemoteAuto.IsOn));}
     private async void ThumbnailChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetThumbnailAsync(mount.Id,ThumbnailToggle.IsOn));}
     /// <summary>开关提交期间保留候选值并禁用交互，结束后统一重读正式快照；失败时回滚而不覆盖其他草稿。</summary>
@@ -146,22 +183,21 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         return new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,checked((int)incremental),checked((int)full),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB"),SqsOptions(),SqsKeys());
     }
     private async void SqsEnabledChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetSqsEnabledAsync(mount.Id,SqsEnabled.IsOn));}
-    private async void ChooseFolder(object sender,RoutedEventArgs args)
+    private async Task ChooseFolderAsync()
     {
-        if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null||_sqsProbe is not null||_sqsSaving)return;_picking=true;Refresh();
+        if(Stopped||_submitting||_picking||_existing is not null)return;_picking=true;
         try
         {
-            var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
-            var folder=await picker.PickSingleFolderAsync();if(!Stopped&&folder is not null)PathField.Text=folder.Path;
+            var path=await SelectFolderAsync();if(!Stopped&&path is not null)PathField.Text=path;
         }
         catch(Exception error){if(!Stopped){global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;}}
-        finally{_picking=false;if(!Stopped)Refresh();}
+        finally{_picking=false;}
     }
     /// <summary>只读测试可由同一按钮取消；正文和请求由应用拥有，关闭只取消、不提前释放令牌。</summary>
     private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
         args.Cancel=true;if(Stopped)return;
-        if(_testing is {} testing){global::HybridMount.UI.UserInterface.Set(this,"SecondaryButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("Canceling"));IsSecondaryButtonEnabled=false;testing.Cancel();return;}
+        if(_testing is {} testing){global::HybridMount.UI.UserInterface.Set(this,"SecondaryButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("Canceling"));testing.Cancel();PublishInteraction();return;}
         if(_submitting||_picking||_sqsProbe is not null||_sqsSaving)return;
         if(!ValidateFields(false))return;using var cancel=new CancellationTokenSource();_testing=cancel;Refresh();global::HybridMount.UI.UserInterface.Set(this,"SecondaryButtonText",global::HybridMount.Models.Localization.ResourceMessage.Create("CancelTest"));
         ErrorBar.IsOpen=false;global::HybridMount.UI.UserInterface.Set(ProbeBar,"Title",global::HybridMount.Models.Localization.ResourceMessage.Create("ReadOnlyConnectionTest"));ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("RunningReadOnlyProbes"));ProbeBar.IsOpen=true;
@@ -246,12 +282,12 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();_sqsProbe?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;if(_importExclusionScope is {} scope)_model.ReleaseImportExclusions(scope,_kind);_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
+        if(_disposed)return;_disposed=true;Interaction.Dispose();if(_importExclusionScope is {} scope)_model.ReleaseImportExclusions(scope,_kind);_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         EndpointField.TextChanged-=EndpointChanged;
         PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }
-    private void CredentialsModeChanged(object sender,RoutedEventArgs args){if(S3Secrets is not null)S3Secrets.IsEnabled=DefaultCredentialsField.IsChecked!=true;}
+    private void CredentialsModeChanged(object sender,RoutedEventArgs args){if(S3Secrets is not null)PublishInteraction();}
     private FileSourceConfiguration ReadSettings(string endpoint,bool allowHttp)=>new(FileSourceKind.S3,endpoint,BucketField.Text.Trim(),PrefixField.Text.Trim().Trim('/'),RegionField.Text.Trim(),PathStyleField.IsChecked==true,allowHttp,DefaultCredentialsField.IsChecked==true);
     private void EndpointChanged(object sender,TextChangedEventArgs args){if(!_loading)UpdateHttpWarning();}
     private SourceCredentials ReadCredentials()=>new(AccessKey:AccessKeyField.Text.Trim(),SecretKey:SecretKeyField.Password,SessionToken:SessionTokenField.Password);
@@ -269,14 +305,14 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         var options=mount.Sqs??new();SqsEnabled.IsOn=options.Enabled;SqsUrl.Text=options.QueueUrl;SqsRegion.Text=options.Region.Length>0?options.Region:mount.Source!.Region;SqsMode.SelectedIndex=(int)options.CredentialMode;
         var keys=_model.ReadSqsCredentials(mount.Id);SqsAccessField.Text=keys.AccessKey;SqsSecretField.Password=keys.SecretKey;SqsSessionField.Password=keys.SessionToken;
     }
-    private void SqsCredentialsModeChanged(object sender,SelectionChangedEventArgs args){if(SqsSecrets is not null)SqsSecrets.IsEnabled=SqsMode.SelectedIndex==(int)SqsCredentialMode.SeparateKeys;}
+    private void SqsCredentialsModeChanged(object sender,SelectionChangedEventArgs args){if(SqsSecrets is not null)PublishInteraction();}
     private SqsConfiguration SqsOptions()=>new(SqsEnabled.IsOn,SqsUrl.Text.Trim(),SqsRegion.Text.Trim(),(SqsCredentialMode)SqsMode.SelectedIndex);
     private SourceCredentials SqsKeys()=>new(AccessKey:SqsAccessField.Text.Trim(),SecretKey:SqsSecretField.Password,SessionToken:SqsSessionField.Password);
     /// <summary>同一配置窗口内只读测试队列；关闭或退出取消后，由应用等待并最终释放请求。</summary>
-    private async void TestSqs(object sender,RoutedEventArgs args)
+    private async Task TestSqsAsync()
     {
         if(Stopped||_existing is null)return;
-        if(_sqsProbe is {} running){running.Cancel();SqsTestButton.Content=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Canceling", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;SqsTestButton.IsEnabled=false;return;}
+        if(_sqsProbe is {} running){running.Cancel();SqsTestButton.Content=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Canceling", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;PublishInteraction();return;}
         if(_submitting||_picking||_testing is not null||_sqsSaving)return;
         using var cancel=new CancellationTokenSource();_sqsProbe=cancel;Refresh();SqsTestButton.Content=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CancelTest", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;global::HybridMount.UI.UserInterface.Set(ProbeBar,"Title",global::HybridMount.Models.Localization.ResourceMessage.Create("ReadOnlySQSConnectionTest"));global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("ReadingQueueAttributes"));ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.IsOpen=true;
         try{_capabilityBinding?.BeginQueueTest();var result=await _model.TestSqsConnectionAsync(_existing.Id,SqsOptions(),SqsKeys(),cancel.Token);if(!Stopped){_capabilityBinding?.CompleteQueueTest(result.Capabilities);global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", result.Message);ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;}}
@@ -284,7 +320,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         catch(Exception error){if(!Stopped){global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", error.Message);ProbeBar.Severity=InfoBarSeverity.Error;}}
         finally{_sqsProbe=null;if(!Stopped){SqsTestButton.Content=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TestSQSConnectionReadOnly", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;Refresh();}}
     }
-    private async void SaveSqs(object sender,RoutedEventArgs args)
+    private async Task SaveSqsAsync()
     {
         if(Stopped||_existing is null||_sqsSaving||_sqsProbe is not null||_testing is not null||_submitting||_picking)return;
         _sqsSaving=true;Refresh();

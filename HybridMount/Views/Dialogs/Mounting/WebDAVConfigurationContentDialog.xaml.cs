@@ -22,6 +22,13 @@ namespace HybridMount.Views.Dialogs.Mounting;
 public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
     private IDisposable? _localization;
+    public ProtocolInteractionViewModel Interaction { get; } = new();
+    /// <summary>所属窗口的目录选择适配；返回null代表取消，不触发业务验证或远端请求。</summary>
+    internal Func<Task<string?>> SelectFolderAsync { get; set; } = async () =>
+    {
+        var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+        return (await picker.PickSingleFolderAsync())?.Path;
+    };
     private ProtocolCapabilityDialogBinding? _capabilityBinding;
     private ProtocolCapabilityProbeBinding? _probeBinding;
     private readonly HybridMount.Models.Protocols.WebDAV.WebDavCertificateTrustSession _certificateTrust = new();
@@ -47,6 +54,10 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     public WebDAVConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,MountBackupItem? imported=null)
     {
         InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();UpdateCertificatePresentation();});_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
+        Interaction.SetHandler(ExecuteInteractionAsync, error =>
+        {
+            if (!Stopped) { global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message); ErrorBar.IsOpen = true; }
+        });
         try
         {
             NameField.Text=existing?.Name??global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
@@ -54,8 +65,8 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             if(existing is not null)
             {
                 var editable=false;var source=existing.Source!;
-                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
-                EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;
+                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;
+                EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;PublishInteraction();
                 CertificatePinField.Text=source.PinnedCertificateSha256??"";
                 AutoConnectField.IsOn=existing.AutoConnect;
                 LoadProtocol(existing,model.ReadCredentials(existing.Id),editable);SettingsFields.Visibility=Visibility.Visible;
@@ -91,22 +102,52 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         try
         {
             var editable=await _model.CanEditRemoteRootAsync(id).ConfigureAwait(false);
-            dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;});
+            dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;PublishInteraction();});
         }
         catch(Exception error){dispatcher.TryEnqueue(()=>{if(Stopped)return;global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;});}
     }
+    /// <summary>命令与原生窗口操作之间的薄适配；返回完整Task，由交互模型持有。</summary>
+    private Task ExecuteInteractionAsync(string action, object? parameter)
+    {
+        switch (action)
+        {
+            case "ChooseFolder": return ChooseFolderAsync();
+            case "AddExclusionRule": AddExclusionRuleCore(); return Task.CompletedTask;
+            case "AddDefaultExclusionRules": AddDefaultExclusionRulesCore(); return Task.CompletedTask;
+            case "SaveExclusions": return SaveExclusionsAsync();
+            case "SaveCapacity": return SaveCapacityAsync();
+            case "RecheckCapacity": return RecheckCapacityAsync();
+            case "SaveIntervals": return SaveIntervalsAsync();
+            case "FetchCertificate": return FetchCertificateAsync();
+            case "ClearCertificateTrust": ClearCertificateTrustCore(); return Task.CompletedTask;
+            case "TrustCertificate": return TrustCertificateAsync();
+            default: return Task.CompletedTask;
+        }
+    }
+    /// <summary>只读取当前草稿和已发布快照；UI线程即时更新可用性，选择器往返不调用此方法。</summary>
+    private void PublishInteraction()
+    {
+        if (_model is null) return;
+        var mount = _existing is { } saved ? _model.FindMount(saved.Id) : null;
+        Interaction.Publish(new ProtocolInteractionState(
+            Stopped: Stopped, Existing: _existing is not null,
+            SavedBusy: _savingSwitch || mount is not null && !MountActionState.From(mount, _model.IsBusy(mount.Definition.Id)).CanEdit,
+            Submitting: _submitting, Testing: _testing is not null, TestCanceling: _testing?.IsCancellationRequested == true,
+            Probing: _probeBinding?.IsRunning == true, CapacityAutomatic: CapacityAuto.IsOn,
+            CapacityAvailable: mount?.IsConnected == true && CapacityRules.Enabled(mount.Definition),
+            RootEditable: !EndpointField.IsReadOnly, Fetching: _fetching is not null, Https: Uri.TryCreate(EndpointField.Text.Trim(), UriKind.Absolute, out var address) && address.Scheme == "https", HasTrustedCertificate: !string.IsNullOrWhiteSpace(CertificatePinField.Text), HasCandidate: _certificateTrust.Candidate is not null,
+            ThumbnailsAvailable: _model.CanConfigureThumbnails));
+        _probeBinding?.Refresh(Interaction.CanSubmit);
+    }
     private void Refresh()
     {
-        _capabilityBinding?.Refresh();
         UpdateCertificatePresentation();
         if(_disposed)return;
         if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
         if(_existing is not null&&mount is null){CancelForShutdown();return;}
-        var busy=_probeBinding?.IsRunning==true||_savingSwitch||_submitting||_picking||(_testing is not null||_fetching is not null)||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
-        ExclusionFields.IsEnabled=!busy;ConnectionFields.IsEnabled=!busy;SettingsFields.IsEnabled=!busy;
-        _probeBinding?.Refresh(!_submitting&&!_picking&&_testing is null&&_fetching is null&&!busy);
-        IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
+        PublishInteraction();
+        _capabilityBinding?.Refresh();
         if(mount is null||_savingSwitch)return;
         var settings=mount.Definition;var capacity=_model.CapacitySettingsDraft(settings);var detection=_model.Draft(settings);_loading=true;
         try
@@ -114,29 +155,29 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             AutoConnectField.IsOn=settings.AutoConnect;
             CapacityAuto.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;CapacityAuto.IsOn=capacity.Automatic;
             MaximumField.Text=capacity.Text;CapacityUnit.SelectedIndex=capacity.Unit=="TB"?1:0;
-            MaximumField.IsEnabled=CapacityUnit.IsEnabled=!capacity.Automatic;
-            CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);RecheckButton.IsEnabled=mount.IsConnected&&CapacityRules.Enabled(settings);
+
+            CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);
             ThumbnailToggle.Visibility=_model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=_model.CanConfigureThumbnails?mount.ThumbnailDisplay:"";
             RemoteAuto.IsOn=detection.Enabled;IncrementalField.Value=detection.Incremental;FullField.Value=detection.Full;
             IncrementalField.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
             DetectionDescription.Text=MountsViewModel.DetectionSummary(mount);
 
         }
-        finally{_loading=false;}
+        finally{_loading=false;PublishInteraction();}
     }
-    private void AddExclusionRule(object sender,RoutedEventArgs args){if(!Stopped)_model.AddExclusionRule(ExclusionOwner,_kind);}
-    private void AddDefaultExclusionRules(object sender,RoutedEventArgs args){if(!Stopped)_model.AddDefaultExclusionRules(ExclusionOwner,_kind);}
-    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&sender is FrameworkElement{Tag:FileExclusionRuleViewModel row})_model.RemoveExclusionRule(ExclusionOwner,_kind,row);}
-    private async void SaveExclusions(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
+    private void AddExclusionRuleCore(){if(!Stopped)_model.AddExclusionRule(ExclusionOwner,_kind);}
+    private void AddDefaultExclusionRulesCore(){if(!Stopped)_model.AddDefaultExclusionRules(ExclusionOwner,_kind);}
+    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&Interaction.CanEditSettings&&sender is FrameworkElement{Tag:FileExclusionRuleViewModel row})_model.RemoveExclusionRule(ExclusionOwner,_kind,row);}
+    private async Task SaveExclusionsAsync(){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
     private void CaptureCapacity(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateCapacityDraft(mount.Id,CapacityAuto.IsOn,MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}
     private void CaptureDetection(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateDraft(mount.Id,RemoteAuto.IsOn,IncrementalField.Value,FullField.Value);}
     private void CapacityTextChanged(object sender,TextChangedEventArgs args)=>CaptureCapacity();
     private void CapacityUnitChanged(object sender,SelectionChangedEventArgs args)=>CaptureCapacity();
-    private async void CapacityModeChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else MaximumField.IsEnabled=CapacityUnit.IsEnabled=!CapacityAuto.IsOn;}
+    private async void CapacityModeChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else PublishInteraction();}
     private void IntervalChanged(NumberBox sender,NumberBoxValueChangedEventArgs args)=>CaptureDetection();
-    private async void SaveCapacity(object sender,RoutedEventArgs args){if(Stopped||_existing is null)return;CaptureCapacity();await _model.SaveCapacityAsync(_existing.Id);}
-    private async void RecheckCapacity(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
-    private async void SaveIntervals(object sender,RoutedEventArgs args){if(Stopped||_existing is null)return;CaptureDetection();await _model.SaveDetectionAsync(_existing.Id);}
+    private async Task SaveCapacityAsync(){if(Stopped||_existing is null)return;CaptureCapacity();await _model.SaveCapacityAsync(_existing.Id);}
+    private async Task RecheckCapacityAsync(){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
+    private async Task SaveIntervalsAsync(){if(Stopped||_existing is null)return;CaptureDetection();await _model.SaveDetectionAsync(_existing.Id);}
     private async void RemoteAutoChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetRemoteDetectionEnabledAsync(mount.Id,RemoteAuto.IsOn));}
     private async void ThumbnailChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetThumbnailAsync(mount.Id,ThumbnailToggle.IsOn));}
     /// <summary>开关提交期间保留候选值并禁用交互，结束后统一重读正式快照；失败时回滚而不覆盖其他草稿。</summary>
@@ -149,16 +190,15 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("DetectionIntervalsMustBeValidWholeNumbersOfSeconds", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
         return new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,checked((int)incremental),checked((int)full),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB"));
     }
-    private async void ChooseFolder(object sender,RoutedEventArgs args)
+    private async Task ChooseFolderAsync()
     {
-        if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||(_testing is not null||_fetching is not null))return;_picking=true;Refresh();
+        if(Stopped||_submitting||_picking||_existing is not null)return;_picking=true;
         try
         {
-            var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
-            var folder=await picker.PickSingleFolderAsync();if(!Stopped&&folder is not null)PathField.Text=folder.Path;
+            var path=await SelectFolderAsync();if(!Stopped&&path is not null)PathField.Text=path;
         }
         catch(Exception error){if(!Stopped){global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;}}
-        finally{_picking=false;if(!Stopped)Refresh();}
+        finally{_picking=false;}
     }
     /// <summary>只读测试由应用拥有；关闭只取消，证书结果必须对应本次草稿及代次。</summary>
     private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
@@ -168,7 +208,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(_testing is {} testing)
         {
             global::HybridMount.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Canceling"));
-            IsSecondaryButtonEnabled=false;testing.Cancel();return;
+            testing.Cancel();PublishInteraction();return;
         }
         if(!_submitting&&!_picking&&_fetching is null)await ProbeConnectionAsync();
     }
@@ -206,7 +246,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     }
     private string CertificateIdentity() => ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim()),ReadCredentials());
     /// <summary>成功直接填框，不添加确认步骤；任何输入变化或关闭均拒绝迟到结果，失败保持原输入。</summary>
-    private async void FetchCertificate(object sender,RoutedEventArgs args)
+    private async Task FetchCertificateAsync()
     {
         if(Stopped||_fetching is not null||_testing is not null||_submitting||_picking)return;
         var address=EndpointField.Text.Trim();
@@ -228,7 +268,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         catch(Exception error){if(!Stopped&&revision==_certificateFetchRevision){ProbeBar.Severity=InfoBarSeverity.Error;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", error.Message);}}
         finally{_fetching=null;if(!Stopped)Refresh();}
     }
-    private async void TrustCertificate(object sender,RoutedEventArgs args)
+    private async Task TrustCertificateAsync()
     {
         if(Stopped||(_testing is not null||_fetching is not null)||_submitting||_picking||_certificateTrust.Candidate is null)return;
         var settings=ReadSettings(EndpointField.Text.Trim());
@@ -236,7 +276,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         CertificatePinField.Text=pin;CertificateWarning.IsOpen=false;
         _capabilityBinding?.Refresh();await ProbeConnectionAsync();
     }
-    private void ClearCertificateTrust(object sender,RoutedEventArgs args)
+    private void ClearCertificateTrustCore()
     {
         if(Stopped||(_testing is not null||_fetching is not null)||_submitting)return;
         CertificatePinField.Text="";InvalidateCertificateCandidate();_capabilityBinding?.Refresh();
@@ -246,12 +286,10 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     {
         var https=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme=="https";
         HttpsFields.Visibility=https?Visibility.Visible:Visibility.Collapsed;
+        PublishInteraction();
         ClearCertificateTrustLabel.Text=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateClearTrust", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
-        ClearCertificateTrustButton.IsEnabled=!string.IsNullOrWhiteSpace(CertificatePinField.Text)&&_testing is null&&_fetching is null&&!_submitting;
         TrustCertificateButton.Content=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateTrustAndRetry", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
-        TrustCertificateButton.IsEnabled=_certificateTrust.Candidate is not null&&_testing is null&&_fetching is null&&!_submitting;
         FetchCertificateLabel.Text=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateFetchButton", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
-        FetchCertificateButton.IsEnabled=_probeBinding?.IsRunning!=true&&https&&_testing is null&&_fetching is null&&!_submitting&&!_picking;
         FetchedCertificateDetails.Visibility=_fetchedCertificate is null?Visibility.Collapsed:Visibility.Visible;
         FetchedCertificateDetails.Text=_fetchedCertificate is {} fetched?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateDetails", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, fetched.Server, fetched.Subject, fetched.Issuer,             fetched.NotBeforeUtc.ToLocalTime().ToString("g"), fetched.NotAfterUtc.ToLocalTime().ToString("g"), fetched.Sha256):"";
         if(_certificateTrust.Candidate is not {} certificate){CertificateWarning.IsOpen=false;return;}
@@ -343,7 +381,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();_fetching?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;if(_importExclusionScope is {} scope)_model.ReleaseImportExclusions(scope,_kind);_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_fetching?.Cancel();ClearSecrets();
+        if(_disposed)return;_disposed=true;Interaction.Dispose();if(_importExclusionScope is {} scope)_model.ReleaseImportExclusions(scope,_kind);_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_fetching?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         _certificateTrust.Invalidate();EndpointField.TextChanged-=EndpointChanged;EndpointField.BeforeTextChanging-=EndpointChanging;
         UserField.BeforeTextChanging-=CertificateInputChanging;CertificatePinField.BeforeTextChanging-=CertificateInputChanging;

@@ -38,6 +38,71 @@ public sealed class PageViewModelTests
         public void SaveDefinition(MountDefinition mount){if(FailSave)throw new IOException("save");Items.RemoveAll(x=>x.Id==mount.Id);Items.Add(mount);}
         public void DeleteDefinition(Guid id)=>Items.RemoveAll(x=>x.Id==id);
     }
+    [Fact]
+    public async Task ModalPageCommandsRemainAvailableAndDoNotRefreshRowsOnCancel()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);
+        var refreshed=0;var rowEvents=0;var commandEvents=0;var calls=0;
+        vm.Refreshed+=()=>refreshed++;foreach(var row in vm.Items)row.PropertyChanged+=(_,_)=>rowEvents++;
+        vm.ImportConfigurationsCommand.CanExecuteChanged+=(_,_)=>commandEvents++;
+        var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.SetDialogPresenter(async _=>{calls++;await release.Task;});
+        vm.ImportConfigurationsCommand.Execute(null);var owned=vm.ModalCommandTask;vm.ExportConfigurationsCommand.Execute(null);
+        Assert.Equal(1,calls);Assert.True(vm.ImportConfigurationsCommand.CanExecute(null));Assert.True(vm.ExportConfigurationsCommand.CanExecute(null));Assert.True(vm.CanOpenDialog);
+        release.SetResult();await owned;Assert.Equal(0,refreshed);Assert.Equal(0,rowEvents);Assert.Equal(0,commandEvents);Assert.False(vm.DialogBusy);
+    }
+    [Fact]
+    public async Task RowAvailabilityUsesNamedNotificationsWithoutModalFlood()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var row=vm.Items[0];var changed=new List<string?>();row.PropertyChanged+=(_,e)=>changed.Add(e.PropertyName);
+        row.Update(row.Snapshot with {Status="Disconnected"},true,false,false,false,false);Assert.True(row.CanEdit);Assert.Contains(nameof(row.IsSelected),changed);Assert.DoesNotContain(changed,name=>string.IsNullOrEmpty(name));
+        changed.Clear();row.Update(row.Snapshot,true,true,false,false,false);Assert.DoesNotContain(nameof(row.Name),changed);Assert.DoesNotContain(nameof(row.ConnectionText),changed);
+        Assert.Contains(nameof(row.CanEdit),changed);
+    }
+    [Fact]
+    public async Task LogsModalDoesNotDisableCommandsAndRealExportOwnsClearBarrierUntilWriteCompletes()
+    {
+        await using var area=new Area();using var vm=new LogsViewModel(area.Logger,area.UserInterface);
+        Assert.True(vm.TryBeginDialog());Assert.True(vm.ExportCommand.CanExecute(null));Assert.True(vm.ClearCommand.CanExecute(null));Assert.False(vm.TryBeginDialog());vm.EndDialog();
+        var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var started=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var work=vm.ExportToAsync(vm.CaptureExportQuery(),async _=>{started.SetResult();await release.Task;});await started.Task;
+        Assert.False(vm.ExportCommand.CanExecute(null));Assert.False(vm.ClearCommand.CanExecute(null));Assert.True(vm.CanRead);
+        release.SetResult();await work;Assert.True(vm.ClearCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task PublishedRuntimeAvailabilityDoesNotWaitForConnectionLock()
+    {
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);
+        var roots=typeof(MountManager).GetField("_roots",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(area.Manager)!;
+        var runtime=roots.GetType().GetProperty("Item")!.GetValue(roots,new object[]{area.A.Id})!;
+        var gate=runtime.GetType().GetField("ConnectionSync")!.GetValue(runtime)!;
+        using var ready=new ManualResetEventSlim();using var release=new ManualResetEventSlim();
+        var holder=new Thread(()=>{lock(gate){ready.Set();release.Wait(TimeSpan.FromSeconds(2));}}){IsBackground=true};holder.Start();
+        try
+        {
+            Assert.True(ready.Wait(TimeSpan.FromSeconds(2)));var clock=System.Diagnostics.Stopwatch.StartNew();
+            Assert.False(vm.HasRuntimeFailedMounts);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
+            Assert.True(clock.Elapsed<TimeSpan.FromMilliseconds(200),"Availability waited for business lock");
+        }
+        finally{release.Set();holder.Join();}
+    }
+    [Fact]
+    public async Task ConfirmedResetDrainsSettingsWorkStartedAfterPreflightBeforeDestructiveHandoff()
+    {
+        using var writeStarted=new ManualResetEventSlim();using var writeRelease=new ManualResetEventSlim();
+        var settings=new CloudOperationSettings(()=>4,_=>{writeStarted.Set();writeRelease.Wait(TimeSpan.FromSeconds(3));});
+        using var vm=new SettingsViewModel(new(new AppearanceStore()),cloud:settings);
+        Assert.True(vm.TryBeginReset());Assert.True(vm.SaveCloudCommand.CanExecute(null));vm.SaveCloudCommand.Execute(null);
+        try
+        {
+            Assert.True(writeStarted.Wait(TimeSpan.FromSeconds(2)));vm.BeginResetWork();var drained=vm.DrainSettingsOperationsAsync();
+            Assert.False(drained.IsCompleted);Assert.False(vm.SaveCloudCommand.CanExecute(null));
+            writeRelease.Set();await drained;Assert.False(vm.CanEditSettings);vm.EndReset();Assert.True(vm.CanEditSettings);
+        }
+        finally{writeRelease.Set();await vm.SaveCloudCommand.ExecutionTask!;}
+    }
+
     private sealed class Area : IAsyncDisposable
     {
         private readonly string _area=Path.Combine(Path.GetTempPath(),"HybridMount.PageVmTests",Guid.NewGuid().ToString("N"));
@@ -288,7 +353,7 @@ public sealed class PageViewModelTests
     public void SettingsResetHasIndependentFeedbackAndBlocksDuplicateEntry()
     {
         using var vm=new SettingsViewModel(new AppearanceSettingsService(new AppearanceStore()));vm.AppearanceMessage.Show("appearance");vm.ResetMessage.Show("reset");vm.ResetMessage.IsOpen=false;Assert.True(vm.AppearanceMessage.IsOpen);
-        Assert.True(vm.TryBeginReset());Assert.False(vm.CanEditSettings);Assert.False(vm.TryBeginReset());vm.EndReset();Assert.True(vm.CanReset);vm.ResetMessage.Show("reset");Assert.True(vm.ResetMessage.IsOpen);
+        Assert.True(vm.TryBeginReset());Assert.True(vm.CanEditSettings);Assert.False(vm.TryBeginReset());vm.BeginResetWork();Assert.False(vm.CanEditSettings);vm.EndReset();Assert.True(vm.CanReset);vm.ResetMessage.Show("reset");Assert.True(vm.ResetMessage.IsOpen);
         vm.Dispose();vm.EndReset();Assert.False(vm.CanReset);Assert.False(vm.TryBeginReset());
     }
     private static string Root()

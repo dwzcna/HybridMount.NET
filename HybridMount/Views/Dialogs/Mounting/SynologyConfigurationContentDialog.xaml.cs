@@ -21,6 +21,13 @@ namespace HybridMount.Views.Dialogs.Mounting;
 public sealed partial class SynologyConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
 {
     private IDisposable? _localization;
+    public ProtocolInteractionViewModel Interaction { get; } = new();
+    /// <summary>所属窗口的目录选择适配；返回null代表取消，不触发业务验证或远端请求。</summary>
+    internal Func<Task<string?>> SelectFolderAsync { get; set; } = async () =>
+    {
+        var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+        return (await picker.PickSingleFolderAsync())?.Path;
+    };
     private ProtocolCapabilityDialogBinding? _capabilityBinding;
     private ProtocolCapabilityProbeBinding? _probeBinding;
     private readonly HybridMount.UI.FormFieldFeedback _fieldFeedback=new();
@@ -42,19 +49,23 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     public SynologyConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,MountBackupItem? imported=null)
     {
         InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());_model=model;_existing=existing;_rootEditable=existing is null;
+        Interaction.SetHandler(ExecuteInteractionAsync, error =>
+        {
+            if (!Stopped) { global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message); ErrorBar.IsOpen = true; }
+        });
         try
         {
             NameField.Text=existing?.Name??global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("SynologyMount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;EndpointField.Text=existing?.Source?.Endpoint??"https://:5001";
             var source=existing?.Source;_pin=source?.PinnedCertificateSha256;HttpField.IsChecked=source?.AllowHttp==true;
             if(existing is not null)
             {
-                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
+                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;
                 var credentials=model.ReadCredentials(existing.Id);UserField.Text=credentials.UserName;PasswordField.Password=credentials.Password;_deviceToken=credentials.SessionToken;
                 var parts=source!.Prefix[1..].Split('/',2);ShareField.ItemsSource=new[]{new SynologySharedFolder(parts[0],"/"+parts[0])};ShareField.SelectedIndex=0;SubfolderField.Text=parts.Length>1?parts[1]:"";
                 AutoConnectField.IsOn=existing.AutoConnect;
                 RemoteAuto.IsOn=existing.RemoteAutoDetectEnabled;IncrementalField.Value=existing.RemoteIncrementalSeconds;FullField.Value=existing.RemoteFullSeconds;
                 CapacityAuto.IsOn=existing.CapacityAutoDetectEnabled;MaximumField.Text=existing.MaximumCapacityBytes is {} maximum?((decimal)maximum/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"";
-                ThumbnailToggle.IsOn=model.ThumbnailDraft(existing);ThumbnailToggle.IsEnabled=model.CanConfigureThumbnails;
+                ThumbnailToggle.IsOn=model.ThumbnailDraft(existing);
                 ExistingSettings.Visibility=SaveIntervalsButton.Visibility=Visibility.Visible;
             }
             if(imported is not null)
@@ -71,7 +82,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
                 CapacityAuto.IsOn=imported.CapacityAutoDetectEnabled;MaximumField.Text=imported.MaximumCapacityBytes is {} maximum?((decimal)maximum/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"";
                 _importExclusions=ConnectionSubmissionDraft.FromBackup(imported).Exclusions;
             }
-            ExistingSettings.Visibility=Visibility.Visible;ThumbnailToggle.IsEnabled=model.CanConfigureThumbnails;ThumbnailToggle.Visibility=model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;SaveCapacityButton.Visibility=RecheckButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
+            ExistingSettings.Visibility=Visibility.Visible;ThumbnailToggle.Visibility=model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;SaveCapacityButton.Visibility=RecheckButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
             global::HybridMount.UI.UserInterface.Set(this,"Title",existing is null ? global::HybridMount.Models.Localization.ResourceMessage.Create("NewSynologyNAS") : global::HybridMount.Models.Localization.ResourceMessage.Create("Settings", existing.Name));
             global::HybridMount.UI.UserInterface.Set(this, "PrimaryButtonText", existing is null ? global::HybridMount.Models.Localization.ResourceMessage.Create("CreateAndConnect") : global::HybridMount.Models.Localization.ResourceMessage.Create("SaveConnectionAndReconnect"));global::HybridMount.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("TestConnection"));global::HybridMount.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Close"));
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
@@ -87,18 +98,45 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         try{var editable=await _model.CanEditRemoteRootAsync(id).ConfigureAwait(false);dispatcher.TryEnqueue(()=>{if(Stopped)return;_rootEditable=editable;Refresh();});}
         catch(Exception error){dispatcher.TryEnqueue(()=>{if(!Stopped)ShowError(error.Message);});}
     }
+    /// <summary>命令与原生窗口操作之间的薄适配；返回完整Task，由交互模型持有。</summary>
+    private Task ExecuteInteractionAsync(string action, object? parameter)
+    {
+        switch (action)
+        {
+            case "ChooseFolder": return ChooseFolderAsync();
+            case "SaveCapacity": return SaveCapacityAsync();
+            case "RecheckCapacity": return RecheckCapacityAsync();
+            case "SaveIntervals": return SaveIntervalsAsync();
+            case "TrustCertificate": return TrustCertificateAsync();
+            case "ClearPin": ClearPinCore(); return Task.CompletedTask;
+            default: return Task.CompletedTask;
+        }
+    }
+    /// <summary>只读取当前草稿和已发布快照；UI线程即时更新可用性，选择器往返不调用此方法。</summary>
+    private void PublishInteraction()
+    {
+        if (_model is null) return;
+        var mount = _existing is { } saved ? _model.FindMount(saved.Id) : null;
+        Interaction.Publish(new ProtocolInteractionState(
+            Stopped: Stopped, Existing: _existing is not null,
+            SavedBusy: _savingSwitch || mount is not null && !MountActionState.From(mount, _model.IsBusy(mount.Definition.Id)).CanEdit,
+            Submitting: _submitting, Testing: _testing is not null, TestCanceling: _testing?.IsCancellationRequested == true,
+            Probing: _probeBinding?.IsRunning == true, CapacityAutomatic: CapacityAuto.IsOn,
+            CapacityAvailable: mount?.IsConnected == true && CapacityRules.Enabled(mount.Definition),
+            RootEditable: _rootEditable, HasTrustedCertificate: !string.IsNullOrEmpty(_pin), HasCandidate: _certificateCandidate is not null,
+            ThumbnailsAvailable: _model.CanConfigureThumbnails));
+        _probeBinding?.Refresh(Interaction.CanSubmit);
+    }
     private void Refresh()
     {
-        _capabilityBinding?.Refresh();
         if(_disposed)return;if(_model.IsStopping){CancelForShutdown();return;}
         var mount=_existing is {} existing?_model.FindMount(existing.Id):null;if(_existing is not null&&mount is null){CancelForShutdown();return;}
-        var busy=_probeBinding?.IsRunning==true||_savingSwitch||_submitting||_picking||_testing is not null||mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit;
-        _probeBinding?.Refresh(!busy);
-        ConnectionFields.IsEnabled=SettingsFields.IsEnabled=!busy;IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
-        EndpointField.IsReadOnly=SubfolderField.IsReadOnly=!_rootEditable;ShareField.IsEnabled=HttpField.IsEnabled=_rootEditable;
-        if(mount is not null&&!_savingSwitch){_loading=true;try{AutoConnectField.IsOn=mount.Definition.AutoConnect;RemoteAuto.IsOn=mount.Definition.RemoteAutoDetectEnabled;CapacityAuto.IsOn=mount.Definition.CapacityAutoDetectEnabled;ThumbnailToggle.IsOn=mount.Definition.ThumbnailsEnabled;}finally{_loading=false;}}
+        PublishInteraction();
+        _capabilityBinding?.Refresh();
+        EndpointField.IsReadOnly=SubfolderField.IsReadOnly=!_rootEditable;
+        if(mount is not null&&!_savingSwitch){_loading=true;try{AutoConnectField.IsOn=mount.Definition.AutoConnect;RemoteAuto.IsOn=mount.Definition.RemoteAutoDetectEnabled;CapacityAuto.IsOn=mount.Definition.CapacityAutoDetectEnabled;ThumbnailToggle.IsOn=mount.Definition.ThumbnailsEnabled;}finally{_loading=false;PublishInteraction();}}
         if(mount is not null){DetectionDescription.Text=MountsViewModel.DetectionSummary(mount);CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);}
-        MaximumField.IsEnabled=!busy&&!CapacityAuto.IsOn;
+
     }
     private string Prefix
     {
@@ -136,8 +174,8 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         HttpWarning.IsOpen=Uri.TryCreate(context,UriKind.Absolute,out var uri)&&uri.Scheme=="http";
     }
     private void UpdatePin(){global::HybridMount.UI.UserInterface.Set(PinText,"Text",_pin is null ? global::HybridMount.Models.Localization.ResourceMessage.Create("CertificateValidationSystemTrust") : global::HybridMount.Models.Localization.ResourceMessage.Create("PinnedCertificateSHA256ForThisMount", _pin));ClearPinButton.Visibility=_pin is null?Visibility.Collapsed:Visibility.Visible;}
-    private void ClearPin(object sender,RoutedEventArgs args){if(Stopped)return;Invalidate(false);_pin=null;UpdatePin();}
-    private async void TrustCertificate(object sender,RoutedEventArgs args)
+    private void ClearPinCore(){if(Stopped)return;Invalidate(false);_pin=null;UpdatePin();}
+    private async Task TrustCertificateAsync()
     {if(Stopped||_testing is not null||_submitting||_certificateCandidate is null)return;_pin=_certificateCandidate;Invalidate(false);UpdatePin();await ProbeAsync();}
     private void ShowError(string message){global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", message);ErrorBar.IsOpen=true;}
     private async Task<bool> ProbeAsync()
@@ -222,22 +260,22 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         finally{_submission=null;_submitting=false;OtpField.Password="";if(!Stopped)Refresh();deferral.Complete();}
     }
 
-    private async void SaveIntervals(object sender,RoutedEventArgs args)
+    private async Task SaveIntervalsAsync()
     {if(Stopped||_existing is null)return;try{_model.UpdateDraft(_existing.Id,RemoteAuto.IsOn,Seconds(IncrementalField.Value,10,86400),Seconds(FullField.Value,30,604800));await _model.SaveDetectionAsync(_existing.Id);}catch(Exception error){if(!Stopped)ShowError(error.Message);}}
-    private async void SaveCapacity(object sender,RoutedEventArgs args)
+    private async Task SaveCapacityAsync()
     {if(Stopped||_existing is null)return;_model.UpdateCapacityDraft(_existing.Id,CapacityAuto.IsOn,MaximumField.Text,"GB");await _model.SaveCapacityAsync(_existing.Id);}
-    private async void RecheckCapacity(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
+    private async Task RecheckCapacityAsync(){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
     private async void SaveThumbnails(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetThumbnailAsync(mount.Id,ThumbnailToggle.IsOn));}
     /// <summary>即时开关保持候选状态直到应用完成保存，最后用正式值回滚故障；连接草稿独立保留。</summary>
     private async Task SaveSwitchAsync(Func<Task> save){if(Stopped||_savingSwitch)return;_savingSwitch=true;Refresh();try{await save();}finally{_savingSwitch=false;if(!Stopped)Refresh();}}
     private async void AutoConnectChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetAutoConnectAsync(mount.Id,AutoConnectField.IsOn));}
     private async void RemoteAutoChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetRemoteDetectionEnabledAsync(mount.Id,RemoteAuto.IsOn));}
-    private async void CapacityAutoChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else MaximumField.IsEnabled=!CapacityAuto.IsOn;}
-    private async void ChooseFolder(object sender,RoutedEventArgs args)
+    private async void CapacityAutoChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else PublishInteraction();}
+    private async Task ChooseFolderAsync()
     {
-        if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null)return;_picking=true;Refresh();
-        try{if(Stopped)return;var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);var folder=await picker.PickSingleFolderAsync();if(!Stopped&&folder is not null)PathField.Text=folder.Path;}
-        catch(Exception error){if(!Stopped)ShowError(error.Message);}finally{_picking=false;if(!Stopped)Refresh();}
+        if(Stopped||_submitting||_picking||_existing is not null)return;_picking=true;
+        try{if(Stopped)return;var path=await SelectFolderAsync();if(!Stopped&&path is not null)PathField.Text=path;}
+        catch(Exception error){if(!Stopped)ShowError(error.Message);}finally{_picking=false;}
     }
     private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args)
     {_submission?.Cancel();_testing?.Cancel();if(!_stopping&&(_submitting||_picking||_existing is {} mount&&_model.IsBusy(mount.Id)))args.Cancel=true;}
@@ -245,7 +283,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;_importExclusions=null;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
+        if(_disposed)return;_disposed=true;Interaction.Dispose();_importExclusions=null;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }
 }

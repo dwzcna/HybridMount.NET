@@ -20,6 +20,13 @@ internal sealed class ProtocolCapabilityDialogBinding : IDisposable
     private readonly List<Action> _unsubscribes = [];
     private bool _disposed, _watching;
     private string? _pendingServer, _pendingQueue, _lastServer;
+    private bool _rendered;
+    private long _renderedDraft = -1;
+    private FileSourceConfiguration? _renderedSource;
+    private ProtocolCapabilitySnapshot? _renderedCapabilities;
+    private object? _renderedSqs;
+    private long _renderedCredentials;
+    private bool _renderedConnected;
     private long _serverRevision, _pendingServerRevision, _pendingQueueRevision;
 
     internal ProtocolCapabilityDialogBinding(ContentDialog owner, ProtocolCapabilitiesView view, FileSourceKind kind,
@@ -51,14 +58,14 @@ internal sealed class ProtocolCapabilityDialogBinding : IDisposable
     }
     internal long DraftRevision { get; private set; }
     internal void BeginTest() { _session.Begin(SafeIdentity()); _pendingServer = SafeServerIdentity(); _pendingServerRevision = _serverRevision; }
-    internal void CancelTest() => _session.Cancel();
+    internal void CancelTest() { _session.Cancel(); Refresh(true); }
     internal void CompleteTest(ProtocolCapabilitySnapshot? snapshot, bool serverDiscovery = false)
     {
         if (_disposed) return;
         // 首次群晖登录只发现服务器共享，界面可据此初始化共享选择；不把服务端证据标为新目录已验证。
         if (serverDiscovery && snapshot is not null && snapshot.Evidence.All(e => e.Scope == "@server") && SafeServerIdentity() == _pendingServer && _serverRevision == _pendingServerRevision)
             _session.Begin(SafeIdentity());
-        _session.Complete(SafeIdentity(), snapshot); Refresh();
+        _session.Complete(SafeIdentity(), snapshot); Refresh(true);
     }
     internal void BeginQueueTest() { _pendingQueue = SafeIdentity(); _pendingQueueRevision = _session.Observe(_pendingQueue); }
     internal void CompleteQueueTest(ProtocolCapabilitySnapshot? queue)
@@ -66,13 +73,20 @@ internal sealed class ProtocolCapabilityDialogBinding : IDisposable
         if (_disposed || queue is null) return;
         var identity = SafeIdentity(); if (identity != _pendingQueue || _session.Observe(identity) != _pendingQueueRevision) return; _pendingQueue = null; var current = _session.Select(identity, _mount());
         var evidence = (current?.Evidence.Where(e => !e.Id.StartsWith("sqs.", StringComparison.Ordinal)) ?? []).Concat(queue.Evidence).ToArray();
-        _session.Begin(identity); _session.Complete(identity, queue with { Evidence = Array.AsReadOnly(evidence) }); Refresh();
+        _session.Begin(identity); _session.Complete(identity, queue with { Evidence = Array.AsReadOnly(evidence) }); Refresh(true);
     }
-    internal void Refresh()
+    internal void Refresh(bool force = false)
     {
         if (_disposed) return;
+        var current = _mount();
+        if (!force && _rendered && _renderedDraft == DraftRevision && Equals(_renderedSource, current?.Definition.Source)
+            && ReferenceEquals(_renderedCapabilities, current?.ProtocolCapabilities) && Equals(_renderedSqs, current?.Definition.Sqs)
+            && _renderedCredentials == (current?.Definition.CredentialRevision ?? 0) && _renderedConnected == (current?.IsConnected == true)) return;
+        _rendered = true; _renderedDraft = DraftRevision; _renderedSource = current?.Definition.Source;
+        _renderedCapabilities = current?.ProtocolCapabilities; _renderedSqs = current?.Definition.Sqs;
+        _renderedCredentials = current?.Definition.CredentialRevision ?? 0; _renderedConnected = current?.IsConnected == true;
         var server = SafeServerIdentity(); if (server != _lastServer) { _lastServer = server; _serverRevision++; }
-        var current = _mount(); var identity = SafeIdentity(); var selected = _session.Select(identity, current);
+        var identity = SafeIdentity(); var selected = _session.Select(identity, current);
         _view.Show(_kind, selected, selected is not null && !_session.IsTest(identity) && current?.IsConnected != true, current?.Definition.Sqs?.Enabled == true);
     }
     private void Loaded(object sender, RoutedEventArgs args)

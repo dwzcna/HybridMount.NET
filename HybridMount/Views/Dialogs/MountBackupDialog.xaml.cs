@@ -18,6 +18,7 @@ namespace HybridMount.Views.Dialogs;
 public sealed partial class MountBackupDialog : ContentDialog
 {
     private IDisposable? _localization;
+    public BackupInteractionViewModel Interaction { get; } = new();
     private readonly bool _importing;
     private readonly string? _inputPath;
     private readonly ObservableCollection<MountBackupRowViewModel> _rows = [];
@@ -25,7 +26,7 @@ public sealed partial class MountBackupDialog : ContentDialog
     private CancellationTokenSource? _active;
     private MountBackupReadSession? _readSession;
     private MountBackupItem? _selectedConfiguration;
-    private bool _working, _decoded, _cancelRequested, _closed, _initialized, _loadStarted;
+    private bool _picking, _working, _decoded, _cancelRequested, _closed, _initialized, _loadStarted;
     public string ResultMessage { get; private set; } = "";
     public string? AcceptedTaskId { get; private set; }
 
@@ -61,7 +62,7 @@ public sealed partial class MountBackupDialog : ContentDialog
             ProtectionToggle.IsChecked = true; PasswordPanel.Visibility = Visibility.Visible; UnprotectedNotice.Visibility = Visibility.Collapsed;
             ShowStatus(global::HybridMount.Models.Localization.ResourceMessage.Create("BackupPasswordReentryRequired"), InfoBarSeverity.Informational);
         }
-        IsPrimaryButtonEnabled = false;
+        Interaction.Publish(false, false, false);
     }
     private async void OnLoaded(object sender, RoutedEventArgs args)
     {
@@ -96,7 +97,7 @@ public sealed partial class MountBackupDialog : ContentDialog
         if (_closed || App.Current.IsExiting) return;
         var valid = _importing ? _decoded ? ImportChoice.SelectedItem is MountBackupRowViewModel : _readSession?.RequiresPassword == true && PasswordField.Password.Length >= 8 : _rows.Any(row => row.Selected && row.CanSelect);
         if (!_importing && ProtectionToggle.IsChecked == true) valid &= PasswordField.Password.Length >= 8 && PasswordField.Password == ConfirmPasswordField.Password;
-        IsPrimaryButtonEnabled = !_working && valid;
+        Interaction.Publish(valid, _working, _closed);
     }
     /// <summary>解码不校验或禁用本机目录；任何条目都可进入草稿，只有最终提交才校验真实路径。</summary>
     private void AcceptDecoded(MountConfigurationBackup document)
@@ -122,7 +123,7 @@ public sealed partial class MountBackupDialog : ContentDialog
         if (_closed || App.Current.IsExiting) return;
         global::HybridMount.UI.UserInterface.Set(StatusBar, "Message", text); StatusBar.Severity = severity; StatusBar.IsOpen = true;
     }
-    private void SetWorking(bool value) { _working = value; if (_closed || App.Current.IsExiting) return; Form.IsEnabled = !value; UpdatePrimaryButton(); }
+    private void SetWorking(bool value) { _working = value; if (_closed || App.Current.IsExiting) return; UpdatePrimaryButton(); }
     /// <summary>转交仅复制已选条目；无选择时不生成草稿，不读写配置或远端。</summary>
     private bool CaptureImportSelection()
     {
@@ -136,8 +137,8 @@ public sealed partial class MountBackupDialog : ContentDialog
     }
     private async void Submit(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        args.Cancel = true; if (_working || _closed) return;
-        var deferral = args.GetDeferral(); using var cancel = CancellationTokenSource.CreateLinkedTokenSource(_dialogStop.Token); _active = cancel; SetWorking(true);
+        args.Cancel = true; if (_working || _picking || _closed) return;
+        var deferral = args.GetDeferral(); using var cancel = CancellationTokenSource.CreateLinkedTokenSource(_dialogStop.Token); _active = cancel;
         try
         {
             if (_importing && _decoded)
@@ -146,6 +147,7 @@ public sealed partial class MountBackupDialog : ContentDialog
             }
             else if (_importing)
             {
+                SetWorking(true);
                 await DecodeImportAsync(PasswordField.Password, cancel.Token);
             }
             else
@@ -158,10 +160,13 @@ public sealed partial class MountBackupDialog : ContentDialog
                 var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-config-{DateTime.Now:yyyyMMdd-HHmmss}" };
                 picker.FileTypeChoices.Add(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("HybridMountJSONConfigurationBackup", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, new List<string> { ".hmxbk" });
                 WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
+                _picking = true;
                 var file = await picker.PickSaveFileAsync().AsTask(cancel.Token);
+                _picking = false;
                 if (_closed || App.Current.IsExiting) return;
                 if (file is null) { ShowStatus(global::HybridMount.Models.Localization.ResourceMessage.Create("FileSelectionCanceled"), InfoBarSeverity.Informational); return; }
                 cancel.Token.ThrowIfCancellationRequested();
+                SetWorking(true);
                 var accepted = await App.Current.Mounts.AcceptConfigurationExportAsync(ids, password, file.Path, cancel.Token);
                 AcceptedTaskId = accepted.TaskId;
                 ResultMessage = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("BackupExportAccepted", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
@@ -170,17 +175,17 @@ public sealed partial class MountBackupDialog : ContentDialog
         }
         catch (OperationCanceledException) { if (!_closed && !App.Current.IsExiting) ShowStatus(global::HybridMount.Models.Localization.ResourceMessage.Create("ConfigurationSubmissionCanceled"), InfoBarSeverity.Informational); }
         catch (Exception error) { if (!_closed && !App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
-        finally { _active = null; SetWorking(false); deferral.Complete(); if (_cancelRequested && !_closed && !App.Current.IsExiting) Hide(); }
+        finally { _picking = false; _active = null; SetWorking(false); deferral.Complete(); if (_cancelRequested && !_closed && !App.Current.IsExiting) Hide(); }
     }
     private void OnClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
     {
-        if (!_working) return;
+        if (!_working && !_picking) return;
         args.Cancel = true; _cancelRequested = true;
         global::HybridMount.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Canceling")); _active?.Cancel();
     }
     private void OnClosed(ContentDialog sender, ContentDialogClosedEventArgs args)
     {
-        _closed = true; _dialogStop.Cancel(); _active?.Cancel();
+        _closed = true; Interaction.Publish(false, false, true); _dialogStop.Cancel(); _active?.Cancel();
         PasswordField.Password = ConfirmPasswordField.Password = ""; _rows.Clear();
         _readSession?.Dispose(); _readSession = null; _localization?.Dispose(); _localization = null; _dialogStop.Dispose();
     }
@@ -189,6 +194,6 @@ public sealed partial class MountBackupDialog : ContentDialog
         if (_closed) return;
         _cancelRequested = true; _dialogStop.Cancel(); _active?.Cancel(); _selectedConfiguration = null;
         _readSession?.Dispose(); _readSession = null; PasswordField.Password = ConfirmPasswordField.Password = "";
-        if (!_working) Hide();
+        if (!_working && !_picking) Hide();
     }
 }

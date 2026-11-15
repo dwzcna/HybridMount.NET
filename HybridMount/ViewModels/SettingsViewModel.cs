@@ -26,16 +26,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public PageStatusViewModel StatusMessage { get; } = new();
     public PageStatusViewModel AppearanceMessage { get; } = new();
     public PageStatusViewModel CacheMessage { get; } = new();
-    /// <summary>还原反馈独立于其余卡片；待确认及退出时冻结页面编辑，仍允许关闭提示。</summary>
+    /// <summary>还原反馈独立于其余卡片；确认只持流程占用，实际清理和退出才冻结编辑。</summary>
     public PageStatusViewModel ResetMessage { get; } = new();
-    private bool _resetting;
+    private bool _resetting, _resetFlow;
     public bool CanEditSettings => !_disposed && !_resetting;
     public bool CanReset => CanEditSettings && _mounts?.RemovalBatchActive != true;
     public bool CanViewRemovalTasks => !_disposed && _mounts is not null;
     public bool CanRemoveAll => CanReset && _mounts is not null && !_mounts.IsStopping;
-    public bool TryBeginReset() { if (!CanReset) return false; _resetting = true; OnPropertyChanged(nameof(CanEditSettings)); OnPropertyChanged(nameof(CanReset)); OnPropertyChanged(nameof(CanRemoveAll)); return true; }
+    public bool TryBeginReset() { if (!CanReset || _resetFlow) return false; _resetFlow=true; return true; }
+    public void BeginResetWork() { if (_disposed || !_resetFlow || _resetting) return; _resetting=true; NotifyResetState(); }
+    private void NotifyResetState() { OnPropertyChanged(nameof(CanEditSettings)); OnPropertyChanged(nameof(CanReset)); OnPropertyChanged(nameof(CanRemoveAll)); }
     public Task DrainSettingsOperationsAsync() => Task.WhenAll(_startupWork, _cacheWork, _cloudWork);
-    public void EndReset() { if (!_disposed) { _resetting = false; OnPropertyChanged(nameof(CanEditSettings)); OnPropertyChanged(nameof(CanReset)); OnPropertyChanged(nameof(CanRemoveAll)); } }
+    public void EndReset() { _resetFlow=false; if (!_disposed && _resetting) { _resetting=false; NotifyResetState(); } }
     private void Publish(PageStatusViewModel message, string text, string property, bool reopen = true, PageMessageSeverity severity = PageMessageSeverity.Information)
         => Publish(message, global::HybridMount.Models.Localization.ResourceMessage.Raw(text), property, reopen, severity);
     private void Publish(PageStatusViewModel message, global::HybridMount.Models.Localization.ResourceMessage text, string property, bool reopen = true, PageMessageSeverity severity = PageMessageSeverity.Information)
@@ -59,6 +61,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (_languages.Error is { } languageError) AppearanceMessage.Update(languageError, PageMessageSeverity.Error);
         _cloud = cloud; _cloudConcurrency = (cloud?.Current ?? CloudOperationSettings.Default).ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (cloud?.ReadFailed == true) CloudMessage.Update(global::HybridMount.Models.Localization.ResourceMessage.Create("CloudReadFailed"), PageMessageSeverity.Error);
+        InitializeCommands();
         appearance.Changed += SettingsChanged;
     }
     /// <summary>语言保存成功后立即更新；失败仅回滚选择，保留原语言和其他卡片状态。</summary>
@@ -132,7 +135,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public bool CanEditCache => !_disposed && _cacheLoaded && !_trimming && _mounts is not null && !_mounts.IsStopping;
     public void SaveCacheLimit()
     {
-        if (!CanEditCache || _savingCache) return; _savingCache = true;
+        if (!CanEditSettings || !CanEditCache || _savingCache) return; _savingCache = true;
         try
         {
             if (!double.IsFinite(CacheLimitGiB) || CacheLimitGiB < 0) throw new ArgumentException(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("EnterAValidCacheLimit", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
@@ -143,7 +146,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
     public Task TrimCacheAsync()
     {
-        if (!CanEditCache) return Task.CompletedTask;
+        if (!CanEditSettings || !CanEditCache) return Task.CompletedTask;
         _trimming = true; OnPropertyChanged(nameof(CanEditCache)); return _cacheWork = TrimCoreAsync();
     }
     private async Task TrimCoreAsync()
@@ -214,6 +217,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>真正退出先停止页面通知；系统已发出的操作安全完成后再释放日志等服务。</summary>
-    public void Dispose() { _languageSubscription.Dispose(); if (_disposed) return; _disposed = true; StatusMessage.Dispose(); AppearanceMessage.Dispose(); CacheMessage.Dispose(); ResetMessage.Dispose(); CloudMessage.Dispose(); _settings.Changed -= SettingsChanged; if (_preferences is not null) _preferences.LayoutChanged -= DensityChanged; }
+    public void Dispose() { _languageSubscription.Dispose(); if (_disposed) return; _disposed = true; _dialogPresenter=null; StatusMessage.Dispose(); AppearanceMessage.Dispose(); CacheMessage.Dispose(); ResetMessage.Dispose(); CloudMessage.Dispose(); _settings.Changed -= SettingsChanged; if (_preferences is not null) _preferences.LayoutChanged -= DensityChanged; }
     public async ValueTask DisposeAsync() { Dispose(); await Task.WhenAll(_startupWork, _cacheWork, _cloudWork); }
 }

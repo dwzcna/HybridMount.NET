@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Input;
 ﻿using HybridMount.Models.UI;
 using HybridMount.Commons.UI;
 using HybridMount.Infrastructure.Diagnostics;
@@ -14,7 +15,7 @@ public sealed class LogsViewModel : ObservableObject, IDisposable
     private readonly LoggerService _logger;
     private readonly IUIDispatcher _dispatcher;
     private readonly List<DiagnosticEntry> _all = [];
-    private bool _disposed, _reading, _clearing, _dialogBusy, _hasMore, _olderLoaded, _hasNew;
+    private bool _disposed, _reading, _clearing, _dialogBusy, _exporting, _hasMore, _olderLoaded, _hasNew;
     private long _generation, _eventEpoch, _through, _latestSeen;
     private long? _next;
     private Task _readWork = Task.CompletedTask;
@@ -36,9 +37,46 @@ public sealed class LogsViewModel : ObservableObject, IDisposable
     public bool HasSelectedDate => _selectedDate.HasValue;
     /// <summary>查询期间显示独立加载状态，不改变消息的关闭状态。</summary>
     public bool IsReading => _reading;
-    public bool CanInteract => !_disposed && !_clearing && !_dialogBusy;
-    public bool CanLoadMore => CanInteract && !_reading && _hasMore;
-    public LogsViewModel(LoggerService logger, IUIDispatcher dispatcher) { _logger = logger; _dispatcher = dispatcher; _logger.EntryWritten += OnEntry; }
+    public bool CanInteract => !_disposed && !_clearing && !_exporting;
+    public bool CanRead => !_disposed && !_clearing;
+    public bool CanLoadMore => CanRead && !_reading && _hasMore;
+    private Func<LogDialogKind,Task>? _dialogPresenter;
+    public Task ModalCommandTask { get; private set; } = Task.CompletedTask;
+    public IAsyncRelayCommand RefreshCommand { get; }
+    public IAsyncRelayCommand LoadOlderCommand { get; }
+    public IRelayCommand ExportCommand { get; }
+    public IRelayCommand ClearCommand { get; }
+    public LogsViewModel(LoggerService logger, IUIDispatcher dispatcher)
+    {
+        _logger=logger;_dispatcher=dispatcher;
+        RefreshCommand=new AsyncRelayCommand(()=>RefreshAsync(),()=>CanRead);
+        LoadOlderCommand=new AsyncRelayCommand(LoadOlderAsync,()=>CanLoadMore);
+        ExportCommand=new RelayCommand(()=>RequestDialog(LogDialogKind.Export),()=>CanInteract);
+        ClearCommand=new RelayCommand(()=>RequestDialog(LogDialogKind.Clear),()=>CanInteract);
+        _logger.EntryWritten+=OnEntry;
+        NotifyActions();
+    }
+    public void SetDialogPresenter(Func<LogDialogKind,Task>? presenter)=>_dialogPresenter=presenter;
+    private void RequestDialog(LogDialogKind kind)
+    {
+        if(_dialogPresenter is not {} presenter||!TryBeginDialog())return;
+        ModalCommandTask=PresentAsync();
+        async Task PresentAsync()
+        {
+            try{await presenter(kind);}
+            catch(OperationCanceledException){}
+            catch(Exception error){if(!_disposed)ReportError(error);}
+            finally{EndDialog();}
+        }
+    }
+    /// <summary>已捕获查询的真实读取和写出共享所有权，直到文件写完才允许清除；筛选和阅读继续。</summary>
+    public async Task ExportToAsync(DiagnosticQuery query,Func<DiagnosticExport,Task> write,CancellationToken token=default)
+    {
+        if(!CanInteract)return;
+        _exporting=true;NotifyActions();
+        try{var exported=await _logger.ExportAsync(query,token);token.ThrowIfCancellationRequested();if(!_disposed)await write(exported);}
+        finally{_exporting=false;NotifyActions();}
+    }
     private DiagnosticQuery CaptureFilter()
     { var range = LocalCalendarDay.Bounds(_selectedDate, TimeZoneInfo.Local); return new(_severity, _query, range.From, range.To); }
     /// <summary>导出、分页和实时追加共用当前查询的日历边界；对话框打开后仍保留固定快照。</summary>
@@ -71,13 +109,21 @@ public sealed class LogsViewModel : ObservableObject, IDisposable
         catch (Exception error) { if (generation == _generation) ReportError(error, reopenStatus); }
         finally { owner.Dispose(); if (_readCancel == owner) _readCancel = null; if (generation == _generation) { _reading = false; NotifyActions(); } }
     }
-    private void NotifyActions() { if (_disposed) return; OnPropertyChanged(nameof(IsReading)); OnPropertyChanged(nameof(CanInteract)); OnPropertyChanged(nameof(CanLoadMore)); }
-    public bool TryBeginDialog() { if (!CanInteract) return false; _dialogBusy = true; NotifyActions(); return true; }
-    public void EndDialog() { _dialogBusy = false; NotifyActions(); }
+    private bool _publishedReading, _publishedInteract, _publishedMore, _publishedRead;
+    private void NotifyActions()
+    {
+        if(_disposed)return;
+        if(_publishedReading!=IsReading){_publishedReading=IsReading;OnPropertyChanged(nameof(IsReading));}
+        if(_publishedInteract!=CanInteract){_publishedInteract=CanInteract;OnPropertyChanged(nameof(CanInteract));ExportCommand.NotifyCanExecuteChanged();ClearCommand.NotifyCanExecuteChanged();}
+        if(_publishedMore!=CanLoadMore){_publishedMore=CanLoadMore;OnPropertyChanged(nameof(CanLoadMore));LoadOlderCommand.NotifyCanExecuteChanged();}
+        if(_publishedRead!=CanRead){_publishedRead=CanRead;OnPropertyChanged(nameof(CanRead));RefreshCommand.NotifyCanExecuteChanged();}
+    }
+    public bool TryBeginDialog() { if (!CanInteract || _dialogBusy) return false; _dialogBusy = true; return true; }
+    public void EndDialog() { _dialogBusy = false; }
     /// <summary>代次与事件epoch双屏障；清除前事件不能在清除后重新插入，新的日志仍可在刷新后看到。</summary>
     public async Task ClearAsync()
     {
-        if (_disposed || _clearing) return; _clearing = true; ++_generation; ++_eventEpoch; _readCancel?.Cancel(); NotifyActions();
+        if (_disposed || _clearing || _exporting) return; _clearing = true; ++_generation; ++_eventEpoch; _readCancel?.Cancel(); NotifyActions();
         try { await _logger.ClearAsync(); ++_eventEpoch; if (_disposed) return; _through = 0; _latestSeen = 0; _hasNew = false; _hasMore = false; _next = null; _all.Clear(); Apply(); }
         catch (Exception error) { ReportError(error); }
         finally { _clearing = false; NotifyActions(); }
@@ -102,5 +148,5 @@ public sealed class LogsViewModel : ObservableObject, IDisposable
             _through = Math.Max(_through, entry.Id); _next = _hasMore ? _all[^1].Id : null; Apply(); SetStatus(); NotifyActions();
         });
     }
-    public void Dispose() { if (_disposed) return; _disposed = true; StatusMessage.Dispose(); ++_generation; ++_eventEpoch; _readCancel?.Cancel(); _logger.EntryWritten -= OnEntry; }
+    public void Dispose() { if (_disposed) return; _disposed = true; _dialogPresenter=null; StatusMessage.Dispose(); ++_generation; ++_eventEpoch; _readCancel?.Cancel(); _logger.EntryWritten -= OnEntry; }
 }
