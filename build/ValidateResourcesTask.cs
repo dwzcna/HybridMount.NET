@@ -3,9 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
@@ -24,62 +21,129 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
     public string Platform { get; set; }
     private static readonly string[] Languages = { "zh-CN", "en-US", "zh-HK" };
     private static readonly string[] NativeTexts = { "HybridMount.NET", "释放空间", "始终保留在此设备上", "查看同步问题", "在应用中定位此文件或目录的同步问题；不会自动上传。", "管理此挂载的离线缓存；本地修改会受到保护。", "同步问题", "上传排除" };
-    /// <summary>只映射资源目录中的源码文案；保持现有JSON文件格式。</summary>
-    [DataContract]
-    private sealed class CatalogItem
-    {
-        /// <summary>资源原始文案，用于核对翻译占位参数。</summary>
-        [DataMember(Name = "Source", IsRequired = true)] public string Source { get; set; }
-    }
-    /// <summary>在调用构建线程执行；所有检查失败均返回false，阻止不完整资源进入构建／交付。</summary>
+    /// <summary>包检查生成的实际托管资源转储；读取 PE 资源而不加载目标架构代码。</summary>
+    public string ManagedDumpPath { get; set; }
+    private static readonly string[] NativeKeys = { null, "FreeUpSpace", "AlwaysKeepOnThisDevice", "ViewSyncIssues", "ShowThisFileOrFolderSSyncIssuesInTheApplicationDoes", "ManageThisMountSOfflineCacheLocalEditsAreProtected", "SyncIssuesDetails", "UploadExclusion" };
+    /// <summary>同步检查三类实际资源源；任何缺失或漂移均阻止构建，原生 ID 与语义键显式对应。</summary>
     public override bool Execute()
     {
         try
         {
             var root = Path.GetFullPath(RepositoryRoot);
-            Dictionary<string, CatalogItem> catalog;
-            using (var stream = File.OpenRead(Path.Combine(root, "HybridMount", "Resources", "UiCatalog.json")))
-                catalog = (Dictionary<string, CatalogItem>)new DataContractJsonSerializer(typeof(Dictionary<string, CatalogItem>), new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true }).ReadObject(stream);
-            var texts = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+            var xaml = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+            var managed = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
             foreach (var language in Languages)
             {
-                var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (XmlElement entry in ReadXml(Path.Combine(root, "HybridMount", "Resources", language, "Strings.resw")).SelectNodes("/root/data"))
-                    values.Add(entry.GetAttribute("name"), entry.SelectSingleNode("value").InnerText);
-                foreach (var key in values.Keys)
-                    if (key.IndexOf('.') >= 0 && values.ContainsKey(key.Substring(0, key.IndexOf('.'))))
-                        throw new InvalidDataException("resource prefix collision: " + language + "/" + key);
-                if (texts.Count > 0 && !values.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).SequenceEqual(texts[Languages[0]].Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase))
-                    throw new InvalidDataException("resource key set drift: " + language);
-                if (texts.Count > 0) foreach (var key in values.Keys)
-                    if (Parameters(values[key]) != Parameters(texts[Languages[0]][key])) throw new InvalidDataException("resource parameters: " + language + "/" + key);
-                foreach (var item in catalog)
-                {
-                    string value;
-                    if (!values.TryGetValue(item.Key, out value) || Parameters(value) != Parameters(item.Value.Source))
-                        throw new InvalidDataException("resource key/parameters: " + language + "/" + item.Key);
-                }
-                texts.Add(language, values);
+                var resx = Path.Combine(root, "HybridMount", "Resources", language == "zh-CN" ? "Messages.resx" : "Messages." + language + ".resx");
+                managed.Add(language, ReadTexts(resx, true));
+                xaml.Add(language, ReadTexts(Path.Combine(root, "HybridMount", "Resources", language, "Strings.resw"), false));
             }
-            foreach (var file in SourceFiles(Path.Combine(root, "HybridMount")))
-                foreach (Match match in Regex.Matches(File.ReadAllText(file), "Text_[A-F0-9]{12}"))
-                    if (!catalog.ContainsKey(match.Value)) throw new InvalidDataException("unknown UI resource: " + match.Value);
-            ValidateXamlAndManifest(root, texts[Languages[0]]);
+            ValidateLanguages(managed, "RESX"); ValidateLanguages(xaml, "RESW");
+            if (managed[Languages[0]].Keys.Intersect(xaml[Languages[0]].Keys, StringComparer.Ordinal).Any()) throw new InvalidDataException("C#/XAML resource source overlap");
+            ValidateCSharp(root, managed[Languages[0]]);
+            ValidateXamlAndManifest(root, xaml[Languages[0]]);
             foreach (var language in Languages)
             {
                 var rc = File.ReadAllText(Path.Combine(root, "HybridMount.Ext", "Resources", language, "NativeStrings.rc"), Encoding.UTF8);
                 for (var index = 0; index < NativeTexts.Length; index++)
                 {
-                    var expected = index == 0 ? NativeTexts[index] : texts[language][ResourceKey(NativeTexts[index])];
+                    var expected = index == 0 ? NativeTexts[0] : managed[language][NativeKeys[index]];
                     if (!rc.Contains("    " + (1001 + index) + " \"" + expected + "\"")) throw new InvalidDataException("MUI source drift: " + language + "/" + index);
                 }
             }
-            if (!String.IsNullOrEmpty(PriDumpPath)) ValidatePri(texts, ReadXml(PriDumpPath));
-            if (!String.IsNullOrEmpty(MuiRoot)) ValidateMui(texts);
-            Log.LogMessage(MessageImportance.High, "Localization checked: {0} keys x 3 languages / 8 native strings x 3", texts[Languages[0]].Count);
+            if (!String.IsNullOrEmpty(PriDumpPath)) ValidatePri(xaml, ReadXml(PriDumpPath));
+            if (!String.IsNullOrEmpty(MuiRoot)) ValidateMui(managed);
+            if (!String.IsNullOrEmpty(ManagedDumpPath)) ValidateManaged(managed, ReadXml(ManagedDumpPath));
+            Log.LogMessage(MessageImportance.High, "Localization checked: {0} C# RESX / {1} XAML RESW keys x 3 languages / 8 native strings x 3", managed[Languages[0]].Count, xaml[Languages[0]].Count);
             return true;
         }
         catch (Exception error) { Log.LogErrorFromException(error, false); return false; }
+    }
+    /// <summary>读取唯一资源键并验证复合格式语法；不生成资源访问器或从源文案计算键。</summary>
+    private static Dictionary<string, string> ReadTexts(string path, bool semantic)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (XmlElement entry in ReadXml(path).SelectNodes("/root/data"))
+        {
+            var key = entry.GetAttribute("name"); var value = entry.SelectSingleNode("value");
+            if (key.Length == 0 || value == null || semantic && !Regex.IsMatch(key, @"\A[A-Za-z][A-Za-z0-9]*\z")) throw new InvalidDataException("Invalid resource key: " + path + "/" + key);
+            values.Add(key, value.InnerText);
+            var arguments = Regex.Matches(value.InnerText.Replace("{{", "").Replace("}}", ""), @"\{(\d+)(?:,[^}:]+)?(?::[^}]+)?\}").Cast<Match>().Select(item => Int32.Parse(item.Groups[1].Value)).ToArray();
+            var count = arguments.Length == 0 ? 0 : arguments.Max() + 1;
+            if (count > 64) throw new InvalidDataException("Too many resource arguments: " + key);
+            try { String.Format(System.Globalization.CultureInfo.InvariantCulture, value.InnerText, new object[count]); }
+            catch (FormatException) { throw new InvalidDataException("Malformed composite resource: " + path + "/" + key); }
+        }
+        foreach (var key in values.Keys)
+            if (key.IndexOf('.') >= 0 && values.ContainsKey(key.Substring(0, key.IndexOf('.')))) throw new InvalidDataException("Resource prefix collision: " + key);
+        return values;
+    }
+    private static void ValidateLanguages(Dictionary<string, Dictionary<string, string>> texts, string source)
+    {
+        foreach (var language in Languages.Skip(1))
+        {
+            if (!texts[Languages[0]].Keys.OrderBy(key => key, StringComparer.Ordinal).SequenceEqual(texts[language].Keys.OrderBy(key => key, StringComparer.Ordinal), StringComparer.Ordinal)) throw new InvalidDataException(source + " key set drift: " + language);
+            foreach (var key in texts[Languages[0]].Keys)
+                if (Parameters(texts[Languages[0]][key]) != Parameters(texts[language][key])) throw new InvalidDataException(source + " parameters: " + language + "/" + key);
+        }
+    }
+    /// <summary>检查直接语义键和封闭动态映射，禁止旧哈希目录、文本反译及运行时拼接资源键。</summary>
+    private static void ValidateCSharp(string root, Dictionary<string, string> values)
+    {
+        foreach (var file in SourceFiles(Path.Combine(root, "HybridMount")).Concat(SourceFiles(Path.Combine(root, "HybridMount.Tests"))).Where(path => Path.GetExtension(path) == ".cs"))
+        {
+            var source = File.ReadAllText(file);
+            if (Regex.IsMatch(source, @"\b(?:UiText|UiCatalog|UiTemplate|IUiTextProvider)\b|Text_[A-F0-9]{12}")) throw new InvalidDataException("Obsolete C# resource dependency: " + file);
+            foreach (Match call in Regex.Matches(source, @"(?:Messages\.GetString|ResourceMessage\.Create)\s*\("))
+            {
+                var argument = FirstArgument(source, call.Index + call.Length);
+                var keys = Regex.Matches(argument, "\"([A-Za-z][A-Za-z0-9]*)\"").Cast<Match>().Where(match => Regex.IsMatch(argument.Substring(0, match.Index).TrimEnd(), @"(?:\A|\?|:|=>)\s*\z")).Select(match => match.Groups[1].Value).ToArray();
+                if (keys.Length == 0)
+                {
+                    var name = Path.GetFileName(file);
+                    var carrier = name == "ResourceMessage.cs" && argument.Trim() == "Key";
+                    var mapped = name == "ProtocolCapabilitiesView.cs" && Regex.IsMatch(argument.Trim(), @"\A(?:item\.DescriptionKey|StatusKey\(.+\)|ReasonKey\(.+\)|ProbeStageKey\(.+\))\z");
+                    var resourceTest = name == "LocalizationTests.cs" && argument.Trim() == "key";
+                    var catalogTest = name == "ProtocolCapabilityTests.cs" && argument.Trim() == "row.DescriptionKey";
+                    if (!carrier && !mapped && !resourceTest && !catalogTest) throw new InvalidDataException("Unmapped dynamic resource key: " + file + "/" + argument);
+                }
+                foreach (var key in keys) if (key != "NoSuchSemanticResource" && !values.ContainsKey(key)) throw new InvalidDataException("C# resource missing: " + file + "/" + key);
+            }
+            foreach (Match key in Regex.Matches(source, "\"((?:ProtocolPurpose|ProtocolStatus|ProtocolReason|CapabilityProbeStage)[A-Za-z0-9]+)\""))
+                if (!values.ContainsKey(key.Groups[1].Value)) throw new InvalidDataException("Mapped resource missing: " + file + "/" + key.Groups[1].Value);
+        }
+    }
+    /// <summary>只提取调用的首个表达式，括号内逗号和字符串转义不截断动态映射。</summary>
+    private static string FirstArgument(string source, int offset)
+    {
+        var depth = 0; var quoted = false; var escaped = false;
+        for (var index = offset; index < source.Length; index++)
+        {
+            var c = source[index];
+            if (quoted) { if (escaped) escaped = false; else if (c == '\\') escaped = true; else if (c == '"') quoted = false; continue; }
+            if (c == '"') { quoted = true; continue; }
+            if (c == '(' || c == '[' || c == '{') depth++;
+            if (c == ')' || c == ']' || c == '}') { if (depth == 0) return source.Substring(offset, index - offset); depth--; }
+            if (c == ',' && depth == 0) return source.Substring(offset, index - offset);
+        }
+        throw new InvalidDataException("Unterminated resource call");
+    }
+    /// <summary>核验包中 PE 直接读取的中性资源及卫星数据，不执行模块或依赖目标架构。</summary>
+    private static void ValidateManaged(Dictionary<string, Dictionary<string, string>> texts, XmlDocument dump)
+    {
+        foreach (var language in Languages)
+        {
+            var nodes = dump.SelectNodes("/managed/language[@name='" + language + "']");
+            if (nodes.Count != 1) throw new InvalidDataException("Managed resource language missing/duplicate: " + language);
+            var values = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (XmlElement entry in nodes[0].SelectNodes("data")) values.Add(entry.GetAttribute("name"), entry.SelectSingleNode("value").InnerText);
+            if (values.Count != texts[language].Count) throw new InvalidDataException("Managed resource key count: " + language);
+            foreach (var item in texts[language])
+            {
+                string value;
+                if (!values.TryGetValue(item.Key, out value) || value.Replace("\r\n", "\n") != item.Value.Replace("\r\n", "\n")) throw new InvalidDataException("Managed resource value drift: " + language + "/" + item.Key);
+            }
+        }
     }
     /// <summary>跳过输出和外部重解析目录，只枚举仓库自有C#与XAML文件。</summary>
     private static IEnumerable<string> SourceFiles(string root)
@@ -108,11 +172,6 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
     private static string Parameters(string text)
     {
         return String.Join(",", Regex.Matches(text.Replace("{{", "").Replace("}}", ""), @"\{(\d+)(?:,[^}:]+)?(?::[^}]+)?\}").Cast<Match>().Select(match => match.Groups[1].Value).OrderBy(value => value, StringComparer.Ordinal));
-    }
-    /// <summary>计算与应用相同的UTF8 SHA-256前12位资源键，并释放算法对象。</summary>
-    private static string ResourceKey(string text)
-    {
-        using (var sha = SHA256.Create()) return "Text_" + BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(text))).Replace("-", "").Substring(0, 12);
     }
     /// <summary>核验包内实际PRI转储的三语言候选，缺失、重复或文案漂移均失败。</summary>
     private static void ValidatePri(Dictionary<string, Dictionary<string, string>> texts, XmlDocument dump)
@@ -145,6 +204,8 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
         var properties = new Dictionary<string, string>(StringComparer.Ordinal) {
             {"TextBlock", "Text"}, {"Run", "Text"}, {"MenuFlyoutItem", "Text"},
             {"AppBarButton", "Label"}, {"AppBarToggleButton", "Label"},
+            // 自定义历史按钮继承 AppBarButton，沿用同一 Label 资源契约。
+            {"TaskHistoryButton", "Label"},
             {"Button", "Content"}, {"CheckBox", "Content"}, {"ComboBoxItem", "Content"}, {"NavigationViewItem", "Content"},
             {"ComboBox", "Header PlaceholderText"}, {"Expander", "Header"}, {"NumberBox", "Header PlaceholderText"},
             {"PasswordBox", "Header PlaceholderText"}, {"TextBox", "Header PlaceholderText"}, {"SettingRow", "Header Description"},
@@ -156,7 +217,7 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
             var document = ReadXml(file);
             foreach (XmlElement node in document.SelectNodes("//*"))
             {
-                var uid = node.GetAttribute("Uid", x); var registered = node.GetAttribute("Ui.ResourceId", ui);
+                var uid = node.GetAttribute("Uid", x); var registered = node.GetAttribute("UserInterface.ResourceId", ui);
                 if (uid != registered) throw new InvalidDataException("x:Uid/ResourceId mismatch: " + file + "/" + uid);
                 if (uid.Length == 0) continue;
                 var resourceId = uid.StartsWith("/Strings/", StringComparison.Ordinal) ? uid.Substring(9) : uid;
@@ -171,7 +232,7 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
                         throw new InvalidDataException("x:Uid property/type mismatch: " + node.LocalName + "/" + key);
                     if (node.HasAttribute(property)) throw new InvalidDataException("x:Uid property has duplicate local value: " + key);
                 }
-                if (node.Attributes.Cast<XmlAttribute>().Any(attr => attr.LocalName.StartsWith("Ui.") && attr.LocalName.EndsWith("Key")))
+                if (node.Attributes.Cast<XmlAttribute>().Any(attr => attr.LocalName.StartsWith("UserInterface.") && attr.LocalName.EndsWith("Key")))
                     throw new InvalidDataException("legacy static XAML key remains: " + uid);
             }
         }
@@ -201,7 +262,7 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
             {
                 for (var index = 0; index < NativeTexts.Length; index++)
                 {
-                    var expected = index == 0 ? NativeTexts[index] : texts[language][ResourceKey(NativeTexts[index])]; var text = new StringBuilder(512);
+                    var expected = index == 0 ? NativeTexts[index] : texts[language][NativeKeys[index]]; var text = new StringBuilder(512);
                     if (LoadString(module, (uint)(1001 + index), text, text.Capacity) == 0 || text.ToString() != expected) throw new InvalidDataException("MUI value: " + language + "/" + index);
                 }
             }

@@ -4,7 +4,7 @@ namespace HybridMount.Helpers.Threading;
 internal sealed class BackgroundSnapshotPump<TQuery,TValue>:IDisposable
 {
     private readonly object _gate=new();
-    private readonly IUiDispatcher _dispatcher;
+    private readonly IUIDispatcher _dispatcher;
     private readonly Func<TQuery,TValue> _read;
     private readonly Action<TValue> _publish;
     private readonly Action<Exception> _failure;
@@ -13,7 +13,7 @@ internal sealed class BackgroundSnapshotPump<TQuery,TValue>:IDisposable
     private long _version,_delivered,_lastStarted;
     private bool _running,_closed;
     private Task _work=Task.CompletedTask;
-    internal BackgroundSnapshotPump(IUiDispatcher dispatcher,Func<TQuery,TValue> read,Action<TValue> publish,Action<Exception> failure)
+    internal BackgroundSnapshotPump(IUIDispatcher dispatcher,Func<TQuery,TValue> read,Action<TValue> publish,Action<Exception> failure)
     {_dispatcher=dispatcher;_read=read;_publish=publish;_failure=failure;}
     /// <summary>调用方提交不可变查询快照；后台变化可从任意线程请求，同一查询期间不会因持续进度而饿死UI发布。</summary>
     internal void Request(TQuery query)

@@ -19,8 +19,8 @@ public sealed class MountingResponsibilityTests
         var root=RepositoryRoot();var model=Path.Combine(root,"HybridMount","Models","Mounting");
         foreach(var file in Directory.EnumerateFiles(model,"*.cs",SearchOption.TopDirectoryOnly))
         {
-            // .71 的显示投影允许 UiText；其他运行服务和原生调用仍不得进入公共模型。
-            var text=File.ReadAllText(file).Replace("global::HybridMount.Services.Localization.UiText.","",StringComparison.Ordinal);Assert.DoesNotContain("HybridMount.Services.",text);Assert.DoesNotContain("DllImport(",text);Assert.DoesNotContain("LibraryImport(",text);
+            // 显示投影仅允许标准资源服务和语义消息载体；运行服务和原生调用不得进入公共模型。
+            var text=File.ReadAllText(file).Replace("global::HybridMount.Services.Localization.UILanguageService.","",StringComparison.Ordinal).Replace("global::HybridMount.Services.Localization.ResourceMessage.","",StringComparison.Ordinal);Assert.DoesNotContain("HybridMount.Services.",text);Assert.DoesNotContain("DllImport(",text);Assert.DoesNotContain("LibraryImport(",text);
         }
         var services=Path.Combine(root,"HybridMount","Services","Mounting");
         foreach(var file in Directory.EnumerateFiles(services,"*.cs",SearchOption.TopDirectoryOnly))

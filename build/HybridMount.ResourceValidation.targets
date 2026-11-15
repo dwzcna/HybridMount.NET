@@ -7,6 +7,6 @@
     </Task>
   </UsingTask>
   <Target Name="ValidateHybridMountResources">
-    <HybridMountValidateResources RepositoryRoot="$(MSBuildThisFileDirectory).." PriDumpPath="$(LocalizationPriDump)" MuiRoot="$(LocalizationMuiRoot)" Platform="$(Platform)"/>
+    <HybridMountValidateResources RepositoryRoot="$(MSBuildThisFileDirectory).." PriDumpPath="$(LocalizationPriDump)" MuiRoot="$(LocalizationMuiRoot)" ManagedDumpPath="$(LocalizationManagedDump)" Platform="$(Platform)"/>
   </Target>
 </Project>

@@ -7,7 +7,7 @@ namespace HybridMount.Tests;
 /// <summary>从任务页入口验证真实CFAPI取消和释放；所有文件、管道及注册均来自测试隔离根。</summary>
 public sealed class FileOperationFeedbackTests
 {
-    private sealed class InlineDispatcher:IUiDispatcher {public bool TryEnqueue(Action action){action();return true;}}
+    private sealed class InlineDispatcher:IUIDispatcher {public bool TryEnqueue(Action action){action();return true;}}
     [DllImport("CldApi.dll",EntryPoint="CfSetPinState")]private static extern int SetNativePin(SafeFileHandle file,uint state,uint flags,nint overlap);
     private static void Pin(string path,uint state)
     {using var file=CloudFilesNative.CreateFile(path,0x180,7,0,3,0x02200000,0);Assert.False(file.IsInvalid);CloudFilesNative.Check(SetNativePin(file,state,0,0));}

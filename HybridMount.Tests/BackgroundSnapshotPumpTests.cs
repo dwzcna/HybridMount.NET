@@ -5,7 +5,7 @@ namespace HybridMount.Tests;
 /// <summary>只用可控屏障验证后台读取与Dispatcher发布；不运行WinUI或访问配置。</summary>
 public sealed class BackgroundSnapshotPumpTests
 {
-    private sealed class Dispatcher:IUiDispatcher
+    private sealed class Dispatcher:IUIDispatcher
     {
         internal readonly ConcurrentQueue<Action> Pending=new();
         public bool TryEnqueue(Action callback){Pending.Enqueue(callback);return true;}

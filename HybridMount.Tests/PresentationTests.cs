@@ -28,7 +28,7 @@ public sealed class PresentationTests
     }
     private static MountSnapshot Mount(bool connected=false,bool connecting=false,bool pending=false)=>new(
         new(Guid.NewGuid(),"挂载",@"D:\test",Source:new(FileSourceKind.WebDav,"https://example.test/dav/"),RemovalPending:pending),
-        connecting?"连接中":connected?"已连接":"未连接","",IsConnected:connected,IsConnecting:connecting);
+        connecting?"ConnectionInProgress":connected?"Connected":"NotConnected","",IsConnected:connected,IsConnecting:connecting);
     [Fact]
     public void Connection_cancel_is_available_while_same_mount_is_busy()
     {
@@ -51,8 +51,8 @@ public sealed class PresentationTests
     {
         var a=Mount();var b=Mount();var list=new ObservableCollection<MountSnapshot>{a,b};var resets=0;
         list.CollectionChanged+=(_,args)=>{if(args.Action==System.Collections.Specialized.NotifyCollectionChangedAction.Reset)resets++;};
-        SnapshotCollections.Reconcile(list,new[]{a,b with{Status="已连接"}},x=>x.Definition.Id);
-        Assert.Same(a,list[0]);Assert.Equal("已连接",list[1].Status);Assert.Equal(0,resets);
+        SnapshotCollections.Reconcile(list,new[]{a,b with{Status="Connected"}},x=>x.Definition.Id);
+        Assert.Same(a,list[0]);Assert.Equal("Connected",list[1].Status);Assert.Equal(0,resets);
         SnapshotCollections.Reconcile(list,new[]{b,a},x=>x.Definition.Id);Assert.Equal(b.Definition.Id,list[0].Definition.Id);Assert.Equal(0,resets);
     }
 }

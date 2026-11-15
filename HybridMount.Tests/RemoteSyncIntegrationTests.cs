@@ -122,7 +122,7 @@ public sealed class RemoteSyncIntegrationTests
         test.Dav.Server.Handler=async request=>{var result=await original(request);if(request.Method=="PROPFIND"&&request.Headers.GetValueOrDefault("Depth")=="1")return result with{BeforeBody=new TaskCompletionSource().Task,HeadersSent=entered};return result;};
         var job=test.Manager.Queue(test.Id,"refresh");await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var started=DateTimeOffset.UtcNow;await Task.WhenAll(test.Manager.DisconnectAsync(test.Id),test.Manager.DisconnectAsync(test.Id));Assert.True(DateTimeOffset.UtcNow-started<TimeSpan.FromSeconds(5));
-        Assert.Equal("未连接",test.Manager.Mounts.Single().Status);Assert.Equal("Canceled",(await WebDavTests.Finished(test.Manager,job)).State);
+        Assert.Equal("NotConnected",test.Manager.Mounts.Single().Status);Assert.Equal("Canceled",(await WebDavTests.Finished(test.Manager,job)).State);
         Assert.DoesNotContain(await test.Logger.ReadAsync(),x=>x.Severity=="Error");
     }
 }

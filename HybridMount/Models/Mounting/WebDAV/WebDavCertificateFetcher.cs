@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -11,7 +11,7 @@ internal static class WebDavCertificateFetcher
     internal static async Task<WebDavCertificateInfo> FetchCertificateAsync(string address,CancellationToken token,TimeSpan? timeout=null)
     {
         var endpoint=FileSourceFactory.Endpoint(new(FileSourceKind.WebDav,address));
-        if(endpoint.Scheme!="https")throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("CertificateFetchHttpsRequired"));
+        if(endpoint.Scheme!="https")throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateFetchHttpsRequired", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(timeout??TimeSpan.FromSeconds(15));
         var trace=new WebDavConnectionTrace();var connector=new WebDavTcpConnector();WebDavCertificateInfo? captured=null;
         using var handler=new SocketsHttpHandler
@@ -48,10 +48,10 @@ internal static class WebDavCertificateFetcher
             if(captured is not null&&!deadline.IsCancellationRequested)return captured;
             var failure=WebDavNetworkDiagnostics.Failure(error,"TLS certificate fetch",timeout:deadline.IsCancellationRequested);
             var diagnostic=failure.Diagnostic with{TransportStages=trace.Snapshot};
-            if(trace.Started&&!trace.TcpConnected)diagnostic=diagnostic with{Explanation=diagnostic.Explanation+" "+global::HybridMount.Services.Localization.UiText.Text("WebDavBeforeCertificate")};
+            if(trace.Started&&!trace.TcpConnected)diagnostic=diagnostic with{Explanation=diagnostic.Explanation+" "+global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDavBeforeCertificate", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!};
             throw new SourceConnectionException(diagnostic);
         }
         deadline.Token.ThrowIfCancellationRequested();
-        return captured??throw new IOException(global::HybridMount.Services.Localization.UiText.Text("CertificateFetchUnavailable"));
+        return captured??throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateFetchUnavailable", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
     }
 }

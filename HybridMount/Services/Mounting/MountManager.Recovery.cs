@@ -21,10 +21,10 @@ public sealed partial class MountManager
         CancellationToken token, Action<int, int, string>? progress = null)
     {
         var captured = selected.DistinctBy(x => x.Key).ToArray();
-        if (captured.Length == 0 || captured.Any(x => !x.CanRemove)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError50"));
+        if (captured.Length == 0 || captured.Any(x => !x.CanRemove)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError50", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return OwnAsync<IReadOnlyList<ExplorerEntryResult>>(async cancel =>
         {
-            if (Interlocked.CompareExchange(ref _recoveryBatchRunning, 1, 0) != 0) throw new IOException(global::HybridMount.Services.Localization.UiText.Legacy("已有一批遗留挂载正在处理。"));
+            if (Interlocked.CompareExchange(ref _recoveryBatchRunning, 1, 0) != 0) throw new IOException(("已有一批遗留挂载正在处理。" ?? ""));
             var results = new List<ExplorerEntryResult>();
             var refreshNeeded = false;
             try
@@ -43,7 +43,7 @@ public sealed partial class MountManager
                         }
                         finally { _configurationGate.Release(); }
                     }
-                    catch (OperationCanceledException) when (cancel.IsCancellationRequested) { results.Add(new(entry, false, "Canceled", global::HybridMount.Services.Localization.UiText.Legacy("已取消"))); }
+                    catch (OperationCanceledException) when (cancel.IsCancellationRequested) { results.Add(new(entry, false, "Canceled", ("已取消" ?? ""))); }
                     catch (Exception error) { results.Add(new(entry, false, "Failed", error.Message, OrphanedMountBatch.Code(error))); }
                 }
                 return results;

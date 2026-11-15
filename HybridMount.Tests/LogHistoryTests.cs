@@ -14,7 +14,7 @@ public sealed class LogHistoryTests
         internal string Path=>System.IO.Path.Combine(DirectoryPath,"logs.db");
         public ValueTask DisposeAsync(){if(Directory.Exists(DirectoryPath))Directory.Delete(DirectoryPath,true);return ValueTask.CompletedTask;}
     }
-    private sealed class Dispatcher:IUiDispatcher
+    private sealed class Dispatcher:IUIDispatcher
     {
         private readonly ConcurrentQueue<Action> _pending=new();
         public bool TryEnqueue(Action action){_pending.Enqueue(action);return true;}

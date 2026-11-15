@@ -26,7 +26,7 @@ public sealed class SqsMountIntegrationTests
         Assert.DoesNotContain(host.Fixture.Server.Requests.Skip(before),x=>x.Target.Contains("list-type=")||x.Method is "PUT" or "POST");
         var status=host.Manager.Mounts.Single().Detection!;Assert.NotNull(status.LastEventUtc);Assert.Equal(0,status.PendingHints);
         var start=DateTimeOffset.UtcNow;await host.Manager.DisconnectAsync(host.Id);Assert.True(DateTimeOffset.UtcNow-start<TimeSpan.FromSeconds(5));Assert.Equal(1,queue.Disposals);
-        Assert.Equal("未连接",host.Manager.Mounts.Single().Status);
+        Assert.Equal("NotConnected",host.Manager.Mounts.Single().Status);
     }
     [Fact(Timeout=30000)]
     public async Task ReadOnlyQueueTestDoesNotReceiveDeleteRegisterOrSaveConfiguration()
@@ -42,7 +42,7 @@ public sealed class SqsMountIntegrationTests
     {
         await using var host=await Host.Create();var queue=new DeniedQueue();host.Manager.SqsClientForTests=(_,_,_)=>queue;
         await host.Manager.SetSqsConfigurationAsync(host.Id,SqsEventTests.Queue);await Until(()=>host.Manager.Mounts.Single().Detection?.QueueError is not null);
-        Assert.Equal("已连接",host.Manager.Mounts.Single().Status);host.Fixture.Put("remote/new.txt",[8]);
+        Assert.Equal("Connected",host.Manager.Mounts.Single().Status);host.Fixture.Put("remote/new.txt",[8]);
         var refreshed=await WebDavTests.Finished(host.Manager,host.Manager.Queue(host.Id,"refresh"));Assert.True(refreshed.State=="Completed",refreshed.Error);
         Assert.Equal(new byte[]{8},await File.ReadAllBytesAsync(Path.Combine(host.Local,"new.txt")));Assert.NotNull(host.Manager.Mounts.Single().Detection!.QueueError);
     }

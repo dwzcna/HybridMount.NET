@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
@@ -10,6 +10,7 @@
 		<ApplicationIcon>Assets\HybridMount.ico</ApplicationIcon>
 		<UseWinUI>true</UseWinUI>
         <DefaultLanguage>zh-CN</DefaultLanguage>
+        <NeutralLanguage>zh-CN</NeutralLanguage>
 		<DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 		<WinUISDKReferences>false</WinUISDKReferences>
 		<EnableMsixTooling>true</EnableMsixTooling>
@@ -25,8 +26,8 @@
 	</PropertyGroup>
 	<Import Project="..\build\HybridMount.Packaging.targets" />
     <Import Project="..\build\HybridMount.ResourceValidation.targets" />
-    <Target Name="CheckUiLocalization" BeforeTargets="BeforeBuild" DependsOnTargets="ValidateHybridMountResources" Condition="'$(DesignTimeBuild)' != 'true'" />
-    <ItemGroup><EmbeddedResource Include="Resources\UiCatalog.json" LogicalName="HybridMount.Resources.UiCatalog.json" /></ItemGroup>
+    <Target Name="CheckUILocalization" BeforeTargets="BeforeBuild" DependsOnTargets="ValidateHybridMountResources" Condition="'$(DesignTimeBuild)' != 'true'" />
+    <ItemGroup><EmbeddedResource Update="Resources\Messages*.resx"><Generator></Generator></EmbeddedResource></ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.WindowsAppSDK" />
 		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" />

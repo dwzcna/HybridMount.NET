@@ -1,4 +1,4 @@
-﻿# 检查实际交付包，不把成功编译当作打包内容正确的证据。
+# 检查实际交付包，不把成功编译当作打包内容正确的证据。
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails')
 $ErrorActionPreference = 'Stop'
@@ -47,10 +47,56 @@ try {
         [IO.File]::WriteAllBytes((Join-Path $resourceWork $name),(Read-Bytes $name))
     }
     [IO.File]::WriteAllBytes((Join-Path $resourceWork 'HybridMount.Ext.resources.dll'),(Read-Bytes 'HybridMount.Ext.resources.dll'))
+    # 从托管 PE 的资源目录读取标准 .resources；不加载程序集，不执行目标架构代码。
+    function Read-ManagedStrings([string]$imagePath,[string]$resourceName,[string]$culture,[string]$assemblyName) {
+        $imageStream=[IO.File]::OpenRead($imagePath)
+        $pe=[System.Reflection.PortableExecutable.PEReader]::new($imageStream)
+        try {
+            $metadata=[System.Reflection.Metadata.PEReaderExtensions]::GetMetadataReader($pe)
+            $identity=$metadata.GetAssemblyDefinition()
+            if($metadata.GetString($identity.Name) -ne $assemblyName -or $metadata.GetString($identity.Culture) -ne $culture){throw "托管语言资源身份不正确：$culture"}
+            $matches=@($metadata.ManifestResources | Where-Object {$metadata.GetString($metadata.GetManifestResource($_).Name) -eq $resourceName})
+            if($matches.Count -ne 1){throw "托管资源缺失或重复：$resourceName"}
+            $resource=$metadata.GetManifestResource($matches[0])
+            if(-not $resource.Implementation.IsNil){throw "托管资源不是内嵌数据：$resourceName"}
+            $address=$pe.PEHeaders.CorHeader.ResourcesDirectory.RelativeVirtualAddress+[int]$resource.Offset
+            $reader=$pe.GetSectionData($address).GetReader();$length=$reader.ReadInt32()
+            if($length -lt 0 -or $length -gt 16MB){throw '托管资源长度超限。'}
+            $payload=$reader.ReadBytes($length);$buffer=[IO.MemoryStream]::new($payload,$false)
+            $strings=[System.Resources.ResourceReader]::new($buffer)
+            try {
+                $values=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+                $items=$strings.GetEnumerator()
+                while($items.MoveNext()) {
+                    if($items.Key -isnot [string] -or $items.Value -isnot [string]){throw '托管文案必须为字符串。'}
+                    $values.Add([string]$items.Key,[string]$items.Value)
+                }
+                return ,$values
+            } finally {$strings.Dispose();$buffer.Dispose()}
+        } finally {$pe.Dispose();$imageStream.Dispose()}
+    }
+    $managedDump=[Xml.XmlDocument]::new();$managedRoot=$managedDump.CreateElement('managed');[void]$managedDump.AppendChild($managedRoot)
+    foreach($language in @('zh-CN','en-US','zh-HK')) {
+        $imageName=if($language -eq 'zh-CN'){'HybridMount.dll'}else{"$language/HybridMount.resources.dll"}
+        if(-not $entries.ContainsKey($imageName)){throw "缺少标准C#语言卫星：$imageName"}
+        $imagePath=Join-Path $resourceWork $imageName
+        [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($imagePath))|Out-Null
+        [IO.File]::WriteAllBytes($imagePath,(Read-Bytes $imageName))
+        $culture=if($language -eq 'zh-CN'){''}else{$language}
+        $assemblyName=if($language -eq 'zh-CN'){'HybridMount'}else{'HybridMount.resources'}
+        $resourceName=if($language -eq 'zh-CN'){'HybridMount.Resources.Messages.resources'}else{"HybridMount.Resources.Messages.$language.resources"}
+        $values=Read-ManagedStrings $imagePath $resourceName $culture $assemblyName
+        $element=$managedDump.CreateElement('language');$element.SetAttribute('name',$language);[void]$managedRoot.AppendChild($element)
+        foreach($name in ($values.Keys | Sort-Object)) {
+            $item=$managedDump.CreateElement('data');$item.SetAttribute('name',$name);[void]$element.AppendChild($item)
+            $value=$managedDump.CreateElement('value');$value.InnerText=$values[$name];[void]$item.AppendChild($value)
+        }
+    }
+    $managedXml=Join-Path $resourceWork 'managed-resources.xml';$managedDump.Save($managedXml)
     # 复用MSBuild中的资源任务与已有PRI转储，不再调用独立语言校验脚本。
     $resourceMsbuild=& (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe') -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
     if(-not $resourceMsbuild){throw '需要Visual Studio MSBuild进行资源契约检查。'}
-    & $resourceMsbuild (Join-Path $PSScriptRoot 'HybridMount.ResourceValidation.proj') /nologo /v:minimal "/p:LocalizationPriDump=$resourceXml" "/p:LocalizationMuiRoot=$resourceWork" "/p:Platform=$Platform"
+    & $resourceMsbuild (Join-Path $PSScriptRoot 'HybridMount.ResourceValidation.proj') /nologo /v:minimal "/p:LocalizationPriDump=$resourceXml" "/p:LocalizationMuiRoot=$resourceWork" "/p:LocalizationManagedDump=$managedXml" "/p:Platform=$Platform"
     if($LASTEXITCODE -ne 0){throw '包内三语言资源校验失败。'}
     # 主入口显式保留打包桌面运行环境；隐藏维护入口使用真实注册视图的win32App／mediumIL组合。
     $apps=$manifest.SelectNodes("//*[local-name()='Applications']/*[local-name()='Application']")

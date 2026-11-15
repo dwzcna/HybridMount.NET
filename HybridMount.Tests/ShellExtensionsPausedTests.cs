@@ -56,6 +56,6 @@ public sealed class ShellExtensionsPausedTests
         // GetCurrentSyncRoots受身份过滤；真实原生菜单由独立MSIX场景核验，不把不可枚举当作注册失败。
         var after=CloudRootPolicy.Read(mount.LocalPath);Assert.Equal(before.FileId,after.FileId);Assert.Equal(before.Identity,after.Identity);Assert.Equal(before.Hydration,after.Hydration);Assert.Equal(gets,test.Dav.Server.Requests.Count);
     }
-    private sealed class InlineDispatcher:IUiDispatcher
+    private sealed class InlineDispatcher:IUIDispatcher
     {public bool TryEnqueue(Action action){action();return true;}}
 }

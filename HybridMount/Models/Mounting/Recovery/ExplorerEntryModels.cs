@@ -22,9 +22,9 @@ internal sealed record ExplorerEntryCandidate(ExplorerEntryKey Key, string Name,
     string? Error = null, int? HResult = null)
 {
     public bool CanRemove => Error is null && LocalPath is not null && Evidence is not null;
-    public string Display => Name + "\n" + (LocalPath ?? UiText.Text("ExplorerEntryNoPath")) + "\n" +
-        UiText.Text(Key.Mode == "Packaged" ? "RecoveryModePackaged" : "RecoveryModeUnpackaged") + " · " +
-        (Error ?? UiText.Text("ExplorerEntryReady")) + "\n" + Key.SyncRootId + "\n" + Key.NamespaceId;
+    public string Display => Name + "\n" + (LocalPath ?? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerEntryNoPath", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!) + "\n" +
+        global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(Key.Mode == "Packaged" ? "RecoveryModePackaged" : "RecoveryModeUnpackaged", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! + " · " +
+        (Error ?? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerEntryReady", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!) + "\n" + Key.SyncRootId + "\n" + Key.NamespaceId;
 }
 
 /// <summary>独立恢复记录保留两视图备份和逐入口阶段；不改变业务数据库。</summary>
@@ -34,6 +34,6 @@ internal sealed record ExplorerEntryResult(ExplorerEntryCandidate Entry, bool Co
     string? Error = null, int? HResult = null)
 {
     public string Display => Entry.Name + "\n" + Entry.LocalPath + "\n" +
-        (Completed ? UiText.Text("ExplorerEntryRemoved") : Error ?? UiText.Text("ExplorerEntryNotStarted")) +
+        (Completed ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerEntryRemoved", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : Error ?? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerEntryNotStarted", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!) +
         (HResult is {} code ? $" · 0x{code:X8}" : "");
 }

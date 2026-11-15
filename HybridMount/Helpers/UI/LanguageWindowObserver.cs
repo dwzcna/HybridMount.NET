@@ -6,9 +6,9 @@ namespace HybridMount.Helpers.UI;
 /// <summary>监听真实Windows设置通知并在窗口激活时复核系统语言；不重建页面，关闭前先注销原生回调。</summary>
 internal sealed class LanguageWindowObserver:IDisposable
 {
-    private readonly Window _window;private readonly UiLanguageService _service;private readonly nint _handle;private readonly Subclass _callback;private int _disposed;
+    private readonly Window _window;private readonly UILanguageService _service;private readonly nint _handle;private readonly Subclass _callback;private int _disposed;
     private const nuint Id=0x484D0068;
-    internal LanguageWindowObserver(Window window,UiLanguageService service)
+    internal LanguageWindowObserver(Window window,UILanguageService service)
     {
         _window=window;_service=service;_handle=WinRT.Interop.WindowNative.GetWindowHandle(window);_callback=Message;
         if(!SetWindowSubclass(_handle,_callback,Id,0))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());window.Activated+=Activated;

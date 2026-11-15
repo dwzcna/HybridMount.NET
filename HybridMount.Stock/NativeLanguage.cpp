@@ -42,7 +42,7 @@ std::wstring MapName(){
     BCRYPT_ALG_HANDLE algorithm{};if(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0)return {};
     BYTE hash[32]{};const auto status=BCryptHash(algorithm,nullptr,0,reinterpret_cast<PUCHAR>(utf8.data()),static_cast<ULONG>(utf8.size()),hash,sizeof(hash));BCryptCloseAlgorithmProvider(algorithm,0);if(status<0)return {};
     std::wstring hex;constexpr wchar_t digits[]=L"0123456789ABCDEF";for(auto b:hash){hex+=digits[b>>4];hex+=digits[b&15];}
-    return L"Local\\HybridMount.UiLanguage.v1."+std::to_wstring(session)+L"."+identity+L"."+hex;
+    return L"Local\\HybridMount.UILanguage.v2."+std::to_wstring(session)+L"."+identity+L"."+hex;
 }
 /// <summary>双读提交代次，拒绝部分写入或未知版本；system模式由Windows缓存决定。</summary>
 bool Read(const std::shared_ptr<Mapping>& map,unsigned& value,bool& system)noexcept{
@@ -76,7 +76,7 @@ DWORD WINAPI Refresh(void* parameter){
         auto map=Shared.load();if(!map){const auto name=MapName();if(!name.empty()){auto next=std::make_shared<Mapping>();next->Handle=OpenFileMappingW(FILE_MAP_READ,FALSE,name.c_str());if(next->Handle){next->View=static_cast<const volatile ULONG*>(MapViewOfFile(next->Handle,FILE_MAP_READ,0,0,64));if(next->View){Shared.store(next);map=next;}}}}
         unsigned language{};bool system{};
         if(!Read(map,language,system)||system){wchar_t choice[64]{};DWORD bytes=sizeof(choice);const auto path=L"Software\\HybridMount.NET\\"+hm::DeploymentScope();
-            if(RegGetValueW(HKEY_CURRENT_USER,path.c_str(),L"UiLanguage",RRF_RT_REG_SZ,nullptr,choice,&bytes)==ERROR_SUCCESS&&_wcsicmp(choice,L"en-US")==0)language=0x0409;
+            if(RegGetValueW(HKEY_CURRENT_USER,path.c_str(),L"UILanguage",RRF_RT_REG_SZ,nullptr,choice,&bytes)==ERROR_SUCCESS&&_wcsicmp(choice,L"en-US")==0)language=0x0409;
             else if(_wcsicmp(choice,L"zh-HK")==0)language=0x0c04;else if(_wcsicmp(choice,L"zh-CN")==0)language=0x0804;else language=SystemLanguage();
         }Language.store(language,std::memory_order_release);
     }catch(...){/* 仅展示缓存失败，保留上次有效语言。 */}

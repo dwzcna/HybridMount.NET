@@ -14,22 +14,24 @@ public sealed class MountBackupRow : ObservableObject
         get
         {
             var source = Configuration.Source;
-            var address = Uri.TryCreate(source.Endpoint, UriKind.Absolute, out var uri) && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0 ? source.Endpoint : global::HybridMount.Services.Localization.UiText.Text("Text_5CC09FEC5D5D");
+            var address = Uri.TryCreate(source.Endpoint, UriKind.Absolute, out var uri) && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0 ? source.Endpoint : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("InvalidAddress", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
             return source.Kind switch
             {
-                FileSourceKind.S3=>global::HybridMount.Services.Localization.UiText.Text("Text_AC3FFDC297B7",address,source.Bucket,source.Prefix),
-                FileSourceKind.Synology=>global::HybridMount.Services.Localization.UiText.Text("Text_6A4F3B622778",address,source.Prefix),
-                _=>$"{source.Kind}：{address}"
+                FileSourceKind.S3 => string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("S3BucketPrefix", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, address, source.Bucket, source.Prefix),
+                FileSourceKind.Synology => string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SynologyNASRemoteRoot", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, address, source.Prefix),
+                _ => $"{source.Kind}：{address}"
             };
         }
     }
-    public string OptionsDisplay => global::HybridMount.Services.Localization.UiText.Text("Text_54D9C129C871",(Configuration.AutoConnect ? global::HybridMount.Services.Localization.UiText.Text("Text_B5141D3D19E9") : global::HybridMount.Services.Localization.UiText.Text("Text_0C70665B6EB6")),(Configuration.ThumbnailsEnabled ? global::HybridMount.Services.Localization.UiText.Text("Text_8DA97DDDA990") : global::HybridMount.Services.Localization.UiText.Text("Text_3FD47EDCE45B")),(Configuration.Source.Kind == FileSourceKind.S3 && Configuration.Source.UseDefaultCredentials ? global::HybridMount.Services.Localization.UiText.Text("Text_5F03A03C17D2") : ""));
+    public string OptionsDisplay => string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ConnectAtApplicationStartupThumbnails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, (Configuration.AutoConnect ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Yes", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BooleanNo", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!), (Configuration.ThumbnailsEnabled ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SwitchOn", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Close", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!), (Configuration.Source.Kind == FileSourceKind.S3 && Configuration.Source.UseDefaultCredentials ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("UseTheDestinationMachineSDefaultSDKCredentialChain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : ""));
     public bool IsImporting { get; }
     public bool Selected { get => _selected; set => SetProperty(ref _selected, value); }
     public bool CanSelect { get => _canSelect; set => SetProperty(ref _canSelect, value); }
     public string LocalPath { get => _localPath; set => SetProperty(ref _localPath, value); }
-    public string StatusDisplay=>global::HybridMount.Services.Localization.UiText.Legacy(_status);
-    public string Status { get => _status; set => SetProperty(ref _status, value); }
+    private global::HybridMount.Services.Localization.ResourceMessage? _statusMessage;
+    public string StatusDisplay => _statusMessage?.Render() ?? _status;
+    public void SetStatus(global::HybridMount.Services.Localization.ResourceMessage message) { _statusMessage = message; SetProperty(ref _status, message.Render(), nameof(Status)); OnPropertyChanged(nameof(StatusDisplay)); }
+    public string Status { get => _status; set { _statusMessage = null; SetProperty(ref _status, value); OnPropertyChanged(nameof(StatusDisplay)); } }
     public MountBackupRow(MountBackupItem configuration, bool importing, Guid? id = null)
     { Configuration = configuration; ExistingId = id; _localPath = configuration.LocalPath; IsImporting = importing; }
 }

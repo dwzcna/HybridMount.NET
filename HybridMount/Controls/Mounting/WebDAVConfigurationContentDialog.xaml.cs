@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting;
 using HybridMount.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -30,12 +30,12 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     /// <summary>只加载一次连接草稿；后续刷新仅更新已保存设置，不覆盖正在编辑的账号或地址。</summary>
     public WebDAVConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,bool httpsOnly=false)
     {
-        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>{Bindings.Update();UpdateCertificatePresentation();});_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();UpdateCertificatePresentation();});_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
         _httpsOnly=httpsOnly||existing?.Source?.PinnedCertificateSha256 is not null;
         try
         {
-            NameField.Text=existing?.Name??(_httpsOnly?global::HybridMount.Services.Localization.UiText.Text("Text_E0105248342F"):global::HybridMount.Services.Localization.UiText.Text("Text_60A9B09E1708"));
-            EndpointField.PlaceholderText=_httpsOnly?global::HybridMount.Services.Localization.UiText.Text("Text_929769415F7E"):"https://dav.example.com/dav/";
+            NameField.Text=existing?.Name??(_httpsOnly?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDAVHTTPSMount", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+            global::HybridMount.Helpers.UI.UserInterface.Set(EndpointField, "PlaceholderText", _httpsOnly ? global::HybridMount.Services.Localization.ResourceMessage.Create("HttpsNasExampleCom5006SharedFolder") : global::HybridMount.Services.Localization.ResourceMessage.Raw("https://dav.example.com/dav/"));
             HttpsFields.Visibility=_httpsOnly?Visibility.Visible:Visibility.Collapsed;
             HttpField.Visibility=_httpsOnly?Visibility.Collapsed:Visibility.Visible;
             if(existing is not null)
@@ -56,11 +56,11 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             if(existing is null){RemoteAuto.IsOn=true;IncrementalField.Value=60;FullField.Value=300;CapacityUnit.SelectedIndex=0;}
             ExclusionList.ItemsSource=model.ExclusionDraft(existing?.Id,_kind);
             SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
-            global::HybridMount.Helpers.UI.Ui.Set(this,"Title",global::HybridMount.Services.Localization.UiText.Message("Text_8391DA809DD9",(existing is null?global::HybridMount.Services.Localization.UiText.Text("Text_D80DA62D3B0A"):global::HybridMount.Services.Localization.UiText.Text("Text_5214E0BC5DCE")),(existing?.Name??(_httpsOnly?"WebDAV(HTTPS)":global::HybridMount.Services.Localization.UiText.Text("Text_60A9B09E1708")))));
-            PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
+            global::HybridMount.Helpers.UI.UserInterface.Set(this,"Title",global::HybridMount.Services.Localization.ResourceMessage.Create("JoinedText", existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("New") : global::HybridMount.Services.Localization.ResourceMessage.Create("SettingsDetails"), (existing?.Name??(_httpsOnly?"WebDAV(HTTPS)":global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!))));
+            global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("CreateAndConnect") : global::HybridMount.Services.Localization.ResourceMessage.Create("SaveConnectionAndReconnect"));global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("TestConnection"));global::HybridMount.Helpers.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Close"));
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
-            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.WebDav, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null);_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()),()=>ValidateFields(false),Refresh,message=>{ErrorBar.Message=message;ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdateHttpWarning();
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.WebDav, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null);_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials()),()=>ValidateFields(false),Refresh,message=>{global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", message);ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdateHttpWarning();
             if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
@@ -74,7 +74,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             var editable=await _model.CanEditRemoteRootAsync(id).ConfigureAwait(false);
             dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;HttpField.IsEnabled=editable;});
         }
-        catch(Exception error){dispatcher.TryEnqueue(()=>{if(Stopped)return;ErrorBar.Message=error.Message;ErrorBar.IsOpen=true;});}
+        catch(Exception error){dispatcher.TryEnqueue(()=>{if(Stopped)return;global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;});}
     }
     private void Refresh()
     {
@@ -127,7 +127,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private MountCreationOptions CreationOptions()
     {
         var incremental=IncrementalField.Value;var full=FullField.Value;
-        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_BCC223CCC272"));
+        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("DetectionIntervalsMustBeValidWholeNumbersOfSeconds", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,checked((int)incremental),checked((int)full),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB"));
     }
     private async void ChooseFolder(object sender,RoutedEventArgs args)
@@ -138,7 +138,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
             var folder=await picker.PickSingleFolderAsync();if(!Stopped&&folder is not null)PathField.Text=folder.Path;
         }
-        catch(Exception error){if(!Stopped){ErrorBar.Message=error.Message;ErrorBar.IsOpen=true;}}
+        catch(Exception error){if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;}}
         finally{_picking=false;if(!Stopped)Refresh();}
     }
     /// <summary>只读测试由应用拥有；关闭只取消，证书结果必须对应本次草稿及代次。</summary>
@@ -148,7 +148,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(Stopped)return;
         if(_testing is {} testing)
         {
-            SecondaryButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_0ADDD7784578");
+            global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Canceling"));
             IsSecondaryButtonEnabled=false;testing.Cancel();return;
         }
         if(!_submitting&&!_picking&&_fetching is null)await ProbeConnectionAsync();
@@ -158,9 +158,9 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(Stopped||_fetching is not null||!ValidateFields(false))return;
         using var cancel=new CancellationTokenSource();_testing=cancel;
         var identity=CertificateIdentity();_certificateTrust.Begin(identity);CertificateWarning.IsOpen=false;
-        Refresh();SecondaryButtonText=global::HybridMount.Services.Localization.UiText.Text("Text_49BE72E6045C");
+        Refresh();global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("CancelTest"));
         ErrorBar.IsOpen=false;ProbeBar.Severity=InfoBarSeverity.Informational;
-        ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");ProbeBar.IsOpen=true;
+        global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("RunningReadOnlyProbes"));ProbeBar.IsOpen=true;
         try
         {
             _capabilityBinding?.BeginTest();
@@ -170,20 +170,20 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
                 _capabilityBinding?.CompleteTest(result.Capabilities);
                 _certificateTrust.Offer(CertificateIdentity(),result.Certificate);UpdateCertificatePresentation();
                 CertificateWarning.IsOpen=_certificateTrust.Candidate is not null;
-                ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;ProbeBar.Message=result.Message;
+                ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", result.Message);
             }
         }
         catch(OperationCanceledException)
         {
             _certificateTrust.Invalidate();_capabilityBinding?.CancelTest();
-            if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");}
+            if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("TheConnectionTestWasCanceled"));}
         }
         catch(Exception)
         {
             _certificateTrust.Invalidate();
-            if(!Stopped){_capabilityBinding?.CompleteTest(null);ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_F96BBA110AEF");}
+            if(!Stopped){_capabilityBinding?.CompleteTest(null);ProbeBar.Severity=InfoBarSeverity.Error;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("ConnectionTestFailedCheckTheConfigurationNetworkAndCredentialSource"));}
         }
-        finally{_testing=null;if(!Stopped){SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
+        finally{_testing=null;if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("TestConnection"));Refresh();}}
     }
     private string CertificateIdentity() => ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials());
     /// <summary>成功直接填框，不添加确认步骤；任何输入变化或关闭均拒绝迟到结果，失败保持原输入。</summary>
@@ -192,21 +192,21 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
         if(Stopped||_fetching is not null||_testing is not null||_submitting||_picking)return;
         var address=EndpointField.Text.Trim();
         _fieldFeedback.Begin();
-        try{var endpoint=FileSourceFactory.Endpoint(new(FileSourceKind.WebDav,address));_fieldFeedback.Check(endpoint.Scheme=="https",EndpointField,global::HybridMount.Services.Localization.UiText.Text("CertificateFetchHttpsRequired"));}
+        try{var endpoint=FileSourceFactory.Endpoint(new(FileSourceKind.WebDav,address));_fieldFeedback.Check(endpoint.Scheme=="https",EndpointField,global::HybridMount.Services.Localization.ResourceMessage.Create("CertificateFetchHttpsRequired"));}
         catch(ArgumentException error){_fieldFeedback.Check(false,EndpointField,error.Message);}
         if(!_fieldFeedback.Complete(this))return;
         using var cancel=new CancellationTokenSource();_fetching=cancel;var revision=_certificateFetchRevision;
-        Refresh();ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchRunning");ProbeBar.IsOpen=true;
+        Refresh();ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("CertificateFetchRunning"));ProbeBar.IsOpen=true;
         try
         {
             var certificate=await _model.FetchCertificateAsync(address,cancel.Token);
             if(Stopped||cancel.IsCancellationRequested||revision!=_certificateFetchRevision||address!=EndpointField.Text.Trim())return;
             CertificatePinField.Text=certificate.Sha256;_fetchedCertificate=certificate;
             _capabilityBinding?.Refresh();UpdateCertificatePresentation();
-            ProbeBar.Severity=InfoBarSeverity.Success;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchSucceeded");
+            ProbeBar.Severity=InfoBarSeverity.Success;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("CertificateFetchSucceeded"));
         }
-        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchCanceled");}}
-        catch(Exception error){if(!Stopped&&revision==_certificateFetchRevision){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=error.Message;}}
+        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("CertificateFetchCanceled"));}}
+        catch(Exception error){if(!Stopped&&revision==_certificateFetchRevision){ProbeBar.Severity=InfoBarSeverity.Error;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", error.Message);}}
         finally{_fetching=null;if(!Stopped)Refresh();}
     }
     private async void TrustCertificate(object sender,RoutedEventArgs args)
@@ -227,25 +227,23 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     {
         var https=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme=="https";
         HttpsFields.Visibility=https?Visibility.Visible:Visibility.Collapsed;
-        ClearCertificateTrustLabel.Text=global::HybridMount.Services.Localization.UiText.Text("CertificateClearTrust");
+        ClearCertificateTrustLabel.Text=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateClearTrust", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
         ClearCertificateTrustButton.IsEnabled=!string.IsNullOrWhiteSpace(CertificatePinField.Text)&&_testing is null&&_fetching is null&&!_submitting;
-        TrustCertificateButton.Content=global::HybridMount.Services.Localization.UiText.Text("CertificateTrustAndRetry");
+        TrustCertificateButton.Content=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateTrustAndRetry", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
         TrustCertificateButton.IsEnabled=_certificateTrust.Candidate is not null&&_testing is null&&_fetching is null&&!_submitting;
-        FetchCertificateLabel.Text=global::HybridMount.Services.Localization.UiText.Text("CertificateFetchButton");
+        FetchCertificateLabel.Text=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateFetchButton", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
         FetchCertificateButton.IsEnabled=_probeBinding?.IsRunning!=true&&https&&_testing is null&&_fetching is null&&!_submitting&&!_picking;
         FetchedCertificateDetails.Visibility=_fetchedCertificate is null?Visibility.Collapsed:Visibility.Visible;
-        FetchedCertificateDetails.Text=_fetchedCertificate is {} fetched?global::HybridMount.Services.Localization.UiText.Text("CertificateDetails",fetched.Server,fetched.Subject,fetched.Issuer,
-            fetched.NotBeforeUtc.ToLocalTime().ToString("g"),fetched.NotAfterUtc.ToLocalTime().ToString("g"),fetched.Sha256):"";
+        FetchedCertificateDetails.Text=_fetchedCertificate is {} fetched?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, fetched.Server, fetched.Subject, fetched.Issuer,             fetched.NotBeforeUtc.ToLocalTime().ToString("g"), fetched.NotAfterUtc.ToLocalTime().ToString("g"), fetched.Sha256):"";
         if(_certificateTrust.Candidate is not {} certificate){CertificateWarning.IsOpen=false;return;}
         var reasons=new List<string>();var now=DateTimeOffset.UtcNow;
-        if(now>certificate.NotAfterUtc)reasons.Add(global::HybridMount.Services.Localization.UiText.Text("CertificateExpired"));
-        if(now<certificate.NotBeforeUtc)reasons.Add(global::HybridMount.Services.Localization.UiText.Text("CertificateNotYetValid"));
-        if((certificate.PolicyErrors&System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch)!=0)reasons.Add(global::HybridMount.Services.Localization.UiText.Text("CertificateNameMismatch"));
-        if((certificate.PolicyErrors&System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors)!=0)reasons.Add(global::HybridMount.Services.Localization.UiText.Text("CertificateChainUntrusted"));
-        CertificateWarning.Message=global::HybridMount.Services.Localization.UiText.Text("CertificateTrustWarning")+"\n"+string.Join("；",reasons)+"\n"+
-            global::HybridMount.Services.Localization.UiText.Text("CertificateDetails",certificate.Server,certificate.Subject,certificate.Issuer,
-                certificate.NotBeforeUtc.ToLocalTime().ToString("g"),certificate.NotAfterUtc.ToLocalTime().ToString("g"),certificate.Sha256)+"\n"+
-            global::HybridMount.Services.Localization.UiText.Text("CertificateTrustScope");
+        if(now>certificate.NotAfterUtc)reasons.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateExpired", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if(now<certificate.NotBeforeUtc)reasons.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateNotYetValid", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if((certificate.PolicyErrors&System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch)!=0)reasons.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateNameMismatch", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if((certificate.PolicyErrors&System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors)!=0)reasons.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateChainUntrusted", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        global::HybridMount.Helpers.UI.UserInterface.Set(CertificateWarning, "Message", global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateTrustWarning", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!+"\n"+string.Join("；",reasons)+"\n"+
+            string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, certificate.Server, certificate.Subject, certificate.Issuer,                 certificate.NotBeforeUtc.ToLocalTime().ToString("g"), certificate.NotAfterUtc.ToLocalTime().ToString("g"), certificate.Sha256)+"\n"+
+            global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CertificateTrustScope", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
     }
     private void InvalidateCertificateCandidate(){_certificateFetchRevision++;_fetchedCertificate=null;_certificateTrust.Invalidate();CertificateWarning.IsOpen=false;}
     private void CertificateInputChanging(TextBox sender,TextBoxBeforeTextChangingEventArgs args)
@@ -258,17 +256,17 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private bool ValidateFields(bool saving)
     {
         _fieldFeedback.Begin();
-        if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,UiTerms.NameRequired);_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,UiTerms.LocalDirectoryRequired);}
+        if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,global::HybridMount.Services.Localization.ResourceMessage.Create("MountNameRequired"));_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,global::HybridMount.Services.Localization.ResourceMessage.Create("LocalDirectoryRequired"));}
         var validAddress=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme is "https" or "http";
-        _fieldFeedback.Check(validAddress,EndpointField,UiTerms.ServerAddressRequired);
-        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_179CC0D74764"));
+        _fieldFeedback.Check(validAddress,EndpointField,global::HybridMount.Services.Localization.ResourceMessage.Create("ServerAddressRequired"));
+        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.ResourceMessage.Create("UnencryptedHTTPRequiresExplicitPermissionHTTPSIsRecommended"));
         if(saving&&_existing is null)
         {
-            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.UiText.Text("Text_059EB2CA3210"));
-            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.UiText.Text("Text_075F86B604DE"));
+            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAWholeNumberOfSecondsFrom10To86400"));
+            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAWholeNumberOfSecondsFrom30To604800"));
             if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
         }
-        if(validAddress&&_httpsOnly)_fieldFeedback.Check(address!.Scheme=="https",EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_20A86779FB0F"));
+        if(validAddress&&_httpsOnly)_fieldFeedback.Check(address!.Scheme=="https",EndpointField,global::HybridMount.Services.Localization.ResourceMessage.Create("TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddresses"));
         if(validAddress)try{_=WebDavFileSource.NormalizeCertificatePin(new(FileSourceKind.WebDav,EndpointField.Text.Trim(),PinnedCertificateSha256:CertificatePinField.Text));}catch(ArgumentException error){_fieldFeedback.Check(false,CertificatePinField,error.Message);}
         return _fieldFeedback.Complete(this);
     }
@@ -284,15 +282,15 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
             {
                 if(result.Certificate is not null)
                 {
-                    _existing=result.Mount;NameField.IsReadOnly=true;ChooseButton.IsEnabled=false;PrimaryButtonText=UiTerms.SaveConnectionAndReconnect;
+                    _existing=result.Mount;NameField.IsReadOnly=true;ChooseButton.IsEnabled=false;global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("SaveConnectionAndReconnect"));
                     _certificateTrust.Offer(CertificateIdentity(),result.Certificate);UpdateCertificatePresentation();
-                    CertificateWarning.IsOpen=_certificateTrust.Candidate is not null;ErrorBar.Message=result.Message;ErrorBar.IsOpen=true;
+                    CertificateWarning.IsOpen=_certificateTrust.Candidate is not null;global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", result.Message);ErrorBar.IsOpen=true;
                 }
                 else{CreatedMount=result.Mount;ResultMessage=result.Message;ResultSeverity=result.Severity;args.Cancel=false;}
             }
         }
         catch(OperationCanceledException)when(_model.IsStopping){args.Cancel=false;}
-        catch(Exception error){if(!Stopped){ErrorBar.Message=error.Message;ErrorBar.IsOpen=true;}}
+        catch(Exception error){if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;}}
         finally{_submitting=false;if(!Stopped)Refresh();deferral.Complete();}
     }
     private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args)
@@ -313,7 +311,7 @@ public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMo
     private FileSourceConfiguration ReadSettings(string endpoint,bool allowHttp)
     {
         if(_httpsOnly&&(!Uri.TryCreate(endpoint,UriKind.Absolute,out var uri)||uri.Scheme!="https"))
-            throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_DA8B86A7782B"));
+            throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddressesSynologyCommonlyUsesPort", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return new(FileSourceKind.WebDav,endpoint,AllowHttp:!_httpsOnly&&allowHttp,
             PinnedCertificateSha256:string.IsNullOrWhiteSpace(CertificatePinField.Text)?null:CertificatePinField.Text.Trim());
     }

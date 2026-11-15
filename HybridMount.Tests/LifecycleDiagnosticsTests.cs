@@ -9,7 +9,7 @@ public sealed class LifecycleDiagnosticsTests
     {
         await using var fixture=new DavFixture();var diagnostics=new LifecycleDiagnostics(Path.Combine(fixture.Area,"logs"),"0.0.4.4","Unpackaged");
         try{throw new InvalidOperationException("secret-password-and-auth-body");}
-        catch(Exception error){error.Data["Authorization"]="Bearer private-token";Assert.True(diagnostics.Record("UiUnhandled",error,true));}
+        catch(Exception error){error.Data["Authorization"]="Bearer private-token";Assert.True(diagnostics.Record("UIUnhandled",error,true));}
         var evidence=File.ReadAllText(diagnostics.EventFilePath);Assert.DoesNotContain("secret-password",evidence);Assert.DoesNotContain("private-token",evidence);
         using var item=JsonDocument.Parse(File.ReadLines(diagnostics.EventFilePath).Last());var exception=item.RootElement.GetProperty("exceptions")[0];
         Assert.Equal(typeof(InvalidOperationException).FullName,exception.GetProperty("type").GetString());Assert.Contains(nameof(ExceptionEvidenceExcludesMessagesAndDataButRetainsTypeAndStack),exception.GetProperty("stack").GetString());Assert.True(item.RootElement.GetProperty("fatal").GetBoolean());
@@ -26,6 +26,6 @@ public sealed class LifecycleDiagnosticsTests
     {
         await using var fixture=new DavFixture();var diagnostics=new LifecycleDiagnostics(Path.Combine(fixture.Area,"logs"),"0.0.4.4","Unpackaged");
         Parallel.For(0,100,index=>Assert.True(diagnostics.Record("Stage-"+index)));foreach(var line in File.ReadLines(diagnostics.EventFilePath)){using var json=JsonDocument.Parse(line);Assert.Equal("0.0.4.4",json.RootElement.GetProperty("version").GetString());}
-        var blocked=Path.Combine(fixture.Area,"not-a-directory");await File.WriteAllTextAsync(blocked,"occupied");var unavailable=new LifecycleDiagnostics(blocked,"0.0.4.4","Unpackaged");Assert.False(unavailable.Record("UiUnhandled",new Exception("private-body"),true));Assert.NotNull(unavailable.LastWriteError);
+        var blocked=Path.Combine(fixture.Area,"not-a-directory");await File.WriteAllTextAsync(blocked,"occupied");var unavailable=new LifecycleDiagnostics(blocked,"0.0.4.4","Unpackaged");Assert.False(unavailable.Record("UIUnhandled",new Exception("private-body"),true));Assert.NotNull(unavailable.LastWriteError);
     }
 }

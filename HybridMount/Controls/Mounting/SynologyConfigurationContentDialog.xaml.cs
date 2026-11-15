@@ -26,10 +26,10 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
     public SynologyConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null)
     {
-        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());_model=model;_existing=existing;_rootEditable=existing is null;
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());_model=model;_existing=existing;_rootEditable=existing is null;
         try
         {
-            NameField.Text=existing?.Name??global::HybridMount.Services.Localization.UiText.Text("Text_3058C8B169F6");EndpointField.Text=existing?.Source?.Endpoint??"https://:5001";
+            NameField.Text=existing?.Name??global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SynologyMount", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;EndpointField.Text=existing?.Source?.Endpoint??"https://:5001";
             var source=existing?.Source;_pin=source?.PinnedCertificateSha256;HttpField.IsChecked=source?.AllowHttp==true;
             if(existing is not null)
             {
@@ -43,11 +43,11 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
                 ExistingSettings.Visibility=SaveIntervalsButton.Visibility=Visibility.Visible;
             }
             ExistingSettings.Visibility=Visibility.Visible;ThumbnailToggle.IsEnabled=model.CanConfigureThumbnails;ThumbnailToggle.Visibility=model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;SaveCapacityButton.Visibility=RecheckButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
-            global::HybridMount.Helpers.UI.Ui.Set(this,"Title",existing is null?global::HybridMount.Services.Localization.UiText.Text("Text_C2CDF622BB68"):global::HybridMount.Services.Localization.UiText.Text("Text_5181CEC8801A",existing.Name));
-            PrimaryButtonText=existing is null?UiTerms.CreateAndConnect:UiTerms.SaveConnectionAndReconnect;SecondaryButtonText=UiTerms.TestConnection;CloseButtonText=UiTerms.Close;
+            global::HybridMount.Helpers.UI.UserInterface.Set(this,"Title",existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("NewSynologyNAS") : global::HybridMount.Services.Localization.ResourceMessage.Create("Settings", existing.Name));
+            global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("CreateAndConnect") : global::HybridMount.Services.Localization.ResourceMessage.Create("SaveConnectionAndReconnect"));global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("TestConnection"));global::HybridMount.Helpers.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Close"));
             DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
             PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
-            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.Synology, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false),ReadCredentials() with { SessionToken = "" }), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false) with { Prefix = "" }, ReadCredentials() with { SessionToken = "" }));_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(true),ReadCredentials(),OneTimePassword:OtpField.Password),()=>ValidateFields(false),Refresh,message=>{ErrorBar.Message=message;ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdatePin();UpdateHttpWarning();
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.Synology, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false),ReadCredentials() with { SessionToken = "" }), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(false) with { Prefix = "" }, ReadCredentials() with { SessionToken = "" }));_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(true),ReadCredentials(),OneTimePassword:OtpField.Password),()=>ValidateFields(false),Refresh,message=>{global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", message);ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdatePin();UpdateHttpWarning();
             if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
         }
         catch{Dispose();throw;}
@@ -81,7 +81,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     }
     private FileSourceConfiguration ReadSettings(bool requireShare)
     {
-        if(requireShare&&Prefix.Length==0)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
+        if(requireShare&&Prefix.Length==0)throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TestTheConnectionAndSelectASharedFolderFirst", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var options=new FileSourceConfiguration(FileSourceKind.Synology,EndpointField.Text.Trim(),Prefix:Prefix,AllowHttp:HttpField.IsChecked==true,PinnedCertificateSha256:_pin);
         SynologyFileSource.ValidateOptions(options.Prefix.Length==0?options with{Prefix="/__probe__"}:options);return options;
     }
@@ -106,22 +106,22 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         var context=EndpointField.Text.Trim();if(context==_httpWarningContext)return;_httpWarningContext=context;
         HttpWarning.IsOpen=Uri.TryCreate(context,UriKind.Absolute,out var uri)&&uri.Scheme=="http";
     }
-    private void UpdatePin(){global::HybridMount.Helpers.UI.Ui.Set(PinText,"Text",_pin is null?global::HybridMount.Services.Localization.UiText.Text("Text_F0FA859C1E0D"):global::HybridMount.Services.Localization.UiText.Text("Text_D5551131636F",_pin));ClearPinButton.Visibility=_pin is null?Visibility.Collapsed:Visibility.Visible;}
+    private void UpdatePin(){global::HybridMount.Helpers.UI.UserInterface.Set(PinText,"Text",_pin is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("CertificateValidationSystemTrust") : global::HybridMount.Services.Localization.ResourceMessage.Create("PinnedCertificateSHA256ForThisMount", _pin));ClearPinButton.Visibility=_pin is null?Visibility.Collapsed:Visibility.Visible;}
     private void ClearPin(object sender,RoutedEventArgs args){if(Stopped)return;Invalidate(false);_pin=null;UpdatePin();}
     private async void TrustCertificate(object sender,RoutedEventArgs args)
     {if(Stopped||_testing is not null||_submitting||_certificateCandidate is null)return;_pin=_certificateCandidate;Invalidate(false);UpdatePin();await ProbeAsync();}
-    private void ShowError(string message){ErrorBar.Message=message;ErrorBar.IsOpen=true;}
+    private void ShowError(string message){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", message);ErrorBar.IsOpen=true;}
     private async Task<bool> ProbeAsync()
     {
         if(Stopped)return false;
         using var cancel=new CancellationTokenSource();_testing=cancel;_verified=null;_certificateCandidate=null;CertificateBar.IsOpen=false;Refresh();if(Stopped){_testing=null;return false;}
-        global::HybridMount.Helpers.UI.Ui.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_49BE72E6045C"));ErrorBar.IsOpen=false;ProbeBar.IsOpen=true;ProbeBar.Severity=InfoBarSeverity.Informational;ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_DBDA804F16C7");
+        global::HybridMount.Helpers.UI.UserInterface.Set(this,"SecondaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("CancelTest"));ErrorBar.IsOpen=false;ProbeBar.IsOpen=true;ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("RunningReadOnlyProbes"));
         try
         {
             var settings=ReadSettings(false);_capabilityBinding?.BeginTest();var result=await _model.TestSynologyConnectionAsync(settings,ReadCredentials(),OtpField.Password,cancel.Token,_probe?.Session);
             if(Stopped){await result.DisposeAsync();return false;}
-            if(_probe is not null)await _probe.DisposeAsync();_probe=result;OtpField.Password="";ProbeBar.Message=result.Message;ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;
-            if(result.CertificateSha256 is {} fingerprint){_certificateCandidate=fingerprint;CertificateBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_7070A69BB3D7",fingerprint);CertificateBar.IsOpen=true;}
+            if(_probe is not null)await _probe.DisposeAsync();_probe=result;OtpField.Password="";global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", result.Message);ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;
+            if(result.CertificateSha256 is {} fingerprint){_certificateCandidate=fingerprint;global::HybridMount.Helpers.UI.UserInterface.Set(CertificateBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("VerifyTheFollowingSHA256ThroughATrustedNASAdministrationChannelSystem", fingerprint));CertificateBar.IsOpen=true;}
             if(result.AuthenticationCode is 403 or 404 or 406){OtpField.Visibility=Visibility.Visible;OtpField.Focus(FocusState.Programmatic);}
             if(result.Credentials is null){_capabilityBinding?.CompleteTest(result.Capabilities);return false;}
             _deviceToken=result.Credentials.SessionToken;
@@ -133,33 +133,33 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
             if(!result.Success)return false;
             CertificateBar.IsOpen=false;_certificateCandidate=null;
             _verified=settings.Prefix.Length!=0&&settings.Prefix==Prefix?Identity(settings):null;
-            if(result.Shares.Count==0){ShowError(global::HybridMount.Services.Localization.UiText.Text("Text_553CA8C4287A"));return false;}
+            if(result.Shares.Count==0){ShowError(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ThisAccountHasNoAccessibleSharedFoldersSoAMountCannotBe", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);return false;}
             return true;
         }
-        catch(OperationCanceledException){_capabilityBinding?.CancelTest();if(!Stopped)ProbeBar.Message=global::HybridMount.Services.Localization.UiText.Text("Text_25BD1A95A318");return false;}
-        catch(Exception error){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;ProbeBar.Message=error.Message;}return false;}
-        finally{_testing=null;if(!Stopped){OtpField.Password="";SecondaryButtonText=UiTerms.TestConnection;Refresh();}}
+        catch(OperationCanceledException){_capabilityBinding?.CancelTest();if(!Stopped)global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("TheConnectionTestWasCanceled"));return false;}
+        catch(Exception error){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Error;global::HybridMount.Helpers.UI.UserInterface.Set(ProbeBar, "Message", error.Message);}return false;}
+        finally{_testing=null;if(!Stopped){OtpField.Password="";global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("TestConnection"));Refresh();}}
     }
     private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {args.Cancel=true;if(Stopped)return;if(_testing is {} testing){testing.Cancel();return;}if(!_submitting&&!_picking&&ValidateFields(false))await ProbeAsync();}
     private static int Seconds(double value,int minimum,int maximum)
-    {if(!double.IsFinite(value)||value!=Math.Truncate(value)||value<minimum||value>maximum)throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_64FA7CF5B492"));return checked((int)value);}
+    {if(!double.IsFinite(value)||value!=Math.Truncate(value)||value<minimum||value>maximum)throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("EnterAWholeNumberDetectionIntervalWithinTheAllowedRange", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);return checked((int)value);}
     /// <summary>在禁用控件或发起请求之前校验草稿，字段错误保持原输入并聚焦首个错误。</summary>
     private bool ValidateFields(bool saving)
     {
         _fieldFeedback.Begin();
-        if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,UiTerms.NameRequired);_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,UiTerms.LocalDirectoryRequired);}
+        if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,global::HybridMount.Services.Localization.ResourceMessage.Create("MountNameRequired"));_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,global::HybridMount.Services.Localization.ResourceMessage.Create("LocalDirectoryRequired"));}
         var validAddress=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme is "https" or "http";
-        _fieldFeedback.Check(validAddress,EndpointField,UiTerms.ServerAddressRequired);
-        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.UiText.Text("Text_179CC0D74764"));
+        _fieldFeedback.Check(validAddress,EndpointField,global::HybridMount.Services.Localization.ResourceMessage.Create("ServerAddressRequired"));
+        if(validAddress)_fieldFeedback.Check(address!.Scheme=="https"||HttpField.IsChecked==true,EndpointField,global::HybridMount.Services.Localization.ResourceMessage.Create("UnencryptedHTTPRequiresExplicitPermissionHTTPSIsRecommended"));
         if(saving&&_existing is null)
         {
-            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.UiText.Text("Text_059EB2CA3210"));
-            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.UiText.Text("Text_075F86B604DE"));
+            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAWholeNumberOfSecondsFrom10To86400"));
+            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAWholeNumberOfSecondsFrom30To604800"));
             if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
         }
-        _fieldFeedback.Check(!string.IsNullOrWhiteSpace(UserField.Text),UserField,global::HybridMount.Services.Localization.UiText.Text("Text_406A7EEAF369"));_fieldFeedback.Check(PasswordField.Password.Length>0||_deviceToken.Length>0,PasswordField,global::HybridMount.Services.Localization.UiText.Text("Text_C682F190CBD4"));
-        if(saving)_fieldFeedback.Check(Prefix.Length>0,ShareField,global::HybridMount.Services.Localization.UiText.Text("Text_0902DFC3DD87"));
+        _fieldFeedback.Check(!string.IsNullOrWhiteSpace(UserField.Text),UserField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterTheSynologyAccount"));_fieldFeedback.Check(PasswordField.Password.Length>0||_deviceToken.Length>0,PasswordField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAPassword"));
+        if(saving)_fieldFeedback.Check(Prefix.Length>0,ShareField,global::HybridMount.Services.Localization.ResourceMessage.Create("TestTheConnectionAndSelectASharedFolderFirst"));
         return _fieldFeedback.Complete(this);
     }
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)

@@ -16,7 +16,7 @@ public sealed partial class MountCard : UserControl
     private bool _initialized;
     private bool _overflowQueued;
     private Guid? _flyoutMount;
-    public MountCard(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>{Bindings.Update();QueueOverflow();});_initialized=true;Loaded+=(_,_)=>Observe();Unloaded+=(_,_)=>Detach();}
+    public MountCard(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();QueueOverflow();});_initialized=true;Loaded+=(_,_)=>Observe();Unloaded+=(_,_)=>Detach();}
     private static void ItemChanged(DependencyObject owner,DependencyPropertyChangedEventArgs args)=>((MountCard)owner).Observe();
     private void Observe()
     {
@@ -73,7 +73,7 @@ public sealed partial class MountCard : UserControl
             // 折叠内容没有Loaded事件，先更新自有静态标签再测量，避免语言切换沿用旧宽度。
             if(content is Panel panel)
                 foreach(var label in panel.Children.OfType<TextBlock>())
-                    global::HybridMount.Helpers.UI.Ui.RefreshResources(label);
+                    global::HybridMount.Helpers.UI.UserInterface.RefreshResources(label);
             content.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity,double.PositiveInfinity));
             return Math.Ceiling(Math.Max(button.MinWidth,content.DesiredSize.Width+button.Padding.Left+button.Padding.Right+button.BorderThickness.Left+button.BorderThickness.Right));
         }).ToArray();

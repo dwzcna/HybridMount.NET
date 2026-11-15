@@ -166,7 +166,7 @@ public sealed class FailedMountTests
         await File.WriteAllTextAsync(Path.Combine(test.Local,"keep.txt"),"preserved");
         test.Repository.SaveDefinition(mount with{RegistrationStage=MountRegistrationStage.Unknown});
         test.Repository.SaveEntry(mount.Id,new("known","remote","keep.txt","old",false,Materialized:true));
-        await test.RestartAsync();Assert.Equal("需要恢复",Assert.Single(test.Manager.Mounts).Status);
+        await test.RestartAsync();Assert.Equal("RecoveryRequired",Assert.Single(test.Manager.Mounts).Status);
         foreach(var mode in new[]{"remove","clearAndRemove"})
             Assert.Equal("Failed",(await WebDavTests.Finished(test.Manager,test.Manager.Queue(mount.Id,mode))).State);
         Assert.Equal("preserved",await File.ReadAllTextAsync(Path.Combine(test.Local,"keep.txt")));

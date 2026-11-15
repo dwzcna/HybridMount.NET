@@ -82,18 +82,18 @@ internal static class ShellMaintenanceProcess
     /// <summary>跨模式仅限精确导航注册；不构造业务服务、不注销 CFAPI 根或遍历目录内容。</summary>
     private static ShellMaintenanceReply DispatchExplorer(ShellMaintenanceRequest request)
     {
-        if (request.Root is not null || request.Proof is not null) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError46"));
+        if (request.Root is not null || request.Proof is not null) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError46", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var shell = new ExplorerEntryRegistration(new ExplorerEntryRegistry(), WindowsIdentity.GetCurrent().User!.Value);
         if (request.Operation == "explorerDiscover" && request.Entry is null && request.EntryProof is null)
             return new(Entries: shell.Discover(default));
-        if (request.Entry is not {} entry || request.EntryProof is not {} proof) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError47"));
+        if (request.Entry is not {} entry || request.EntryProof is not {} proof) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError47", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         if (request.Operation == "explorerVerify") return new(Remaining: shell.Remaining(entry, proof));
-        if (request.Operation != "explorerRemove") throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError48"));
+        if (request.Operation != "explorerRemove") throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError48", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var guard = new ExplorerEntryPathGuard();
         void Validate()
         {
             ExplorerEntryRecovery.VerifyManaged(entry, ExplorerEntryRecovery.ReadPhysicalDefinitions());
-            if (entry.LocalPath is null || guard.Inspect(entry.LocalPath) != entry.Evidence) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError49"));
+            if (entry.LocalPath is null || guard.Inspect(entry.LocalPath) != entry.Evidence) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError49", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         shell.Remove(entry, proof, Validate, default);
         return new(Remaining: shell.Remaining(entry, proof));

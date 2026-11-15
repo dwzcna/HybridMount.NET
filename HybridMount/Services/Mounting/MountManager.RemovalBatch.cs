@@ -1,4 +1,4 @@
-﻿namespace HybridMount.Services.Mounting;
+namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
@@ -9,7 +9,7 @@ public sealed partial class MountManager
     private static MountRemovalMode RemovalMode(string operation)=>operation switch
     {"clearAndRemove"=>MountRemovalMode.ClearContents,"removeCached"=>MountRemovalMode.PreserveCachedFiles,_=>MountRemovalMode.PreserveFiles};
     private void EnsureNoRemovalBatch()
-    {lock(_lifetime)if(_removalBatchActive)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("RemoveAllBusy"));}
+    {lock(_lifetime)if(_removalBatchActive)throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveAllBusy", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);}
     /// <summary>后台只读捕获当前模式全部配置，离线及连接失败的根仍列入确认。</summary>
     internal Task<MountRemovalBatchPlan> InspectAllMountRemovalsAsync(CancellationToken token=default)=>OwnAsync(async cancel=>
     {
@@ -30,7 +30,7 @@ public sealed partial class MountManager
                 await _configurationGate.WaitAsync(token).ConfigureAwait(false);held=true;
                 var approved=plan.Mounts.ToDictionary(item=>item.Id);
                 if(approved.Count!=_roots.Count||_roots.Values.Any(root=>!approved.TryGetValue(root.Definition.Id,out var expected)||!SameRemovalTarget(expected,root.Definition)))
-                    throw new IOException(global::HybridMount.Services.Localization.UiText.Text("RemoveAllSnapshotChanged"));
+                    throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveAllSnapshotChanged", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 var results=new List<MountRemovalBatchItem>();
                 foreach(var expected in plan.Mounts)
                 {
@@ -43,7 +43,7 @@ public sealed partial class MountManager
                             if(!_roots.TryGetValue(id,out var root))
                             {results.Add(new(id,expected.Name,expected.LocalPath,"Skipped",null));continue;}
                             if(!SameRemovalTarget(expected,root.Definition)||root.Definition.RemovalPending&&root.Definition.RemovalMode!=mode)
-                            {results.Add(new(id,expected.Name,expected.LocalPath,"Skipped",null,global::HybridMount.Services.Localization.UiText.Text("RemoveAllModeChanged")));continue;}
+                            {results.Add(new(id,expected.Name,expected.LocalPath,"Skipped",null,global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveAllModeChanged", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!));continue;}
                             task=QueueCore(id,mode==MountRemovalMode.ClearContents?"clearAndRemove":"removeCached",null);
                         }
                         await _jobs[task].Work.ConfigureAwait(false);

@@ -11,6 +11,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     private readonly CommandBar _actions;
     private readonly Action<bool> _setCompact;
     private readonly AppBarButton[] _commands;
+    private readonly ICommandBarElement[] _elements;
     private readonly List<(AppBarButton Button,DependencyProperty Property,long Token)> _tokens=[];
     private bool _dirty=true,_pending,_disposed;
     private long _generation;
@@ -21,7 +22,8 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     internal HeaderLayoutCoordinator(Grid root,FrameworkElement filters,CommandBar actions,Action<bool> setCompact)
     {
         _root=root;_filters=filters;_actions=actions;_setCompact=setCompact;
-        _commands=actions.PrimaryCommands.OfType<AppBarButton>().ToArray();
+        _elements=actions.PrimaryCommands.ToArray();
+        _commands=_elements.OfType<AppBarButton>().ToArray();
         actions.IsDynamicOverflowEnabled=false;
         root.Loaded+=Loaded;root.Unloaded+=Unloaded;root.SizeChanged+=Resized;
         foreach(var button in _commands)foreach(var property in new[]{UIElement.VisibilityProperty,AppBarButton.LabelProperty})
@@ -52,7 +54,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
             _dirty=false;
             // 将命令临时放回主区测量原生右侧标签模板，整个过程在同一UI调用内完成，不创建替代按钮。
             _actions.SecondaryCommands.Clear();_actions.PrimaryCommands.Clear();
-            foreach(var button in _commands){Ui.RefreshResources(button);_actions.PrimaryCommands.Add(button);}
+            foreach(var element in _elements){if(element is AppBarButton button)UserInterface.RefreshResources(button);_actions.PrimaryCommands.Add(element);}
             _actions.OverflowButtonVisibility=CommandBarOverflowButtonVisibility.Collapsed;
             _actions.Measure(new(double.PositiveInfinity,double.PositiveInfinity));
             _widths=_commands.Where(x=>x.Visibility==Visibility.Visible).Select(x=>{x.Measure(new(double.PositiveInfinity,double.PositiveInfinity));return Math.Ceiling(Math.Max(40,x.DesiredSize.Width));}).ToArray();
@@ -62,8 +64,8 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
         var choice=HeaderLayoutPolicy.Choose(_root.ActualWidth,_compact,_expanded,_widths,_previous,gap:_root.ColumnSpacing);
         _previous=choice;_setCompact(!choice.ShowLabels);
         var visible=_commands.Where(x=>x.Visibility==Visibility.Visible).ToArray();
-        var primary=visible.Take(choice.Count).ToArray();
-        var secondary=visible.Except(primary).ToArray();
+        var primary=CommandsWithSeparators(visible.Take(choice.Count));
+        var secondary=CommandsWithSeparators(visible.Skip(choice.Count));
         if(!_actions.PrimaryCommands.SequenceEqual(primary)||!_actions.SecondaryCommands.SequenceEqual(secondary))
         {
             _actions.PrimaryCommands.Clear();_actions.SecondaryCommands.Clear();
@@ -72,6 +74,21 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
         }
         _actions.HorizontalAlignment=HorizontalAlignment.Right;
         _actions.OverflowButtonVisibility=choice.Count<visible.Length?CommandBarOverflowButtonVisibility.Visible:CommandBarOverflowButtonVisibility.Collapsed;
+    }
+    /// <summary>分区只保留两条可见命令之间的分隔符，避免溢出后丢失或出现首尾孤立分隔符。</summary>
+    private ICommandBarElement[] CommandsWithSeparators(IEnumerable<AppBarButton> selected)
+    {
+        var buttons = selected.ToHashSet();
+        var result = new List<ICommandBarElement>();
+        AppBarSeparator? pending = null;
+        foreach (var element in _elements)
+        {
+            if (element is AppBarSeparator separator && separator.Visibility == Visibility.Visible) pending = separator;
+            if (element is not AppBarButton button || !buttons.Contains(button)) continue;
+            if (pending is not null && result.Count > 0) result.Add(pending);
+            pending = null; result.Add(button);
+        }
+        return result.ToArray();
     }
     public void Dispose()
     {

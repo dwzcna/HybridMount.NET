@@ -25,8 +25,8 @@ public sealed partial class MainWindow : Window
     /// <summary>创建标题栏、导航和符合当前偏好的背景。</summary>
     public MainWindow()
     {
-        ViewModel=new(App.Current.Navigation,App.Current.UiDispatcher,App.Current.IssueNotifications,App.Current.TaskFocus,error=>App.Current.Logger.QueueException("主窗口","Warning","窗口状态更新失败",error));
-        InitializeComponent();NotificationBar.Closed+=MainNotificationClosed;_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(RootGrid,()=>{Bindings.Update();RefreshIndexWarning();});
+        ViewModel=new(App.Current.Navigation,App.Current.UIDispatcher,App.Current.IssueNotifications,App.Current.TaskFocus,error=>App.Current.Logger.QueueException("主窗口","Warning","窗口状态更新失败",error));
+        InitializeComponent();RootGrid.Language=System.Globalization.CultureInfo.CurrentCulture.Name;NotificationBar.Closed+=MainNotificationClosed;_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(RootGrid,()=>{Bindings.Update();RefreshIndexWarning();});
         _navigation=App.Current.Navigation;
         _navigation.RegisterFrame(ContentFrame,error=>App.Current.Logger.Queue("导航","Error","页面导航失败："+error.GetType().Name));
         ViewModel.Navigated+=SynchronizeSelection;ViewModel.NoticesChanged+=RefreshUploadIssueNotifications;
@@ -55,8 +55,8 @@ public sealed partial class MainWindow : Window
     private void RefreshIndexWarning()
     {
         if(App.Current.RuntimeAvailable)return;
-        IndexWarning.Title=global::HybridMount.Services.Localization.UiText.Text("IndexRestrictedTitle");
-        IndexWarning.Message=App.Current.IndexRestrictionMessage;IndexSettingsButton.Content=global::HybridMount.Services.Localization.UiText.Text("IndexGoToSettings");
+        IndexWarning.Title=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("IndexRestrictedTitle", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+        global::HybridMount.Helpers.UI.UserInterface.Set(IndexWarning, "Message", App.Current.IndexRestrictionMessage);IndexSettingsButton.Content=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("IndexGoToSettings", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
         IndexWarning.Severity=App.Current.IndexFormat.State=="Old"?InfoBarSeverity.Warning:InfoBarSeverity.Error;
         if(!_indexWarningDismissed)IndexWarning.IsOpen=true;RefreshNotificationHost();
     }
@@ -156,7 +156,7 @@ public sealed partial class MainWindow : Window
         private void Refresh()
         {
             if(_disposed||_owner._released||App.Current.IsExiting)return;
-            _refreshing=true;try{_bar.Message=_source.Text;_bar.Severity=PageMessagePresentation.Severity(_source.Severity);_bar.IsOpen=_source.IsOpen;_bar.Visibility=_source.IsOpen?Visibility.Visible:Visibility.Collapsed;}finally{_refreshing=false;_owner.RefreshNotificationHost();}
+            _refreshing=true;try{global::HybridMount.Helpers.UI.UserInterface.Set(_bar, "Message", _source.Text);_bar.Severity=PageMessagePresentation.Severity(_source.Severity);_bar.IsOpen=_source.IsOpen;_bar.Visibility=_source.IsOpen?Visibility.Visible:Visibility.Collapsed;}finally{_refreshing=false;_owner.RefreshNotificationHost();}
         }
         private void Closed(InfoBar sender,InfoBarClosedEventArgs args){if(!_disposed&&!_refreshing){_source.IsOpen=false;Refresh();}}
         public void Dispose(){if(_disposed)return;_disposed=true;_source.PropertyChanged-=Changed;_bar.Closed-=Closed;_owner.PageNotifications.Children.Remove(_bar);_owner._pageMessages.Remove(this);_owner.RefreshNotificationHost();}
@@ -173,11 +173,11 @@ public sealed partial class MainWindow : Window
         if(App.Current.IsExiting)return;IssueNotifications.Children.Clear();
         foreach(var notice in ViewModel.IssueNotices)
         {
-            var button=global::HybridMount.Helpers.UI.Ui.Configure(new Button{},("Content",global::HybridMount.Services.Localization.UiText.Message("Text_7ED1A2EB244B")));button.Click+=(_,_)=>ViewModel.OpenIssues(notice.MountId);
-            var summary=notice.Count>0?global::HybridMount.Services.Localization.UiText.Text("Text_DC25DC95ACCE",notice.Count):"";
+            var button=global::HybridMount.Helpers.UI.UserInterface.Configure(new Button{},("Content",global::HybridMount.Services.Localization.ResourceMessage.Create("ViewSyncIssues")));button.Click+=(_,_)=>ViewModel.OpenIssues(notice.MountId);
+            var summary=notice.Count>0?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("UploadIssuesNeedAttention", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, notice.Count):"";
             var message=notice.Message is {} warning?(summary.Length>0?summary+"\n":"")+warning:summary;
             var bar=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],Title=notice.MountName,Message=message,Severity=InfoBarSeverity.Warning,IsOpen=true,IsClosable=true,ActionButton=notice.Count>0?button:null};
-            global::HybridMount.Helpers.UI.Ui.Bind(bar,"Message",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw((notice.Count>0?global::HybridMount.Services.Localization.UiText.Text("Text_DC25DC95ACCE",notice.Count):"")+(notice.Message is {} detail?(notice.Count>0?"\n":"")+global::HybridMount.Services.Localization.UiText.Legacy(detail):"")));
+            global::HybridMount.Helpers.UI.UserInterface.Bind(bar,"Message",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw((notice.Count>0?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("UploadIssuesNeedAttention", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, notice.Count):"")+(notice.Message is {} detail?(notice.Count>0?"\n":"")+(detail ?? ""):"")));
             bar.Closed+=(_,_)=>{ViewModel.DismissIssues(notice.MountId);RefreshNotificationHost();};IssueNotifications.Children.Add(bar);
         }
         RefreshNotificationHost();
@@ -189,7 +189,7 @@ public sealed partial class MainWindow : Window
         var completed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cause=error.InnerException??error;
         var hresult=cause is System.ComponentModel.Win32Exception native?unchecked((int)(0x80070000u|(uint)native.NativeErrorCode)):cause.HResult;
-        var bar=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],Title=global::HybridMount.Services.Localization.UiText.Text("Text_5BBAD56EBA28"),Message=global::HybridMount.Services.Localization.UiText.Text("Text_317016430E4E",error.Message,hresult,cause.Message),Severity=InfoBarSeverity.Error,IsOpen=true};
+        var bar=global::HybridMount.Helpers.UI.UserInterface.Configure(new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],Severity=InfoBarSeverity.Error,IsOpen=true}, ("Title", global::HybridMount.Services.Localization.ResourceMessage.Create("ResetIncomplete")), ("Message", global::HybridMount.Services.Localization.ResourceMessage.Create("ResetIncomplete0xCompletedDeletionsAreNotRolledBackCloseThisNotice", error.Message, hresult, cause.Message)));
         void Closed(InfoBar sender,InfoBarClosedEventArgs args)=>completed.TrySetResult();
         void Closing(Microsoft.UI.Windowing.AppWindow sender,Microsoft.UI.Windowing.AppWindowClosingEventArgs args){args.Cancel=true;completed.TrySetResult();}
         bar.Closed+=Closed;AppWindow.Closing+=Closing;PageNotifications.Children.Add(bar);RefreshNotificationHost();AppWindow.Show();Activate();

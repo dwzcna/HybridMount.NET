@@ -1,7 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
+    <NeutralLanguage>zh-CN</NeutralLanguage>
     <IsPackable>false</IsPackable><IsTestProject>true</IsTestProject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>$(DefineConstants);HYBRIDMOUNT_HEADLESS_TEST</DefineConstants>
@@ -52,7 +53,7 @@
     <Content Include="..\HybridMount\Assets\SyncIssue.ico" Link="Assets\SyncIssue.ico" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
   <ItemGroup><Content Include="..\HybridMount\Assets\SyncExcluded.png" Link="Assets\SyncExcluded.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="..\HybridMount\Assets\SyncIssue.png" Link="Assets\SyncIssue.png" CopyToOutputDirectory="PreserveNewest"/><Content Include="Assets\sample.*" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
-  <ItemGroup><Compile Include="..\HybridMount\Helpers\UI\HeaderLayoutPolicy.cs" Link="Production\UI\HeaderLayoutPolicy.cs"/><Compile Include="..\HybridMount\Models\Diagnostics\LocalCalendarDay.cs" Link="Production\Diagnostics\LocalCalendarDay.cs"/><Compile Include="..\HybridMount\Services\Localization\ResourceMessage.cs" Link="Production\Localization\ResourceMessage.cs"/><Compile Include="..\HybridMount\Services\Localization\UiLanguageService.cs" Link="Production\Localization\UiLanguageService.cs"/><Compile Include="..\HybridMount\Services\Localization\UiText.cs" Link="Production\Localization\UiText.cs"/><EmbeddedResource Include="..\HybridMount\Resources\UiCatalog.json" LogicalName="HybridMount.Resources.UiCatalog.json"/></ItemGroup>
+  <ItemGroup><Compile Include="..\HybridMount\Helpers\UI\HeaderLayoutPolicy.cs" Link="Production\UI\HeaderLayoutPolicy.cs"/><Compile Include="..\HybridMount\Models\Diagnostics\LocalCalendarDay.cs" Link="Production\Diagnostics\LocalCalendarDay.cs"/><Compile Include="..\HybridMount\Services\Localization\ResourceMessage.cs" Link="Production\Localization\ResourceMessage.cs"/><Compile Include="..\HybridMount\Services\Localization\UILanguageService.cs" Link="Production\Localization\UILanguageService.cs"/><EmbeddedResource Include="..\HybridMount\Resources\Messages*.resx" Link="Resources\%(Filename)%(Extension)" LogicalName="HybridMount.Resources.%(Filename).resources"/></ItemGroup>
   <ItemGroup>
     <Compile Include="..\HybridMount\ViewModels\TaskListItem.cs" Link="Production\ViewModels\TaskListItem.cs"/>
     <Compile Include="..\HybridMount\ViewModels\PageStatusMessage.cs" Link="Production\ViewModels\PageStatusMessage.cs"/>
@@ -70,7 +71,7 @@
     <Compile Include="..\HybridMount\Commons\IRemoteChangeSource.cs" Link="Production\Commons\IRemoteChangeSource.cs"/>
     <Compile Include="..\HybridMount\Commons\IRemoteUsageSource.cs" Link="Production\Commons\IRemoteUsageSource.cs"/>
     <Compile Include="..\HybridMount\Commons\IStartupService.cs" Link="Production\Commons\IStartupService.cs"/>
-    <Compile Include="..\HybridMount\Commons\IUiDispatcher.cs" Link="Production\Commons\IUiDispatcher.cs"/>
+    <Compile Include="..\HybridMount\Commons\IUIDispatcher.cs" Link="Production\Commons\IUIDispatcher.cs"/>
     <Compile Include="..\HybridMount\Commons\SourcePartialMoveException.cs" Link="Production\Commons\SourcePartialMoveException.cs"/>
     <Compile Include="..\HybridMount\Models\Runtime\MountQueueBinding.cs" Link="Production\Models\Runtime\MountQueueBinding.cs"/>
     <Compile Include="..\HybridMount\Models\Mounting\MountingObserver.cs" Link="Production\Models\Mounting\MountingObserver.cs"/>

@@ -5,7 +5,7 @@ internal static class CapabilityProbePresentation
 {
     internal static string ResourceDetails(CapabilityProbeResource item) => string.Join("\n", new[]
     {
-        global::HybridMount.Services.Localization.UiText.Text(item.Stage == "Owned" ? "CapabilityProbeManualOwned" : "CapabilityProbeManualUnknown"),
+        global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(item.Stage == "Owned" ? "CapabilityProbeManualOwned" : "CapabilityProbeManualUnknown", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,
         item.Kind, item.RemotePath, item.Reason,
         item.VersionIds is { Length: > 0 } ? "VersionId: " + string.Join(", ", item.VersionIds) : null,
         item.UploadIds is { Length: > 0 } ? "UploadId: " + string.Join(", ", item.UploadIds) : null,

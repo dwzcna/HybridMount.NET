@@ -4,7 +4,7 @@ namespace HybridMount.Tests;
 /// <summary>挂载卡片容量与连接动作边界；不将未知值冒充零，不修改服务或配置。</summary>
 public sealed class MountRowTests
 {
-    private static MountSnapshot Snapshot()=>new(new(Guid.NewGuid(),"挂载",@"D:\挂载",Source:new(FileSourceKind.WebDav,"https://example.test/")),"未连接","");
+    private static MountSnapshot Snapshot()=>new(new(Guid.NewGuid(),"挂载",@"D:\挂载",Source:new(FileSourceKind.WebDav,"https://example.test/")),"NotConnected","");
     [Fact]
     public void Capacity_is_independent_of_selection_and_unknown_values_stay_unknown()
     {
@@ -20,8 +20,8 @@ public sealed class MountRowTests
         var snapshot=Snapshot();var item=new MountListItem(snapshot);Assert.Equal("连接",item.ConnectionText);Assert.True(item.CanChangeConnection);
         snapshot=snapshot with{IsConnecting=true};item.Update(snapshot,true,true,false,false,false);Assert.Equal("取消连接",item.ConnectionText);Assert.True(item.CanChangeConnection);
         item.Update(snapshot,true,true,false,false,true);Assert.False(item.CanChangeConnection);
-        snapshot=snapshot with{IsConnecting=false,IsConnected=true,Status="已连接"};item.Update(snapshot,true,false,false,false,false);Assert.Equal("断开",item.ConnectionText);Assert.True(item.CanRun);
-        snapshot=snapshot with{IsConnected=false,Status="异常"};item.Update(snapshot,true,false,false,false,false);Assert.Equal("重试连接",item.ConnectionText);
+        snapshot=snapshot with{IsConnecting=false,IsConnected=true,Status="Connected"};item.Update(snapshot,true,false,false,false,false);Assert.Equal("断开",item.ConnectionText);Assert.True(item.CanRun);
+        snapshot=snapshot with{IsConnected=false,Status="Faulted"};item.Update(snapshot,true,false,false,false,false);Assert.Equal("重试连接",item.ConnectionText);
         item.Update(snapshot,true,false,false,true,false);Assert.False(item.CanEdit);Assert.False(item.CanInspect);
     }
     [Theory]

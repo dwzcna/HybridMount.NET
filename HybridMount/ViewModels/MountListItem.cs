@@ -5,55 +5,55 @@ namespace HybridMount.ViewModels;
 /// <summary>挂载行的稳定展示对象，由唯一页面模型更新；不订阅服务、不保存配置或发起网络。</summary>
 public sealed class MountListItem(MountSnapshot snapshot) : ObservableObject
 {
-    private MountSnapshot _snapshot=snapshot;
-    private bool _selected,_busy,_stopping,_dialogBusy,_canceling;
-    public Guid Id=>_snapshot.Definition.Id;
-    public MountSnapshot Snapshot=>_snapshot;
-    public string Name=>_snapshot.Definition.Name;
-    public string SourceAndPath=>_snapshot.SourceDisplay+"  "+_snapshot.Definition.LocalPath;
-    public bool IsSelected=>_selected;
-    public MountActionState Actions=>MountActionState.From(_snapshot,_busy,_stopping);
-    public int UploadIssueCount=>_snapshot.UploadIssueCount;
-    public string IssueBadge=>UploadIssueCount>99?"99+":UploadIssueCount.ToString(CultureInfo.CurrentCulture);
-    public bool HasUploadIssues=>UploadIssueCount>0;
-    public string DiagnosticTooltip=>HasUploadIssues?global::HybridMount.Services.Localization.UiText.Text("Text_C8BCDC5DAC6A",UploadIssueCount):global::HybridMount.Services.Localization.UiText.Text("Text_F1B417B318B5");
-    public bool CanOpen=>Actions.CanOpen&&!_dialogBusy;
-    public bool CanInspect=>!_stopping&&!_dialogBusy;
-    public bool CanEdit=>Actions.CanEdit&&!_dialogBusy;
-    public bool CanRun=>Actions.CanRunConnected&&!_dialogBusy;
-    public bool CanRemove=>Actions.CanRemove&&!_dialogBusy;
-    public bool CanRecheck=>CanRun&&CapacityRules.Enabled(_snapshot.Definition);
-    public string RemoveText=>Actions.RemoveText;
-    public bool IsConnected=>_snapshot.IsConnected;
-    public bool CanConfigureThumbnails {get;private set;}=true;
-    public bool ThumbnailsEnabled=>_snapshot.Definition.ThumbnailsEnabled;
-    public bool RemoteDetectionEnabled=>_snapshot.Definition.RemoteAutoDetectEnabled;
-    public string ThumbnailText=>ThumbnailsEnabled?global::HybridMount.Services.Localization.UiText.Text("Text_33042ADBD1EB"):global::HybridMount.Services.Localization.UiText.Text("Text_DE0FBF01AACB");
-    public string DetectionText=>RemoteDetectionEnabled?global::HybridMount.Services.Localization.UiText.Text("Text_5AD47509C90B"):global::HybridMount.Services.Localization.UiText.Text("Text_AEAA2A51C8AA");
-    public string ConnectionActionGlyph=>_snapshot.IsConnecting?"\uE711":_snapshot.IsConnected?"\uE8CD":"\uE768";
-    public string ConnectionText=>_snapshot.IsDisconnecting?global::HybridMount.Services.Localization.UiText.Text("Text_9730C3C6F841"):_snapshot.IsConnecting?global::HybridMount.Services.Localization.UiText.Text("Text_3687F953CFE8"):_snapshot.IsConnected?global::HybridMount.Services.Localization.UiText.Text("Text_F33AC04EECE6"):Actions.ConnectText;
-    public bool CanChangeConnection=>!_dialogBusy&&(_snapshot.IsConnecting?Actions.CanCancelConnection&&!_canceling:_snapshot.IsConnected?Actions.CanDisconnect:Actions.CanConnect);
-    public string ConnectionStatus=>_snapshot.IsDisconnecting?global::HybridMount.Services.Localization.UiText.Text("Text_B8D23E667305"):_snapshot.IsConnecting?global::HybridMount.Services.Localization.UiText.Text("Text_694186911AE3") : global::HybridMount.Services.Localization.UiText.Legacy(_snapshot.Status);
-    public string ConnectionGlyph=>_snapshot.IsConnecting||_snapshot.IsDisconnecting?"\uE895":_snapshot.Status is "异常" or "需要恢复"?"\uE7BA":_snapshot.IsConnected?"\uE73E":"\uE8CD";
-    private long? Used=>_snapshot.Capacity?.Value.UsedBytes is >=0? _snapshot.Capacity.Value.UsedBytes:null;
-    private long? Total=>_snapshot.Capacity?.Value.TotalBytes??(!_snapshot.Definition.CapacityAutoDetectEnabled?_snapshot.Definition.MaximumCapacityBytes:null);
-    public string UsedText=>global::HybridMount.Services.Localization.UiText.Text("Text_6C05B4B383AF",FormatBytes(Used));
-    public string TotalText=>global::HybridMount.Services.Localization.UiText.Text("Text_AF2B8C4537C1",(Total is {} total?FormatBytes(total):CapacityRules.Enabled(_snapshot.Definition)?global::HybridMount.Services.Localization.UiText.Text("Text_4D8C1C5B4283"):global::HybridMount.Services.Localization.UiText.Text("Text_F203D577D142")));
-    public string PercentageText=>Used is {} used&&Total is >0?$"{((decimal)used/Total.Value*100).ToString("0.0",CultureInfo.CurrentCulture)}%":"—";
-    public string CapacityDetails=>_snapshot.CapacityDisplay;
+    private MountSnapshot _snapshot = snapshot;
+    private bool _selected, _busy, _stopping, _dialogBusy, _canceling;
+    public Guid Id => _snapshot.Definition.Id;
+    public MountSnapshot Snapshot => _snapshot;
+    public string Name => _snapshot.Definition.Name;
+    public string SourceAndPath => _snapshot.SourceDisplay + "  " + _snapshot.Definition.LocalPath;
+    public bool IsSelected => _selected;
+    public MountActionState Actions => MountActionState.From(_snapshot, _busy, _stopping);
+    public int UploadIssueCount => _snapshot.UploadIssueCount;
+    public string IssueBadge => UploadIssueCount > 99 ? "99+" : UploadIssueCount.ToString(CultureInfo.CurrentCulture);
+    public bool HasUploadIssues => UploadIssueCount > 0;
+    public string DiagnosticTooltip => HasUploadIssues ? string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SyncIssuesClickToViewRightClickForFullDiagnostics", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, UploadIssueCount) : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("FullDiagnosticsDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+    public bool CanOpen => Actions.CanOpen && !_dialogBusy;
+    public bool CanInspect => !_stopping && !_dialogBusy;
+    public bool CanEdit => Actions.CanEdit && !_dialogBusy;
+    public bool CanRun => Actions.CanRunConnected && !_dialogBusy;
+    public bool CanRemove => Actions.CanRemove && !_dialogBusy;
+    public bool CanRecheck => CanRun && CapacityRules.Enabled(_snapshot.Definition);
+    public string RemoveText => Actions.RemoveText;
+    public bool IsConnected => _snapshot.IsConnected;
+    public bool CanConfigureThumbnails { get; private set; } = true;
+    public bool ThumbnailsEnabled => _snapshot.Definition.ThumbnailsEnabled;
+    public bool RemoteDetectionEnabled => _snapshot.Definition.RemoteAutoDetectEnabled;
+    public string ThumbnailText => ThumbnailsEnabled ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("HideThumbnails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ShowThumbnailsExperimental", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+    public string DetectionText => RemoteDetectionEnabled ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("DisableAutomaticRemoteDetection", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("EnableAutomaticRemoteDetection", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+    public string ConnectionActionGlyph => _snapshot.IsConnecting ? "\uE711" : _snapshot.IsConnected ? "\uE8CD" : "\uE768";
+    public string ConnectionText => _snapshot.IsDisconnecting ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Disconnecting", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : _snapshot.IsConnecting ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CancelConnection", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : _snapshot.IsConnected ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Disconnect", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : Actions.ConnectText;
+    public bool CanChangeConnection => !_dialogBusy && (_snapshot.IsConnecting ? Actions.CanCancelConnection && !_canceling : _snapshot.IsConnected ? Actions.CanDisconnect : Actions.CanConnect);
+    public string ConnectionStatus => _snapshot.IsDisconnecting ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("DisconnectingDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : _snapshot.IsConnecting ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Connecting", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : _snapshot.DisplayStatus;
+    public string ConnectionGlyph => _snapshot.IsConnecting || _snapshot.IsDisconnecting ? "\uE895" : _snapshot.Status is "Faulted" or "RecoveryRequired" ? "\uE7BA" : _snapshot.IsConnected ? "\uE73E" : "\uE8CD";
+    private long? Used => _snapshot.Capacity?.Value.UsedBytes is >= 0 ? _snapshot.Capacity.Value.UsedBytes : null;
+    private long? Total => _snapshot.Capacity?.Value.TotalBytes ?? (!_snapshot.Definition.CapacityAutoDetectEnabled ? _snapshot.Definition.MaximumCapacityBytes : null);
+    public string UsedText => string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Used", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, FormatBytes(Used));
+    public string TotalText => string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TotalSpace", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, (Total is { } total ? FormatBytes(total) : CapacityRules.Enabled(_snapshot.Definition) ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Unknown", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Unlimited", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!));
+    public string PercentageText => Used is { } used && Total is > 0 ? $"{((decimal)used / Total.Value * 100).ToString("0.0", CultureInfo.CurrentCulture)}%" : "—";
+    public string CapacityDetails => _snapshot.CapacityDisplay;
     /// <summary>卡片以十进制容量单位固定两位小数；未知值不冒充零，精确值保留在容量诊断。</summary>
     public static string FormatBytes(long? bytes)
     {
-        if(bytes is null or <0)return global::HybridMount.Services.Localization.UiText.Text("Text_4D8C1C5B4283");
-        string[] units=["kB","MB","GB","TB","PB","EB"];decimal value=bytes.Value/1000m;var index=0;
-        while(value>=1000&&index<units.Length-1){value/=1000;index++;}
-        value=decimal.Round(value,2,MidpointRounding.AwayFromZero);if(value>=1000&&index<units.Length-1){value/=1000;index++;}
-        return value.ToString("0.00",CultureInfo.CurrentCulture)+" "+units[index];
+        if (bytes is null or < 0) return global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("Unknown", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+        string[] units = ["kB", "MB", "GB", "TB", "PB", "EB"]; decimal value = bytes.Value / 1000m; var index = 0;
+        while (value >= 1000 && index < units.Length - 1) { value /= 1000; index++; }
+        value = decimal.Round(value, 2, MidpointRounding.AwayFromZero); if (value >= 1000 && index < units.Length - 1) { value /= 1000; index++; }
+        return value.ToString("0.00", CultureInfo.CurrentCulture) + " " + units[index];
     }
     /// <summary>UI线程一次更新所有派生属性；虚拟化重用对象，保持选择和滚动，不增加事件订阅。</summary>
-    internal void Update(MountSnapshot value,bool selected,bool busy,bool stopping,bool dialogBusy,bool canceling,bool thumbnailsAvailable=true)
+    internal void Update(MountSnapshot value, bool selected, bool busy, bool stopping, bool dialogBusy, bool canceling, bool thumbnailsAvailable = true)
     {
-        if(CanConfigureThumbnails==thumbnailsAvailable&&_snapshot==value&&(_selected,_busy,_stopping,_dialogBusy,_canceling)==(selected,busy,stopping,dialogBusy,canceling))return;
-        CanConfigureThumbnails=thumbnailsAvailable;_snapshot=value;(_selected,_busy,_stopping,_dialogBusy,_canceling)=(selected,busy,stopping,dialogBusy,canceling);OnPropertyChanged(string.Empty);
+        if (CanConfigureThumbnails == thumbnailsAvailable && _snapshot == value && (_selected, _busy, _stopping, _dialogBusy, _canceling) == (selected, busy, stopping, dialogBusy, canceling)) return;
+        CanConfigureThumbnails = thumbnailsAvailable; _snapshot = value; (_selected, _busy, _stopping, _dialogBusy, _canceling) = (selected, busy, stopping, dialogBusy, canceling); OnPropertyChanged(string.Empty);
     }
 }

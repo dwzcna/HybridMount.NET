@@ -1,0 +1,2785 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AConditionalUploadWasSubmittedAgainstTheConfirmedRemoteVersionFurtherRemote" xml:space="preserve">
+    <value>A conditional upload was submitted against the confirmed remote version. Further remote changes will still cause a conflict.</value>
+  </data>
+  <data name="ADataFolderOrAncestorContainsAReparseLinkAndCannotBe" xml:space="preserve">
+    <value>A data folder or ancestor contains a reparse link and cannot be safely cleared: {0}</value>
+  </data>
+  <data name="ADataFolderOverlapsAnActiveSyncRootSettingsCannotBeReset" xml:space="preserve">
+    <value>A data folder overlaps an active sync root. Settings cannot be reset.</value>
+  </data>
+  <data name="AFolderIdentityHasChangedCheckAndConfirmAgain" xml:space="preserve">
+    <value>A folder identity has changed. Check and confirm again: {0}</value>
+  </data>
+  <data name="ANewTaskAppearedOnARelatedPathDuringProcessingCheckAgain" xml:space="preserve">
+    <value>A new task appeared on a related path during processing. Check again.</value>
+  </data>
+  <data name="ARelatedFolderOperationOrLocalCommitIsIncompleteItsProtectionCannot" xml:space="preserve">
+    <value>A related folder operation or local commit is incomplete. Its protection cannot be bypassed.</value>
+  </data>
+  <data name="ARelatedPathHasAnUploadOrAnUnconfirmedResultFinishChecking" xml:space="preserve">
+    <value>A related path has an upload or an unconfirmed result. Finish checking it first.</value>
+  </data>
+  <data name="ARemovalModeCannotBeChangedAfterItHasStarted" xml:space="preserve">
+    <value>A removal mode cannot be changed after it has started.</value>
+  </data>
+  <data name="Account" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="AddDefaultRules" xml:space="preserve">
+    <value>Add default rules</value>
+  </data>
+  <data name="AddMount" xml:space="preserve">
+    <value>Add mount</value>
+  </data>
+  <data name="AddRule" xml:space="preserve">
+    <value>Add rule</value>
+  </data>
+  <data name="All" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="AllLevels" xml:space="preserve">
+    <value>All levels</value>
+  </data>
+  <data name="AllLocalContentInTheFolderIncludingEditedAndNewFilesWill" xml:space="preserve">
+    <value>{0}
+
+All local content in the folder, including edited and new files, will be permanently deleted. The empty root folder and remote data will be kept. Completed deletions cannot be undone.</value>
+  </data>
+  <data name="AllLocalContentInTheListedItemsMarkedForClearingIncludingLocal" xml:space="preserve">
+    <value>
+
+All local content in the listed items marked for clearing, including local edits and new files, will be permanently deleted. Completed deletions cannot be undone. Empty root folders and remote content will be kept.</value>
+  </data>
+  <data name="AllMounts" xml:space="preserve">
+    <value>All mounts</value>
+  </data>
+  <data name="AllowThisApplicationAgainInWindowsStartupAppSettings" xml:space="preserve">
+    <value>Allow this application again in Windows startup app settings.</value>
+  </data>
+  <data name="AllowUnencryptedHTTPPort5000" xml:space="preserve">
+    <value>Allow unencrypted HTTP (port 5000)</value>
+  </data>
+  <data name="AllowUnencryptedHTTPTrustedTestEnvironmentsOnly" xml:space="preserve">
+    <value>Allow unencrypted HTTP (trusted test environments only)</value>
+  </data>
+  <data name="AlwaysKeep" xml:space="preserve">
+    <value>Always keep</value>
+  </data>
+  <data name="AlwaysKeepOnDevice" xml:space="preserve">
+    <value>Always keep on device</value>
+  </data>
+  <data name="AlwaysKeepOnThisDevice" xml:space="preserve">
+    <value>Always keep on this device</value>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="AppearanceSettingsHaveNotBeenLoadedYet" xml:space="preserve">
+    <value>Appearance settings have not been loaded yet.</value>
+  </data>
+  <data name="AppearanceSettingsSavedAndAppliedImmediately" xml:space="preserve">
+    <value>Appearance settings saved and applied immediately.</value>
+  </data>
+  <data name="ApplyRemoteChanges" xml:space="preserve">
+    <value>Apply remote changes</value>
+  </data>
+  <data name="AutomaticRemoteDetection" xml:space="preserve">
+    <value>Automatic remote detection</value>
+  </data>
+  <data name="AutomaticRemoteDetectionDisabled" xml:space="preserve">
+    <value>Automatic remote detection disabled.</value>
+  </data>
+  <data name="AutomaticRemoteDetectionEnabled" xml:space="preserve">
+    <value>Automatic remote detection enabled.</value>
+  </data>
+  <data name="AutomaticRemoteDetectionFullFolderPolling" xml:space="preserve">
+    <value>Automatic remote detection (full folder polling)</value>
+  </data>
+  <data name="AutomaticRemoteDetectionFullScanEverySecondsLastSuccess" xml:space="preserve">
+    <value>Automatic remote detection: {0}; {1}full scan every {2} seconds; last success: {3}{4}</value>
+  </data>
+  <data name="AutomaticRemoteDetectionOff" xml:space="preserve">
+    <value>Automatic remote detection: off</value>
+  </data>
+  <data name="AutomaticRemoteDetectionRFC6578" xml:space="preserve">
+    <value>Automatic remote detection (RFC 6578)</value>
+  </data>
+  <data name="AvailableTotalBasedOn" xml:space="preserve">
+    <value>Available {0} / total {1}, based on {2}{3}{4}</value>
+  </data>
+  <data name="Average" xml:space="preserve">
+    <value>Average {0} · </value>
+  </data>
+  <data name="AwaitingInitialConfirmation" xml:space="preserve">
+    <value>Awaiting initial confirmation</value>
+  </data>
+  <data name="BackgroundServicesDidNotShutDownCompletelySettingsAndDataFoldersHave" xml:space="preserve">
+    <value>Background services did not shut down completely. Settings and data folders have been retained.</value>
+  </data>
+  <data name="BackupInvalidFile" xml:space="preserve">
+    <value>The configuration backup format is invalid or the file is damaged.</value>
+  </data>
+  <data name="BackupInvalidOptions" xml:space="preserve">
+    <value>The configuration backup contains invalid connection parameters or options.</value>
+  </data>
+  <data name="BackupPasswordMinimum" xml:space="preserve">
+    <value>Password protection requires at least 8 characters.</value>
+  </data>
+  <data name="BackupPasswordOptionalAtLeast8CharactersIfSet" xml:space="preserve">
+    <value>Backup password (optional; at least 8 characters if set)</value>
+  </data>
+  <data name="BackupPasswordRequired" xml:space="preserve">
+    <value>This configuration backup requires a password.</value>
+  </data>
+  <data name="BackupUnsupportedFile" xml:space="preserve">
+    <value>Only .hmxbk configuration backups are supported; legacy formats are no longer supported.</value>
+  </data>
+  <data name="BackupUnsupportedVersion" xml:space="preserve">
+    <value>This configuration backup format or version is not supported.</value>
+  </data>
+  <data name="BooleanNo" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="BucketName" xml:space="preserve">
+    <value>Bucket name</value>
+  </data>
+  <data name="ByteUnit" xml:space="preserve">
+    <value>B</value>
+  </data>
+  <data name="Bytes" xml:space="preserve">
+    <value>{0:N0} / {1:N0} bytes</value>
+  </data>
+  <data name="BytesModifiedCurrentLocalContentMayDifferFromTheOriginalUploadSnapshot" xml:space="preserve">
+    <value>{0:N0} bytes
+Modified {1:G}
+{2}
+Current local content (may differ from the original upload snapshot)</value>
+  </data>
+  <data name="BytesModifiedVersion" xml:space="preserve">
+    <value>{0:N0} bytes
+Modified {1:G}
+Version: {2}</value>
+  </data>
+  <data name="CacheLimitSaved" xml:space="preserve">
+    <value>Cache limit saved.</value>
+  </data>
+  <data name="CacheSoftLimitGiB0DisablesAutomaticEviction" xml:space="preserve">
+    <value>Cache soft limit (GiB; 0 disables automatic eviction)</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="CancelConnection" xml:space="preserve">
+    <value>Cancel connection</value>
+  </data>
+  <data name="CancelSelectedTask" xml:space="preserve">
+    <value>Cancel selected task</value>
+  </data>
+  <data name="CancelTest" xml:space="preserve">
+    <value>Cancel test</value>
+  </data>
+  <data name="Canceled" xml:space="preserve">
+    <value>Canceled</value>
+  </data>
+  <data name="CanceledCompletedDeletionsCannotBeUndone" xml:space="preserve">
+    <value>Canceled; completed deletions cannot be undone.</value>
+  </data>
+  <data name="Canceling" xml:space="preserve">
+    <value>Canceling…</value>
+  </data>
+  <data name="CancellationInProgress" xml:space="preserve">
+    <value>Cancellation in progress…</value>
+  </data>
+  <data name="CancellationRequestedCompletedStepsAreKeptAndDeletedContentWillNotBe" xml:space="preserve">
+    <value>Cancellation requested. Completed steps are kept and deleted content will not be restored.</value>
+  </data>
+  <data name="CancellationRequestedCompletedStepsWillBeKept" xml:space="preserve">
+    <value>Cancellation requested; completed steps will be kept.</value>
+  </data>
+  <data name="CannotVerifyTheDataFolder" xml:space="preserve">
+    <value>Cannot verify the data folder: {0}</value>
+  </data>
+  <data name="CannotVerifyThePackageDataFolder" xml:space="preserve">
+    <value>Cannot verify the package data folder.</value>
+  </data>
+  <data name="CapabilityProbeCancel" xml:space="preserve">
+    <value>Cancel testing</value>
+  </data>
+  <data name="CapabilityProbeCaseDetails" xml:space="preserve">
+    <value>{0}; {1} ms</value>
+  </data>
+  <data name="CapabilityProbeCleanupRecord" xml:space="preserve">
+    <value>Test cleanup record {0} ({1})</value>
+  </data>
+  <data name="CapabilityProbeManualOwned" xml:space="preserve">
+    <value>Please manually delete the following test leftovers</value>
+  </data>
+  <data name="CapabilityProbeManualUnknown" xml:space="preserve">
+    <value>Please verify ownership before manually deleting</value>
+  </data>
+  <data name="CapabilityProbeOperation" xml:space="preserve">
+    <value>Protocol capability test</value>
+  </data>
+  <data name="CapabilityProbePendingHistory" xml:space="preserve">
+    <value>Test cleanup is incomplete. Check the exact resource paths.</value>
+  </data>
+  <data name="CapabilityProbeReason" xml:space="preserve">
+    <value>Reason: {0}</value>
+  </data>
+  <data name="CapabilityProbeRetryCleanup" xml:space="preserve">
+    <value>Retry cleanup only</value>
+  </data>
+  <data name="CapabilityProbeSkipped" xml:space="preserve">
+    <value>Not verified in this run: {0}</value>
+  </data>
+  <data name="CapabilityProbeStageCanceled" xml:space="preserve">
+    <value>Testing canceled; cleanup results are shown below</value>
+  </data>
+  <data name="CapabilityProbeStageCanceledCleanupPending" xml:space="preserve">
+    <value>Testing canceled; the following test resources still need cleanup</value>
+  </data>
+  <data name="CapabilityProbeStageCleaning" xml:space="preserve">
+    <value>Cleaning up test files</value>
+  </data>
+  <data name="CapabilityProbeStageCleanupPending" xml:space="preserve">
+    <value>Testing finished; some test resources still need cleanup</value>
+  </data>
+  <data name="CapabilityProbeStageCompleted" xml:space="preserve">
+    <value>Testing and cleanup completed</value>
+  </data>
+  <data name="CapabilityProbeStagePreflight" xml:space="preserve">
+    <value>Checking the current draft</value>
+  </data>
+  <data name="CapabilityProbeStageTesting" xml:space="preserve">
+    <value>Testing protocol capabilities</value>
+  </data>
+  <data name="CapabilityProbeStart" xml:space="preserve">
+    <value>Test all capabilities</value>
+  </data>
+  <data name="CapabilityProbeSummary" xml:space="preserve">
+    <value>{0} results recorded; started {1}</value>
+  </data>
+  <data name="CapabilityProbeVerified" xml:space="preserve">
+    <value>Request and verification passed</value>
+  </data>
+  <data name="CapabilityProbeWarning" xml:space="preserve">
+    <value>Testing may modify your cloud storage to obtain results for each capability.</value>
+  </data>
+  <data name="CapabilityProbeWritePermission" xml:space="preserve">
+    <value>Some write tests failed. The test directory may not allow writing.</value>
+  </data>
+  <data name="CapacityCheck" xml:space="preserve">
+    <value>Capacity check</value>
+  </data>
+  <data name="CapacityLimit" xml:space="preserve">
+    <value>Capacity limit</value>
+  </data>
+  <data name="CapacitySettingsSavedUploadsWillBeCheckedAgainstTheCurrentSettings" xml:space="preserve">
+    <value>Capacity settings saved. Uploads will be checked against the current settings.</value>
+  </data>
+  <data name="CapacitySourceSettingSaved" xml:space="preserve">
+    <value>Capacity source setting saved.</value>
+  </data>
+  <data name="CapacityVerifiedWaitingTasksWillCheckAvailableSpaceAgain" xml:space="preserve">
+    <value>Capacity verified. Waiting tasks will check available space again.</value>
+  </data>
+  <data name="CertificateChainUntrusted" xml:space="preserve">
+    <value>The system could not validate the certificate chain</value>
+  </data>
+  <data name="CertificateClearTrust" xml:space="preserve">
+    <value>Clear confirmed certificate</value>
+  </data>
+  <data name="CertificateDetails" xml:space="preserve">
+    <value>Server: {0}
+Subject: {1}
+Issuer: {2}
+Valid: {3} — {4}
+SHA-256: {5}</value>
+  </data>
+  <data name="CertificateExpired" xml:space="preserve">
+    <value>Certificate expired</value>
+  </data>
+  <data name="CertificateFetchButton" xml:space="preserve">
+    <value>Get certificate fingerprint</value>
+  </data>
+  <data name="CertificateFetchCanceled" xml:space="preserve">
+    <value>Certificate fetching canceled. The existing fingerprint is unchanged.</value>
+  </data>
+  <data name="CertificateFetchHttpsRequired" xml:space="preserve">
+    <value>Enter a valid HTTPS server address to fetch its certificate fingerprint.</value>
+  </data>
+  <data name="CertificateFetchRunning" xml:space="preserve">
+    <value>Fetching the server leaf certificate without sending WebDAV credentials or reading files.</value>
+  </data>
+  <data name="CertificateFetchSucceeded" xml:space="preserve">
+    <value>Certificate fingerprint filled in. The WebDAV connection has not been tested. Review the details below, then use Save or Test connection.</value>
+  </data>
+  <data name="CertificateFetchUnavailable" xml:space="preserve">
+    <value>The server leaf certificate was not obtained. The existing fingerprint is unchanged.</value>
+  </data>
+  <data name="CertificateNameMismatch" xml:space="preserve">
+    <value>Certificate name does not match the server</value>
+  </data>
+  <data name="CertificateNotYetValid" xml:space="preserve">
+    <value>Certificate is not yet valid</value>
+  </data>
+  <data name="CertificateTrustAndRetry" xml:space="preserve">
+    <value>Trust this certificate and retry</value>
+  </data>
+  <data name="CertificateTrustScope" xml:space="preserve">
+    <value>Applies only to this mount and expected server, and is retained when you save the connection. Failed system validation requires the confirmed fingerprint; address or exceptional certificate changes require confirmation again.</value>
+  </data>
+  <data name="CertificateTrustWarning" xml:space="preserve">
+    <value>Server certificate validation failed. Review its details before deciding whether to trust it.</value>
+  </data>
+  <data name="CertificateValidationSystemTrust" xml:space="preserve">
+    <value>Certificate validation: system trust.</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="CheckAgainFirst" xml:space="preserve">
+    <value>Check again first.</value>
+  </data>
+  <data name="CheckEvictionNow" xml:space="preserve">
+    <value>Check eviction now</value>
+  </data>
+  <data name="CheckedAt" xml:space="preserve">
+    <value>Checked at: {0}</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>Checking</value>
+  </data>
+  <data name="CheckingBothSidesWithoutMakingChanges" xml:space="preserve">
+    <value>Checking both sides without making changes…</value>
+  </data>
+  <data name="CheckingMountsAndDataFoldersForTheCurrentDeployment" xml:space="preserve">
+    <value>Checking mounts and data folders for the current deployment…</value>
+  </data>
+  <data name="CheckingStopped" xml:space="preserve">
+    <value>Checking stopped.</value>
+  </data>
+  <data name="CleanUpTaskHistory" xml:space="preserve">
+    <value>Clean up task history</value>
+  </data>
+  <data name="CleanupCancellationRequestedCompletedCloudRenamesOrDestinationCopiesWillBeKept" xml:space="preserve">
+    <value>Cleanup cancellation requested. Completed cloud renames or destination copies will be kept.</value>
+  </data>
+  <data name="CleanupFailed" xml:space="preserve">
+    <value>Cleanup failed</value>
+  </data>
+  <data name="CleanupFailedWhenStoppingTheConnectionCheckTheLifecycleStages" xml:space="preserve">
+    <value>Cleanup failed when stopping the connection. Check the lifecycle stages.</value>
+  </data>
+  <data name="CleanupStopped" xml:space="preserve">
+    <value>Cleanup stopped</value>
+  </data>
+  <data name="Clear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="ClearAllAppSettings" xml:space="preserve">
+    <value>Clear all app settings</value>
+  </data>
+  <data name="ClearAllEndedTasks" xml:space="preserve">
+    <value>Clear all ended tasks</value>
+  </data>
+  <data name="ClearAllEndedTasksKeepActiveWaitingConflictingAndUnconfirmedTasksWithout" xml:space="preserve">
+    <value>Clear all ended tasks. Keep active, waiting, conflicting, and unconfirmed tasks without deleting files or recovery data.</value>
+  </data>
+  <data name="ClearAllLocalContentThenUnregisterOfflineKeepTheEmptyRootFolder" xml:space="preserve">
+    <value>Clear all local content, then unregister offline. Keep the empty root folder and remote content.</value>
+  </data>
+  <data name="ClearAndExit" xml:space="preserve">
+    <value>Clear and exit</value>
+  </data>
+  <data name="ClearAndRemove" xml:space="preserve">
+    <value>Clear and remove</value>
+  </data>
+  <data name="ClearAndUnregister" xml:space="preserve">
+    <value>Clear and unregister</value>
+  </data>
+  <data name="ClearCompletedTasks" xml:space="preserve">
+    <value>Clear completed tasks</value>
+  </data>
+  <data name="ClearFailedAndPartiallyFailedTaskHistoryWithoutDeletingFilesOrRecovery" xml:space="preserve">
+    <value>Clear failed and partially failed task history without deleting files or recovery data.</value>
+  </data>
+  <data name="ClearFailedTasks" xml:space="preserve">
+    <value>Clear failed tasks</value>
+  </data>
+  <data name="ClearLogs" xml:space="preserve">
+    <value>Clear logs</value>
+  </data>
+  <data name="ClearOrphanedPlaceholderFolder" xml:space="preserve">
+    <value>Clear orphaned placeholder folder</value>
+  </data>
+  <data name="ClearSettingsLogsAndCachesForTheCurrentDeploymentOnlyAllMounts" xml:space="preserve">
+    <value>Clear settings, logs and caches for the current deployment only. All mounts and pending recovery records must be removed first. The app exits afterwards.</value>
+  </data>
+  <data name="ClearSuccessfullyCompletedTaskHistoryWhileKeepingOtherTasksAndSyncData" xml:space="preserve">
+    <value>Clear successfully completed task history while keeping other tasks and sync data.</value>
+  </data>
+  <data name="ClearTheRuntimeLogsSavedOnThisComputer" xml:space="preserve">
+    <value>Clear the runtime logs saved on this computer?</value>
+  </data>
+  <data name="ClearThisMountSPinnedFingerprint" xml:space="preserve">
+    <value>Clear this mount's pinned fingerprint</value>
+  </data>
+  <data name="ClearedTaskHistoryEntriesActiveAndPendingTasksWereKept" xml:space="preserve">
+    <value>Cleared {0} {1} task history entries. Active and pending tasks were kept.</value>
+  </data>
+  <data name="Clearing" xml:space="preserve">
+    <value>Clearing</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ClosingTheWindowWillExitTheApplication" xml:space="preserve">
+    <value>Closing the window will exit the application.</value>
+  </data>
+  <data name="ClosingTheWindowWillHideItToTheTray" xml:space="preserve">
+    <value>Closing the window will hide it to the tray.</value>
+  </data>
+  <data name="CloudInvalid" xml:space="preserve">
+    <value>Enter a whole number from 1 to 128.</value>
+  </data>
+  <data name="CloudReadFailed" xml:space="preserve">
+    <value>Could not read cloud concurrency. Using 4 temporarily; the stored value was kept.</value>
+  </data>
+  <data name="CloudRecommendation" xml:space="preserve">
+    <value>Recommended: {0} (logical CPU count ÷ 2). Range: 1–128; default: 4. Applies after saving.</value>
+  </data>
+  <data name="CloudSaveFailed" xml:space="preserve">
+    <value>Could not save cloud concurrency. The previous setting was kept.</value>
+  </data>
+  <data name="CloudSaved" xml:space="preserve">
+    <value>Cloud concurrency saved and applied. Existing transfers will finish normally.</value>
+  </data>
+  <data name="CloudWaitingChannel" xml:space="preserve">
+    <value>Waiting for channel or path: {0}</value>
+  </data>
+  <data name="CloudWorkflowPhase" xml:space="preserve">
+    <value>File workflow</value>
+  </data>
+  <data name="CommitLocalState" xml:space="preserve">
+    <value>Commit local state</value>
+  </data>
+  <data name="CommitLocalStatus" xml:space="preserve">
+    <value>Commit local status</value>
+  </data>
+  <data name="Compact" xml:space="preserve">
+    <value>Compact</value>
+  </data>
+  <data name="CompleteLocalContent" xml:space="preserve">
+    <value>Complete local content</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="ConfigurationBackup" xml:space="preserve">
+    <value>Configuration backup</value>
+  </data>
+  <data name="ConfigurationWasCanceledSavedEntriesAreKeptAndCanBeViewedIn" xml:space="preserve">
+    <value>Configuration was canceled. Saved entries are kept and can be viewed in the mount list.</value>
+  </data>
+  <data name="ConfirmClearAndRemove" xml:space="preserve">
+    <value>Confirm clear and remove</value>
+  </data>
+  <data name="ConfirmProcessing" xml:space="preserve">
+    <value>Confirm processing</value>
+  </data>
+  <data name="ConfirmProcessingLegacyItems" xml:space="preserve">
+    <value>Confirm processing {0} legacy items</value>
+  </data>
+  <data name="Conflict" xml:space="preserve">
+    <value>Conflict</value>
+  </data>
+  <data name="ConflictResolutionDidNotFinishCheckAgainAndChooseExplicitlyRecoveryBackups" xml:space="preserve">
+    <value>Conflict resolution did not finish: {0}. Check again and choose explicitly. Recovery backups are kept.</value>
+  </data>
+  <data name="ConflictResolutionPending" xml:space="preserve">
+    <value>Conflict resolution pending</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="ConnectAtApplicationStartupThumbnails" xml:space="preserve">
+    <value>Connect at application startup: {0}; thumbnails: {1}{2}</value>
+  </data>
+  <data name="ConnectAtStartupSettingSaved" xml:space="preserve">
+    <value>Connect-at-startup setting saved.</value>
+  </data>
+  <data name="ConnectTheMountBeforeCheckingTheConflict" xml:space="preserve">
+    <value>Connect the mount before checking the conflict.</value>
+  </data>
+  <data name="ConnectWhenTheApplicationStarts" xml:space="preserve">
+    <value>Connect when the application starts</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="ConnectedTo" xml:space="preserve">
+    <value>Connected to {0}.</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>Connecting</value>
+  </data>
+  <data name="ConnectingDetails" xml:space="preserve">
+    <value>Connecting…</value>
+  </data>
+  <data name="ConnectionInProgress" xml:space="preserve">
+    <value>Connection in progress</value>
+  </data>
+  <data name="ConnectionIncompleteTheSavedConfigurationIsKeptAndCanBeEditedOr" xml:space="preserve">
+    <value>Connection incomplete: {0}. The saved configuration is kept and can be edited or retried.</value>
+  </data>
+  <data name="ConnectionSettings" xml:space="preserve">
+    <value>Connection settings</value>
+  </data>
+  <data name="ConnectionTestFailedCheckTheConfigurationNetworkAndCredentialSource" xml:space="preserve">
+    <value>Connection test failed. Check the configuration, network, and credential source.</value>
+  </data>
+  <data name="ContentClearingIsIncomplete" xml:space="preserve">
+    <value>Content clearing is incomplete.</value>
+  </data>
+  <data name="ContentProcessingIsAlreadyCompleteOnlyUnregistrationAndExplorerEntryCleanupWill" xml:space="preserve">
+    <value>
+Content processing is already complete. Only unregistration and Explorer entry cleanup will continue.</value>
+  </data>
+  <data name="ContinueClearingAndRemoving" xml:space="preserve">
+    <value>Continue clearing and removing</value>
+  </data>
+  <data name="ContinueDownloadingAndRemoving" xml:space="preserve">
+    <value>Continue downloading and removing</value>
+  </data>
+  <data name="ContinueRemovalCleanup" xml:space="preserve">
+    <value>Continue removal cleanup</value>
+  </data>
+  <data name="ContinueWithTheSameRemovalMethod" xml:space="preserve">
+    <value>
+Continue with the same removal method.</value>
+  </data>
+  <data name="ContinueWithTheSelectedRemovalMethodDeletionsWillNotBeReplayedAutomatically" xml:space="preserve">
+    <value>Continue with the selected removal method. Deletions will not be replayed automatically.</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>{0} (copy){1}</value>
+  </data>
+  <data name="CopyDetails" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="CopyNotice" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="CopyTaskSubmittedAnExistingDestinationWillNotBeOverwritten" xml:space="preserve">
+    <value>Copy task submitted. An existing destination will not be overwritten.</value>
+  </data>
+  <data name="CouldNotChangeStartAtSignInCheckingTheActualWindowsSetting" xml:space="preserve">
+    <value>Could not change start at sign-in. Checking the actual Windows setting.</value>
+  </data>
+  <data name="CouldNotClear" xml:space="preserve">
+    <value>Could not clear: {0}</value>
+  </data>
+  <data name="CouldNotReadAppearanceSettings" xml:space="preserve">
+    <value>Could not read appearance settings.</value>
+  </data>
+  <data name="CouldNotReadAppearanceSettingsTheCurrentValidChoicesWereKept" xml:space="preserve">
+    <value>Could not read appearance settings. The current valid choices were kept.</value>
+  </data>
+  <data name="CouldNotReadCacheSettingsSavingHasBeenStopped" xml:space="preserve">
+    <value>Could not read cache settings. Saving has been stopped.</value>
+  </data>
+  <data name="CouldNotReadInterfaceDensityTheStandardLayoutWillBeUsedFor" xml:space="preserve">
+    <value>Could not read interface density. The standard layout will be used for now.</value>
+  </data>
+  <data name="CouldNotReadLocalMetadata" xml:space="preserve">
+    <value>Could not read local metadata: {0}</value>
+  </data>
+  <data name="CouldNotReadRecoveryRecords" xml:space="preserve">
+    <value>Could not read recovery records: {0}</value>
+  </data>
+  <data name="CouldNotReadRemoteMetadata" xml:space="preserve">
+    <value>Could not read remote metadata: {0}</value>
+  </data>
+  <data name="CouldNotReadTheClosePreferenceTheWindowWillHideToThe" xml:space="preserve">
+    <value>Could not read the close preference. The window will hide to the tray for now.</value>
+  </data>
+  <data name="CouldNotReadTheInterfaceLanguageTheCurrentLanguageWasKept" xml:space="preserve">
+    <value>Could not read the interface language. The current language was kept.</value>
+  </data>
+  <data name="CouldNotReadTheStartAtSignInStatus" xml:space="preserve">
+    <value>Could not read the start-at-sign-in status.</value>
+  </data>
+  <data name="CouldNotSaveAppearanceSettings" xml:space="preserve">
+    <value>Could not save appearance settings.</value>
+  </data>
+  <data name="CouldNotSaveAppearanceSettingsThePreviousBackgroundAndThemeWereKept" xml:space="preserve">
+    <value>Could not save appearance settings. The previous background and theme were kept.</value>
+  </data>
+  <data name="CouldNotSaveInterfaceDensity" xml:space="preserve">
+    <value>Could not save interface density.</value>
+  </data>
+  <data name="CouldNotSaveInterfaceDensityThePreviousValueWasKept" xml:space="preserve">
+    <value>Could not save interface density. The previous value was kept.</value>
+  </data>
+  <data name="CouldNotSaveTheClosePreference" xml:space="preserve">
+    <value>Could not save the close preference.</value>
+  </data>
+  <data name="CouldNotSaveTheClosePreferenceThePreviousValueWasKept" xml:space="preserve">
+    <value>Could not save the close preference. The previous value was kept.</value>
+  </data>
+  <data name="CouldNotSaveTheInterfaceLanguageThePreviousLanguageWasKept" xml:space="preserve">
+    <value>Could not save the interface language. The previous language was kept.</value>
+  </data>
+  <data name="CreateAndConnect" xml:space="preserve">
+    <value>Create and connect</value>
+  </data>
+  <data name="CredentialsCannotBeChangedDuringRemoval" xml:space="preserve">
+    <value>Credentials cannot be changed during removal.</value>
+  </data>
+  <data name="CurrentLocalVersion" xml:space="preserve">
+    <value>Current local version</value>
+  </data>
+  <data name="CurrentRemoteVersion" xml:space="preserve">
+    <value>Current remote version</value>
+  </data>
+  <data name="CustomizeTheAppearance" xml:space="preserve">
+    <value>Customize the appearance</value>
+  </data>
+  <data name="DSMServerAddress" xml:space="preserve">
+    <value>DSM server address</value>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="DecryptAndPreview" xml:space="preserve">
+    <value>Decrypt and preview</value>
+  </data>
+  <data name="DeleteRule" xml:space="preserve">
+    <value>Delete rule</value>
+  </data>
+  <data name="DeselectAll" xml:space="preserve">
+    <value>Deselect all</value>
+  </data>
+  <data name="DetectVolumeCapacityAutomaticallyNotAccountQuota" xml:space="preserve">
+    <value>Detect volume capacity automatically (not account quota)</value>
+  </data>
+  <data name="DetectionIntervalsMustBeValidWholeNumbersOfSeconds" xml:space="preserve">
+    <value>Detection intervals must be valid whole numbers of seconds.</value>
+  </data>
+  <data name="DetectionSchedulingIntervalSeconds" xml:space="preserve">
+    <value>Detection scheduling interval (seconds)</value>
+  </data>
+  <data name="DetectionSettingsSaved" xml:space="preserve">
+    <value>Detection settings saved.</value>
+  </data>
+  <data name="Diagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="DisableAutomaticRemoteDetection" xml:space="preserve">
+    <value>Disable automatic remote detection</value>
+  </data>
+  <data name="Disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="Disconnecting" xml:space="preserve">
+    <value>Disconnecting…</value>
+  </data>
+  <data name="DisconnectingDetails" xml:space="preserve">
+    <value>Disconnecting</value>
+  </data>
+  <data name="Download" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="DownloadAndRemove" xml:space="preserve">
+    <value>Download and remove</value>
+  </data>
+  <data name="DownloadAndRemoveDownloadCompletelyThenKeepAsARegularLocalFolder" xml:space="preserve">
+    <value>{0}
+
+Download and remove: download completely, then keep as a regular local folder.
+
+Clear and remove: permanently delete all content in the folder, including local edits and new files. Keep the empty root folder; source content is not deleted.</value>
+  </data>
+  <data name="DownloadCompletelyAndKeepAsARegularLocalFolder" xml:space="preserve">
+    <value>Download completely and keep as a regular local folder.</value>
+  </data>
+  <data name="DownloadRemoteSnapshot" xml:space="preserve">
+    <value>Download remote snapshot</value>
+  </data>
+  <data name="EarlierRecordsAreAvailable" xml:space="preserve">
+    <value> Earlier records are available.</value>
+  </data>
+  <data name="EditSettings" xml:space="preserve">
+    <value>Edit settings</value>
+  </data>
+  <data name="EmptyLocalNTFSFolder" xml:space="preserve">
+    <value>Empty local NTFS folder</value>
+  </data>
+  <data name="EnableAutomaticRemoteDetection" xml:space="preserve">
+    <value>Enable automatic remote detection</value>
+  </data>
+  <data name="EnableSQSEventAcceleration" xml:space="preserve">
+    <value>Enable SQS event acceleration</value>
+  </data>
+  <data name="EndDateAny" xml:space="preserve">
+    <value>End date (any)</value>
+  </data>
+  <data name="Ended" xml:space="preserve">
+    <value>Ended</value>
+  </data>
+  <data name="EnterABucketName" xml:space="preserve">
+    <value>Enter a bucket name.</value>
+  </data>
+  <data name="EnterAPassword" xml:space="preserve">
+    <value>Enter a password.</value>
+  </data>
+  <data name="EnterAValidCacheLimit" xml:space="preserve">
+    <value>Enter a valid cache limit.</value>
+  </data>
+  <data name="EnterAWholeNumberDetectionIntervalWithinTheAllowedRange" xml:space="preserve">
+    <value>Enter a whole-number detection interval within the allowed range.</value>
+  </data>
+  <data name="EnterAWholeNumberOfSecondsFrom10To86400" xml:space="preserve">
+    <value>Enter a whole number of seconds from 10 to 86400.</value>
+  </data>
+  <data name="EnterAWholeNumberOfSecondsFrom30To604800" xml:space="preserve">
+    <value>Enter a whole number of seconds from 30 to 604800.</value>
+  </data>
+  <data name="EnterAnAccessKeyIDOrSelectTheDefaultSDKCredentialChain" xml:space="preserve">
+    <value>Enter an access key ID or select the default SDK credential chain.</value>
+  </data>
+  <data name="EnterTheAccessKey" xml:space="preserve">
+    <value>Enter the access key.</value>
+  </data>
+  <data name="EnterTheSigningRegionUsedByTheService" xml:space="preserve">
+    <value>Enter the signing region used by the service.</value>
+  </data>
+  <data name="EnterTheSynologyAccount" xml:space="preserve">
+    <value>Enter the Synology account.</value>
+  </data>
+  <data name="Entries" xml:space="preserve">
+    <value>Entries</value>
+  </data>
+  <data name="EntriesInThisSessionWereNotSaved" xml:space="preserve">
+    <value> {0} entries in this session were not saved.</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Excluded" xml:space="preserve">
+    <value>Excluded</value>
+  </data>
+  <data name="ExcludedFiles" xml:space="preserve">
+    <value>Excluded files</value>
+  </data>
+  <data name="ExcludedFilesAdvanced" xml:space="preserve">
+    <value>Excluded files (advanced)</value>
+  </data>
+  <data name="ExclusionRulesSaved" xml:space="preserve">
+    <value>Exclusion rules saved. {0}</value>
+  </data>
+  <data name="ExitHybridMountNET" xml:space="preserve">
+    <value>Exit HybridMount.NET</value>
+  </data>
+  <data name="ExplorerEntryConfirm" xml:space="preserve">
+    <value>Remove only the Explorer navigation registrations below. Folders, files and app settings will be kept. Ownership in both modes and native sync-root status will be checked again before removal.</value>
+  </data>
+  <data name="ExplorerEntryExplanation" xml:space="preserve">
+    <value>Find sync-root navigation entries for the current user in both packaged and unpackaged modes. Active mounts and managed folders are protected. Manually pinned Quick Access items are excluded.</value>
+  </data>
+  <data name="ExplorerEntryFound" xml:space="preserve">
+    <value>Found {0} entries. Check their status before selecting.</value>
+  </data>
+  <data name="ExplorerEntryNoPath" xml:space="preserve">
+    <value>Target path unavailable</value>
+  </data>
+  <data name="ExplorerEntryNone" xml:space="preserve">
+    <value>No navigation entries for this product were found.</value>
+  </data>
+  <data name="ExplorerEntryNotStarted" xml:space="preserve">
+    <value>Not started</value>
+  </data>
+  <data name="ExplorerEntryReady" xml:space="preserve">
+    <value>Ready to remove the entry; folders and files will be kept</value>
+  </data>
+  <data name="ExplorerEntryReload" xml:space="preserve">
+    <value>Search again</value>
+  </data>
+  <data name="ExplorerEntryRemove" xml:space="preserve">
+    <value>Remove entries only (keep files)</value>
+  </data>
+  <data name="ExplorerEntryRemoved" xml:space="preserve">
+    <value>Registration removed and verified. File Explorer has been notified; the display may take a moment to refresh.</value>
+  </data>
+  <data name="ExplorerEntryResetHelp" xml:space="preserve">
+    <value>Use Search File Explorer for leftover navigation entries. Remove active mounts normally. If old data cannot be loaded, use 0.0.14.0 to finish pending work, export settings and remove mounts first.</value>
+  </data>
+  <data name="ExplorerEntrySearch" xml:space="preserve">
+    <value>Search File Explorer</value>
+  </data>
+  <data name="ExplorerEntrySearching" xml:space="preserve">
+    <value>Searching navigation entries (read-only)…</value>
+  </data>
+  <data name="ExplorerEntryTitle" xml:space="preserve">
+    <value>Leftover Explorer navigation entries</value>
+  </data>
+  <data name="ExplorerNotice" xml:space="preserve">
+    <value>Explorer notice: {0}
+{1}</value>
+  </data>
+  <data name="ExplorerRecoveryError01" xml:space="preserve">
+    <value>Too many Explorer registrations.</value>
+  </data>
+  <data name="ExplorerRecoveryError02" xml:space="preserve">
+    <value>The Explorer registration or its owner has changed.</value>
+  </data>
+  <data name="ExplorerRecoveryError03" xml:space="preserve">
+    <value>The Explorer hidden value has changed.</value>
+  </data>
+  <data name="ExplorerRecoveryError04" xml:space="preserve">
+    <value>Missing proof of an exclusive sync-root path for the current user.</value>
+  </data>
+  <data name="ExplorerRecoveryError05" xml:space="preserve">
+    <value>Invalid namespace identifier.</value>
+  </data>
+  <data name="ExplorerRecoveryError06" xml:space="preserve">
+    <value>The navigation entry belongs to a different product identity.</value>
+  </data>
+  <data name="ExplorerRecoveryError07" xml:space="preserve">
+    <value>The navigation class has no verified target path.</value>
+  </data>
+  <data name="ExplorerRecoveryError08" xml:space="preserve">
+    <value>The namespace is shared by another sync root.</value>
+  </data>
+  <data name="ExplorerRecoveryError09" xml:space="preserve">
+    <value>The target path is missing or inconsistent between registry views.</value>
+  </data>
+  <data name="ExplorerRecoveryError10" xml:space="preserve">
+    <value>The registration is not owned by the current user.</value>
+  </data>
+  <data name="ExplorerRecoveryError11" xml:space="preserve">
+    <value>The navigation target path has changed.</value>
+  </data>
+  <data name="ExplorerRecoveryError12" xml:space="preserve">
+    <value>An unconfirmed Explorer registration appeared. Search again.</value>
+  </data>
+  <data name="ExplorerRecoveryError13" xml:space="preserve">
+    <value>An unconfirmed hidden value appeared.</value>
+  </data>
+  <data name="ExplorerRecoveryError14" xml:space="preserve">
+    <value>The Explorer registration snapshot has changed.</value>
+  </data>
+  <data name="ExplorerRecoveryError15" xml:space="preserve">
+    <value>Invalid navigation entry identity.</value>
+  </data>
+  <data name="ExplorerRecoveryError16" xml:space="preserve">
+    <value>Invalid navigation namespace.</value>
+  </data>
+  <data name="ExplorerRecoveryError17" xml:space="preserve">
+    <value>Missing a confirmed registration backup.</value>
+  </data>
+  <data name="ExplorerRecoveryError18" xml:space="preserve">
+    <value>The backup does not belong to the current user.</value>
+  </data>
+  <data name="ExplorerRecoveryError19" xml:space="preserve">
+    <value>The root backup identity is inconsistent.</value>
+  </data>
+  <data name="ExplorerRecoveryError20" xml:space="preserve">
+    <value>The entry backup identity is inconsistent.</value>
+  </data>
+  <data name="ExplorerRecoveryError21" xml:space="preserve">
+    <value>The class backup path is inconsistent.</value>
+  </data>
+  <data name="ExplorerRecoveryError22" xml:space="preserve">
+    <value>The class backup lacks matching product proof.</value>
+  </data>
+  <data name="ExplorerRecoveryError23" xml:space="preserve">
+    <value>The registration is outside the navigation recovery scope.</value>
+  </data>
+  <data name="ExplorerRecoveryError24" xml:space="preserve">
+    <value>The hidden value is outside the recovery scope.</value>
+  </data>
+  <data name="ExplorerRecoveryError25" xml:space="preserve">
+    <value>Only absolute local folder paths are supported.</value>
+  </data>
+  <data name="ExplorerRecoveryError26" xml:space="preserve">
+    <value>Drive-root entries cannot be removed here.</value>
+  </data>
+  <data name="ExplorerRecoveryError27" xml:space="preserve">
+    <value>The target drive is unavailable; this does not prove the folder is missing.</value>
+  </data>
+  <data name="ExplorerRecoveryError28" xml:space="preserve">
+    <value>The target or an ancestor is no longer a folder.</value>
+  </data>
+  <data name="ExplorerRecoveryError29" xml:space="preserve">
+    <value>The path contains a reparse point. The entry is being kept.</value>
+  </data>
+  <data name="ExplorerRecoveryError30" xml:space="preserve">
+    <value>No path ancestor can be verified.</value>
+  </data>
+  <data name="ExplorerRecoveryError31" xml:space="preserve">
+    <value>The target still belongs to a native sync root. Use the mount removal action.</value>
+  </data>
+  <data name="ExplorerRecoveryError32" xml:space="preserve">
+    <value>The maintenance process did not return navigation entries.</value>
+  </data>
+  <data name="ExplorerRecoveryError33" xml:space="preserve">
+    <value>The app and physical registry views have different targets.</value>
+  </data>
+  <data name="ExplorerRecoveryError34" xml:space="preserve">
+    <value>Navigation registrations remain in the physical registry view.</value>
+  </data>
+  <data name="ExplorerRecoveryError35" xml:space="preserve">
+    <value>Missing verification results for the physical registry view.</value>
+  </data>
+  <data name="ExplorerRecoveryError36" xml:space="preserve">
+    <value>The entry does not belong to a known mode for the current user.</value>
+  </data>
+  <data name="ExplorerRecoveryError37" xml:space="preserve">
+    <value>The entry is still managed by a packaged or unpackaged configuration. Use its mount removal action.</value>
+  </data>
+  <data name="ExplorerRecoveryError38" xml:space="preserve">
+    <value>The entry has no verifiable target path.</value>
+  </data>
+  <data name="ExplorerRecoveryError39" xml:space="preserve">
+    <value>This navigation entry has not passed verification.</value>
+  </data>
+  <data name="ExplorerRecoveryError40" xml:space="preserve">
+    <value>The entry differs from its recovery record. Check the previous failure first.</value>
+  </data>
+  <data name="ExplorerRecoveryError41" xml:space="preserve">
+    <value>The folder state or identity has changed. Entry cleanup stopped.</value>
+  </data>
+  <data name="ExplorerRecoveryError42" xml:space="preserve">
+    <value>The entry recovery record is too large.</value>
+  </data>
+  <data name="ExplorerRecoveryError43" xml:space="preserve">
+    <value>The entry recovery record is empty.</value>
+  </data>
+  <data name="ExplorerRecoveryError44" xml:space="preserve">
+    <value>The entry recovery record has an invalid identity or version.</value>
+  </data>
+  <data name="ExplorerRecoveryError45" xml:space="preserve">
+    <value>The entry recovery backup exceeds the safety limit.</value>
+  </data>
+  <data name="ExplorerRecoveryError46" xml:space="preserve">
+    <value>Navigation maintenance arguments do not match.</value>
+  </data>
+  <data name="ExplorerRecoveryError47" xml:space="preserve">
+    <value>Missing navigation backup.</value>
+  </data>
+  <data name="ExplorerRecoveryError48" xml:space="preserve">
+    <value>Unknown navigation maintenance operation.</value>
+  </data>
+  <data name="ExplorerRecoveryError49" xml:space="preserve">
+    <value>The folder identity in the physical view has changed.</value>
+  </data>
+  <data name="ExplorerRecoveryError50" xml:space="preserve">
+    <value>Select verified navigation entries.</value>
+  </data>
+  <data name="Export" xml:space="preserve">
+    <value>Export</value>
+  </data>
+  <data name="ExportConfiguration" xml:space="preserve">
+    <value>Export configuration</value>
+  </data>
+  <data name="ExportedMountConfigurationsWithEncryption" xml:space="preserve">
+    <value>Exported {0} mount configurations with encryption.</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="FailedAndPartiallyFailed" xml:space="preserve">
+    <value>Failed and partially failed</value>
+  </data>
+  <data name="Faulted" xml:space="preserve">
+    <value>Faulted</value>
+  </data>
+  <data name="FetchCapacityInformationFromServer" xml:space="preserve">
+    <value>Fetch capacity information from server</value>
+  </data>
+  <data name="FetchLocallyAndVerify" xml:space="preserve">
+    <value>Fetch locally and verify</value>
+  </data>
+  <data name="FetchingCapacityInformation" xml:space="preserve">
+    <value>
+Fetching capacity information…</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="FileCancelInProgress" xml:space="preserve">
+    <value>Pin cancellation is already in progress.</value>
+  </data>
+  <data name="FileCancelSessionChanged" xml:space="preserve">
+    <value>The download connection changed before cancellation.</value>
+  </data>
+  <data name="FileCancelVersionChanged" xml:space="preserve">
+    <value>The file identity or content version changed before clearing the pin.</value>
+  </data>
+  <data name="FileNameText" xml:space="preserve">
+    <value>File name text</value>
+  </data>
+  <data name="FilePinCancelPending" xml:space="preserve">
+    <value>The pinned download is being canceled. Wait for cleanup before pinning again.</value>
+  </data>
+  <data name="FileReleaseChanged" xml:space="preserve">
+    <value>The release request has changed.</value>
+  </data>
+  <data name="FileReleaseCompleted" xml:space="preserve">
+    <value>Space has been freed.</value>
+  </data>
+  <data name="FileReleaseGuardPending" xml:space="preserve">
+    <value>Waiting for safe release conditions.</value>
+  </data>
+  <data name="FileReleaseIdentityBefore" xml:space="preserve">
+    <value>The file identity changed before release. Its content was kept.</value>
+  </data>
+  <data name="FileReleaseIdentityChanged" xml:space="preserve">
+    <value>The identity of the file to release changed.</value>
+  </data>
+  <data name="FileReleaseIntentChanged" xml:space="preserve">
+    <value>The pin or release request for this file has changed.</value>
+  </data>
+  <data name="FileReleaseLocalProtected" xml:space="preserve">
+    <value>The file is protected by local changes or an exclusion rule.</value>
+  </data>
+  <data name="FileReleaseOwnershipMismatch" xml:space="preserve">
+    <value>The release intent does not belong to this file. Its content was kept.</value>
+  </data>
+  <data name="FileReleaseQueued" xml:space="preserve">
+    <value>Waiting for local release verification.</value>
+  </data>
+  <data name="FileReleaseReadActive" xml:space="preserve">
+    <value>Waiting for active readers to release the file.</value>
+  </data>
+  <data name="FileReleaseRecheck" xml:space="preserve">
+    <value>Waiting to recheck release conditions.</value>
+  </data>
+  <data name="FileReleaseRemotePending" xml:space="preserve">
+    <value>Waiting for remote changes to be verified.</value>
+  </data>
+  <data name="FileReleaseUploadPending" xml:space="preserve">
+    <value>Waiting for the local upload to finish.</value>
+  </data>
+  <data name="FileReleaseVersionChanged" xml:space="preserve">
+    <value>The content version changed. Check the release request again.</value>
+  </data>
+  <data name="FileSelectionCanceled" xml:space="preserve">
+    <value>File selection canceled.</value>
+  </data>
+  <data name="FileTargetDetails" xml:space="preserve">
+    <value>{0}: {1}{2}</value>
+  </data>
+  <data name="FileTaskFailure" xml:space="preserve">
+    <value>Stage: {0}; HRESULT={1}; {2}</value>
+  </data>
+  <data name="FingerprintVerifiedTrustForThisMountOnlyAndRetry" xml:space="preserve">
+    <value>Fingerprint verified; trust for this mount only and retry</value>
+  </data>
+  <data name="FinishExcludedRename" xml:space="preserve">
+    <value>Finish excluded rename</value>
+  </data>
+  <data name="FinishLocalExclusion" xml:space="preserve">
+    <value>Finish local exclusion</value>
+  </data>
+  <data name="FirstSelectAnUploadRemoteUpdateOrExcludedRenameCleanupTask" xml:space="preserve">
+    <value>First select an upload, remote update, or excluded-rename cleanup task.</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="FolderPrefixOptional" xml:space="preserve">
+    <value>Folder prefix (optional)</value>
+  </data>
+  <data name="FollowSystem" xml:space="preserve">
+    <value>Follow system</value>
+  </data>
+  <data name="FollowTheWindowsDisplayLanguageUseSimplifiedChineseWhenTheLanguageIs" xml:space="preserve">
+    <value>Follow the Windows display language; use Simplified Chinese when the language is not supported.</value>
+  </data>
+  <data name="ForASelfSignedCertificateVerifyTheFingerprintThroughATrustedChannel" xml:space="preserve">
+    <value>For a self-signed certificate, verify the fingerprint through a trusted channel before entering it. Trust applies only to this mount and must be verified again when the certificate changes. Do not enter an unverified fingerprint.</value>
+  </data>
+  <data name="ForExampleDocumentsProject" xml:space="preserve">
+    <value>For example: Documents/Project</value>
+  </data>
+  <data name="FreeUpSpace" xml:space="preserve">
+    <value>Free up space</value>
+  </data>
+  <data name="FreedMiBCurrentUsageIsApproximatelyMiB" xml:space="preserve">
+    <value>Freed {0:F1} MiB; current usage is approximately {1:F1} MiB.</value>
+  </data>
+  <data name="FullDiagnostics" xml:space="preserve">
+    <value>Full diagnostics · {0}</value>
+  </data>
+  <data name="FullDiagnosticsDetails" xml:space="preserve">
+    <value>Full diagnostics</value>
+  </data>
+  <data name="FullReconciliationIntervalSeconds" xml:space="preserve">
+    <value>Full reconciliation interval (seconds)</value>
+  </data>
+  <data name="FullS3Reconciliation" xml:space="preserve">
+    <value>Full S3 reconciliation</value>
+  </data>
+  <data name="HTTPSCertificateSHA256FingerprintOptional" xml:space="preserve">
+    <value>HTTPS certificate SHA-256 fingerprint (optional)</value>
+  </data>
+  <data name="HTTPSendsTheAccountPasswordAndFileContentWithoutEncryptionAllowIt" xml:space="preserve">
+    <value>HTTP sends the account, password, and file content without encryption. Allow it explicitly only on a trusted network. HTTPS (5001) is recommended.</value>
+  </data>
+  <data name="HideThumbnails" xml:space="preserve">
+    <value>Hide thumbnails</value>
+  </data>
+  <data name="HideToTheTrayWhenClosingTheWindow" xml:space="preserve">
+    <value>Hide to the tray when closing the window</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="HttpsNasExampleCom5006SharedFolder" xml:space="preserve">
+    <value>https://nas.example.com:5006/SharedFolder/</value>
+  </data>
+  <data name="HybridMountJSONConfigurationBackup" xml:space="preserve">
+    <value>HybridMount JSON configuration backup</value>
+  </data>
+  <data name="HybridMountNETFailedToStartSeeTheLifecycleStartupDiagnosticsInLogs" xml:space="preserve">
+    <value>HybridMount.NET failed to start:
+{0}
+{1}
+See the lifecycle startup diagnostics in Logs.</value>
+  </data>
+  <data name="HybridMountNETIsAlreadyRunning" xml:space="preserve">
+    <value>HybridMount.NET is already running.</value>
+  </data>
+  <data name="HydrateFromSnapshot" xml:space="preserve">
+    <value>Hydrate from snapshot</value>
+  </data>
+  <data name="IfAnUploadSnapshotExistsTheCopyUsesThatSnapshotAndLater" xml:space="preserve">
+    <value>If an upload snapshot exists, the copy uses that snapshot and later local edits do not affect it. Without a snapshot, the copy uses local content captured during upload preparation, rather than the content at the time of the conflict.</value>
+  </data>
+  <data name="ImportConfiguration" xml:space="preserve">
+    <value>Import configuration</value>
+  </data>
+  <data name="ImportResultsSavedSkippedFailedCanceledSavedMountsAreNotConnectedYet" xml:space="preserve">
+    <value>Import results: saved {0}, skipped {1}, failed {2}, canceled {3}. Saved mounts are not connected yet.</value>
+  </data>
+  <data name="ImportSelectedItems" xml:space="preserve">
+    <value>Import selected items</value>
+  </data>
+  <data name="IncrementalDetectionIntervalSeconds" xml:space="preserve">
+    <value>Incremental detection interval (seconds)</value>
+  </data>
+  <data name="IncrementalScanEverySeconds" xml:space="preserve">
+    <value>incremental scan every {0} seconds, </value>
+  </data>
+  <data name="IndexAccessDenied" xml:space="preserve">
+    <value>Access to application data was denied. Check directory permissions for the current user.</value>
+  </data>
+  <data name="IndexCorrupt" xml:space="preserve">
+    <value>The application data index is damaged. Keep the logs and original data for diagnosis. Mounts and tasks are stopped.</value>
+  </data>
+  <data name="IndexGoToSettings" xml:space="preserve">
+    <value>Go to Settings</value>
+  </data>
+  <data name="IndexNewerVersion" xml:space="preserve">
+    <value>Application data was created by a newer version. Use that version or later. Mounts and tasks are stopped.</value>
+  </data>
+  <data name="IndexOldResetRequired" xml:space="preserve">
+    <value>An older application data format was detected. Go to Settings → Reset to reset data for the current mode, then import your .hmxbk configuration again.</value>
+  </data>
+  <data name="IndexReadFailed" xml:space="preserve">
+    <value>The application data index could not be read. Check the logs. Mounts and tasks are stopped.</value>
+  </data>
+  <data name="IndexResetBlocked" xml:space="preserve">
+    <value>Cannot reset: {0} Use 0.0.14.0 to finish pending work, export configuration, and remove mounts before resetting data for this mode.</value>
+  </data>
+  <data name="IndexRestrictedTitle" xml:space="preserve">
+    <value>Application data needs attention</value>
+  </data>
+  <data name="Information" xml:space="preserve">
+    <value>Information</value>
+  </data>
+  <data name="InterfaceDensity" xml:space="preserve">
+    <value>Interface density</value>
+  </data>
+  <data name="InterfaceDensitySavedAndAppliedImmediately" xml:space="preserve">
+    <value>Interface density saved and applied immediately.</value>
+  </data>
+  <data name="InterfaceLanguage" xml:space="preserve">
+    <value>Interface language</value>
+  </data>
+  <data name="InterfaceLanguageSavedAndAppliedImmediately" xml:space="preserve">
+    <value>Interface language saved and applied immediately.</value>
+  </data>
+  <data name="Interrupted" xml:space="preserve">
+    <value>Interrupted</value>
+  </data>
+  <data name="InvalidAddress" xml:space="preserve">
+    <value>Invalid address</value>
+  </data>
+  <data name="InvalidRequest" xml:space="preserve">
+    <value>Invalid request.</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>{0:N0} / {1:N0} items</value>
+  </data>
+  <data name="ItemsFromDifferentMountsCannotBeCombined" xml:space="preserve">
+    <value>Items from different mounts cannot be combined.</value>
+  </data>
+  <data name="ItemsSelected" xml:space="preserve">
+    <value>{0} items selected</value>
+  </data>
+  <data name="JoinedText" xml:space="preserve">
+    <value>{0}{1}</value>
+  </data>
+  <data name="KeptAsARegularLocalFile" xml:space="preserve">
+    <value>Kept as a regular local file.</value>
+  </data>
+  <data name="LanguageResourcesAreMissingFallingBackToSimplifiedChinese" xml:space="preserve">
+    <value>Language resources are missing. Falling back to Simplified Chinese.</value>
+  </data>
+  <data name="LastSuccess" xml:space="preserve">
+    <value>
+Last success: {0:g}</value>
+  </data>
+  <data name="LastSuccessDetails" xml:space="preserve">
+    <value>{0}Last success: {1}{2}</value>
+  </data>
+  <data name="Later" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="LeaveBlankForSystemCertificateValidation" xml:space="preserve">
+    <value>Leave blank for system certificate validation</value>
+  </data>
+  <data name="LeavingThisBlankGivesNoPasswordProtectionAnyoneWithTheBackupCan" xml:space="preserve">
+    <value>Leaving this blank gives no password protection. Anyone with the backup can read its credentials.</value>
+  </data>
+  <data name="LegacyEntryRemoved" xml:space="preserve">
+    <value>Legacy entry removed: </value>
+  </data>
+  <data name="LegacyMountClearedAndUnregistered" xml:space="preserve">
+    <value>Legacy mount cleared and unregistered: </value>
+  </data>
+  <data name="LegacyMountNotRemoved" xml:space="preserve">
+    <value>Legacy mount not removed: {0}</value>
+  </data>
+  <data name="LegacyMounts" xml:space="preserve">
+    <value>Legacy mounts</value>
+  </data>
+  <data name="LegacySimulatedSourceMigrationOutOnly" xml:space="preserve">
+    <value>Legacy simulated source (migration out only)</value>
+  </data>
+  <data name="LegacySourcesSupportMigrationOutOnly" xml:space="preserve">
+    <value>Legacy sources support migration out only</value>
+  </data>
+  <data name="LifecycleRecords" xml:space="preserve">
+    <value>Lifecycle records</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="LoadEarlier" xml:space="preserve">
+    <value>Load earlier</value>
+  </data>
+  <data name="LoadingLogs" xml:space="preserve">
+    <value>Loading logs</value>
+  </data>
+  <data name="LocalCloudDestination" xml:space="preserve">
+    <value>Local: {0}; cloud destination: {1}</value>
+  </data>
+  <data name="LocalContentClearedUnregistrationCleanupIsPending" xml:space="preserve">
+    <value>Local content cleared; unregistration cleanup is pending</value>
+  </data>
+  <data name="LocalContentWasReplacedWithVerifiedRemoteContentOriginalLocalBackup" xml:space="preserve">
+    <value>Local content was replaced with verified remote content. Original local backup: {0}</value>
+  </data>
+  <data name="LocalDirectoryRequired" xml:space="preserve">
+    <value>Select an empty local NTFS folder.</value>
+  </data>
+  <data name="LocalEditsRegularFilesActiveItemsOrUnknownStatesWereKept" xml:space="preserve">
+    <value>Local edits, regular files, active items, or unknown states were kept.</value>
+  </data>
+  <data name="LocalFolder" xml:space="preserve">
+    <value>Local folder</value>
+  </data>
+  <data name="LocalRecoveryBackupKeptAt" xml:space="preserve">
+    <value>Local recovery backup kept at: {0}</value>
+  </data>
+  <data name="LocalScanCompletedNewAndEditedFilesContinueToUploadViewConflicts" xml:space="preserve">
+    <value>Local scan completed. New and edited files continue to upload; view conflicts on the Tasks page.</value>
+  </data>
+  <data name="LogActions" xml:space="preserve">
+    <value>Log actions</value>
+  </data>
+  <data name="LogEndDate" xml:space="preserve">
+    <value>Log end date</value>
+  </data>
+  <data name="LogLevel" xml:space="preserve">
+    <value>Log level</value>
+  </data>
+  <data name="LogList" xml:space="preserve">
+    <value>Log list</value>
+  </data>
+  <data name="LogOperationFailed" xml:space="preserve">
+    <value>Log operation failed: {0}</value>
+  </data>
+  <data name="LogStartDate" xml:space="preserve">
+    <value>Log start date</value>
+  </data>
+  <data name="LogStorageError" xml:space="preserve">
+    <value>Log storage error: {0}; </value>
+  </data>
+  <data name="Logs" xml:space="preserve">
+    <value>Logs</value>
+  </data>
+  <data name="MainNavigation" xml:space="preserve">
+    <value>Main navigation</value>
+  </data>
+  <data name="ManageMounts" xml:space="preserve">
+    <value>Manage mounts</value>
+  </data>
+  <data name="ManageRemoteFilesThroughLocalViews" xml:space="preserve">
+    <value>Manage remote files through local views</value>
+  </data>
+  <data name="ManageThisMountSOfflineCacheLocalEditsAreProtected" xml:space="preserve">
+    <value>Manage this mount's offline cache; local edits are protected.</value>
+  </data>
+  <data name="ManualCapacityLimitBlankForUnlimited" xml:space="preserve">
+    <value>Manual capacity limit (blank for unlimited)</value>
+  </data>
+  <data name="ManualCapacityLimitGBBlankForUnlimited" xml:space="preserve">
+    <value>Manual capacity limit (GB; blank for unlimited)</value>
+  </data>
+  <data name="ManualRemoteDetection" xml:space="preserve">
+    <value>Manual remote detection</value>
+  </data>
+  <data name="ManualRemoteDetectionFullReconciliation" xml:space="preserve">
+    <value>Manual remote detection (full reconciliation)</value>
+  </data>
+  <data name="MatchMode" xml:space="preserve">
+    <value>Match mode</value>
+  </data>
+  <data name="MigrationOutRequired" xml:space="preserve">
+    <value>Migration out required</value>
+  </data>
+  <data name="MoreActions" xml:space="preserve">
+    <value>More actions</value>
+  </data>
+  <data name="MoreMountActions" xml:space="preserve">
+    <value>More mount actions</value>
+  </data>
+  <data name="Mount" xml:space="preserve">
+    <value>Mount</value>
+  </data>
+  <data name="MountActions" xml:space="preserve">
+    <value>Mount actions</value>
+  </data>
+  <data name="MountConfigurationBackupList" xml:space="preserve">
+    <value>Mount configuration backup list</value>
+  </data>
+  <data name="MountList" xml:space="preserve">
+    <value>Mount list</value>
+  </data>
+  <data name="MountNameRequired" xml:space="preserve">
+    <value>Enter a mount name.</value>
+  </data>
+  <data name="MountOperationFailed" xml:space="preserve">
+    <value>Mount operation failed: {0}</value>
+  </data>
+  <data name="MountTasks" xml:space="preserve">
+    <value>Mount tasks</value>
+  </data>
+  <data name="MountsBeingRemovedCannotBeExportedYet" xml:space="preserve">
+    <value>Mounts being removed cannot be exported yet.</value>
+  </data>
+  <data name="NFSReserved" xml:space="preserve">
+    <value>NFS (reserved)</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="NativeBackendDisconnected" xml:space="preserve">
+    <value>Native backend disconnected</value>
+  </data>
+  <data name="New" xml:space="preserve">
+    <value>New · </value>
+  </data>
+  <data name="NewAndEditedLocalFilesUploadContinuously" xml:space="preserve">
+    <value>New and edited local files upload continuously</value>
+  </data>
+  <data name="NewLogsAreAvailableRefreshToViewThem" xml:space="preserve">
+    <value> New logs are available. Refresh to view them.</value>
+  </data>
+  <data name="NewSynologyNAS" xml:space="preserve">
+    <value>New · Synology NAS</value>
+  </data>
+  <data name="NextRetry" xml:space="preserve">
+    <value> · Next retry: {0}</value>
+  </data>
+  <data name="NoConfigurationDialogIsAvailableForThisProtocolYet" xml:space="preserve">
+    <value>No configuration dialog is available for this protocol yet.</value>
+  </data>
+  <data name="NoDiagnosticInformationIsAvailable" xml:space="preserve">
+    <value>No diagnostic information is available.</value>
+  </data>
+  <data name="NoFileSelected" xml:space="preserve">
+    <value>No file selected.</value>
+  </data>
+  <data name="NoHistoryEntriesCanBeClearedActiveTasksAndTasksAwaitingRecovery" xml:space="preserve">
+    <value>No {0} history entries can be cleared. Active tasks and tasks awaiting recovery were kept.</value>
+  </data>
+  <data name="NoLogsMatchTheCurrentFilters" xml:space="preserve">
+    <value>No logs match the current filters.</value>
+  </data>
+  <data name="NoMaterial" xml:space="preserve">
+    <value>No material</value>
+  </data>
+  <data name="NoMountsYetSelectAddMountToConnectAFileSource" xml:space="preserve">
+    <value>No mounts yet. Select “Add mount” to connect a file source.</value>
+  </data>
+  <data name="NoTasksMatchTheCurrentFilters" xml:space="preserve">
+    <value>No tasks match the current filters.</value>
+  </data>
+  <data name="NoVerifiableLegacyMountsWereFoundSelectAnOldMountFolderTo" xml:space="preserve">
+    <value>No verifiable legacy mounts were found. Select an old mount folder to check it.</value>
+  </data>
+  <data name="NoneNewLocalItem" xml:space="preserve">
+    <value>None (new local item)</value>
+  </data>
+  <data name="NoneYet" xml:space="preserve">
+    <value>None yet</value>
+  </data>
+  <data name="NotCheckedYet" xml:space="preserve">
+    <value>Not checked yet</value>
+  </data>
+  <data name="NotConnected" xml:space="preserve">
+    <value>Not connected</value>
+  </data>
+  <data name="NotDetectedYet" xml:space="preserve">
+    <value>Not detected yet</value>
+  </data>
+  <data name="NotIncludedInUpload" xml:space="preserve">
+    <value>Not included in upload</value>
+  </data>
+  <data name="NotStartedYet" xml:space="preserve">
+    <value>Not started yet</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="OfflineCache" xml:space="preserve">
+    <value>Offline cache</value>
+  </data>
+  <data name="OnDemandMountsAreReady" xml:space="preserve">
+    <value>On-demand mounts are ready</value>
+  </data>
+  <data name="OpenFileLocation" xml:space="preserve">
+    <value>Open file location</value>
+  </data>
+  <data name="OpenFolder" xml:space="preserve">
+    <value>Open folder</value>
+  </data>
+  <data name="OpenSettings" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="OpenWindowsStartupSettings" xml:space="preserve">
+    <value>Open Windows startup settings</value>
+  </data>
+  <data name="OperationCompleted" xml:space="preserve">
+    <value>Operation completed.</value>
+  </data>
+  <data name="OperationIncomplete" xml:space="preserve">
+    <value>Operation incomplete</value>
+  </data>
+  <data name="OperationSubmittedViewPerItemResultsOnTheTasksPage" xml:space="preserve">
+    <value>Operation submitted. View per-item results on the Tasks page.</value>
+  </data>
+  <data name="OperationSubmittedViewProgressAndPerItemResultsOnTheTasksPage" xml:space="preserve">
+    <value>Operation submitted. View progress and per-item results on the Tasks page.</value>
+  </data>
+  <data name="OriginalSyncedVersion" xml:space="preserve">
+    <value>Original synced version: {0}{1}</value>
+  </data>
+  <data name="OrphanedPlaceholderFolderTheOriginalProviderCannotBeVerified" xml:space="preserve">
+    <value>Orphaned placeholder folder; the original provider cannot be verified</value>
+  </data>
+  <data name="ParagraphWithSuffix" xml:space="preserve">
+    <value>
+
+{0}{1}</value>
+  </data>
+  <data name="PartialPlaceholder" xml:space="preserve">
+    <value>Partial placeholder</value>
+  </data>
+  <data name="PartiallyFailed" xml:space="preserve">
+    <value>Partially failed</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="PasswordOrThirdPartyApplicationPassword" xml:space="preserve">
+    <value>Password or third-party application password</value>
+  </data>
+  <data name="PathStyleAddressing" xml:space="preserve">
+    <value>Path-style addressing</value>
+  </data>
+  <data name="PendingApplication" xml:space="preserve">
+    <value>Pending application</value>
+  </data>
+  <data name="PinnedCertificateSHA256ForThisMount" xml:space="preserve">
+    <value>Pinned certificate SHA-256 for this mount:
+{0}</value>
+  </data>
+  <data name="PlaceholderIdentityVerificationFailedDirectReplacementIsUnavailable" xml:space="preserve">
+    <value>Placeholder identity verification failed. Direct replacement is unavailable.</value>
+  </data>
+  <data name="PlaceholderOwnershipDoesNotMatchRevertingStopped" xml:space="preserve">
+    <value>Placeholder ownership does not match. Reverting stopped.</value>
+  </data>
+  <data name="PreparingTheSelectedConflictResolutionWritingIsAllowedOnlyAfterTheLocal" xml:space="preserve">
+    <value>Preparing the selected conflict resolution. Writing is allowed only after the local backup is complete.</value>
+  </data>
+  <data name="PreviousStageRecoveryBackup" xml:space="preserve">
+    <value>
+Previous stage: {0}
+Recovery backup: {1}</value>
+  </data>
+  <data name="ProcessLegacyMounts" xml:space="preserve">
+    <value>Process legacy mounts</value>
+  </data>
+  <data name="ProcessSelected" xml:space="preserve">
+    <value>Process selected</value>
+  </data>
+  <data name="ProcessSelectedDetails" xml:space="preserve">
+    <value>Process selected ({0})</value>
+  </data>
+  <data name="Processing" xml:space="preserve">
+    <value>Processing</value>
+  </data>
+  <data name="ProcessingStoppedSavedBackupsAndRecoveryStagesAreKept" xml:space="preserve">
+    <value>Processing stopped. Saved backups and recovery stages are kept.</value>
+  </data>
+  <data name="ProtocolCapabilitiesHeader" xml:space="preserve">
+    <value>Protocol capabilities</value>
+  </data>
+  <data name="ProtocolCapabilitiesHint" xml:space="preserve">
+    <value>Expand to view the interfaces used by the application; -- means no evidence yet. Test again after changing connection settings.</value>
+  </data>
+  <data name="ProtocolCapabilitiesHistory" xml:space="preserve">
+    <value>Disconnected: historical evidence from the previous connection, limited to its verified scopes.</value>
+  </data>
+  <data name="ProtocolCapabilitiesScope" xml:space="preserve">
+    <value>Results apply only to the verified scopes for this account, not every subfolder. Advertised support has not been tested.</value>
+  </data>
+  <data name="ProtocolEvidenceDetails" xml:space="preserve">
+    <value>Evidence scopes: {0}; last observed: {1}</value>
+  </data>
+  <data name="ProtocolPurposeAccess" xml:space="preserve">
+    <value>Read effective privileges for the exact resource, independently of content versions and write preconditions.</value>
+  </data>
+  <data name="ProtocolPurposeAuthentication" xml:space="preserve">
+    <value>Open or close the server session for the current account.</value>
+  </data>
+  <data name="ProtocolPurposeChanges" xml:space="preserve">
+    <value>Read incremental collection changes to reduce repeated full scans.</value>
+  </data>
+  <data name="ProtocolPurposeChecksum" xml:space="preserve">
+    <value>Obtain file digests to verify downloaded and uploaded contents.</value>
+  </data>
+  <data name="ProtocolPurposeCleanup" xml:space="preserve">
+    <value>Clean up verified temporary probe files only; general file deletion is not enabled.</value>
+  </data>
+  <data name="ProtocolPurposeConditionalDelete" xml:space="preserve">
+    <value>Delete only when the target version matches.</value>
+  </data>
+  <data name="ProtocolPurposeConditionalMove" xml:space="preserve">
+    <value>Verify source version and destination overwrite protection; permissions may differ by path.</value>
+  </data>
+  <data name="ProtocolPurposeCreateOnly" xml:space="preserve">
+    <value>Create only when the destination does not exist.</value>
+  </data>
+  <data name="ProtocolPurposeDelete" xml:space="preserve">
+    <value>Delete a target; conditional deletion is verified separately.</value>
+  </data>
+  <data name="ProtocolPurposeDirectory" xml:space="preserve">
+    <value>Create directories within the target scope.</value>
+  </data>
+  <data name="ProtocolPurposeDiscovery" xml:space="preserve">
+    <value>Read advertised interfaces and versions.</value>
+  </data>
+  <data name="ProtocolPurposeDownload" xml:space="preserve">
+    <value>Read file contents for downloads and hydration.</value>
+  </data>
+  <data name="ProtocolPurposeLock" xml:space="preserve">
+    <value>Verify exclusive locks used in protected write workflows.</value>
+  </data>
+  <data name="ProtocolPurposeMetadata" xml:space="preserve">
+    <value>Read directory listings, file metadata, or share information.</value>
+  </data>
+  <data name="ProtocolPurposeMetadataCompression" xml:space="preserve">
+    <value>Compress directory metadata only, with bounded streaming decompression. File bodies and ranges use the identity representation.</value>
+  </data>
+  <data name="ProtocolPurposeMove" xml:space="preserve">
+    <value>Move, rename, or copy a target; overwrite protection is verified separately.</value>
+  </data>
+  <data name="ProtocolPurposeMultipartAbort" xml:space="preserve">
+    <value>Abort and clean up incomplete multipart uploads owned by this application.</value>
+  </data>
+  <data name="ProtocolPurposeMultipartComplete" xml:space="preserve">
+    <value>Complete uploaded parts; conditional completion is verified separately.</value>
+  </data>
+  <data name="ProtocolPurposeMultipartCopy" xml:space="preserve">
+    <value>Copy large objects in parts on the server.</value>
+  </data>
+  <data name="ProtocolPurposeMultipartPart" xml:space="preserve">
+    <value>Upload an individual part.</value>
+  </data>
+  <data name="ProtocolPurposeMultipartStart" xml:space="preserve">
+    <value>Start a multipart upload for a large file.</value>
+  </data>
+  <data name="ProtocolPurposeProbeInventory" xml:space="preserve">
+    <value>Verifies test resources, object versions and multipart cleanup without reading user content.</value>
+  </data>
+  <data name="ProtocolPurposeQueueAttributes" xml:space="preserve">
+    <value>Read and verify queue identity and attributes.</value>
+  </data>
+  <data name="ProtocolPurposeQueueConfirm" xml:space="preserve">
+    <value>Acknowledge messages after persisting their hints.</value>
+  </data>
+  <data name="ProtocolPurposeQueueReceive" xml:space="preserve">
+    <value>Receive remote-change messages; not called by connection tests.</value>
+  </data>
+  <data name="ProtocolPurposeQuota" xml:space="preserve">
+    <value>Query account or directory quota reported by the server, not physical disk capacity.</value>
+  </data>
+  <data name="ProtocolPurposeRange" xml:space="preserve">
+    <value>Read selected byte ranges for thumbnails and other uses; range and version validation are required.</value>
+  </data>
+  <data name="ProtocolPurposeRedirect" xml:space="preserve">
+    <value>Follow up to five same-origin 301/308 redirects within the configured root, preserving methods, bodies and preconditions.</value>
+  </data>
+  <data name="ProtocolPurposeRepresentationDigest" xml:space="preserve">
+    <value>Verify full representation digests and detect content changes with weak or missing ETags; write preconditions remain required.</value>
+  </data>
+  <data name="ProtocolPurposeUnlock" xml:space="preserve">
+    <value>Release locks owned by the current workflow.</value>
+  </data>
+  <data name="ProtocolPurposeUpdate" xml:space="preserve">
+    <value>Commit contents against a known version to protect concurrent changes.</value>
+  </data>
+  <data name="ProtocolPurposeUpload" xml:space="preserve">
+    <value>Upload file contents; success does not prove safe conditional overwrites.</value>
+  </data>
+  <data name="ProtocolReasonConditionIgnored" xml:space="preserve">
+    <value>Conditional protection did not pass verification in this scope.</value>
+  </data>
+  <data name="ProtocolReasonDeclared" xml:space="preserve">
+    <value>Advertised by the server; not yet tested.</value>
+  </data>
+  <data name="ProtocolReasonMixedScopes" xml:space="preserve">
+    <value>Verified results differ by path; a single supported or unsupported result would be misleading.</value>
+  </data>
+  <data name="ProtocolReasonPermission" xml:space="preserve">
+    <value>Authentication or permission failed; interface support remains unknown.</value>
+  </data>
+  <data name="ProtocolReasonQuotaMissing" xml:space="preserve">
+    <value>The server explicitly omitted the requested quota properties.</value>
+  </data>
+  <data name="ProtocolReasonRangeIgnored" xml:space="preserve">
+    <value>The server ignored the range request; strict partial reads are unavailable.</value>
+  </data>
+  <data name="ProtocolReasonUncertain" xml:space="preserve">
+    <value>No verifiable result is available.</value>
+  </data>
+  <data name="ProtocolScopeQueue" xml:space="preserve">
+    <value>Current queue subscription</value>
+  </data>
+  <data name="ProtocolScopeRoot" xml:space="preserve">
+    <value>Configured root</value>
+  </data>
+  <data name="ProtocolScopeServer" xml:space="preserve">
+    <value>Server session / share discovery</value>
+  </data>
+  <data name="ProtocolStatusAdvertised" xml:space="preserve">
+    <value>Advertised</value>
+  </data>
+  <data name="ProtocolStatusSupported" xml:space="preserve">
+    <value>Supported</value>
+  </data>
+  <data name="ProtocolStatusUnknown" xml:space="preserve">
+    <value>--</value>
+  </data>
+  <data name="ProtocolStatusUnsupported" xml:space="preserve">
+    <value>Unsupported</value>
+  </data>
+  <data name="Querying" xml:space="preserve">
+    <value>
+Querying…</value>
+  </data>
+  <data name="QueueCredentialSource" xml:space="preserve">
+    <value>Queue credential source</value>
+  </data>
+  <data name="QueuePriorityAndPhase" xml:space="preserve">
+    <value>P{0} · {1}{2}</value>
+  </data>
+  <data name="QueueRegionMustMatchS3" xml:space="preserve">
+    <value>Queue region (must match S3)</value>
+  </data>
+  <data name="Queued" xml:space="preserve">
+    <value>Queued</value>
+  </data>
+  <data name="RFC6578IncrementalDetection" xml:space="preserve">
+    <value>RFC 6578 incremental detection</value>
+  </data>
+  <data name="ReEnterBackupPassword" xml:space="preserve">
+    <value>Re-enter backup password</value>
+  </data>
+  <data name="ReadOnlyCheckRequestedThisDoesNotAuthorizeOverwritingOrResending" xml:space="preserve">
+    <value>Read-only check requested. This does not authorize overwriting or resending.</value>
+  </data>
+  <data name="ReadOnlyConnectionTest" xml:space="preserve">
+    <value>Read-only connection test</value>
+  </data>
+  <data name="ReadOnlySQSConnectionTest" xml:space="preserve">
+    <value>Read-only SQS connection test</value>
+  </data>
+  <data name="ReadingQueueAttributes" xml:space="preserve">
+    <value>Reading queue attributes…</value>
+  </data>
+  <data name="RecheckCapacity" xml:space="preserve">
+    <value>Recheck capacity</value>
+  </data>
+  <data name="RecheckingFolderIdentity" xml:space="preserve">
+    <value>Rechecking folder identity…</value>
+  </data>
+  <data name="ReconnectAll" xml:space="preserve">
+    <value>Reconnect all</value>
+  </data>
+  <data name="RecoveryBackup" xml:space="preserve">
+    <value>
+Recovery backup: {0}</value>
+  </data>
+  <data name="RecoveryManagedDirectory" xml:space="preserve">
+    <value>This directory is managed by mount “{0}”.
+Directory: {1}
+Mode: {2}
+Use the removal action for that mount.</value>
+  </data>
+  <data name="RecoveryModePackaged" xml:space="preserve">
+    <value>Packaged</value>
+  </data>
+  <data name="RecoveryModeUnpackaged" xml:space="preserve">
+    <value>Unpackaged</value>
+  </data>
+  <data name="RecoveryRecordsStillNeedVerificationOrCompletionResolveLeftoverMountsOrSync" xml:space="preserve">
+    <value>Recovery records still need verification or completion. Resolve leftover mounts or sync issues first.</value>
+  </data>
+  <data name="RecoveryRecordsWereKeptCheckUnconfirmedResultsBeforeReconnectingTheAffectedMounts" xml:space="preserve">
+    <value>Recovery records were kept. Check unconfirmed results before reconnecting the affected mounts.</value>
+  </data>
+  <data name="RecoveryRequired" xml:space="preserve">
+    <value>Recovery required</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="RegistrationIsMissingAndCloudPlaceholdersRemainExistingDataIsKeptUnchanged" xml:space="preserve">
+    <value>Registration is missing and cloud placeholders remain. Existing data is kept unchanged.</value>
+  </data>
+  <data name="RegistrationIsMissingButTheMaterializedIndexRemainsConfigurationWasKeptFor" xml:space="preserve">
+    <value>Registration is missing but the materialized index remains. Configuration was kept for recovery.</value>
+  </data>
+  <data name="RegularLocalFile" xml:space="preserve">
+    <value>Regular local file</value>
+  </data>
+  <data name="RegularLocalFileOrUnknownItemKeptUnchanged" xml:space="preserve">
+    <value>Regular local file or unknown item; kept unchanged.</value>
+  </data>
+  <data name="RelatedTasksWereStoppedAndRecoveryRecordsKeptCheckUnconfirmedResultsBefore" xml:space="preserve">
+    <value>Related tasks were stopped and recovery records kept. Check unconfirmed results before reconnecting.</value>
+  </data>
+  <data name="RelativePathForTheNewRemoteFile" xml:space="preserve">
+    <value>Relative path for the new remote file</value>
+  </data>
+  <data name="Remote" xml:space="preserve">
+    <value> → Remote: {0}</value>
+  </data>
+  <data name="RemoteCapacityAutomaticDetectionNotQueriedYet" xml:space="preserve">
+    <value>Remote capacity: automatic detection; not queried yet.</value>
+  </data>
+  <data name="RemoteCapacityAvailableUsedTotal" xml:space="preserve">
+    <value>Remote capacity: {0}
+Available {1} · Used {2} · Total {3}{4}{5}{6}</value>
+  </data>
+  <data name="RemoteCapacityManualLimitUsedAndAvailableSpaceHaveNotBeenVerified" xml:space="preserve">
+    <value>Remote capacity: manual limit {0}; used and available space have not been verified.</value>
+  </data>
+  <data name="RemoteCapacityNoCapacityLimitSet" xml:space="preserve">
+    <value>Remote capacity: no capacity limit set.</value>
+  </data>
+  <data name="RemoteChangesArePending" xml:space="preserve">
+    <value>Remote changes are pending.</value>
+  </data>
+  <data name="RemoteContentChangedButLocalContentIsEditedPinnedOrInUse" xml:space="preserve">
+    <value>Remote content changed, but local content is edited, pinned, or in use. The old content was kept. Resolve it and refresh.</value>
+  </data>
+  <data name="RemoteContentWasDeletedAndLocalContentIsIncompleteConfigurationAndExisting" xml:space="preserve">
+    <value>Remote content was deleted and local content is incomplete. Configuration and existing content were kept.</value>
+  </data>
+  <data name="RemoteDeletionCleanupCompleted" xml:space="preserve">
+    <value>Remote deletion cleanup completed.</value>
+  </data>
+  <data name="RemoteEventsStillNeedAFullCheckRefreshFirst" xml:space="preserve">
+    <value>Remote events still need a full check. Refresh first.</value>
+  </data>
+  <data name="RemoteVersionApplied" xml:space="preserve">
+    <value>Remote version applied.</value>
+  </data>
+  <data name="RemovalIncomplete" xml:space="preserve">
+    <value>Removal incomplete</value>
+  </data>
+  <data name="RemovalIsIncompleteChangingTheRemovalModeOrRunningCacheTasksIs" xml:space="preserve">
+    <value>Removal is incomplete. Changing the removal mode or running cache tasks is not allowed.</value>
+  </data>
+  <data name="RemovalTaskSubmittedViewProgressAndPerItemResultsOnTheTasks" xml:space="preserve">
+    <value>Removal task submitted. View progress and per-item results on the Tasks page.</value>
+  </data>
+  <data name="RemoveLegacyEntry" xml:space="preserve">
+    <value>Remove legacy entry</value>
+  </data>
+  <data name="RemoveMount" xml:space="preserve">
+    <value>Remove mount</value>
+  </data>
+  <data name="RemoveMountKeepLocalFiles" xml:space="preserve">
+    <value>Remove mount</value>
+  </data>
+  <data name="RemoveMountKeepLocalFilesWithoutConnectingToTheRemoteSourceClear" xml:space="preserve">
+    <value>{0}
+
+Remove mount: keep local files without connecting to the remote source.
+
+Clear and remove: permanently delete all local content in the root folder, keeping the empty root folder and remote data.</value>
+  </data>
+  <data name="RemoveOnlyTheCurrentUserSLegacyExplorerEntryKeepTheFolder" xml:space="preserve">
+    <value>Remove only the current user's legacy Explorer entry; keep the folder and all files.</value>
+  </data>
+  <data name="RemovedMount" xml:space="preserve">
+    <value>Removed mount</value>
+  </data>
+  <data name="Removing" xml:space="preserve">
+    <value>Removing</value>
+  </data>
+  <data name="RenameConflict" xml:space="preserve">
+    <value>Rename conflict</value>
+  </data>
+  <data name="RenameResultNeedsChecking" xml:space="preserve">
+    <value>Rename result needs checking</value>
+  </data>
+  <data name="RenamedAndExcluded" xml:space="preserve">
+    <value>Renamed and excluded</value>
+  </data>
+  <data name="RenamingRemotely" xml:space="preserve">
+    <value>Renaming remotely</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="ResetIncomplete" xml:space="preserve">
+    <value>Reset incomplete</value>
+  </data>
+  <data name="ResetIncomplete0xCompletedDeletionsAreNotRolledBackCloseThisNotice" xml:space="preserve">
+    <value>Reset incomplete ({0}, 0x{1:X8}):
+{2}
+
+Completed deletions are not rolled back. Close this notice to exit. Check again at the next launch.</value>
+  </data>
+  <data name="ResolveConflict" xml:space="preserve">
+    <value>Resolve conflict</value>
+  </data>
+  <data name="ResolveConflictDetails" xml:space="preserve">
+    <value>Resolve conflict · {0}</value>
+  </data>
+  <data name="ResultNeedsChecking" xml:space="preserve">
+    <value>Result needs checking</value>
+  </data>
+  <data name="RetryConnection" xml:space="preserve">
+    <value>Retry connection</value>
+  </data>
+  <data name="RetrySelected" xml:space="preserve">
+    <value>Retry selected</value>
+  </data>
+  <data name="RetrySubmittedIfTheMountIsDisconnectedConnectItOnTheMounts" xml:space="preserve">
+    <value>Retry submitted. If the mount is disconnected, connect it on the Mounts page first.</value>
+  </data>
+  <data name="Retrying" xml:space="preserve">
+    <value>Retrying · </value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="RunningReadOnlyProbes" xml:space="preserve">
+    <value>Running read-only probes…</value>
+  </data>
+  <data name="S3BucketPrefix" xml:space="preserve">
+    <value>S3: {0}; bucket {1}; prefix {2}</value>
+  </data>
+  <data name="S3Mount" xml:space="preserve">
+    <value>S3 mount</value>
+  </data>
+  <data name="S3ObjectStorage" xml:space="preserve">
+    <value>S3 object storage</value>
+  </data>
+  <data name="SMBReserved" xml:space="preserve">
+    <value>SMB (reserved)</value>
+  </data>
+  <data name="SQSEventAccelerationOffScheduledFullReconciliationRemainsEnabled" xml:space="preserve">
+    <value>SQS event acceleration: off; scheduled full reconciliation remains enabled</value>
+  </data>
+  <data name="SQSEventAccelerationPausedAutomaticRemoteDetectionIsOff" xml:space="preserve">
+    <value>SQS event acceleration: paused (automatic remote detection is off)</value>
+  </data>
+  <data name="SQSEventAccelerationSettings" xml:space="preserve">
+    <value>SQS event acceleration settings</value>
+  </data>
+  <data name="SQSEventAccelerationSettingsSaved" xml:space="preserve">
+    <value>SQS event acceleration settings saved.</value>
+  </data>
+  <data name="SQSLastEventHintsAwaitingChecking" xml:space="preserve">
+    <value>SQS: {0}; last event: {1}; hints awaiting checking: {2}{3}</value>
+  </data>
+  <data name="SQSSwitchSaved" xml:space="preserve">
+    <value>SQS switch saved.</value>
+  </data>
+  <data name="SaveACopy" xml:space="preserve">
+    <value>Save a copy</value>
+  </data>
+  <data name="SaveACopyFirstWhenAConflictInvolvesARenameOrA" xml:space="preserve">
+    <value>Save a copy first when a conflict involves a rename or a different mapped path. This version does not replace it directly.</value>
+  </data>
+  <data name="SaveACopyToResolveFileFolderTypeConflictsFirstThisVersion" xml:space="preserve">
+    <value>Save a copy to resolve file/folder type conflicts first. This version directly replaces regular files only.</value>
+  </data>
+  <data name="SaveARemoteCopy" xml:space="preserve">
+    <value>Save a remote copy</value>
+  </data>
+  <data name="SaveCapacitySettings" xml:space="preserve">
+    <value>Save capacity settings</value>
+  </data>
+  <data name="SaveConnectionAndReconnect" xml:space="preserve">
+    <value>Save connection and reconnect</value>
+  </data>
+  <data name="SaveDetectionIntervals" xml:space="preserve">
+    <value>Save detection intervals</value>
+  </data>
+  <data name="SaveDetectionSettings" xml:space="preserve">
+    <value>Save detection settings</value>
+  </data>
+  <data name="SaveExclusionRules" xml:space="preserve">
+    <value>Save exclusion rules</value>
+  </data>
+  <data name="SaveLimit" xml:space="preserve">
+    <value>Save limit</value>
+  </data>
+  <data name="SaveSQSSettings" xml:space="preserve">
+    <value>Save SQS settings</value>
+  </data>
+  <data name="ScanLocalChanges" xml:space="preserve">
+    <value>Scan local changes</value>
+  </data>
+  <data name="SearchLogs" xml:space="preserve">
+    <value>Search logs</value>
+  </data>
+  <data name="SelectAFileConflictFirst" xml:space="preserve">
+    <value>Select a file conflict first.</value>
+  </data>
+  <data name="SelectAMountFirst" xml:space="preserve">
+    <value>Select a mount first.</value>
+  </data>
+  <data name="SelectASupportedInterfaceLanguage" xml:space="preserve">
+    <value>Select a supported interface language.</value>
+  </data>
+  <data name="SelectASyncIssueFirst" xml:space="preserve">
+    <value>Select a sync issue first.</value>
+  </data>
+  <data name="SelectATaskFirst" xml:space="preserve">
+    <value>Select a task first.</value>
+  </data>
+  <data name="SelectAllEligibleItems" xml:space="preserve">
+    <value>Select all eligible items</value>
+  </data>
+  <data name="SelectAnUnresolvedFileConflict" xml:space="preserve">
+    <value>Select an unresolved file conflict.</value>
+  </data>
+  <data name="SelectAnUploadRemoteUpdateOrExcludedRenameCleanupTask" xml:space="preserve">
+    <value>Select an upload, remote update, or excluded-rename cleanup task.</value>
+  </data>
+  <data name="SelectAnUploadTaskFirst" xml:space="preserve">
+    <value>Select an upload task first.</value>
+  </data>
+  <data name="SelectFolder" xml:space="preserve">
+    <value>Select folder</value>
+  </data>
+  <data name="SelectOldMountFolder" xml:space="preserve">
+    <value>Select old mount folder</value>
+  </data>
+  <data name="SelectTheMountsToExport" xml:space="preserve">
+    <value>Select the mounts to export.</value>
+  </data>
+  <data name="SeparateAccessKey" xml:space="preserve">
+    <value>Separate access key</value>
+  </data>
+  <data name="SeparateAccessKeyID" xml:space="preserve">
+    <value>Separate access key ID</value>
+  </data>
+  <data name="ServerAddress" xml:space="preserve">
+    <value>Server address</value>
+  </data>
+  <data name="ServerAddressRequired" xml:space="preserve">
+    <value>Enter a complete HTTP or HTTPS server address.</value>
+  </data>
+  <data name="ServerInformation" xml:space="preserve">
+    <value>Server information</value>
+  </data>
+  <data name="SessionTokenTemporaryCredentialsOptional" xml:space="preserve">
+    <value>Session Token (temporary credentials, optional)</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings · {0}</value>
+  </data>
+  <data name="SettingsDetails" xml:space="preserve">
+    <value>Settings · </value>
+  </data>
+  <data name="SettingsNotice" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SharedFolder" xml:space="preserve">
+    <value>Shared folder</value>
+  </data>
+  <data name="ShellEntryOnly" xml:space="preserve">
+    <value>Shell entry only</value>
+  </data>
+  <data name="ShowMainWindow" xml:space="preserve">
+    <value>Show main window</value>
+  </data>
+  <data name="ShowThisFileOrFolderSSyncIssuesInTheApplicationDoes" xml:space="preserve">
+    <value>Show this file or folder's sync issues in the application; does not upload automatically.</value>
+  </data>
+  <data name="ShowThumbnailsExperimental" xml:space="preserve">
+    <value>Show thumbnails (experimental)</value>
+  </data>
+  <data name="ShowingEntriesRetainingTheMostRecent30DaysUpTo10000Entries" xml:space="preserve">
+    <value>{0}Showing {1} entries; retaining the most recent 30 days, up to 10000 entries.{2}{3}{4}</value>
+  </data>
+  <data name="SigningRegion" xml:space="preserve">
+    <value>Signing region</value>
+  </data>
+  <data name="SnapshotReady" xml:space="preserve">
+    <value>Snapshot ready</value>
+  </data>
+  <data name="SomeCloudFilesHaveNotBeenRevertedConfigurationAndRegistrationWereKept" xml:space="preserve">
+    <value>Some cloud files have not been reverted. Configuration and registration were kept for recovery.</value>
+  </data>
+  <data name="SomeMountResourcesCouldNotBeCleanedUp" xml:space="preserve">
+    <value>Some mount resources could not be cleaned up.</value>
+  </data>
+  <data name="SourcePermissionBlocked" xml:space="preserve">
+    <value>Remote permissions deny this operation: {0} ({1}). Local files, baseline and snapshot are retained; retry after adjusting permissions.</value>
+  </data>
+  <data name="SourcePermissionPending" xml:space="preserve">
+    <value>Remote permissions are not verified: {0} ({1}). Target writes are deferred; local files and snapshot are retained.</value>
+  </data>
+  <data name="Stage" xml:space="preserve">
+    <value>Stage: {0}</value>
+  </data>
+  <data name="Standard" xml:space="preserve">
+    <value>Standard</value>
+  </data>
+  <data name="StartAfterSigningInToWindows" xml:space="preserve">
+    <value>Start after signing in to Windows</value>
+  </data>
+  <data name="StartAtSignInIsDisabledBySystemPolicy" xml:space="preserve">
+    <value>Start at sign-in is disabled by system policy.</value>
+  </data>
+  <data name="StartAtSignInIsEnabledBySystemPolicy" xml:space="preserve">
+    <value>Start at sign-in is enabled by system policy.</value>
+  </data>
+  <data name="StartAtSignInIsOff" xml:space="preserve">
+    <value>Start at sign-in is off.</value>
+  </data>
+  <data name="StartAtSignInIsOffByDefault" xml:space="preserve">
+    <value>Start at sign-in is off by default.</value>
+  </data>
+  <data name="StartAtSignInRegisteredForTheCurrentUserDevelopmentRun" xml:space="preserve">
+    <value>Start at sign-in registered for the current user (development run).</value>
+  </data>
+  <data name="StartDateAny" xml:space="preserve">
+    <value>Start date (any)</value>
+  </data>
+  <data name="StartSilentlyInTheTrayAfterSigningInToWindows" xml:space="preserve">
+    <value>Start silently in the tray after signing in to Windows.</value>
+  </data>
+  <data name="StartupAndTray" xml:space="preserve">
+    <value>Startup and tray</value>
+  </data>
+  <data name="StoppingBackgroundServicesAndClearingSettingsForTheCurrentDeployment" xml:space="preserve">
+    <value>Stopping background services and clearing settings for the current deployment…</value>
+  </data>
+  <data name="SubfolderOptionalRelativeToTheSharedFolder" xml:space="preserve">
+    <value>Subfolder (optional, relative to the shared folder)</value>
+  </data>
+  <data name="SucceededFailedCanceledNotStarted" xml:space="preserve">
+    <value>Succeeded: {0}; failed: {1}; canceled: {2}; not started: {3}.</value>
+  </data>
+  <data name="SupersededByANewerVersion" xml:space="preserve">
+    <value>Superseded by a newer version</value>
+  </data>
+  <data name="SwitchOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="SwitchPlaceholderVersion" xml:space="preserve">
+    <value>Switch placeholder version</value>
+  </data>
+  <data name="SwitchTheInterfaceLanguageImmediatelyWhileKeepingTheCurrentPageAndUnsaved" xml:space="preserve">
+    <value>Switch the interface language immediately while keeping the current page and unsaved content.</value>
+  </data>
+  <data name="SyncAndPreviews" xml:space="preserve">
+    <value>Sync and previews</value>
+  </data>
+  <data name="SyncCapacityAndPreviewsAdvanced" xml:space="preserve">
+    <value>Sync, capacity, and previews (advanced)</value>
+  </data>
+  <data name="SyncIssues" xml:space="preserve">
+    <value>Sync issues · {0}</value>
+  </data>
+  <data name="SyncIssuesClickToViewRightClickForFullDiagnostics" xml:space="preserve">
+    <value>{0} sync issues; click to view, right-click for full diagnostics</value>
+  </data>
+  <data name="SyncIssuesDetails" xml:space="preserve">
+    <value>Sync issues</value>
+  </data>
+  <data name="SynologyDoesNotProvideAnIncrementalChangeCursorFolderScansUseThe" xml:space="preserve">
+    <value>Synology does not provide an incremental change cursor. Folder scans use the full reconciliation interval.</value>
+  </data>
+  <data name="SynologyMount" xml:space="preserve">
+    <value>Synology mount</value>
+  </data>
+  <data name="SynologyNAS" xml:space="preserve">
+    <value>Synology NAS</value>
+  </data>
+  <data name="SynologyNASRemoteRoot" xml:space="preserve">
+    <value>Synology NAS: {0}; remote root {1}</value>
+  </data>
+  <data name="SynologyWebDAVHttpsNasExampleCom5006SharedFolderEnableHTTPSInThe" xml:space="preserve">
+    <value>Synology WebDAV: https://nas.example.com:5006/SharedFolder/ (enable HTTPS in the WebDAV Server package). For DSM port 5001, use the Synology NAS option.</value>
+  </data>
+  <data name="SystemPolicyStillEnablesThisAppAtSignInResetCannotComplete" xml:space="preserve">
+    <value>System policy still enables this app at sign-in. Reset cannot complete.</value>
+  </data>
+  <data name="TakenOverByALaterRename" xml:space="preserve">
+    <value>Taken over by a later rename</value>
+  </data>
+  <data name="TaskActions" xml:space="preserve">
+    <value>Task actions</value>
+  </data>
+  <data name="TaskAlreadyCompleted" xml:space="preserve">
+    <value>The task has completed.</value>
+  </data>
+  <data name="TaskCanceling" xml:space="preserve">
+    <value>Canceling</value>
+  </data>
+  <data name="TaskChangedSelectAgain" xml:space="preserve">
+    <value>The task has changed. Select it again.</value>
+  </data>
+  <data name="TaskDeferred" xml:space="preserve">
+    <value>Deferred</value>
+  </data>
+  <data name="TaskID" xml:space="preserve">
+    <value>Task ID</value>
+  </data>
+  <data name="TaskIDMount" xml:space="preserve">
+    <value>Task ID: {0}
+Mount: {1}
+{2}
+{3}
+{4}
+{5}
+{6}
+{7}
+{8}
+</value>
+  </data>
+  <data name="TaskIDSelectAndCopyItForLookupOrFeedback" xml:space="preserve">
+    <value>Task ID; select and copy it for lookup or feedback.</value>
+  </data>
+  <data name="TaskPermissionBlocked" xml:space="preserve">
+    <value>Permission blocked</value>
+  </data>
+  <data name="TaskPermissionPending" xml:space="preserve">
+    <value>Permission verification pending</value>
+  </data>
+  <data name="TaskRemoteApplyProgress" xml:space="preserve">
+    <value>Checking remote changes: {0} / {1}</value>
+  </data>
+  <data name="TaskRemoteScanProgress" xml:space="preserve">
+    <value>Remote scan: {0} items discovered</value>
+  </data>
+  <data name="TaskWorkflowStep" xml:space="preserve">
+    <value>Step {0}: {1}; state: {2}; dependency: {3}; attempt: {4}</value>
+  </data>
+  <data name="Tasks" xml:space="preserve">
+    <value>Tasks</value>
+  </data>
+  <data name="TemporarySessionTokenOptional" xml:space="preserve">
+    <value>Temporary session token (optional)</value>
+  </data>
+  <data name="TestConnection" xml:space="preserve">
+    <value>Test connection</value>
+  </data>
+  <data name="TestSQSConnectionReadOnly" xml:space="preserve">
+    <value>Test SQS connection (read-only)</value>
+  </data>
+  <data name="TestTheConnectionAndSelectASharedFolderFirst" xml:space="preserve">
+    <value>Test the connection and select a shared folder first.</value>
+  </data>
+  <data name="TestTheConnectionFirstToLoadSharedFoldersFileStationIsNot" xml:space="preserve">
+    <value>Test the connection first to load shared folders. File Station is not required on this computer, but its service must be enabled on the NAS.</value>
+  </data>
+  <data name="TextLog" xml:space="preserve">
+    <value>Text log</value>
+  </data>
+  <data name="TextToMatch" xml:space="preserve">
+    <value>Text to match</value>
+  </data>
+  <data name="TheApplicationIsExiting" xml:space="preserve">
+    <value>The application is exiting.</value>
+  </data>
+  <data name="TheApplicationIsExitingAndNoLongerAcceptsNewTasks" xml:space="preserve">
+    <value>The application is exiting and no longer accepts new tasks.</value>
+  </data>
+  <data name="TheApplicationIsExitingCleanupHasStopped" xml:space="preserve">
+    <value>The application is exiting. Cleanup has stopped.</value>
+  </data>
+  <data name="TheApplicationIsExitingTheConnectionHasStopped" xml:space="preserve">
+    <value>The application is exiting; the connection has stopped.</value>
+  </data>
+  <data name="TheApplicationIsStopping" xml:space="preserve">
+    <value>The application is stopping.</value>
+  </data>
+  <data name="TheApplicationPathCannotBeDetermined" xml:space="preserve">
+    <value>The application path cannot be determined.</value>
+  </data>
+  <data name="TheBackupPasswordIsOptionalIfSetItMustContainAtLeast" xml:space="preserve">
+    <value>The backup password is optional; if set, it must contain at least 8 characters.</value>
+  </data>
+  <data name="TheConflictResolutionRecordChangedBackupsWereKeptAndProcessingStopped" xml:space="preserve">
+    <value>The conflict resolution record changed. Backups were kept and processing stopped.</value>
+  </data>
+  <data name="TheConflictTaskDoesNotExist" xml:space="preserve">
+    <value>The conflict task does not exist.</value>
+  </data>
+  <data name="TheConnectionHasStopped" xml:space="preserve">
+    <value>The connection has stopped.</value>
+  </data>
+  <data name="TheConnectionSettingsOrTransactionChangedDuringProcessingBackupsWereKeptAnd" xml:space="preserve">
+    <value>The connection, settings, or transaction changed during processing. Backups were kept and processing stopped.</value>
+  </data>
+  <data name="TheConnectionTestWasCanceled" xml:space="preserve">
+    <value>The connection test was canceled.</value>
+  </data>
+  <data name="TheConnectionWasCanceled" xml:space="preserve">
+    <value>The connection was canceled.</value>
+  </data>
+  <data name="TheCurrentUserSStartupEntryIsInaccessible" xml:space="preserve">
+    <value>The current user's startup entry is inaccessible.</value>
+  </data>
+  <data name="TheDeploymentOrDataFoldersHaveChangedCheckAndConfirmAgain" xml:space="preserve">
+    <value>The deployment or data folders have changed. Check and confirm again.</value>
+  </data>
+  <data name="TheDetectionIntervalIsOutsideTheAllowedRange" xml:space="preserve">
+    <value>The detection interval is outside the allowed range.</value>
+  </data>
+  <data name="TheDownloadSessionHasEnded" xml:space="preserve">
+    <value>The download session has ended.</value>
+  </data>
+  <data name="TheExistingInstanceDidNotRespondExitItAndTryAgain" xml:space="preserve">
+    <value>The existing instance did not respond. Exit it and try again.
+{0}</value>
+  </data>
+  <data name="TheFileIsBeingReadOrDownloadedCheckAgainLater" xml:space="preserve">
+    <value>The file is being read or downloaded. Check again later.</value>
+  </data>
+  <data name="TheFileIsNotFullyHydratedRemovalHasStopped" xml:space="preserve">
+    <value>The file is not fully hydrated. Removal has stopped.</value>
+  </data>
+  <data name="TheFileMatchedAnExclusionRuleAndWasNotUploaded" xml:space="preserve">
+    <value>The file matched an exclusion rule and was not uploaded.</value>
+  </data>
+  <data name="TheFileMatchesAnUploadExclusionRuleAdjustTheRuleFirst" xml:space="preserve">
+    <value>The file matches an upload exclusion rule. Adjust the rule first.</value>
+  </data>
+  <data name="TheInterfaceLanguageSettingHasNotBeenLoadedYet" xml:space="preserve">
+    <value>The interface language setting has not been loaded yet.</value>
+  </data>
+  <data name="TheLegacySimulatedSourceWasKeptChooseDownloadAndRemoveOrClear" xml:space="preserve">
+    <value>The legacy simulated source was kept. Choose download and remove, or clear it.</value>
+  </data>
+  <data name="TheLocalFileChangedAfterConfirmationAndWasNotOverwritten" xml:space="preserve">
+    <value>The local file changed after confirmation and was not overwritten.</value>
+  </data>
+  <data name="TheLocalFileChangedDuringDownloadAndWasNotReplaced" xml:space="preserve">
+    <value>The local file changed during download and was not replaced.</value>
+  </data>
+  <data name="TheLocalFileChangedDuringPreparationCheckAgain" xml:space="preserve">
+    <value>The local file changed during preparation. Check again.</value>
+  </data>
+  <data name="TheLocalFileChangedWhileCheckingCheckAgain" xml:space="preserve">
+    <value>The local file changed while checking. Check again.</value>
+  </data>
+  <data name="TheLocalFileIsNotFullyDownloadedOpenOrDownloadItBefore" xml:space="preserve">
+    <value>The local file is not fully downloaded. Open or download it before continuing to preserve all local content.</value>
+  </data>
+  <data name="TheMenuTargetIsNotPartOfAMountOwnedByThis" xml:space="preserve">
+    <value>The menu target is not part of a mount owned by this product.</value>
+  </data>
+  <data name="TheMountConnectionOrSettingsChangedCheckAgain" xml:space="preserve">
+    <value>The mount connection or settings changed. Check again.</value>
+  </data>
+  <data name="TheMountDoesNotExist" xml:space="preserve">
+    <value>The mount does not exist.</value>
+  </data>
+  <data name="TheMountHasBeenRemoved" xml:space="preserve">
+    <value>The mount has been removed.</value>
+  </data>
+  <data name="TheMountIsBeingRemoved" xml:space="preserve">
+    <value>The mount is being removed.</value>
+  </data>
+  <data name="TheMountIsBeingRemovedOrHasAlreadyBeenRemoved" xml:space="preserve">
+    <value>The mount is being removed or has already been removed.</value>
+  </data>
+  <data name="TheMountIsConnectingWaitForTheCurrentConnectionToFinish" xml:space="preserve">
+    <value>The mount is connecting. Wait for the current connection to finish.</value>
+  </data>
+  <data name="TheMountIsDisconnectingReconnectAfterItFinishes" xml:space="preserve">
+    <value>The mount is disconnecting. Reconnect after it finishes.</value>
+  </data>
+  <data name="TheMountIsNotConnectedConnectItOnTheMountsPageAnd" xml:space="preserve">
+    <value>The mount is not connected. Connect it on the Mounts page and try again.</value>
+  </data>
+  <data name="TheMountIsNotConnectedYet" xml:space="preserve">
+    <value>The mount is not connected yet.</value>
+  </data>
+  <data name="TheNativeMountSessionIsMissing" xml:space="preserve">
+    <value>The native mount session is missing.</value>
+  </data>
+  <data name="TheOldMenuDidNotPerformAnyFileOperationUpdateTheExtension" xml:space="preserve">
+    <value>The old menu did not perform any file operation. Update the extension and try again.</value>
+  </data>
+  <data name="TheOriginalProviderCannotBeVerifiedATemporaryLocalProviderWillTake" xml:space="preserve">
+    <value>The original provider cannot be verified. A temporary local provider will take over and permanently delete all local content, then unregister the temporary root and keep the empty root folder.</value>
+  </data>
+  <data name="TheOriginalSyncRootRegistrationIsMissingDataWasKeptAutomaticRegistration" xml:space="preserve">
+    <value>The original sync root registration is missing. Data was kept; automatic registration is not allowed.</value>
+  </data>
+  <data name="ThePreviousLocalReplacementWasInterruptedFinishRecoveryUsingTheRemoteVersion" xml:space="preserve">
+    <value>The previous local replacement was interrupted. Finish recovery using the remote version first; the original local backup is kept.</value>
+  </data>
+  <data name="ThePreviousRemovalIsIncompleteContinueWithTheSameRemovalMethod" xml:space="preserve">
+    <value>The previous removal is incomplete. Continue with the same removal method.</value>
+  </data>
+  <data name="TheProtocolCannotBeChangedForALegacyMount" xml:space="preserve">
+    <value>The protocol cannot be changed for a legacy mount.</value>
+  </data>
+  <data name="TheRecoveryFolderContainsAReparsePointWritingWasRefused" xml:space="preserve">
+    <value>The recovery folder contains a reparse point. Writing was refused.</value>
+  </data>
+  <data name="TheRecoveryFolderMustBeOutsideEverySyncRoot" xml:space="preserve">
+    <value>The recovery folder must be outside every sync root.</value>
+  </data>
+  <data name="TheRemoteConflictStateChangedSelectItAgain" xml:space="preserve">
+    <value>The remote conflict state changed. Select it again.</value>
+  </data>
+  <data name="TheRemoteFileFolderTypeChangedLocalContentWasKeptResolveThe" xml:space="preserve">
+    <value>The remote file/folder type changed. Local content was kept; resolve the conflict.</value>
+  </data>
+  <data name="TheRemoteFileNoLongerExistsSaveACopyOrDetectChanges" xml:space="preserve">
+    <value>The remote file no longer exists. Save a copy or detect changes again.</value>
+  </data>
+  <data name="TheRemoteListingContainsOutOfScopeDuplicateCaseConflictingOrInvalid" xml:space="preserve">
+    <value>The remote listing contains out-of-scope, duplicate, case-conflicting, or invalid metadata. The snapshot was not applied.</value>
+  </data>
+  <data name="TheRemoteRootOfAnExistingMountCannotBeChangedCreateA" xml:space="preserve">
+    <value>The remote root of an existing mount cannot be changed. Create a new mount.</value>
+  </data>
+  <data name="TheRemoteSourceChangedAgainAfterDownloadCheckAgain" xml:space="preserve">
+    <value>The remote source changed again after download. Check again.</value>
+  </data>
+  <data name="TheRemoteSourceKeepsChangingAndTheInitialScanIsNotStable" xml:space="preserve">
+    <value>The remote source keeps changing and the initial scan is not stable yet. The connection is kept while a full scan resumes immediately in the background.</value>
+  </data>
+  <data name="TheRemoteVersionChangedAfterConfirmationCheckAgainNeitherSideWasOverwritten" xml:space="preserve">
+    <value>The remote version changed after confirmation. Check again; neither side was overwritten.</value>
+  </data>
+  <data name="TheRemoteWriteSucceededLocalVerificationIsPendingTheFileWillNot" xml:space="preserve">
+    <value>The remote write succeeded. Local verification is pending; the file will not be sent again. Retry the local commit.</value>
+  </data>
+  <data name="TheRemovalModeIsFixedContinueTheOriginalRemovalTask" xml:space="preserve">
+    <value>The removal mode is fixed. Continue the original removal task.</value>
+  </data>
+  <data name="TheSQSTestWasCanceled" xml:space="preserve">
+    <value>The SQS test was canceled.</value>
+  </data>
+  <data name="TheServerDoesNotSupportReliableConditionalUpdatesSaveACopyInstead" xml:space="preserve">
+    <value>The server does not support reliable conditional updates. Save a copy instead.</value>
+  </data>
+  <data name="TheSessionIndexOrTaskChangedDuringCheckingCheckAgain" xml:space="preserve">
+    <value>The session, index, or task changed during checking. Check again.</value>
+  </data>
+  <data name="TheSnapshotExceedsTheOneMillionItemSafetyLimitSelectASmaller" xml:space="preserve">
+    <value>The snapshot exceeds the one-million-item safety limit. Select a smaller remote root.</value>
+  </data>
+  <data name="TheSyncIssueDoesNotExist" xml:space="preserve">
+    <value>The sync issue does not exist.</value>
+  </data>
+  <data name="TheSyncIssueHasBeenLocated" xml:space="preserve">
+    <value>The sync issue has been located.</value>
+  </data>
+  <data name="TheSyncRootRegistrationIsMissingButCloudPlaceholdersRemainRecoveryInformation" xml:space="preserve">
+    <value>The sync root registration is missing but cloud placeholders remain. Recovery information was kept; direct clearing is blocked.</value>
+  </data>
+  <data name="TheTaskHasEndedOrDoesNotExist" xml:space="preserve">
+    <value>The task has ended or does not exist.</value>
+  </data>
+  <data name="TheTaskIndexOrRemoteEventsChangedCheckAgain" xml:space="preserve">
+    <value>The task, index, or remote events changed. Check again.</value>
+  </data>
+  <data name="TheTaskIsRunningOrHasAlreadyEnded" xml:space="preserve">
+    <value>The task is running or has already ended.</value>
+  </data>
+  <data name="TheTwoBackupPasswordsDoNotMatch" xml:space="preserve">
+    <value>The two backup passwords do not match.</value>
+  </data>
+  <data name="TheUploadQueueChangedReconnectAndCheckAgain" xml:space="preserve">
+    <value>The upload queue changed. Reconnect and check again.</value>
+  </data>
+  <data name="TheUploadQueueIsNotReadyReconnectTheMount" xml:space="preserve">
+    <value>The upload queue is not ready. Reconnect the mount.</value>
+  </data>
+  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddresses" xml:space="preserve">
+    <value>The WebDAV (HTTPS) preset only accepts HTTPS addresses.</value>
+  </data>
+  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddressesSynologyCommonlyUsesPort" xml:space="preserve">
+    <value>The WebDAV (HTTPS) preset only accepts HTTPS addresses; Synology commonly uses port 5006.</value>
+  </data>
+  <data name="ThereAreNoWebDAVS3OrSynologyMountsToExport" xml:space="preserve">
+    <value>There are no WebDAV, S3, or Synology mounts to export.</value>
+  </data>
+  <data name="ThisAccountHasNoAccessibleSharedFoldersSoAMountCannotBe" xml:space="preserve">
+    <value>This account has no accessible shared folders, so a mount cannot be created.</value>
+  </data>
+  <data name="ThisAddressSendsCredentialsAndContentWithoutEncryptionUseItOnlyOn" xml:space="preserve">
+    <value>This address sends credentials and content without encryption. Use it only on a trusted test network.</value>
+  </data>
+  <data name="ThisConfigurationIsBusyWithAnotherOperation" xml:space="preserve">
+    <value>This configuration is busy with another operation.</value>
+  </data>
+  <data name="ThisConflictBelongsToAnOldConnectionScopeDetectTheCurrentRemote" xml:space="preserve">
+    <value>This conflict belongs to an old connection scope. Detect the current remote state again.</value>
+  </data>
+  <data name="ThisDeploymentStillHasMountConfigurationsRemoveAllMountsFirst" xml:space="preserve">
+    <value>This deployment still has mount configurations. Remove all mounts first.</value>
+  </data>
+  <data name="ThisDeploymentStillHasSyncRootsOrExplorerEntriesCleanUpLeftover" xml:space="preserve">
+    <value>This deployment still has sync roots or Explorer entries. Clean up leftover mounts first.</value>
+  </data>
+  <data name="ThisFileIsExcludedRemoveTheMatchingRuleBeforePinningOrFreeing" xml:space="preserve">
+    <value>This file is excluded. Remove the matching rule before pinning or freeing space.</value>
+  </data>
+  <data name="ThisPermanentlyDeletesAllSettingsLogsAndCachesForTheCurrentDeployment" xml:space="preserve">
+    <value>This permanently deletes all settings, logs and caches for the current deployment ({0}), then exits the app.
+
+Registry: HKCU\{1}
+
+Data folders:
+{2}
+
+Deleted data cannot be recovered.</value>
+  </data>
+  <data name="ThisReleaseSupportsReadingCreatingAndSavingCopiesConflictProtectionRemainsFor" xml:space="preserve">
+    <value>This release supports reading, creating, and saving copies. Conflict protection remains for overwrite, delete, and move. Online-only thumbnails are not supported yet.</value>
+  </data>
+  <data name="ThisTaskCannotBeRetried" xml:space="preserve">
+    <value>This task cannot be retried.</value>
+  </data>
+  <data name="ThumbnailsDisabledBackgroundPreviewsStopped" xml:space="preserve">
+    <value>Thumbnails disabled; background previews stopped.</value>
+  </data>
+  <data name="ThumbnailsEnabledARegularIconIsShownWhenContentCannotBeRead" xml:space="preserve">
+    <value>Thumbnails enabled. A regular icon is shown when content cannot be read efficiently.</value>
+  </data>
+  <data name="ThumbnailsExperimental" xml:space="preserve">
+    <value>Thumbnails (experimental)</value>
+  </data>
+  <data name="ThumbnailsOff" xml:space="preserve">
+    <value>Thumbnails: off</value>
+  </data>
+  <data name="ThumbnailsOnExperimentalGeneratedAccordingToFileAndServiceReadCapabilitiesA" xml:space="preserve">
+    <value>Thumbnails: on (experimental); generated according to file and service read capabilities. A regular icon may be shown.</value>
+  </data>
+  <data name="TotalSpace" xml:space="preserve">
+    <value>Total space: {0}</value>
+  </data>
+  <data name="TwoLineDetails" xml:space="preserve">
+    <value>{0}
+{1}</value>
+  </data>
+  <data name="TwoStepVerificationCodeThisSignInOnlyNotSaved" xml:space="preserve">
+    <value>Two-step verification code (this sign-in only; not saved)</value>
+  </data>
+  <data name="UnencryptedConnectionIsUnsafe" xml:space="preserve">
+    <value>Unencrypted connection is unsafe</value>
+  </data>
+  <data name="UnencryptedHTTP" xml:space="preserve">
+    <value>Unencrypted HTTP</value>
+  </data>
+  <data name="UnencryptedHTTPRequiresExplicitPermissionHTTPSIsRecommended" xml:space="preserve">
+    <value>Unencrypted HTTP requires explicit permission. HTTPS is recommended.</value>
+  </data>
+  <data name="Unit" xml:space="preserve">
+    <value>Unit</value>
+  </data>
+  <data name="Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="UnknownMountOperation" xml:space="preserve">
+    <value>Unknown mount operation.</value>
+  </data>
+  <data name="UnknownNotSuppliedByTheService" xml:space="preserve">
+    <value>Unknown (not supplied by the service)</value>
+  </data>
+  <data name="UnknownVersion" xml:space="preserve">
+    <value>Unknown version</value>
+  </data>
+  <data name="Unlimited" xml:space="preserve">
+    <value>Unlimited</value>
+  </data>
+  <data name="Upload" xml:space="preserve">
+    <value>Upload</value>
+  </data>
+  <data name="UploadCopy" xml:space="preserve">
+    <value>Upload copy</value>
+  </data>
+  <data name="UploadExclusion" xml:space="preserve">
+    <value>Upload exclusion</value>
+  </data>
+  <data name="UploadFailed" xml:space="preserve">
+    <value>Upload failed</value>
+  </data>
+  <data name="UploadIssuesNeedAttention" xml:space="preserve">
+    <value>{0} upload issues need attention</value>
+  </data>
+  <data name="UploadLocalChanges" xml:space="preserve">
+    <value>Upload local changes</value>
+  </data>
+  <data name="Uploading" xml:space="preserve">
+    <value>Uploading</value>
+  </data>
+  <data name="UseCheckAgainRetryOrCancelCleanupForThisTaskAnExisting" xml:space="preserve">
+    <value>Use check again, retry, or cancel cleanup for this task. An existing destination will not be overwritten automatically.</value>
+  </data>
+  <data name="UseLocalFreezeTheCurrentLocalContentAndUploadAgainstTheConfirmed" xml:space="preserve">
+    <value>Use local: freeze the current local content and upload against the confirmed remote version. Use remote: first save a recoverable local backup outside the sync root, then replace local content with verified remote content. Processing stops if either side changes after confirmation.</value>
+  </data>
+  <data name="UseLocalToReplaceRemote" xml:space="preserve">
+    <value>Use local to replace remote</value>
+  </data>
+  <data name="UseRemoteToReplaceLocal" xml:space="preserve">
+    <value>Use remote to replace local</value>
+  </data>
+  <data name="UseServerCapacityInformationAutomatically" xml:space="preserve">
+    <value>Use server capacity information automatically</value>
+  </data>
+  <data name="UseTheDefaultAWSSDKCredentialChain" xml:space="preserve">
+    <value>Use the default AWS SDK credential chain</value>
+  </data>
+  <data name="UseTheDestinationMachineSDefaultSDKCredentialChain" xml:space="preserve">
+    <value>; use the destination machine's default SDK credential chain</value>
+  </data>
+  <data name="Used" xml:space="preserve">
+    <value>Used: {0}</value>
+  </data>
+  <data name="UserInput" xml:space="preserve">
+    <value>User input</value>
+  </data>
+  <data name="VerifiedLegacySyncRootOwnedByThisProduct" xml:space="preserve">
+    <value>Verified legacy sync root owned by this product</value>
+  </data>
+  <data name="VerifyTheFollowingSHA256ThroughATrustedNASAdministrationChannelSystem" xml:space="preserve">
+    <value>Verify the following SHA-256 through a trusted NAS administration channel. System trust and other mounts will not be changed:
+{0}</value>
+  </data>
+  <data name="VerifyTheServerCertificate" xml:space="preserve">
+    <value>Verify the server certificate</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="VersionOrTypeConflict" xml:space="preserve">
+    <value>Version or type conflict</value>
+  </data>
+  <data name="ViewLogs" xml:space="preserve">
+    <value>View logs</value>
+  </data>
+  <data name="ViewResults" xml:space="preserve">
+    <value>View details</value>
+  </data>
+  <data name="ViewRuntimeRecords" xml:space="preserve">
+    <value>View runtime records</value>
+  </data>
+  <data name="ViewSyncIssues" xml:space="preserve">
+    <value>View sync issues</value>
+  </data>
+  <data name="ViewTaskResultsOnTheTasksPage" xml:space="preserve">
+    <value>View task results on the Tasks page.</value>
+  </data>
+  <data name="ViewUnresolvedSyncIssuesStoredSeparately" xml:space="preserve">
+    <value>View unresolved sync issues stored separately</value>
+  </data>
+  <data name="WaitingForCapacity" xml:space="preserve">
+    <value>Waiting for capacity</value>
+  </data>
+  <data name="WaitingForFileAvailability" xml:space="preserve">
+    <value>Waiting for file availability</value>
+  </data>
+  <data name="WaitingForOriginalUploadResult" xml:space="preserve">
+    <value>Waiting for original upload result</value>
+  </data>
+  <data name="WaitingForRemoteRename" xml:space="preserve">
+    <value>Waiting for remote rename</value>
+  </data>
+  <data name="WaitingForTheCurrentTaskToFinishThenBackingUpLocalContent" xml:space="preserve">
+    <value>Waiting for the current task to finish, then backing up local content, downloading, and verifying remote content…</value>
+  </data>
+  <data name="WaitingForTheCurrentTaskToFinishThenFreezingLocalContentAnd" xml:space="preserve">
+    <value>Waiting for the current task to finish, then freezing local content and submitting a conditional upload…</value>
+  </data>
+  <data name="Warning" xml:space="preserve">
+    <value>Warning</value>
+  </data>
+  <data name="WebDAVHTTPSMount" xml:space="preserve">
+    <value>WebDAV (HTTPS) mount</value>
+  </data>
+  <data name="WebDAVMount" xml:space="preserve">
+    <value>WebDAV mount</value>
+  </data>
+  <data name="WebDavBeforeCertificate" xml:space="preserve">
+    <value>Certificate validation has not started.</value>
+  </data>
+  <data name="WebDavRedirectDiagnostic" xml:space="preserve">
+    <value>Redirect ({0}, {1} hops): {2} → {3}</value>
+  </data>
+  <data name="WindowBackground" xml:space="preserve">
+    <value>Window background</value>
+  </data>
+  <data name="WindowDisplayRequested" xml:space="preserve">
+    <value>Window display requested.</value>
+  </data>
+  <data name="WindowTheme" xml:space="preserve">
+    <value>Window theme</value>
+  </data>
+  <data name="WriteResultNeedsChecking" xml:space="preserve">
+    <value>Write result needs checking</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="TaskResultSkipped" xml:space="preserve">
+    <value>Skipped</value>
+  </data>
+  <data name="TaskResultSaved" xml:space="preserve">
+    <value>Saved</value>
+  </data>
+  <data name="BackupImportReady" xml:space="preserve">
+    <value>Ready to import; save only, then connect manually.</value>
+  </data>
+  <data name="RemoveAllTitle" xml:space="preserve">
+    <value>Remove all mounts in the current mode</value>
+  </data>
+  <data name="RemoveAllConfirmation" xml:space="preserve">
+    <value>{0} mounts, including disconnected and failed connections. Keep cached files retains complete local files and removes clean incomplete placeholders. Discard files clears local contents, including local changes. Neither option deletes remote data; root folders remain. Settings are not reset and the app will stay open.</value>
+  </data>
+  <data name="RemoveAllKeepCached" xml:space="preserve">
+    <value>Keep cached files</value>
+  </data>
+  <data name="RemoveAllDiscard" xml:space="preserve">
+    <value>Discard local files</value>
+  </data>
+  <data name="RemoveAllEmpty" xml:space="preserve">
+    <value>There are no configured mounts in the current mode.</value>
+  </data>
+  <data name="RemoveAllBusy" xml:space="preserve">
+    <value>Mount removal is in progress. Adding, importing, resetting, and starting another batch are temporarily unavailable.</value>
+  </data>
+  <data name="RemoveAllSnapshotChanged" xml:space="preserve">
+    <value>Mount configurations changed. Review and confirm the removal list again.</value>
+  </data>
+  <data name="RemoveAllModeChanged" xml:space="preserve">
+    <value>The mount identity or removal mode changed. Skipped; the existing task is preserved.</value>
+  </data>
+  <data name="RemoveAllRunning" xml:space="preserve">
+    <value>Removing mounts one at a time. View progress or cancel the current task on the Tasks page. Leaving this page does not stop accepted work.</value>
+  </data>
+  <data name="RemoveAllSummary" xml:space="preserve">
+    <value>Mount removal finished: {0} succeeded, {1} failed, {2} skipped or canceled. See Tasks for details. Incomplete mounts retain configuration and recovery records.</value>
+  </data>
+  <data name="RemoveCachedOperation" xml:space="preserve">
+    <value>Keep cached files and remove</value>
+  </data>
+  <data name="RemoveCachedResume" xml:space="preserve">
+    <value>Continue keeping cached files and removing: {0}
+{1}
+Uncached content will not be downloaded. Completed changes are not rolled back.</value>
+  </data>
+  <data name="RemoveCachedUnresolved" xml:space="preserve">
+    <value>Unverified upload receipts, renames, or remote commits remain. Reconcile them first. Configuration, local files, and recovery evidence are preserved.</value>
+  </data>
+  <data name="RemoveCachedLinkKept" xml:space="preserve">
+    <value>Kept the link itself without accessing its target.</value>
+  </data>
+  <data name="RemoveCachedChildrenFailed" xml:space="preserve">
+    <value>A child could not be processed. The directory placeholder is preserved.</value>
+  </data>
+  <data name="RemoveCachedOwnership" xml:space="preserve">
+    <value>Placeholder identity or indexed path does not match. Preserved.</value>
+  </data>
+  <data name="RemoveCachedPartialProtected" xml:space="preserve">
+    <value>Content is incomplete and protected by local changes or pending work. Configuration and content are preserved.</value>
+  </data>
+  <data name="RemoveCachedPartialRemoved" xml:space="preserve">
+    <value>Removed a clean incomplete placeholder without reading remote content.</value>
+  </data>
+  <data name="RemoveCachedKept" xml:space="preserve">
+    <value>Kept as a regular local file or folder.</value>
+  </data>
+  <data name="SettingsMountServiceUnavailable" xml:space="preserve">
+    <value>The mount service is not ready.</value>
+  </data>
+</root>

@@ -12,22 +12,22 @@ internal sealed class ExplorerEntryPathGuard : IExplorerEntryPathGuard
 {
     public ExplorerPathEvidence Inspect(string path)
     {
-        if (!Path.IsPathFullyQualified(path) || path.StartsWith(@"\\", StringComparison.Ordinal)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError25"));
+        if (!Path.IsPathFullyQualified(path) || path.StartsWith(@"\\", StringComparison.Ordinal)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError25", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
         var volume = Path.GetPathRoot(full)!;
-        if (full.Equals(Path.TrimEndingDirectorySeparator(volume), StringComparison.OrdinalIgnoreCase)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError26"));
-        if (!new DriveInfo(volume).IsReady) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError27"));
+        if (full.Equals(Path.TrimEndingDirectorySeparator(volume), StringComparison.OrdinalIgnoreCase)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError26", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if (!new DriveInfo(volume).IsReady) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError27", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         for (var cursor = full; cursor is not null; cursor = Path.GetDirectoryName(cursor))
         {
             if (LocalFileMetadata.TryRead(cursor) is not {} metadata) continue;
-            if ((metadata.Attributes & FileAttributes.Directory) == 0) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError28"));
-            if ((metadata.Attributes & FileAttributes.ReparsePoint) != 0) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError29"));
+            if ((metadata.Attributes & FileAttributes.Directory) == 0) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError28", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+            if ((metadata.Attributes & FileAttributes.ReparsePoint) != 0) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError29", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         var exists = LocalFileMetadata.TryRead(full) is not null;
         // 缺失子目录也需核对最近存在的父目录，防止把有效挂载的子路径误当遗留入口。
         var query = full;
-        while (LocalFileMetadata.TryRead(query) is null) query = Path.GetDirectoryName(query) ?? throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError30"));
-        if (CloudFilesNative.RootIdentity(query, strict: true) is not null) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError31"));
+        while (LocalFileMetadata.TryRead(query) is null) query = Path.GetDirectoryName(query) ?? throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError30", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if (CloudFilesNative.RootIdentity(query, strict: true) is not null) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError31", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return new(exists, exists ? MountPathGuard.FileIdentity(full) : "");
     }
 }
@@ -49,13 +49,13 @@ internal sealed class ExplorerEntryAccess : IExplorerEntryAccess
     {
         var found = _local.Discover(token).ToDictionary(x => x.Key);
         if (External)
-            foreach (var item in ShellMaintenanceProcess.SendExplorer("explorerDiscover").Entries ?? throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError32")))
+            foreach (var item in ShellMaintenanceProcess.SendExplorer("explorerDiscover").Entries ?? throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError32", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!))
             {
                 token.ThrowIfCancellationRequested();
                 if (found.TryGetValue(item.Key, out var previous))
                 {
                     var samePath = string.Equals(previous.LocalPath, item.LocalPath, StringComparison.OrdinalIgnoreCase);
-                    found[item.Key] = previous with { External = item.Local, Error = previous.Error ?? item.Error ?? (samePath ? null : global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError33")) };
+                    found[item.Key] = previous with { External = item.Local, Error = previous.Error ?? item.Error ?? (samePath ? null : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError33", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!) };
                 }
                 else found.Add(item.Key, item with { Local = null, External = item.Local });
             }
@@ -67,7 +67,7 @@ internal sealed class ExplorerEntryAccess : IExplorerEntryAccess
         {
             validate(); token.ThrowIfCancellationRequested();
             var reply = ShellMaintenanceProcess.SendExplorer("explorerRemove", entry, external);
-            if (reply.Remaining is not { Length: 0 }) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError34"));
+            if (reply.Remaining is not { Length: 0 }) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError34", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         if (entry.Local is {} local) _local.Remove(entry, local, validate, token);
     }
@@ -75,7 +75,7 @@ internal sealed class ExplorerEntryAccess : IExplorerEntryAccess
     {
         var result = entry.Local is {} local ? _local.Remaining(entry, local).ToList() : [];
         if (entry.External is {} external)
-            result.AddRange(ShellMaintenanceProcess.SendExplorer("explorerVerify", entry, external).Remaining ?? throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError35")));
+            result.AddRange(ShellMaintenanceProcess.SendExplorer("explorerVerify", entry, external).Remaining ?? throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError35", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!));
         return result.Distinct().ToArray();
     }
 }
@@ -88,11 +88,11 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
     internal static void VerifyManaged(ExplorerEntryCandidate entry, IReadOnlyList<MountDefinition> definitions)
     {
         if (!ExplorerEntryRegistration.TryIdentity(entry.Key.SyncRootId, WindowsIdentity.GetCurrent().User!.Value, out var mode) || mode != entry.Key.Mode)
-            throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError36"));
+            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError36", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var id = Guid.ParseExact(entry.Key.SyncRootId[(entry.Key.SyncRootId.LastIndexOf('!') + 1)..], "N");
         if (definitions.Any(x => x.Id == id || entry.LocalPath is {} path &&
             (MountPathGuard.IsUnder(x.LocalPath, path) || MountPathGuard.IsUnder(path, x.LocalPath))))
-            throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError37"));
+            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError37", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
     }
     internal static IReadOnlyList<MountDefinition> ReadPhysicalDefinitions()
     {
@@ -106,7 +106,7 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
                 {
                     using var child = key.OpenSubKey(name);
                     if (child?.GetValue("Definition") is not string)
-                        throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError37"));
+                        throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError37", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 }
             result.AddRange(new RegistryMountDefinitionStore(path).LoadDefinitions());
         }
@@ -118,10 +118,10 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
         if (!Directory.Exists(directory)) return;
         foreach (var file in Directory.EnumerateFiles(directory,"*.json"))
         {
-            if (new FileInfo(file).Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError42"));
+            if (new FileInfo(file).Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError42", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
             var journal = JsonSerializer.Deserialize<ExplorerEntryJournal>(File.ReadAllBytes(file),new JsonSerializerOptions{MaxDepth=32});
             if (journal is null || journal.Schema != 1 || journal.Stage != "Completed" || Path.GetFileNameWithoutExtension(file) != journal.Entry.Key.StableId)
-                throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_4057AC6E04F7"));
+                throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RecoveryRecordsStillNeedVerificationOrCompletionResolveLeftoverMountsOrSync", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
     }
 
@@ -133,10 +133,10 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
             foreach (var file in Directory.EnumerateFiles(directory,"*.json"))
             {
                 token.ThrowIfCancellationRequested();
-                if (new FileInfo(file).Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError42"));
-                var old = JsonSerializer.Deserialize<ExplorerEntryJournal>(File.ReadAllBytes(file),new JsonSerializerOptions{MaxDepth=32}) ?? throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError43"));
+                if (new FileInfo(file).Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError42", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                var old = JsonSerializer.Deserialize<ExplorerEntryJournal>(File.ReadAllBytes(file),new JsonSerializerOptions{MaxDepth=32}) ?? throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError43", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 if (old.Schema != 1 || Path.GetFileNameWithoutExtension(file) != old.Entry.Key.StableId || old.Stage is not ("Confirmed" or "Removing" or "Completed"))
-                    throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError44"));
+                    throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError44", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 if (old.Stage != "Completed" && !found.ContainsKey(old.Entry.Key)) found.Add(old.Entry.Key,old.Entry with{Error=null,HResult=null});
             }
         return found.Values.Select(entry =>
@@ -146,7 +146,7 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
             try
             {
                 VerifyManaged(entry, definitions);
-                if (entry.LocalPath is null) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError38"));
+                if (entry.LocalPath is null) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError38", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 return entry with { Evidence = paths.Inspect(entry.LocalPath) };
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or System.Runtime.InteropServices.COMException)
@@ -155,17 +155,17 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
     }
     internal ExplorerEntryResult Remove(ExplorerEntryCandidate selected, CancellationToken token)
     {
-        if (!selected.CanRemove) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError39"));
+        if (!selected.CanRemove) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError39", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var journal = Read(selected) ?? new ExplorerEntryJournal(1, selected, "Confirmed");
         // 未完成记录必须保留原备份，重新检索也不能覆盖部分清理前的证据。
         var entry = journal.Stage == "Completed" ? selected : journal.Entry;
         if (entry.Key != selected.Key || entry.LocalPath != selected.LocalPath || entry.Evidence != selected.Evidence)
-            throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError40"));
+            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError40", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         journal = journal with { Entry = entry, Stage = "Confirmed", Error = null, HResult = null };
         void Validate()
         {
             VerifyManaged(entry, managed());
-            if (entry.LocalPath is null || paths.Inspect(entry.LocalPath) != entry.Evidence) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError41"));
+            if (entry.LocalPath is null || paths.Inspect(entry.LocalPath) != entry.Evidence) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError41", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         try
         {
@@ -191,15 +191,15 @@ internal sealed class ExplorerEntryRecovery(string directory, Func<IReadOnlyList
     {
         var file = FileName(entry);
         if (!File.Exists(file)) return null;
-        if (new FileInfo(file).Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError42"));
-        var result = JsonSerializer.Deserialize<ExplorerEntryJournal>(File.ReadAllBytes(file), new JsonSerializerOptions { MaxDepth = 32 }) ?? throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError43"));
-        if (result.Schema != 1 || result.Entry.Key != entry.Key || result.Stage is not ("Confirmed" or "Removing" or "Completed")) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError44"));
+        if (new FileInfo(file).Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError42", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        var result = JsonSerializer.Deserialize<ExplorerEntryJournal>(File.ReadAllBytes(file), new JsonSerializerOptions { MaxDepth = 32 }) ?? throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError43", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if (result.Schema != 1 || result.Entry.Key != entry.Key || result.Stage is not ("Confirmed" or "Removing" or "Completed")) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError44", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return result;
     }
     private void Save(ExplorerEntryJournal journal)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(journal);
-        if (bytes.Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError45"));
+        if (bytes.Length > ShellMaintenanceProcess.MaximumBytes) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError45", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         Directory.CreateDirectory(directory);
         var file = FileName(journal.Entry); var temp = file + ".tmp";
         try

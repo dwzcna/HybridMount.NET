@@ -111,7 +111,7 @@ public sealed partial class MountManager
             .Concat(unfinished.Select(item => new MountItemResult(item.RemotePath, item.Stage, CapabilityProbePresentation.ResourceDetails(item)))).ToArray();
         var state = run.Stage switch { "Completed" => "Completed", "Canceled" => "Canceled", "CleanupPending" or "CanceledCleanupPending" => "PartialFailure", _ => "Running" };
         _repository.SaveOperation(new("probe:" + run.RunId.ToString("N"), "capabilityProbe", state, run.Cases.Length,
-            ProtocolCapabilityCatalog.For(run.Kind).Count, results, run.Stage is "CleanupPending" or "CanceledCleanupPending" ? global::HybridMount.Services.Localization.UiText.Text("CapabilityProbePendingHistory") : null,
+            ProtocolCapabilityCatalog.For(run.Kind).Count, results, run.Stage is "CleanupPending" or "CanceledCleanupPending" ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbePendingHistory", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : null,
             RemotePath: run.Target));
         Notify();
     }

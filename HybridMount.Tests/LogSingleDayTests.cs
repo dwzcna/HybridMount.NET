@@ -39,5 +39,5 @@ public sealed class LogSingleDayTests
         }
         finally{Directory.Delete(directory,true);}
     }
-    private sealed class InlineDispatcher:IUiDispatcher {public bool TryEnqueue(Action action){action();return true;}}
+    private sealed class InlineDispatcher:IUIDispatcher {public bool TryEnqueue(Action action){action();return true;}}
 }

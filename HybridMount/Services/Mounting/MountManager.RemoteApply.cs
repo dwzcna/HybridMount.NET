@@ -33,7 +33,7 @@ public sealed partial class MountManager
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
-            if(progressTaskId is {} taskId)_taskProgress[taskId]=global::HybridMount.Services.Localization.UiText.Text("TaskRemoteApplyProgress",++inspected,pending.Length);
+            if(progressTaskId is {} taskId)_taskProgress[taskId]=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskRemoteApplyProgress", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, ++inspected, pending.Length);
             if(repeated.Contains(prior.Id))continue;
             if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path)||!RemoteDependenciesReady(root,prior))continue;
             var parentPriority=TasksQueueService.CurrentTask?.Priority;

@@ -4,7 +4,7 @@ namespace HybridMount.Tests;
 /// <summary>主窗口状态在无WinUI消息泵下可验证，导航由既有服务拥有，释放不结束后台导航服务。</summary>
 public sealed class MainWindowViewModelTests
 {
-    private sealed class Immediate:IUiDispatcher {public bool TryEnqueue(Action action){action();return true;}}
+    private sealed class Immediate:IUIDispatcher {public bool TryEnqueue(Action action){action();return true;}}
     private sealed class Frame:INavigationFrame
     {
         private Type? _current;private readonly Stack<Type> _history=[];

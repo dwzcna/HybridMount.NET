@@ -1,4 +1,4 @@
-﻿using System.Net.Security;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -57,7 +57,7 @@ public sealed partial class WebDavFileSource
         var failure=WebDavNetworkDiagnostics.Failure(error,stage,attempt?.Certificate??SslPolicyErrors.None,attempt?.Chain??X509ChainStatusFlags.NoError,timeout,attempts);
         var diagnostic=failure.Diagnostic with{TransportStages=attempt?.Trace.Snapshot};
         if(_endpoint.Scheme=="https"&&attempt?.Trace is {Started:true,TcpConnected:false})
-            diagnostic=diagnostic with{Explanation=diagnostic.Explanation+" "+global::HybridMount.Services.Localization.UiText.Text("WebDavBeforeCertificate")};
+            diagnostic=diagnostic with{Explanation=diagnostic.Explanation+" "+global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDavBeforeCertificate", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!};
         return new(diagnostic){Certificate=attempt?.Rejected};
     }
     internal SourceConnectionException ProbeTimeout(Exception error)=>NetworkFailure(error,"测试连接",timeout:true);

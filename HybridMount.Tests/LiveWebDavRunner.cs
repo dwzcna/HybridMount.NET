@@ -247,7 +247,7 @@ public static partial class LiveWebDavRunner
             const string path="remote-delete.txt";Track("mount/"+path);await File.WriteAllTextAsync(Path.Combine(Local,path),"delete remote",token);await Uploaded(path,"delete remote"u8.ToArray(),token);await Job("keepOnDevice",[Path.Combine(Local,path)],token);
             await RawDelete("mount/"+path,token);await Job("refresh",null,token);Require(!File.Exists(Path.Combine(Local,path)),"远端删除后固定文件未清理。");
         }
-        private async Task Reconnect(CancellationToken token){await _manager!.DisconnectAsync(_mount!.Id,token);await _manager.ConnectAsync(_mount.Id,token);Require(_manager.Mounts.Single(x=>x.Definition.Id==_mount.Id).Status=="已连接","重连没有恢复。");}
+        private async Task Reconnect(CancellationToken token){await _manager!.DisconnectAsync(_mount!.Id,token);await _manager.ConnectAsync(_mount.Id,token);Require(_manager.Mounts.Single(x=>x.Definition.Id==_mount.Id).Status=="Connected","重连没有恢复。");}
         private async Task SoakRound(CancellationToken token)
         {
             var path=$"soak-{_round:D4}.bin";Track("mount/"+path);var sizes=new[]{0,31,4097,65537,1024*1024+3,4*1024*1024+7};var data=Payload(sizes[_round%sizes.Length],_round);

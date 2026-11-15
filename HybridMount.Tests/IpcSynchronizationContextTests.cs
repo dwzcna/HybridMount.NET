@@ -29,7 +29,7 @@ public sealed class IpcSynchronizationContextTests
     [Fact(Timeout=30000)]
     public async Task NativeQueryCompletesWithoutCallerMessagePump()
     {
-        var path=Path.Combine(Path.GetTempPath(),"HybridMount.UiPipe."+Guid.NewGuid().ToString("N"));await File.WriteAllTextAsync(path,"metadata only");
+        var path=Path.Combine(Path.GetTempPath(),"HybridMount.UIPipe."+Guid.NewGuid().ToString("N"));await File.WriteAllTextAsync(path,"metadata only");
         try
         {
             await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();
@@ -42,8 +42,8 @@ public sealed class IpcSynchronizationContextTests
     [Fact(Timeout=30000)]
     public async Task PreparedConnectionRunsNativeChecksAndSourceCreationOutsideCallerContext()
     {
-        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UiConnect."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
-        var registry=@"Software\HybridMount.NET.Tests\UiConnect\"+Guid.NewGuid().ToString("N");
+        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UIConnect."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
+        var registry=@"Software\HybridMount.NET.Tests\UIConnect\"+Guid.NewGuid().ToString("N");
         try
         {
             var repository=new MountRepository(Path.Combine(area,"data"),registry);var mount=new MountDefinition(Guid.NewGuid(),"UI connection regression",local,false,RootIdentity:MountPathGuard.FileIdentity(local),RegistrationStage:MountRegistrationStage.NotRegistered);
@@ -99,12 +99,12 @@ public sealed class IpcSynchronizationContextTests
     [Fact(Timeout=30000)]
     public async Task StartupInspectionDoesNotBlockCallerContext()
     {
-        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UiInspect."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UiInspect\"+Guid.NewGuid().ToString("N");
+        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UIInspect."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UIInspect\"+Guid.NewGuid().ToString("N");
         try
         {
             var repository=new MountRepository(Path.Combine(area,"data"),registry);repository.SaveDefinition(new(Guid.NewGuid(),"inspect",local,false,RootIdentity:MountPathGuard.FileIdentity(local),RegistrationStage:MountRegistrationStage.NotRegistered));await using var logger=new LoggerService(Path.Combine(area,"logs.db"));await using var manager=new MountManager(repository,logger,new RejectingFactory());
-            Assert.Equal("检查中",Assert.Single(manager.Mounts).Status);
-            var state=await WithoutMessagePump(async()=>{await manager.StartAsync().ConfigureAwait(false);return Assert.Single(manager.Mounts).Status;});Assert.Equal("未连接",state);
+            Assert.Equal("Checking",Assert.Single(manager.Mounts).Status);
+            var state=await WithoutMessagePump(async()=>{await manager.StartAsync().ConfigureAwait(false);return Assert.Single(manager.Mounts).Status;});Assert.Equal("NotConnected",state);
         }
         finally{Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);Directory.Delete(area,true);}
     }
@@ -112,7 +112,7 @@ public sealed class IpcSynchronizationContextTests
     [Fact(Timeout=30000)]
     public async Task AddAndCredentialSaveLeaveCallerContext()
     {
-        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UiEdit."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UiEdit\"+Guid.NewGuid().ToString("N");
+        var area=Path.Combine(Path.GetTempPath(),"HybridMount.UIEdit."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UIEdit\"+Guid.NewGuid().ToString("N");
         try
         {
             var repository=new MountRepository(Path.Combine(area,"data"),registry);await using var logger=new LoggerService(Path.Combine(area,"logs.db"));var factory=new RejectingFactory();await using var manager=new MountManager(repository,logger,factory);await NativeRuntimeClient.PrepareConnectionAsync();

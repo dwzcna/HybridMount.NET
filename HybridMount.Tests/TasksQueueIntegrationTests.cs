@@ -7,7 +7,7 @@ namespace HybridMount.Tests;
 [Collection("Native IPC")]
 public sealed class TasksQueueIntegrationTests
 {
-    private sealed class InlineDispatcher:IUiDispatcher {public bool TryEnqueue(Action action){action();return true;}}
+    private sealed class InlineDispatcher:IUIDispatcher {public bool TryEnqueue(Action action){action();return true;}}
     [Fact(Timeout=90000)]
     public async Task UnrelatedDownloadContinuesDuringPutAndPageExitDoesNotStopEitherWorkflow()
     {

@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -121,7 +121,7 @@ public sealed partial class MountManager
             await Step("Disconnect",async()=>
             {
                 await root.Gate.WaitAsync().ConfigureAwait(false);
-                try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"未连接");}
+                try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"NotConnected");}
                 finally{root.Gate.Release();}
             }).ConfigureAwait(false);
         }

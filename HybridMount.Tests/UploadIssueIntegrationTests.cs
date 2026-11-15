@@ -6,7 +6,7 @@ namespace HybridMount.Tests;
 /// <summary>独立持久问题、合并提示、任务页面定位及页面重试／取消联动，所有定义和日志均隔离。</summary>
 public sealed class UploadIssueIntegrationTests
 {
-    private sealed class Dispatcher : IUiDispatcher
+    private sealed class Dispatcher : IUIDispatcher
     {
         private readonly ConcurrentQueue<Action> _queue=new();
         public bool TryEnqueue(Action callback){_queue.Enqueue(callback);return true;}

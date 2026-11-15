@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using HybridMount.Models.Mounting;
 using HybridMount.Models.Mounting.Synology;
 
@@ -156,7 +156,7 @@ public sealed class ProtocolCapabilityTests
         var rows = ProtocolCapabilityCatalog.For(kind);
         Assert.Equal(rows.Count, rows.Select(item => item.Id).Distinct().Count());
         Assert.DoesNotContain(rows, item => item.Name.Contains("PROPPATCH") || item.Name.Contains("RFC 9100"));
-        Assert.All(rows, row => Assert.NotEqual(row.DescriptionKey, HybridMount.Services.Localization.UiText.Text(row.DescriptionKey)));
+        Assert.All(rows, row => Assert.NotEqual(row.DescriptionKey, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(row.DescriptionKey, global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!));
         Assert.DoesNotContain(ProtocolCapabilityCatalog.For(FileSourceKind.S3), row => row.Id.StartsWith("sqs."));
         Assert.Equal(3, ProtocolCapabilityCatalog.For(FileSourceKind.S3, true).Count(row => row.Id.StartsWith("sqs.")));
     }

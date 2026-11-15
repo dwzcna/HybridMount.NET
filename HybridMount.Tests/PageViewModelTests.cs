@@ -8,7 +8,7 @@ namespace HybridMount.Tests;
 /// <summary>页面状态归属、重复提交、故障回滚和迟到通知；不创建正式挂载或接触用户配置。</summary>
 public sealed class PageViewModelTests
 {
-    private sealed class Dispatcher : IUiDispatcher
+    private sealed class Dispatcher : IUIDispatcher
     {
         private readonly ConcurrentQueue<Action> _work=new();
         public bool Reject;
@@ -29,7 +29,7 @@ public sealed class PageViewModelTests
     {
         private readonly string _area=Path.Combine(Path.GetTempPath(),"HybridMount.PageVmTests",Guid.NewGuid().ToString("N"));
         public Definitions Store {get;}=new();public MountRepository Repository {get;}
-        public MountManager Manager {get;}public LoggerService Logger {get;}public Dispatcher Ui {get;}=new();
+        public MountManager Manager {get;}public LoggerService Logger {get;}public Dispatcher UserInterface {get;}=new();
         public MountDefinition A=>Store.Items[0];public MountDefinition B=>Store.Items[1];
         public Area(IFileSourceFactory? factory=null)
         {
@@ -53,19 +53,19 @@ public sealed class PageViewModelTests
     [Fact(Timeout=20000)]
     public async Task ImmediatePreferenceFailureRollsBackAndDoesNotSaveOtherDraftFields()
     {
-        await using var area=new Area();var id=area.A.Id;var other=area.B.Id;using var vm=new MountsViewModel(area.Manager,area.Ui);
-        area.Store.FailSave=true;await vm.SetAutoConnectAsync(id,true);area.Ui.Drain();Assert.False(area.Manager.TaskDefinitions[id].AutoConnect);Assert.Equal(PageMessageSeverity.Error,vm.StatusMessage.Severity);
+        await using var area=new Area();var id=area.A.Id;var other=area.B.Id;using var vm=new MountsViewModel(area.Manager,area.UserInterface);
+        area.Store.FailSave=true;await vm.SetAutoConnectAsync(id,true);area.UserInterface.Drain();Assert.False(area.Manager.TaskDefinitions[id].AutoConnect);Assert.Equal(PageMessageSeverity.Error,vm.StatusMessage.Severity);
         vm.StatusMessage.IsOpen=false;await vm.SetAutoConnectAsync(id,true);Assert.True(vm.StatusMessage.IsOpen);Assert.False(area.Manager.TaskDefinitions[id].AutoConnect);
-        area.Store.FailSave=false;await vm.SetAutoConnectAsync(id,true);area.Ui.Drain();Assert.True(area.Manager.TaskDefinitions[id].AutoConnect);Assert.False(area.Manager.TaskDefinitions[other].AutoConnect);
-        await area.Manager.SetCapacityAsync(id,false,5_000_000_000);area.Ui.Drain();vm.UpdateCapacityDraft(id,false,"未提交内容","GB");
-        await vm.SetCapacityAutomaticAsync(id,true);area.Ui.Drain();var saved=area.Manager.TaskDefinitions[id];Assert.True(saved.CapacityAutoDetectEnabled);Assert.Equal(5_000_000_000,saved.MaximumCapacityBytes);Assert.Equal("未提交内容",vm.CapacitySettingsDraft(saved).Text);
-        vm.UpdateDraft(id,true,88,999);await vm.SetRemoteDetectionEnabledAsync(id,false);area.Ui.Drain();saved=area.Manager.TaskDefinitions[id];Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(60,saved.RemoteIncrementalSeconds);Assert.Equal(300,saved.RemoteFullSeconds);Assert.Equal(88,vm.Draft(saved).Incremental);Assert.Equal(999,vm.Draft(saved).Full);
-        area.Store.FailSave=true;await vm.SetCapacityAutomaticAsync(id,false);area.Ui.Drain();Assert.True(area.Manager.TaskDefinitions[id].CapacityAutoDetectEnabled);Assert.True(vm.CapacitySettingsDraft(area.Manager.TaskDefinitions[id]).Automatic);
+        area.Store.FailSave=false;await vm.SetAutoConnectAsync(id,true);area.UserInterface.Drain();Assert.True(area.Manager.TaskDefinitions[id].AutoConnect);Assert.False(area.Manager.TaskDefinitions[other].AutoConnect);
+        await area.Manager.SetCapacityAsync(id,false,5_000_000_000);area.UserInterface.Drain();vm.UpdateCapacityDraft(id,false,"未提交内容","GB");
+        await vm.SetCapacityAutomaticAsync(id,true);area.UserInterface.Drain();var saved=area.Manager.TaskDefinitions[id];Assert.True(saved.CapacityAutoDetectEnabled);Assert.Equal(5_000_000_000,saved.MaximumCapacityBytes);Assert.Equal("未提交内容",vm.CapacitySettingsDraft(saved).Text);
+        vm.UpdateDraft(id,true,88,999);await vm.SetRemoteDetectionEnabledAsync(id,false);area.UserInterface.Drain();saved=area.Manager.TaskDefinitions[id];Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(60,saved.RemoteIncrementalSeconds);Assert.Equal(300,saved.RemoteFullSeconds);Assert.Equal(88,vm.Draft(saved).Incremental);Assert.Equal(999,vm.Draft(saved).Full);
+        area.Store.FailSave=true;await vm.SetCapacityAutomaticAsync(id,false);area.UserInterface.Drain();Assert.True(area.Manager.TaskDefinitions[id].CapacityAutoDetectEnabled);Assert.True(vm.CapacitySettingsDraft(area.Manager.TaskDefinitions[id]).Automatic);
     }
     [Fact(Timeout=20000)]
     public async Task InitialSwitchOptionsAreSavedBeforeConnectionAndRetainedAfterConnectionFailure()
     {
-        var factory=new ReconnectFactory();factory.Release.SetResult();await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.Ui);
+        var factory=new ReconnectFactory();factory.Release.SetResult();await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.UserInterface);
         var path=Path.Combine(Path.GetDirectoryName(area.A.LocalPath)!,"created");Directory.CreateDirectory(path);
         var result=await vm.SaveConnectionAsync(null,"initial",path,false,new(FileSourceKind.WebDav,"https://example.test/dav/"),new(),initial:new(ThumbnailsEnabled:true,RemoteAutoDetectEnabled:false,RemoteIncrementalSeconds:90,RemoteFullSeconds:600,MaximumCapacityBytes:7_000_000_000));
         var saved=area.Manager.TaskDefinitions[result.Mount.Id];Assert.True(saved.ThumbnailsEnabled);Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(90,saved.RemoteIncrementalSeconds);Assert.Equal(600,saved.RemoteFullSeconds);Assert.Equal(7_000_000_000,saved.MaximumCapacityBytes);Assert.False(saved.AutoConnect);Assert.Contains(result.Mount.Id,factory.Calls);Assert.Contains("连接未完成",result.Message);Assert.Equal(PageMessageSeverity.Error,result.Severity);
@@ -78,7 +78,7 @@ public sealed class PageViewModelTests
             System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors, System.Security.Cryptography.X509Certificates.X509ChainStatusFlags.NotTimeValid);
         var diagnostic=new ConnectionDiagnostic("OPTIONS",ConnectionFailureKind.Certificate,null,null,null,null,"证书已过期");
         var factory=new ReconnectFactory{Failure=new SourceConnectionException(diagnostic){Certificate=certificate}};factory.Release.SetResult();
-        await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.Ui);
+        await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.UserInterface);
         var path=Path.Combine(Path.GetDirectoryName(area.A.LocalPath)!,"certificate-retry");Directory.CreateDirectory(path);
         var result=await vm.SaveConnectionAsync(null,"certificate",path,false,new(FileSourceKind.WebDav,"https://example.test/dav/"),new());
         Assert.Same(certificate,result.Certificate);Assert.Equal(PageMessageSeverity.Error,result.Severity);
@@ -93,12 +93,12 @@ public sealed class PageViewModelTests
     {
         await using var area=new Area();if(count==0)area.Store.Items.Clear();
         for(var index=0;index<area.Store.Items.Count;index++)area.Store.Items[index]=area.Store.Items[index] with{RegistrationStage=MountRegistrationStage.Unknown};
-        area.Store.FailSave=failSave;await using var manager=new MountManager(area.Repository,area.Logger);using var vm=new MountsViewModel(manager,area.Ui);
+        area.Store.FailSave=failSave;await using var manager=new MountManager(area.Repository,area.Logger);using var vm=new MountsViewModel(manager,area.UserInterface);
         Assert.Equal(count,vm.Items.Count);
-        foreach(var row in vm.Items){Assert.Equal("检查中",row.Snapshot.Status);Assert.False(row.CanEdit);Assert.False(row.Actions.CanConnect);Assert.False(row.Actions.CanRemove);}
-        await manager.StartAsync();area.Ui.Drain();
-        foreach(var row in vm.Items){Assert.NotEqual("检查中",row.Snapshot.Status);Assert.False(row.Snapshot.IsConnected);if(failSave){Assert.Equal("需要恢复",row.Snapshot.Status);Assert.NotEmpty(row.Snapshot.Detail);}}
-        if(count>0)Assert.Equal(0,area.Ui.Pending);
+        foreach(var row in vm.Items){Assert.Equal("Checking",row.Snapshot.Status);Assert.False(row.CanEdit);Assert.False(row.Actions.CanConnect);Assert.False(row.Actions.CanRemove);}
+        await manager.StartAsync();area.UserInterface.Drain();
+        foreach(var row in vm.Items){Assert.NotEqual("Checking",row.Snapshot.Status);Assert.False(row.Snapshot.IsConnected);if(failSave){Assert.Equal("RecoveryRequired",row.Snapshot.Status);Assert.NotEmpty(row.Snapshot.Detail);}}
+        if(count>0)Assert.Equal(0,area.UserInterface.Pending);
     }
     private static object Runtime(MountManager manager,Guid id)=>typeof(MountManager).GetMethod("Root",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.Invoke(manager,[id])!;
     private static void RuntimeField(MountManager manager,Guid id,string field,object value)
@@ -114,16 +114,16 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Runtime_reconnect_is_empty_without_failures_and_user_disconnect_clears_the_banner()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);
         Assert.False(vm.HasRuntimeFailedMounts);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));await area.Manager.ReconnectRuntimeFailedAsync();
-        RuntimeField(area.Manager,area.A.Id,"RuntimeFailed",true);await area.Manager.ClearCompletedOperationsAsync();area.Ui.Drain();
+        RuntimeField(area.Manager,area.A.Id,"RuntimeFailed",true);await area.Manager.ClearCompletedOperationsAsync();area.UserInterface.Drain();
         Assert.True(vm.HasRuntimeFailedMounts);Assert.True(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
-        await area.Manager.DisconnectAsync(area.A.Id);area.Ui.Drain();Assert.False(vm.HasRuntimeFailedMounts);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
+        await area.Manager.DisconnectAsync(area.A.Id);area.UserInterface.Drain();Assert.False(vm.HasRuntimeFailedMounts);Assert.False(vm.ReconnectRuntimeFailedCommand.CanExecute(null));
     }
     [Fact(Timeout=30000)]
     public async Task Runtime_reconnect_includes_manual_mounts_runs_sequentially_and_continues_after_failure()
     {
-        var factory=new ReconnectFactory();await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.Ui);
+        var factory=new ReconnectFactory();await using var area=new Area(factory);using var vm=new MountsViewModel(area.Manager,area.UserInterface);
         foreach(var mount in new[]{area.A,area.B}){Assert.False(mount.AutoConnect);RuntimeField(area.Manager,mount.Id,"RuntimeFailed",true);}
         var work=vm.ReconnectRuntimeFailedAsync();
         try
@@ -132,7 +132,7 @@ public sealed class PageViewModelTests
             await vm.ReconnectRuntimeFailedAsync();Assert.Single(factory.Calls);
         }
         finally{factory.Release.TrySetResult();await work;}
-        Assert.Equal(new[]{area.A.Id,area.B.Id}.Order(),factory.Calls.Order());Assert.All(area.Manager.Mounts,mount=>Assert.Equal("异常",mount.Status));Assert.True(vm.HasRuntimeFailedMounts);Assert.False(vm.DialogBusy);
+        Assert.Equal(new[]{area.A.Id,area.B.Id}.Order(),factory.Calls.Order());Assert.All(area.Manager.Mounts,mount=>Assert.Equal("Faulted",mount.Status));Assert.True(vm.HasRuntimeFailedMounts);Assert.False(vm.DialogBusy);
     }
     [Theory]
     [InlineData("RemovalRequested")][InlineData("RemovalPending")][InlineData("Connecting")]
@@ -157,7 +157,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task ExclusionDraftsPreserveCustomRowsAcrossRefreshAndFailedSave()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var a=area.A;var b=area.B;
         Assert.Empty(vm.ExclusionDraft(a.Id,FileSourceKind.WebDav));Assert.Equal(4,vm.ExclusionDraft(null,FileSourceKind.WebDav).Count);
         vm.AddExclusionRule(a.Id,FileSourceKind.WebDav);var row=vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Single();row.Text="custom";row.MatchIndex=1;
         vm.AddDefaultExclusionRules(a.Id,FileSourceKind.WebDav);vm.AddDefaultExclusionRules(a.Id,FileSourceKind.WebDav);Assert.Equal(5,vm.ExclusionDraft(a.Id,FileSourceKind.WebDav).Count);
@@ -171,7 +171,7 @@ public sealed class PageViewModelTests
     public async Task CapacityAndDetectionSettingsDescribeSavedSourceAndKeepFallback()
     {
         await using var area=new Area();var manual=area.A with{MaximumCapacityBytes=10_000_000_000};var capacity=new RemoteCapacitySnapshot(new("scope",7_500_000_000,2_500_000_000,10_000_000_000));
-        var mount=new MountSnapshot(manual,"已连接","",Capacity:capacity,Detection:new("RFC 6578 增量检测"));
+        var mount=new MountSnapshot(manual,"Connected","",Capacity:capacity,Detection:new("RFC 6578 增量检测"));
         Assert.Equal("可用7.5GB/总10.0GB，基于用户输入",MountsViewModel.CapacitySummary(mount));
         Assert.Equal("可用7.5GB/总10.0GB，基于服务器信息",MountsViewModel.CapacitySummary(mount with{Definition=manual with{CapacityAutoDetectEnabled=true}}));
         Assert.Equal("可用—/总不限，基于用户输入",MountsViewModel.CapacitySummary(mount with{Definition=area.A,Capacity=null}));
@@ -188,7 +188,7 @@ public sealed class PageViewModelTests
     {
         await using var area=new Area();var other=area.B;var saved=area.A with{ThumbnailsEnabled=true};area.Store.SaveDefinition(saved);
         await using var manager=new MountManager(area.Repository,area.Logger);
-        using var vm=new MountsViewModel(manager,area.Ui,thumbnailCapability:ShellThumbnailCapability.From(packaged,false,queryFailed));
+        using var vm=new MountsViewModel(manager,area.UserInterface,thumbnailCapability:ShellThumbnailCapability.From(packaged,false,queryFailed));
         var row=vm.Items.Single(x=>x.Id==saved.Id);vm.SelectedMountId=saved.Id;vm.RefreshNow();vm.SelectedMountId=other.Id;vm.RefreshNow();
         Assert.False(vm.CanConfigureThumbnails);Assert.False(row.CanConfigureThumbnails);Assert.True(row.ThumbnailsEnabled);Assert.True(vm.ThumbnailDraft(saved));Assert.Equal(saved,area.Store.Items.Single(x=>x.Id==saved.Id));
         Assert.Empty(manager.Operations);Assert.False(string.IsNullOrWhiteSpace(vm.ThumbnailCapability.Reason));
@@ -196,14 +196,14 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Explicit_packaged_candidate_capability_can_edit_only_selected_thumbnail_preference()
     {
-        await using var area=new Area();var a=area.A;var b=area.B;using var vm=new MountsViewModel(area.Manager,area.Ui,thumbnailCapability:ShellThumbnailCapability.From(true,true));
+        await using var area=new Area();var a=area.A;var b=area.B;using var vm=new MountsViewModel(area.Manager,area.UserInterface,thumbnailCapability:ShellThumbnailCapability.From(true,true));
         vm.SelectedMountId=b.Id;var row=vm.Items.Single(x=>x.Id==a.Id);Assert.True(vm.CanConfigureThumbnails);Assert.True(row.CanConfigureThumbnails);
         await vm.SetThumbnailAsync(a.Id,true);Assert.True(vm.FindMount(a.Id)!.Definition.ThumbnailsEnabled);Assert.False(vm.FindMount(b.Id)!.Definition.ThumbnailsEnabled);Assert.Equal(b.Id,vm.SelectedMountId);
     }
     [Fact]
     public async Task Capacity_drafts_survive_selection_and_save_failure_rolls_back_only_selected_mount()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var a=area.A;var b=area.B;
         vm.SelectedMountId=a.Id;vm.UpdateCapacityDraft(a.Id,false,"1.25","TB");vm.SelectedMountId=b.Id;vm.UpdateCapacityDraft(b.Id,true,"2","GB");vm.RefreshNow();vm.SelectedMountId=a.Id;
         Assert.Equal("1.25",vm.CapacitySettingsDraft(a).Text);Assert.True(vm.CapacitySettingsDraft(b).Automatic);
         await vm.SaveSelectedCapacityAsync();var saved=area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition;Assert.Equal(1_250_000_000_000,saved.MaximumCapacityBytes);
@@ -215,7 +215,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Mount_rows_are_stable_and_id_commands_do_not_follow_changed_selection()
     {
-        await using var area=new Area();await area.Manager.StartAsync();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        await using var area=new Area();await area.Manager.StartAsync();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var a=area.A;var b=area.B;
         vm.SelectedMountId=a.Id;var first=vm.Items.Single(x=>x.Id==a.Id);Assert.True(first.IsSelected);
         vm.SelectedMountId=b.Id;vm.RefreshNow();Assert.Same(first,vm.Items.Single(x=>x.Id==a.Id));Assert.False(first.IsSelected);Assert.True(vm.Items.Single(x=>x.Id==b.Id).IsSelected);
         vm.UpdateCapacityDraft(a.Id,false,"3","GB");await vm.SaveCapacityAsync(a.Id);Assert.Equal(b.Id,vm.SelectedMountId);Assert.Equal(3_000_000_000,area.Manager.Mounts.Single(x=>x.Definition.Id==a.Id).Definition.MaximumCapacityBytes);Assert.Null(area.Manager.Mounts.Single(x=>x.Definition.Id==b.Id).Definition.MaximumCapacityBytes);
@@ -225,7 +225,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Mount_shortcuts_preserve_unsaved_intervals_and_failure_keeps_actual_toggle_state()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var a=area.A;var b=area.B;
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var a=area.A;var b=area.B;
         vm.UpdateDraft(a.Id,true,91,601);vm.SelectedMountId=b.Id;
         await vm.SetRemoteDetectionEnabledAsync(a.Id,false);var saved=vm.FindMount(a.Id)!.Definition;
         Assert.False(saved.RemoteAutoDetectEnabled);Assert.Equal(a.RemoteIncrementalSeconds,saved.RemoteIncrementalSeconds);Assert.Equal(91,vm.Draft(saved).Incremental);Assert.False(vm.Draft(saved).Enabled);
@@ -237,7 +237,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Configuration_validation_failure_releases_busy_and_does_not_replace_saved_source()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var original=area.A;
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var original=area.A;
         await Assert.ThrowsAsync<ArgumentException>(()=>vm.SaveConnectionAsync(original.Id,original.Name,original.LocalPath,original.AutoConnect,new(FileSourceKind.WebDav,"file:///invalid"),new()));
         Assert.False(vm.IsBusy(original.Id));Assert.Equal(original.Source,vm.FindMount(original.Id)!.Definition.Source);Assert.Equal(2,vm.Items.Count);Assert.Null(MountPathGuard.ReadRoot(original.LocalPath));
     }
@@ -246,10 +246,10 @@ public sealed class PageViewModelTests
     {
         await using var area=new Area();
         foreach(var state in new[]{"Completed","Failed","PartialFailure","Canceled","Running","Waiting","Conflict","OutcomeUnknown"})area.Repository.SaveOperation(new(state,"refresh",state,0,0,[],null));
-        using var vm=new TasksViewModel(area.Manager,area.Ui);await vm.SnapshotIdle;area.Ui.Drain();Assert.True(vm.CanClearCompleted);Assert.True(vm.CanClearFailed);Assert.True(vm.CanClearAll);
-        await vm.ClearFailedAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.False(vm.CanClearFailed);Assert.True(vm.CanClearCompleted);Assert.DoesNotContain(vm.Operations,row=>row.State is "Failed" or "PartialFailure");
-        await vm.ClearCompletedAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.False(vm.CanClearCompleted);await vm.ClearAllAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.False(vm.CanClearAll);Assert.Equal(3,vm.Operations.Count);Assert.All(vm.Operations,row=>Assert.Contains(row.State,new[]{"Waiting","Conflict","OutcomeUnknown"}));
-        vm.Dispose();area.Repository.SaveOperation(new("late","refresh","Failed",0,0,[],null));await vm.ClearFailedAsync();await vm.SnapshotIdle;area.Ui.Drain();Assert.Contains(area.Repository.LoadOperations(),row=>row.Id=="late");
+        using var vm=new TasksViewModel(area.Manager,area.UserInterface);await vm.SnapshotIdle;area.UserInterface.Drain();Assert.True(vm.CanClearCompleted);Assert.True(vm.CanClearFailed);Assert.True(vm.CanClearAll);
+        await vm.ClearFailedAsync();await vm.SnapshotIdle;area.UserInterface.Drain();Assert.False(vm.CanClearFailed);Assert.True(vm.CanClearCompleted);Assert.DoesNotContain(vm.Operations,row=>row.State is "Failed" or "PartialFailure");
+        await vm.ClearCompletedAsync();await vm.SnapshotIdle;area.UserInterface.Drain();Assert.False(vm.CanClearCompleted);await vm.ClearAllAsync();await vm.SnapshotIdle;area.UserInterface.Drain();Assert.False(vm.CanClearAll);Assert.Equal(3,vm.Operations.Count);Assert.All(vm.Operations,row=>Assert.Contains(row.State,new[]{"Waiting","Conflict","OutcomeUnknown"}));
+        vm.Dispose();area.Repository.SaveOperation(new("late","refresh","Failed",0,0,[],null));await vm.ClearFailedAsync();await vm.SnapshotIdle;area.UserInterface.Drain();Assert.Contains(area.Repository.LoadOperations(),row=>row.Id=="late");
     }
     private sealed class AppearanceStore : IAppearancePreferenceStore
     {
@@ -291,7 +291,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Mount_drafts_and_selection_survive_refresh_and_each_mount_has_independent_busy_guard()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);
         var a=area.A.Id;var b=area.B.Id;vm.SelectedMountId=a;vm.UpdateDraft(a,false,91,601);vm.SelectedMountId=b;vm.UpdateDraft(b,true,92,602);vm.RefreshNow();vm.SelectedMountId=a;
         Assert.Equal(91,vm.Draft(vm.RequireSelected().Definition).Incremental);Assert.Equal(92,vm.Draft(area.B).Incremental);
         var wait=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var aCalls=0;var bCalls=0;
@@ -302,7 +302,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Mount_save_failure_discards_only_its_own_draft_and_restores_persisted_options()
     {
-        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.Ui);var original=area.A;
+        await using var area=new Area();using var vm=new MountsViewModel(area.Manager,area.UserInterface);var original=area.A;
         vm.SelectedMountId=original.Id;vm.UpdateDraft(original.Id,false,99,999);vm.UpdateDraft(area.B.Id,false,88,888);area.Store.FailSave=true;
         await vm.SaveSelectedDetectionAsync();Assert.Equal(original.RemoteIncrementalSeconds,vm.Draft(original).Incremental);Assert.Equal(88,vm.Draft(area.B).Incremental);
         await vm.SetSelectedThumbnailAsync(true);Assert.False(vm.ThumbnailDraft(original));Assert.False(area.Manager.Mounts.Single(x=>x.Definition.Id==original.Id).Definition.ThumbnailsEnabled);
@@ -311,7 +311,7 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Mount_dialogs_are_serial_and_dispose_blocks_late_results_without_stopping_background_manager()
     {
-        await using var area=new Area();var vm=new MountsViewModel(area.Manager,area.Ui);var wait=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var calls=0;
+        await using var area=new Area();var vm=new MountsViewModel(area.Manager,area.UserInterface);var wait=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var calls=0;
         var first=vm.RunDialogAsync(async()=>{calls++;await wait.Task;vm.Status="late";});await vm.RunDialogAsync(()=>{calls++;return Task.CompletedTask;});
         var status=vm.Status;var notifications=0;vm.PropertyChanged+=(_,_)=>notifications++;vm.Dispose();wait.SetResult();await first;
         Assert.Equal(1,calls);Assert.Equal(status,vm.Status);Assert.Equal(0,notifications);Assert.False(area.Manager.IsStopping);
@@ -319,26 +319,26 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Snapshot_dispatch_coalesces_events_recovers_after_rejection_and_ignores_disposed_work()
     {
-        await using var area=new Area();var vm=new MountsViewModel(area.Manager,area.Ui);var refreshed=0;vm.Refreshed+=()=>refreshed++;
-        area.Ui.Reject=true;await area.Manager.ClearCompletedOperationsAsync();Assert.Equal(0,area.Ui.Pending);
-        area.Ui.Reject=false;await area.Manager.ClearCompletedOperationsAsync();await area.Manager.ClearCompletedOperationsAsync();Assert.Equal(1,area.Ui.Pending);
-        area.Ui.Drain();Assert.Equal(1,refreshed);await area.Manager.ClearCompletedOperationsAsync();vm.Dispose();area.Ui.Drain();Assert.Equal(1,refreshed);
-        await area.Manager.ClearCompletedOperationsAsync();Assert.Equal(0,area.Ui.Pending);Assert.False(area.Manager.IsStopping);
+        await using var area=new Area();var vm=new MountsViewModel(area.Manager,area.UserInterface);var refreshed=0;vm.Refreshed+=()=>refreshed++;
+        area.UserInterface.Reject=true;await area.Manager.ClearCompletedOperationsAsync();Assert.Equal(0,area.UserInterface.Pending);
+        area.UserInterface.Reject=false;await area.Manager.ClearCompletedOperationsAsync();await area.Manager.ClearCompletedOperationsAsync();Assert.Equal(1,area.UserInterface.Pending);
+        area.UserInterface.Drain();Assert.Equal(1,refreshed);await area.Manager.ClearCompletedOperationsAsync();vm.Dispose();area.UserInterface.Drain();Assert.Equal(1,refreshed);
+        await area.Manager.ClearCompletedOperationsAsync();Assert.Equal(0,area.UserInterface.Pending);Assert.False(area.Manager.IsStopping);
     }
     [Fact]
     public async Task Task_copy_captures_original_selection_and_can_only_submit_once_per_dialog()
     {
         await using var area=new Area();var mount=area.A.Id;
         foreach(var id in new[]{"first","second"}){var item=new LocalUpload(id,mount,id+".txt",id+".txt",false,"stamp",1,"Conflict",DateTimeOffset.UtcNow);area.Repository.SaveUpload(item);area.Repository.SaveOperation(item.ToSnapshot());}
-        using var vm=new TasksViewModel(area.Manager,area.Ui);await vm.SnapshotIdle;area.Ui.Drain();vm.SelectedJobId="first";Assert.True(vm.BeginCopy());Assert.False(vm.BeginCopy());vm.CopyPath="新副本.txt";vm.SelectedJobId="second";await vm.SubmitCopyAsync();await vm.SubmitCopyAsync();vm.EndDialog();
+        using var vm=new TasksViewModel(area.Manager,area.UserInterface);await vm.SnapshotIdle;area.UserInterface.Drain();vm.SelectedJobId="first";Assert.True(vm.BeginCopy());Assert.False(vm.BeginCopy());vm.CopyPath="新副本.txt";vm.SelectedJobId="second";await vm.SubmitCopyAsync();await vm.SubmitCopyAsync();vm.EndDialog();
         var copy=Assert.Single(area.Repository.Uploads(mount),x=>x.IsCopy);Assert.Equal("first.txt",copy.LocalPath);Assert.Equal("新副本.txt",copy.SourcePath);Assert.Equal(copy.Id,vm.SelectedJobId);
-        area.Ui.Drain();Assert.Equal(copy.Id,vm.SelectedJobId);Assert.Equal("Conflict",area.Repository.Upload("first")!.State);
+        area.UserInterface.Drain();Assert.Equal(copy.Id,vm.SelectedJobId);Assert.Equal("Conflict",area.Repository.Upload("first")!.State);
     }
     [Fact]
     public async Task Task_storage_fault_is_reported_without_escaping_ui_command_or_sticking_dialog_guard()
     {
         await using var area=new Area();area.Repository.SaveOperation(new("history","upload","Completed",1,1,[],null));
-        using var vm=new TasksViewModel(area.Manager,area.Ui);await vm.SnapshotIdle;area.Ui.Drain();vm.SelectedJobId="history";
+        using var vm=new TasksViewModel(area.Manager,area.UserInterface);await vm.SnapshotIdle;area.UserInterface.Drain();vm.SelectedJobId="history";
         var directory=area.Repository.DataDirectory;var held=directory+"-held";Directory.Move(directory,held);Directory.CreateDirectory(Path.Combine(directory,"mounts.db"));
         try{Assert.Null(await vm.BeginResultsAsync());Assert.Null(await Record.ExceptionAsync(vm.CancelSelectedAsync));Assert.Null(await Record.ExceptionAsync(vm.RetrySelectedAsync));Assert.NotEmpty(vm.Status);}
         finally{Directory.Delete(directory,true);Directory.Move(held,directory);}
@@ -380,8 +380,8 @@ public sealed class PageViewModelTests
     [Fact]
     public async Task Log_filters_remain_and_queued_notifications_do_not_update_disposed_viewmodel()
     {
-        await using var area=new Area();var vm=new LogsViewModel(area.Logger,area.Ui);area.Logger.Queue("test","Warning","中文 log");await vm.RefreshAsync();area.Ui.Drain();var resets=0;vm.Entries.CollectionChanged+=(_,args)=>{if(args.Action==System.Collections.Specialized.NotifyCollectionChangedAction.Reset)resets++;};vm.Query="中文";vm.Severity="Warning";await vm.RefreshAsync();Assert.Single(vm.Entries);Assert.Equal(0,resets);
-        Assert.True(vm.TryBeginDialog());Assert.False(vm.TryBeginDialog());vm.EndDialog();area.Logger.Queue("test","Warning","中文 late");await area.Logger.ReadAsync();Assert.True(area.Ui.Pending>0);
-        vm.Dispose();area.Ui.Drain();Assert.Single(vm.Entries);Assert.Equal("中文",vm.Query);Assert.Equal("Warning",vm.Severity);await vm.ClearAsync();Assert.Equal(2,(await area.Logger.ReadAsync()).Count);
+        await using var area=new Area();var vm=new LogsViewModel(area.Logger,area.UserInterface);area.Logger.Queue("test","Warning","中文 log");await vm.RefreshAsync();area.UserInterface.Drain();var resets=0;vm.Entries.CollectionChanged+=(_,args)=>{if(args.Action==System.Collections.Specialized.NotifyCollectionChangedAction.Reset)resets++;};vm.Query="中文";vm.Severity="Warning";await vm.RefreshAsync();Assert.Single(vm.Entries);Assert.Equal(0,resets);
+        Assert.True(vm.TryBeginDialog());Assert.False(vm.TryBeginDialog());vm.EndDialog();area.Logger.Queue("test","Warning","中文 late");await area.Logger.ReadAsync();Assert.True(area.UserInterface.Pending>0);
+        vm.Dispose();area.UserInterface.Drain();Assert.Single(vm.Entries);Assert.Equal("中文",vm.Query);Assert.Equal("Warning",vm.Severity);await vm.ClearAsync();Assert.Equal(2,(await area.Logger.ReadAsync()).Count);
     }
 }

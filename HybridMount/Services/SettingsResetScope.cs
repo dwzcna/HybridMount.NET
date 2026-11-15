@@ -17,10 +17,10 @@ internal sealed class SettingsResetScope
     /// <summary>由系统LocalAppData和已核验包族名推导白名单；测试可传隔离LocalAppData，不接收任意删除目录。</summary>
     internal static SettingsResetScope Create(bool packaged,string localAppData,string? packageFamily=null)
     {
-        if(!Path.IsPathFullyQualified(localAppData)||localAppData.StartsWith(@"\\",StringComparison.Ordinal))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_C8CADF5A6F81"));
+        if(!Path.IsPathFullyQualified(localAppData)||localAppData.StartsWith(@"\\",StringComparison.Ordinal))throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CannotVerifyThePackageDataFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var physical=Path.Combine(Path.GetFullPath(localAppData),"HybridMount.NET",packaged?"Packaged":"Unpackaged");
         if(!packaged)return new(false,[physical],Path.Combine(physical,"Mounting"));
-        if(string.IsNullOrWhiteSpace(packageFamily)||packageFamily is "." or ".."||packageFamily.IndexOfAny(Path.GetInvalidFileNameChars())>=0||packageFamily.Contains('/')||packageFamily.Contains('\\'))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_C8CADF5A6F81"));
+        if(string.IsNullOrWhiteSpace(packageFamily)||packageFamily is "." or ".."||packageFamily.IndexOfAny(Path.GetInvalidFileNameChars())>=0||packageFamily.Contains('/')||packageFamily.Contains('\\'))throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CannotVerifyThePackageDataFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var package=Path.Combine(Path.GetFullPath(localAppData),"Packages",packageFamily);
         // 删除本应用的数据目录本身；包族父目录及Windows维护的包运行状态不属于应用设置。
         return new(true,[physical,Path.Combine(package,"LocalState"),Path.Combine(package,"LocalCache"),Path.Combine(package,"RoamingState"),Path.Combine(package,"TempState")],Path.Combine(package,"LocalState","Mounting"));
@@ -55,8 +55,8 @@ internal static class SettingsResetDirectories
         =>Array.AsReadOnly(scope.Directories.Select(path=>new SettingsResetDirectoryProof(path,Inspect(path,token))).ToArray());
     internal static void Validate(SettingsResetPlan plan,CancellationToken token)
     {
-        if(!plan.Directories.Select(x=>x.Path).SequenceEqual(plan.Scope.Directories,StringComparer.OrdinalIgnoreCase))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_E122A99B231B"));
-        foreach(var proof in plan.Directories)if(Inspect(proof.Path,token)!=proof.Identity)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_ABA53AA1CD13",proof.Path));
+        if(!plan.Directories.Select(x=>x.Path).SequenceEqual(plan.Scope.Directories,StringComparer.OrdinalIgnoreCase))throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheDeploymentOrDataFoldersHaveChangedCheckAndConfirmAgain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        foreach(var proof in plan.Directories)if(Inspect(proof.Path,token)!=proof.Identity)throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("AFolderIdentityHasChangedCheckAndConfirmAgain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, proof.Path));
     }
     private static string? Inspect(string path,CancellationToken token)
     {
@@ -84,7 +84,7 @@ internal static class SettingsResetDirectories
     {
         using(var pin=OpenDirectory(path,out var identity))
         {
-            if(verify&&identity!=expected)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_ABA53AA1CD13",path));
+            if(verify&&identity!=expected)throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("AFolderIdentityHasChangedCheckAndConfirmAgain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, path));
             if(pin is null)return;
             foreach(var child in Directory.EnumerateFileSystemEntries(path))
             {
@@ -103,25 +103,25 @@ internal static class SettingsResetDirectories
         if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error(),path);
         if(!GetFileInformationByHandle(handle,out var info))throw new Win32Exception(Marshal.GetLastWin32Error(),path);
         RejectReparse(path,(FileAttributes)info.Attributes);
-        if((info.Attributes&0x10)!=0)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_9E9FE4E789B7",path));
+        if((info.Attributes&0x10)!=0)throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CannotVerifyTheDataFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, path));
         uint disposition=0x11; // FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE，最低系统为Windows 11。
         if(!SetFileInformationByHandle(handle,21,ref disposition,sizeof(uint)))throw new Win32Exception(Marshal.GetLastWin32Error(),path);
     }
     private static void RejectReparse(string path,FileAttributes attributes)
-    {if((attributes&FileAttributes.ReparsePoint)!=0)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_CBE71FBB20D3",path));}
+    {if((attributes&FileAttributes.ReparsePoint)!=0)throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ADataFolderOrAncestorContainsAReparseLinkAndCannotBe", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, path));}
     private static SafeFileHandle? OpenDirectory(string path,out string? identity)
     {
         identity=null;var handle=CreateFile(path,0x80,3,0,3,0x02200000,0);
         if(handle.IsInvalid)
         {
             var error=Marshal.GetLastWin32Error();handle.Dispose();if(error is 2 or 3)return null;
-            throw new Win32Exception(error,global::HybridMount.Services.Localization.UiText.Text("Text_9E9FE4E789B7",path));
+            throw new Win32Exception(error,string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CannotVerifyTheDataFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, path));
         }
         try
         {
-            if(!GetFileInformationByHandle(handle,out var info))throw new Win32Exception(Marshal.GetLastWin32Error(),global::HybridMount.Services.Localization.UiText.Text("Text_9E9FE4E789B7",path));
+            if(!GetFileInformationByHandle(handle,out var info))throw new Win32Exception(Marshal.GetLastWin32Error(),string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CannotVerifyTheDataFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, path));
             RejectReparse(path,(FileAttributes)info.Attributes);
-            if((info.Attributes&0x10)==0)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_9E9FE4E789B7",path));
+            if((info.Attributes&0x10)==0)throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CannotVerifyTheDataFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, path));
             identity=$"{info.Volume:X8}:{info.IndexHigh:X8}{info.IndexLow:X8}";return handle;
         }
         catch{handle.Dispose();throw;}

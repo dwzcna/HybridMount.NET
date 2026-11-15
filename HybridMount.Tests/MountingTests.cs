@@ -94,7 +94,7 @@ public sealed class MountingTests
             }
             await using(var reopened=new MountManager(repository,logger,TestSourceFactory.Instance))
             {
-                await reopened.StartAsync();Assert.Equal("已连接",Assert.Single(reopened.Mounts).Status);
+                await reopened.StartAsync();Assert.Equal("Connected",Assert.Single(reopened.Mounts).Status);
                 Assert.Equal("本地修改必须保留",await File.ReadAllTextAsync(Path.Combine(local,"说明.txt")));
                 var job=reopened.Queue(id,"remove");await Finished(reopened,job);
                 Assert.Equal("local only",await File.ReadAllTextAsync(Path.Combine(local,"本地新建.txt")));

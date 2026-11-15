@@ -21,7 +21,7 @@ public sealed class StartupService(LoggerService logger) : IStartupService
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunPath);
             var enabled = key?.GetValue(RunValue) is string command && string.Equals(command, StartupCommand, StringComparison.OrdinalIgnoreCase);
-            state = new(enabled, true, enabled ? "已注册当前用户登录启动（开发运行）。" : "登录启动已关闭。");
+            state = State(enabled, true, enabled ? global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInRegisteredForTheCurrentUserDevelopmentRun") : global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInIsOff"));
         }
         SaveActual(state.Enabled);
         return state;
@@ -41,7 +41,7 @@ public sealed class StartupService(LoggerService logger) : IStartupService
             using var key = Registry.CurrentUser.CreateSubKey(RunPath, writable: true) ?? throw new IOException("无法访问当前用户启动项。");
             if (enabled) key.SetValue(RunValue, StartupCommand, RegistryValueKind.String);
             else key.DeleteValue(RunValue, false);
-            actual = new(enabled, true, enabled ? "已注册当前用户登录启动（开发运行）。" : "登录启动已关闭。");
+            actual = State(enabled, true, enabled ? global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInRegisteredForTheCurrentUserDevelopmentRun") : global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInIsOff"));
         }
         SaveActual(actual.Enabled);
         logger.Queue("启动", "Information", actual.Detail);
@@ -50,11 +50,11 @@ public sealed class StartupService(LoggerService logger) : IStartupService
     /// <summary>有序退出期间只移除当前模式启动入口；不保存偏好或发日志，系统策略仍启用时停止还原。</summary>
     internal static async Task ClearForSettingsResetAsync(bool packaged,string productScope)
     {
-        if(productScope!="HybridMount.NET."+(packaged?"Packaged":"Unpackaged")||packaged!=WinRegisterService.IsPackaged())throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_E122A99B231B"));
+        if(productScope!="HybridMount.NET."+(packaged?"Packaged":"Unpackaged")||packaged!=WinRegisterService.IsPackaged())throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheDeploymentOrDataFoldersHaveChangedCheckAndConfirmAgain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         if(packaged)
         {
             var task=await StartupTask.GetAsync(TaskId);task.Disable();
-            if(task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy)throw new IOException(global::HybridMount.Services.Localization.UiText.Text("Text_975DCC9648CA"));
+            if(task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy)throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SystemPolicyStillEnablesThisAppAtSignInResetCannotComplete", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         using var key=Registry.CurrentUser.OpenSubKey(RunPath,true);key?.DeleteValue(productScope,false);
     }
@@ -64,12 +64,14 @@ public sealed class StartupService(LoggerService logger) : IStartupService
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         { logger.Queue("启动", "Warning", $"启动项状态已由系统确定，但偏好缓存保存失败：{error.GetType().Name}"); }
     }
+    private static StartupState State(bool enabled,bool canToggle,global::HybridMount.Services.Localization.ResourceMessage message)
+        =>new(enabled,canToggle,message.Render()){DisplayMessage=message};
     private static StartupState Describe(StartupTaskState state) => state switch
     {
-        StartupTaskState.Enabled => new(true, true, "登录 Windows 后静默进入托盘。"),
-        StartupTaskState.EnabledByPolicy => new(true, false, "登录启动已由系统策略启用。"),
-        StartupTaskState.DisabledByPolicy => new(false, false, "登录启动已被系统策略禁用。"),
-        StartupTaskState.DisabledByUser => new(false, false, "请在 Windows 的启动应用设置中重新允许此应用。"),
-        _ => new(false, true, "登录启动已关闭。")
+        StartupTaskState.Enabled => State(true, true, global::HybridMount.Services.Localization.ResourceMessage.Create("StartSilentlyInTheTrayAfterSigningInToWindows")),
+        StartupTaskState.EnabledByPolicy => State(true, false, global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInIsEnabledBySystemPolicy")),
+        StartupTaskState.DisabledByPolicy => State(false, false, global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInIsDisabledBySystemPolicy")),
+        StartupTaskState.DisabledByUser => State(false, false, global::HybridMount.Services.Localization.ResourceMessage.Create("AllowThisApplicationAgainInWindowsStartupAppSettings")),
+        _ => State(false, true, global::HybridMount.Services.Localization.ResourceMessage.Create("StartAtSignInIsOff"))
     };
 }

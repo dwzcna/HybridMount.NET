@@ -123,7 +123,7 @@ public sealed class ConnectionTests
         await using var logger=new LoggerService(Path.Combine(fixture.Area,"log.db"));await using var manager=new MountManager(repo,logger);
         try
         {
-            await manager.ConnectAsync(id);Assert.Equal("已连接",Assert.Single(manager.Mounts).Status);
+            await manager.ConnectAsync(id);Assert.Equal("Connected",Assert.Single(manager.Mounts).Status);
             Assert.False(File.Exists(Path.Combine(work,"broken.multipart.json")));Assert.True(File.Exists(Path.Combine(work,"broken.multipart.json.bad")));
             var bytes=await Task.Run(()=>File.ReadAllBytes(Path.Combine(local,"文件.bin"))).WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(fixture.Objects["remote/文件.bin"].Bytes,bytes);

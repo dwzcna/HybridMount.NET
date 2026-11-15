@@ -13,7 +13,7 @@ public sealed partial class HomePage : Page,IDisposable
     /// <summary>创建首页并显示实际程序集版本。</summary>
     public HomeViewModel ViewModel {get;}=new(App.Version,App.Current.Navigation);
     private readonly PageScrollBookmark _viewport=new();
-    public HomePage(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;Loaded+=PageLoaded;}
+    public HomePage(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;Loaded+=PageLoaded;}
     private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(HomeScroll);
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(HomeScroll);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(HomeScroll);base.OnNavigatedFrom(args);}

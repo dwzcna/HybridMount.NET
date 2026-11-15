@@ -6,7 +6,7 @@ namespace HybridMount.Tests;
 /// <summary>身份、连接作用域、只读入口和退出保护，不修改正式挂载。</summary>
 public sealed partial class ExcludedRenameFlowTests
 {
-    private sealed class Dispatcher:IUiDispatcher {public bool TryEnqueue(Action callback){callback();return true;}}
+    private sealed class Dispatcher:IUIDispatcher {public bool TryEnqueue(Action callback){callback();return true;}}
     [Fact(Timeout=90000)]
     public async Task RenamedFailedUploadClearsOnlyOwnedOldIssueProperty()
     {

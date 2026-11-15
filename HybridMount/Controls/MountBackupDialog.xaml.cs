@@ -28,9 +28,9 @@ public sealed partial class MountBackupDialog : ContentDialog
     public MountBackupDialog(string? inputPath = null)
     {
         _inputPath = inputPath; _importing = inputPath is not null;
-        InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update()); RowsList.ItemsSource = _rows;
+        InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update()); RowsList.ItemsSource = _rows;
         ProtectionToggle.Visibility = UnprotectedNotice.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
-        global::HybridMount.Helpers.UI.Ui.Set(this,"Title",_importing ? global::HybridMount.Services.Localization.UiText.Text("Text_B48B6518293A") : global::HybridMount.Services.Localization.UiText.Text("Text_429EA3AF443D")); global::HybridMount.Helpers.UI.Ui.Set(this,"PrimaryButtonText",_importing ? global::HybridMount.Services.Localization.UiText.Text("Text_439537652398") : global::HybridMount.Services.Localization.UiText.Text("Text_76420433F22D"));
+        global::HybridMount.Helpers.UI.UserInterface.Set(this,"Title",_importing ? global::HybridMount.Services.Localization.ResourceMessage.Create("ImportConfiguration") : global::HybridMount.Services.Localization.ResourceMessage.Create("ExportConfiguration")); global::HybridMount.Helpers.UI.UserInterface.Set(this,"PrimaryButtonText",_importing ? global::HybridMount.Services.Localization.ResourceMessage.Create("DecryptAndPreview") : global::HybridMount.Services.Localization.ResourceMessage.Create("Export"));
         ConfirmPasswordField.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         IsPrimaryButtonEnabled = false;
         RowsList.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
@@ -40,11 +40,11 @@ public sealed partial class MountBackupDialog : ContentDialog
             {
                 var definition = mount.Definition;
                 var row = new MountBackupRow(new(definition.Name, definition.LocalPath, definition.Source!, new(), definition.AutoConnect, definition.ThumbnailsEnabled), false, definition.Id);
-                if (definition.RemovalPending) { row.Selected = false; row.CanSelect = false; row.Status = global::HybridMount.Services.Localization.UiText.Text("Text_A39C7E51EDF4"); }
+                if (definition.RemovalPending) { row.Selected = false; row.CanSelect = false; row.SetStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("MountsBeingRemovedCannotBeExportedYet")); }
                 _rows.Add(row);
             }
             IsPrimaryButtonEnabled = _rows.Any(row => row.Selected);
-            if (_rows.Count == 0) ShowStatus(global::HybridMount.Services.Localization.UiText.Text("Text_5917CFAF5C13"), InfoBarSeverity.Informational);
+            if (_rows.Count == 0) ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("ThereAreNoWebDAVS3OrSynologyMountsToExport"), InfoBarSeverity.Informational);
         }
     }
     /// <summary>页面显示后后台读取一次；普通 JSON 不经过密码阶段，迟到结果必须释放而不能更新关闭的窗口。</summary>
@@ -100,11 +100,13 @@ public sealed partial class MountBackupDialog : ContentDialog
         finally { _applyingPreview = false; }
         _decoded = true; _readSession?.Dispose(); _readSession = null;
         PasswordField.Password = ""; ConfirmPasswordField.Password = ""; PasswordPanel.Visibility = Visibility.Collapsed; RowsList.Visibility = Visibility.Visible;
-        global::HybridMount.Helpers.UI.Ui.Set(this, "PrimaryButtonText", global::HybridMount.Services.Localization.UiText.Message("Text_BC2FA28989C5"));
+        global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("ImportSelectedItems"));
     }
     private MountImportItem[] Requests() => _rows.Select(row => new MountImportItem(row.Configuration, row.LocalPath, row.Selected)).ToArray();
     private void ShowStatus(string message, InfoBarSeverity severity)
-    { if (_closed || App.Current.IsExiting) return; StatusBar.Message = global::HybridMount.Services.Localization.UiText.Legacy(message); StatusBar.Severity = severity; StatusBar.IsOpen = true; }
+        => ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Raw(message), severity);
+    private void ShowStatus(global::HybridMount.Services.Localization.ResourceMessage message, InfoBarSeverity severity)
+    { if (_closed || App.Current.IsExiting) return; global::HybridMount.Helpers.UI.UserInterface.Set(StatusBar,"Message",message); StatusBar.Severity = severity; StatusBar.IsOpen = true; }
     private void SetWorking(bool working)
     {
         _working = working; if (_closed || App.Current.IsExiting) return; Form.IsEnabled = !working && !_finished;
@@ -129,7 +131,7 @@ public sealed partial class MountBackupDialog : ContentDialog
             {
                 foreach (var result in results)
                 {
-                    var row = _rows[result.Index]; row.Status = result.Message; row.CanSelect = result.State == "Ready";
+                    var row = _rows[result.Index]; if(result.State=="Ready")row.SetStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("BackupImportReady"));else row.Status = result.Message; row.CanSelect = result.State == "Ready";
                     if (!row.CanSelect) row.Selected = false;
                 }
             }
@@ -164,17 +166,17 @@ public sealed partial class MountBackupDialog : ContentDialog
             if (!_importing)
             {
                 var password = ProtectionToggle.IsChecked == true ? PasswordField.Password : "";
-                if (ProtectionToggle.IsChecked == true && password.Length < 8) throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("BackupPasswordMinimum"));
-                if (ProtectionToggle.IsChecked == true && !string.Equals(password, ConfirmPasswordField.Password, StringComparison.Ordinal)) throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_F007E1890A6A"));
+                if (ProtectionToggle.IsChecked == true && password.Length < 8) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupPasswordMinimum", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (ProtectionToggle.IsChecked == true && !string.Equals(password, ConfirmPasswordField.Password, StringComparison.Ordinal)) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheTwoBackupPasswordsDoNotMatch", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 var ids = _rows.Where(row => row.Selected && row.CanSelect).Select(row => row.ExistingId!.Value).ToArray();
-                if (ids.Length == 0) throw new ArgumentException(global::HybridMount.Services.Localization.UiText.Text("Text_DB1CDAA04D01"));
+                if (ids.Length == 0) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectTheMountsToExport", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-config-{DateTime.Now:yyyyMMdd-HHmmss}" };
-                picker.FileTypeChoices.Add(global::HybridMount.Services.Localization.UiText.Text("Text_4438ABDEDD78"), new List<string> { ".hmxbk" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
+                picker.FileTypeChoices.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("HybridMountJSONConfigurationBackup", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, new List<string> { ".hmxbk" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
                 var file = await picker.PickSaveFileAsync();
                 if (_closed || App.Current.IsExiting) return;
-                if (file is null) { ShowStatus(global::HybridMount.Services.Localization.UiText.Text("Text_B6C615F9C968"), InfoBarSeverity.Informational); return; }
+                if (file is null) { ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("FileSelectionCanceled"), InfoBarSeverity.Informational); return; }
                 await App.Current.Mounts.ExportConfigurationsAsync(ids, password, file.Path, cancel.Token);
-                ResultMessage = global::HybridMount.Services.Localization.UiText.Text("Text_BDC65C424B91",ids.Length); exported = true;
+                ResultMessage = string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExportedMountConfigurationsWithEncryption", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, ids.Length); exported = true;
             }
             else if (!_decoded)
             {
@@ -192,13 +194,13 @@ public sealed partial class MountBackupDialog : ContentDialog
                 finally { _applyingPreview = false; }
                 var failed = result.Results.Count(item => item.State == "Failed"); var skipped = result.Results.Count(item => item.State == "Skipped");
                 var canceled = result.Results.Count(item => item.State == "Canceled");
-                ResultMessage = global::HybridMount.Services.Localization.UiText.Text("Text_4EDAD650FAE2",ImportedIds.Count,skipped,failed,canceled);
-                _finished = true; global::HybridMount.Helpers.UI.Ui.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_3FD47EDCE45B"));
+                ResultMessage = string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ImportResultsSavedSkippedFailedCanceledSavedMountsAreNotConnectedYet", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, ImportedIds.Count, skipped, failed, canceled);
+                _finished = true; global::HybridMount.Helpers.UI.UserInterface.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close"));
                 ShowStatus(ResultMessage, failed > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
             }
         }
         catch (OperationCanceledException)
-        { if (!App.Current.IsExiting) { ResultMessage = global::HybridMount.Services.Localization.UiText.Text("Text_068E55CEAFFC"); ShowStatus(ResultMessage, InfoBarSeverity.Informational); } }
+        { if (!App.Current.IsExiting) { ResultMessage = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ConfigurationWasCanceledSavedEntriesAreKeptAndCanBeViewedIn", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; ShowStatus(ResultMessage, InfoBarSeverity.Informational); } }
         catch (Exception error) { if (!App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
         finally
         {
@@ -212,7 +214,7 @@ public sealed partial class MountBackupDialog : ContentDialog
     }
     private void OnClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
     {
-        if (!_working) return; args.Cancel = true; _cancelRequested = true; global::HybridMount.Helpers.UI.Ui.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_0ADDD7784578")); _active?.Cancel();
+        if (!_working) return; args.Cancel = true; _cancelRequested = true; global::HybridMount.Helpers.UI.UserInterface.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Canceling")); _active?.Cancel();
     }
     private void OnClosed(ContentDialog sender, ContentDialogClosedEventArgs args)
     { _closed = true; _finished = true; _dialogStop.Cancel(); _active?.Cancel(); ++_previewVersion; PasswordField.Password = ""; ConfirmPasswordField.Password = ""; _rows.Clear(); _readSession?.Dispose(); _readSession = null; _localization?.Dispose(); _localization = null; _dialogStop.Dispose(); }

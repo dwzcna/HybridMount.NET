@@ -23,7 +23,7 @@ public sealed class ProtocolRecoveryTests
         var sourceDb=Path.Combine(repository.DataDirectory,"MockSources",id.ToString("N"),"source.db");var before=SHA256.HashData(await File.ReadAllBytesAsync(sourceDb));
         await using(var production=new MountManager(repository,logger))
         {
-            await production.StartAsync();Assert.Equal("需要迁出",Assert.Single(production.Mounts).Status);
+            await production.StartAsync();Assert.Equal("MigrationOutRequired",Assert.Single(production.Mounts).Status);
             var result=await WebDavTests.Finished(production,production.Queue(id,"remove"));Assert.True(result.State=="Completed",result.Error);
             Assert.Empty(production.Mounts);Assert.Null(MountPathGuard.ReadRoot(local));
             Assert.Contains("按需下载",await File.ReadAllTextAsync(Path.Combine(local,"说明.txt")));

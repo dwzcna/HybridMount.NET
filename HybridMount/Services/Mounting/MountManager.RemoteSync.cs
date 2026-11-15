@@ -129,7 +129,7 @@ public sealed partial class MountManager
                 {
                     runtime.Discovered=runtime.Created=runtime.Published=runtime.LastPublicationProgress=0;
                     runtime.ProgressTaskId=TasksQueueService.CurrentTask?.Id;
-                    if(runtime.ProgressTaskId is {} progressId)_taskProgress[progressId]=global::HybridMount.Services.Localization.UiText.Text("TaskRemoteScanProgress",0);
+                    if(runtime.ProgressTaskId is {} progressId)_taskProgress[progressId]=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskRemoteScanProgress", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, 0);
                     await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
                     try{await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);}
                     finally

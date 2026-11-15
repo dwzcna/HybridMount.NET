@@ -3,16 +3,16 @@ using Microsoft.Windows.ApplicationModel.Resources;
 namespace HybridMount.Services.Localization;
 
 /// <summary>从实际PRI按明确语言读取；属性登记与x:Uid共用PRI，不调用包专用API或改变线程区域格式。</summary>
-internal sealed class MrtUiTextProvider:IUiTextProvider,IUiPropertyProvider
+internal sealed class MrtXamlPropertyProvider:IXamlPropertyProvider
 {
     private readonly ResourceManager _manager;
     private readonly ConcurrentDictionary<string,ResourceContext> _contexts=new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string,IReadOnlyDictionary<string,string>> _properties=new(StringComparer.Ordinal);
-    internal MrtUiTextProvider()
+    internal MrtXamlPropertyProvider(string? resourceFile=null)
     {
-        var directory=Path.GetDirectoryName(typeof(MrtUiTextProvider).Assembly.Location)!;
+        var directory=Path.GetDirectoryName(typeof(MrtXamlPropertyProvider).Assembly.Location)!;
         var unpackaged=Path.Combine(directory,"HybridMount.pri");
-        _manager=new ResourceManager(File.Exists(unpackaged)?unpackaged:Path.Combine(directory,"resources.pri"));
+        _manager=new ResourceManager(resourceFile??(File.Exists(unpackaged)?unpackaged:Path.Combine(directory,"resources.pri")));
     }
     private ResourceContext Context(string language)=>_contexts.GetOrAdd(language,value=>
     {var result=_manager.CreateResourceContext();result.QualifierValues["Language"]=value;return result;});

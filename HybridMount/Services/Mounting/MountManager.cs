@@ -51,7 +51,7 @@ public sealed partial class MountManager : IAsyncDisposable
         public Action<SourceContentBaseline>? BaselineObserver;
         public Action<string>? WriteObserver;
         public Action? CapacityObserver;
-        public string Status=definition.RemovalPending?"移除未完成":"未连接";
+        public string Status=definition.RemovalPending?"RemovalIncomplete":"NotConnected";
         public string Detail=definition.RemovalPending?"请继续已选择的移除方式；不会自动重放删除操作。":"";
     }
     private sealed class Job(string id,Guid root,string operation,CancellationToken token)
@@ -95,7 +95,7 @@ public sealed partial class MountManager : IAsyncDisposable
     private void RemovalStatus(Runtime root)
     {
         var journal=RemovalCompletion().Read(root.Definition.Id);
-        Status(root,"移除未完成",(journal?.Description??"请继续已选择的移除方式；不会自动重放删除操作。")+(journal?.Error is {} error?"；"+error:""));
+        Status(root,"RemovalIncomplete",(journal?.Description??"请继续已选择的移除方式；不会自动重放删除操作。")+(journal?.Error is {} error?"；"+error:""));
     }
     private readonly IFileSourceFactory _factory;
     private Task? _maintenance;
@@ -117,7 +117,7 @@ public sealed partial class MountManager : IAsyncDisposable
         _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null,renderOwnsMutex:true);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
         {
-            _roots[definition.Id]=new Runtime(definition){RequiresInspection=true,Status="检查中",Detail=""};
+            _roots[definition.Id]=new Runtime(definition){RequiresInspection=true,Status="Checking",Detail=""};
         }
         TasksQueue.Attach(this);_displayWorker=Task.Run(UpdateDisplaySnapshotsAsync);RefreshDisplaySnapshot();
     }
@@ -220,7 +220,7 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         foreach(var root in _roots.Values){if(IsStopping)return;try{await EnsureInspectionAsync(root).ConfigureAwait(false);}catch(OperationCanceledException)when(IsStopping){return;}}
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))
-            try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"需要迁出","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.QueueException("恢复挂载","Error","操作未完成",error); }
+            try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"MigrationOutRequired","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.QueueException("恢复挂载","Error","操作未完成",error); }
     }
     /// <summary>同根共享一次启动核对；连接、编辑和收尾先等待，调用者不能在持根锁时进入。</summary>
     private Task EnsureInspectionAsync(Runtime root){lock(root.ConnectionSync)return root.RequiresInspection?root.Inspection??=InspectStartupRootAsync(root):Task.CompletedTask;}
@@ -231,10 +231,10 @@ public sealed partial class MountManager : IAsyncDisposable
         await root.Gate.WaitAsync(_stop.Token).ConfigureAwait(false);
         try
         {
-            try{InspectRegistration(root);root.Status="未连接";root.Detail="";}
-            catch(Exception error){root.Status="需要恢复";root.Detail=error.Message;_logger.QueueException("挂载恢复","Warning","同步根注册核对失败，保留原配置",error,root.Definition.Id.ToString("N"));}
+            try{InspectRegistration(root);root.Status="NotConnected";root.Detail="";}
+            catch(Exception error){root.Status="RecoveryRequired";root.Detail=error.Message;_logger.QueueException("挂载恢复","Warning","同步根注册核对失败，保留原配置",error,root.Definition.Id.ToString("N"));}
             if(root.Definition.RemovalPending)
-                try{RemovalStatus(root);}catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
+                try{RemovalStatus(root);}catch(Exception error){root.Status="RemovalIncomplete";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
         }
         finally{root.Gate.Release();Notify();}
     }
@@ -300,7 +300,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public bool CanEditRemoteRoot(Guid id)
     {
         var root=Root(id);
-        if(root.Status=="检查中" || root.Definition.RemovalPending || root.Definition.RegistrationStage!=MountRegistrationStage.NotRegistered)return false;
+        if(root.Status=="Checking" || root.Definition.RemovalPending || root.Definition.RegistrationStage!=MountRegistrationStage.NotRegistered)return false;
         lock(root.ConnectionSync)if(root.RemovalRequested || root.Connecting is not null)return false;
         return !CloudRootRegistration.IsOwnedRoot(root.Definition) && !CloudFilesNative.IsCloudPath(root.Definition.LocalPath) && !MountPathGuard.ContainsCloudPlaceholders(root.Definition.LocalPath) &&
             !_repository.HasMaterializedEntries(id);
@@ -364,7 +364,7 @@ public sealed partial class MountManager : IAsyncDisposable
         }
         token=connection.Token;
         root.ChangeSession=new();root.Detection=root.Detection with{Mode="尚未检测",Error=null};
-        Status(root,"连接中");
+        Status(root,"ConnectionInProgress");
         try
         {
             // 连接所有权和取消状态已经登记；即使后台已预热，也先离开UI线程再做同步本机查询。
@@ -402,7 +402,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 refreshed=RemotePendingFor(root).Where(x=>x.State is not("Completed" or "Superseded")&&!(x.State=="Canceled"&&x.MetadataOnly)).Select(x=>new MountItemResult(x.Path,"Conflict",x.Error??"远端变更待处理。")).ToArray();
             }
             else refreshed=await PopulateAsync(root,"",token).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();Status(root,"已连接",RefreshSummary(refreshed));
+            token.ThrowIfCancellationRequested();Status(root,"Connected",RefreshSummary(refreshed));
             if(refreshed.Count!=0)_repository.SaveOperation(new(Guid.NewGuid().ToString("N"),"refresh",refreshed.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed",refreshed.Count,refreshed.Count,refreshed,null,root.Definition.Id));
             _previews.ResumeMount(root.Definition.Id);
 #if HYBRIDMOUNT_HEADLESS_TEST
@@ -414,7 +414,7 @@ public sealed partial class MountManager : IAsyncDisposable
             {
                 try{await OutsideRootAsync(root,()=>recovery.AfterRegistrationAsync(token)).ConfigureAwait(false);}
                 catch(Exception recoveryError)when(recoveryError is not OperationCanceledException)
-                {Status(root,"已连接",recovery.RecoveryWarning);_logger.QueueException(recovery.RecoveryLogArea,"Warning","操作未完成",recoveryError);}
+                {Status(root,"Connected",recovery.RecoveryWarning);_logger.QueueException(recovery.RecoveryLogArea,"Warning","操作未完成",recoveryError);}
             }
             Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartPinIntents(root);StartRemoteSync(root);
             lock(root.ConnectionSync){token.ThrowIfCancellationRequested();root.RuntimeFailed=false;}Notify();
@@ -427,10 +427,10 @@ public sealed partial class MountManager : IAsyncDisposable
                 try{await StopRemoteAsync(root).ConfigureAwait(false);}finally{await root.Gate.WaitAsync().ConfigureAwait(false);}
                 await DisconnectCoreAsync(root).ConfigureAwait(false);
             }
-            catch(Exception cleanup){Status(root,"异常","连接停止时清理失败，请查看生命周期阶段。");throw new AggregateException(error,cleanup);}
+            catch(Exception cleanup){Status(root,"Faulted","连接停止时清理失败，请查看生命周期阶段。");throw new AggregateException(error,cleanup);}
             if(error is OperationCanceledException&&token.IsCancellationRequested)
-            {var reason=IsStopping?"Shutdown":root.ConnectionStopReason??"Caller";ObserveStop("ConnectionCanceled."+reason,null);Status(root,"未连接",IsStopping?"程序正在退出，连接已停止。":"连接已取消。");throw new ConnectionStoppedException(error,token);}
-            Status(root,"异常",error.Message);throw;
+            {var reason=IsStopping?"Shutdown":root.ConnectionStopReason??"Caller";ObserveStop("ConnectionCanceled."+reason,null);Status(root,"NotConnected",IsStopping?"程序正在退出，连接已停止。":"连接已取消。");throw new ConnectionStoppedException(error,token);}
+            Status(root,"Faulted",error.Message);throw;
         }
         finally
         {
@@ -539,7 +539,7 @@ public sealed partial class MountManager : IAsyncDisposable
             RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);var previewStop=_previews.CancelMountAsync(id);var reads=root.Session?.RequestStop()??Task.CompletedTask;
             await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),previewStop,reads,root.ConnectionFinished).ConfigureAwait(false);
             await root.Gate.WaitAsync().ConfigureAwait(false);
-            try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"未连接");}
+            try{await DisconnectCoreAsync(root).ConfigureAwait(false);Status(root,"NotConnected");}
             finally{root.Gate.Release();}
         }
         finally{lock(root.ConnectionSync)root.ConnectionStops--;}
@@ -564,7 +564,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
                 try
                 {
-                    var cleanup=OwnAsync(async cancel=>{await DisconnectOwnedAsync(root.Definition.Id,cancel,runtimeFailure:true).ConfigureAwait(false);bool failed;lock(root.ConnectionSync)failed=root.RuntimeFailed;if(failed)Status(root,"原生后台已断开","已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。");},CancellationToken.None);
+                    var cleanup=OwnAsync(async cancel=>{await DisconnectOwnedAsync(root.Definition.Id,cancel,runtimeFailure:true).ConfigureAwait(false);bool failed;lock(root.ConnectionSync)failed=root.RuntimeFailed;if(failed)Status(root,"NativeBackendDisconnected","已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。");},CancellationToken.None);
                     lock(root.ConnectionSync)root.RuntimeFailureCleanup=cleanup;Notify();
                     _ = cleanup.ContinueWith(task=>{if(task.Exception is {} failure)_logger.QueueException("原生后台","Error","故障连接收尾未完成",failure,root.Definition.Id.ToString("N"));},CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted|TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
                 }
@@ -665,7 +665,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 {
                     ScanLocalUploadsCore(root,job.Cancel.Token);var results=await PopulateAsync(root,"",job.Cancel.Token).ConfigureAwait(false);
                     job.Snapshot=job.Snapshot with{Total=results.Count};foreach(var result in results)Result(job,result.Path,result.Status,result.Message);
-                    Status(root,"已连接",RefreshSummary(results));Update(job,results.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed");return;
+                    Status(root,"Connected",RefreshSummary(results));Update(job,results.Any(item=>item.Status!="Completed")?"PartialFailure":"Completed");return;
                 }
                 var targets=paths??[root.Definition.LocalPath];
                 foreach(var target in targets)MountPathGuard.ValidateOperation(root.Definition,target);
@@ -732,7 +732,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 if(held)
                 {
                     try{if(root.Definition.RemovalPending && _roots.ContainsKey(id))RemovalStatus(root);}
-                    catch(Exception error){root.Status="移除未完成";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
+                    catch(Exception error){root.Status="RemovalIncomplete";root.Detail="恢复记录读取失败："+error.Message;_logger.QueueException("挂载恢复","Warning","移除恢复记录读取失败，未自动重放操作",error,root.Definition.Id.ToString("N"));}
                     finally{root.Gate.Release();}
                 }
                 foreach(var path in changedPaths)NotifyFileState(path);
@@ -781,7 +781,7 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         var journal=PrepareRemoval(root,MountRemovalMode.ClearContents);
         if(journal.ContentCompleted){await CompleteRemovalAsync(root,journal,job.Cancel.Token).ConfigureAwait(false);return true;}
-        var registered=journal.Root.Registered;Status(root,"清空中");
+        var registered=journal.Root.Registered;Status(root,"Clearing");
         if(registered&&root.Session is null){root.Session=new CloudMountSession(root.Definition,null,_repository,_logger,blockHydration:true);ConnectSession(root);}
         if(root.Session is not null)await root.Session.BeginClearAsync().ConfigureAwait(false);
         job.Cancel.Token.ThrowIfCancellationRequested();
@@ -812,7 +812,7 @@ public sealed partial class MountManager : IAsyncDisposable
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);
             root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>QueueLocalPreview(root,entry));ConnectSession(root);
         }
-        Status(root,"移除中","完整下载后保留为普通本地目录。");Reconcile(root);
+        Status(root,"Removing","完整下载后保留为普通本地目录。");Reconcile(root);
         var entries=_repository.Entries(mount.Id).Where(entry=>!entry.Deleted&&!(entry.RemotePresence==RemotePresence.Deleted&&LocalMissing(RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath)))).OrderByDescending(entry=>entry.LocalPath.Length).ToArray();
         job.Snapshot=job.Snapshot with{Total=entries.Length};Save(job);
         // 所有剩余文件完整下载成功后，才开始解除任何占位。

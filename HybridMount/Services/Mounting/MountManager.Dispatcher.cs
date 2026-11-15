@@ -72,7 +72,7 @@ public sealed partial class MountManager
             (byPath.TryGetValue(intent.Path,out var tasks)?tasks:[]).Concat(intent.OldPath is {} old&&byPath.TryGetValue(old,out var previous)?previous:[]).ToHashSet(StringComparer.Ordinal)).ToArray(),StringComparer.Ordinal);
     }
     /// <summary>详情按需读取步骤及依赖，列表快照不增加逐行查询，公共IPC不包含此字段。</summary>
-    internal string FileWorkflowDetails(string id)=>string.Join("\n",_repository.TaskSteps(id).Select(step=>global::HybridMount.Services.Localization.UiText.Text("TaskWorkflowStep",step.Ordinal+1,step.Name,step.State,step.DependsOn??"—",step.AttemptId??"—")));
+    internal string FileWorkflowDetails(string id)=>string.Join("\n",_repository.TaskSteps(id).Select(step=>string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskWorkflowStep", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, step.Ordinal+1, step.Name, step.State, step.DependsOn??"—", step.AttemptId??"—")));
     /// <summary>FETCH按独立回调身份执行，只有实际传输与原生结束成功才核验；不重放退出前的读取。</summary>
     private async Task DispatchNativeReadAsync(Runtime root,CloudMountSession session,string id,string entryId,Func<CancellationToken,Task> execute,CancellationToken token)
     {

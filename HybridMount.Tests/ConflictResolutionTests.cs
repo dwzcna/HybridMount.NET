@@ -220,5 +220,5 @@ public sealed class ConflictResolutionTests
         }
         else{await test.Manager.ResolveConflictAsync(compared,useLocal);if(useLocal)await test.Wait("文件.bin",bytes:Encoding.UTF8.GetBytes("local choice"));Assert.Equal("Completed",test.Repository.Upload(original.Id)!.State);Assert.Equal(useLocal?"local choice":"remote choice",await File.ReadAllTextAsync(Path.Combine(test.Local,"文件.bin")));}
     }
-    private sealed class InlineDispatcher:IUiDispatcher{public bool TryEnqueue(Action action){action();return true;}}
+    private sealed class InlineDispatcher:IUIDispatcher{public bool TryEnqueue(Action action){action();return true;}}
 }

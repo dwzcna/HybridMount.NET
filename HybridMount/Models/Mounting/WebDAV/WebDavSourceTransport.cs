@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -132,7 +132,7 @@ public sealed partial class WebDavFileSource
     }
     private sealed record RedirectTrace(Uri LogicalUri,Uri EffectiveUri,string Method,int Hops);
     private RedirectTrace? _lastRedirect;
-    private string? RedirectDiagnostic=>Volatile.Read(ref _lastRedirect) is {} value?global::HybridMount.Services.Localization.UiText.Text("WebDavRedirectDiagnostic",value.Method,value.Hops,value.LogicalUri.AbsoluteUri,value.EffectiveUri.AbsoluteUri):null;
+    private string? RedirectDiagnostic=>Volatile.Read(ref _lastRedirect) is {} value?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDavRedirectDiagnostic", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, value.Method, value.Hops, value.LogicalUri.AbsoluteUri, value.EffectiveUri.AbsoluteUri):null;
 #if HYBRIDMOUNT_HEADLESS_TEST
     internal string? LastRedirectUri=>Volatile.Read(ref _lastRedirect)?.EffectiveUri.AbsoluteUri;
 #endif

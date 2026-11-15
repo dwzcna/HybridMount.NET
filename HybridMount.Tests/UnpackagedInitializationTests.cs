@@ -13,8 +13,8 @@ public sealed class UnpackagedInitializationTests
     [InlineData(true)]
     public void Native_language_summary_is_published_in_both_modes(bool packaged)
     {
-        var selection=new UiLanguageSelection("en-US","en-US");var calls=new List<string>();var failures=new List<Exception>();
-        UiLanguagePublication.Publish(selection,()=>packaged,language=>calls.Add("override:"+language),
+        var selection=new UILanguageSelection("en-US","en-US");var calls=new List<string>();var failures=new List<Exception>();
+        UILanguagePublication.Publish(selection,()=>packaged,language=>calls.Add("override:"+language),
             value=>{Assert.Same(selection,value);calls.Add("native");},(_,error)=>failures.Add(error));
         Assert.Equal(packaged?new[]{"override:en-US","native"}:new[]{"native"},calls);Assert.Empty(failures);
     }
@@ -22,26 +22,26 @@ public sealed class UnpackagedInitializationTests
     [Fact]
     public void Override_failure_does_not_block_native_summary()
     {
-        var selection=new UiLanguageSelection("system","zh-HK");var failure=new COMException("injected",unchecked((int)0x80073D54));
-        UiLanguageSelection? published=null;var errors=new List<(string Stage,Exception Error)>();
-        UiLanguagePublication.Publish(selection,()=>true,_=>throw failure,value=>published=value,(stage,error)=>errors.Add((stage,error)));
-        Assert.Same(selection,published);var captured=Assert.Single(errors);Assert.Equal("Language override",captured.Stage);Assert.Same(failure,captured.Error);
+        var selection=new UILanguageSelection("system","zh-HK");var failure=new COMException("injected",unchecked((int)0x80073D54));
+        UILanguageSelection? published=null;var errors=new List<(string Stage,Exception Error)>();
+        UILanguagePublication.Publish(selection,()=>true,_=>throw failure,value=>published=value,(stage,error)=>errors.Add((stage,error)));
+        Assert.Same(selection,published);var captured=Assert.Single(errors);Assert.Equal("UI language override",captured.Stage);Assert.Same(failure,captured.Error);
     }
     /// <summary>身份未知保留原诊断，不访问包API；原生摘要仍独立尝试。</summary>
     [Fact]
     public void Unknown_identity_error_is_reported_without_calling_package_api()
     {
         var failure=new Win32Exception(5);var overridden=false;var published=false;var errors=new List<(string Stage,Exception Error)>();
-        UiLanguagePublication.Publish(new("zh-CN","zh-CN"),()=>throw failure,_=>overridden=true,_=>published=true,(stage,error)=>errors.Add((stage,error)));
-        Assert.False(overridden);Assert.True(published);var captured=Assert.Single(errors);Assert.Equal("Language package identity",captured.Stage);Assert.Same(failure,captured.Error);
+        UILanguagePublication.Publish(new("zh-CN","zh-CN"),()=>throw failure,_=>overridden=true,_=>published=true,(stage,error)=>errors.Add((stage,error)));
+        Assert.False(overridden);Assert.True(published);var captured=Assert.Single(errors);Assert.Equal("UI language package identity",captured.Stage);Assert.Same(failure,captured.Error);
     }
     /// <summary>两侧同时失败时分别保留阶段及原异常；不把摘要错误混为包身份故障。</summary>
     [Fact]
     public void Both_language_failures_are_reported_separately()
     {
         var primary=new InvalidOperationException("override");var native=new IOException("summary");var errors=new List<(string Stage,Exception Error)>();
-        UiLanguagePublication.Publish(new("en-US","en-US"),()=>true,_=>throw primary,_=>throw native,(stage,error)=>errors.Add((stage,error)));
-        Assert.Equal(new[]{"Language override","Native language summary"},errors.Select(item=>item.Stage));
+        UILanguagePublication.Publish(new("en-US","en-US"),()=>true,_=>throw primary,_=>throw native,(stage,error)=>errors.Add((stage,error)));
+        Assert.Equal(new[]{"UI language override","Native UI language summary"},errors.Select(item=>item.Stage));
         Assert.Same(primary,errors[0].Error);Assert.Same(native,errors[1].Error);
     }
     /// <summary>无包Shell探测直接关闭自有扩展，不能通过访问Package.Current触发异常。</summary>

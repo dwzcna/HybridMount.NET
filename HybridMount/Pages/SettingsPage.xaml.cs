@@ -22,7 +22,7 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
     private CancellationTokenSource? _resetCancel;private ContentDialog? _resetDialog;private bool _disposed;
     public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.RuntimeAvailable?App.Current.Mounts:null,App.Current.Logger,cloud:App.Current.CloudOperations);
     private readonly PageScrollBookmark _viewport=new();
-    public SettingsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    public SettingsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(SettingsScroll);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_explorerRecovery?.Dispose();_resetCancel?.Cancel();_resetDialog?.Hide();_viewport.Leave(SettingsScroll);base.OnNavigatedFrom(args);}
     private async void SaveCloudConcurrency(object sender,RoutedEventArgs args)=>await ViewModel.SaveCloudConcurrencyAsync();
@@ -34,23 +34,23 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
         using var cancel=new CancellationTokenSource();_resetCancel=cancel;
         try
         {
-            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("Text_BFE711C7C723"));
+            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Create("CheckingMountsAndDataFoldersForTheCurrentDeployment"));
             await ViewModel.DrainSettingsOperationsAsync();cancel.Token.ThrowIfCancellationRequested();
             var inspection=await App.Current.InspectSettingsResetAsync(cancel.Token);cancel.Token.ThrowIfCancellationRequested();
             if(inspection.Plan is not {} plan)
             {
                 ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Raw(inspection.BlockedReason+"\n"+
-                    global::HybridMount.Services.Localization.UiText.Text("ExplorerEntryResetHelp")),PageMessageSeverity.Warning);
+                    global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerEntryResetHelp", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!),PageMessageSeverity.Warning);
                 return;
             }
             if(_disposed||App.Current.IsExiting)return;
             var content=new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
-            global::HybridMount.Helpers.UI.Ui.Bind(content,"Text",()=>global::HybridMount.Services.Localization.UiText.Message("Text_373F72608CC3",plan.Scope.Mode,plan.Scope.RegistryPath,string.Join("\n",plan.Scope.Directories)));
-            var dialog=global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=420,Content=content},DefaultButton=ContentDialogButton.Close},
-                ("Title",global::HybridMount.Services.Localization.UiText.Message("Text_0A1224F36CA9")),("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_5F19F9B45A5E")),("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
-            _resetDialog=dialog;var answer=await Ui.ShowAsync(dialog);_resetDialog=null;
+            global::HybridMount.Helpers.UI.UserInterface.Bind(content,"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Create("ThisPermanentlyDeletesAllSettingsLogsAndCachesForTheCurrentDeployment", plan.Scope.Mode, plan.Scope.RegistryPath, string.Join("\n",plan.Scope.Directories)));
+            var dialog=global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=420,Content=content},DefaultButton=ContentDialogButton.Close},
+                ("Title",global::HybridMount.Services.Localization.ResourceMessage.Create("ClearAllAppSettings")),("PrimaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("ClearAndExit")),("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Cancel")));
+            _resetDialog=dialog;var answer=await UserInterface.ShowAsync(dialog);_resetDialog=null;
             cancel.Token.ThrowIfCancellationRequested();if(answer!=ContentDialogResult.Primary||_disposed||App.Current.IsExiting){ViewModel.ResetMessage.IsOpen=false;return;}
-            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("Text_A963767D29BA"));
+            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Create("StoppingBackgroundServicesAndClearingSettingsForTheCurrentDeployment"));
             await App.Current.ResetSettingsAndExitAsync(plan,cancel.Token);
         }
         catch(OperationCanceledException)when(cancel.IsCancellationRequested||App.Current.IsExiting){if(!_disposed)ViewModel.ResetMessage.IsOpen=false;}
@@ -65,26 +65,26 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
         try
         {
             await ViewModel.DrainSettingsOperationsAsync();
-            var plan=await App.Current.Mounts.InspectAllMountRemovalsAsync(cancel.Token);
+            var plan=await ViewModel.InspectAllMountRemovalsAsync(cancel.Token);
             cancel.Token.ThrowIfCancellationRequested();
-            if(plan.Mounts.Count==0){ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("RemoveAllEmpty"));return;}
+            if(plan.Mounts.Count==0){ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Create("RemoveAllEmpty"));return;}
             var summary=new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
-            global::HybridMount.Helpers.UI.Ui.Bind(summary,"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(global::HybridMount.Services.Localization.UiText.Text("RemoveAllConfirmation",plan.Mounts.Count)+"\n\n"+
+            global::HybridMount.Helpers.UI.UserInterface.Bind(summary,"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveAllConfirmation", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, plan.Mounts.Count)+"\n\n"+
                 string.Join("\n",plan.Mounts.Select(item=>item.Name+"\n"+item.LocalPath))));
-            var dialog=Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=summary,DefaultButton=ContentDialogButton.Close},
-                ("Title",global::HybridMount.Services.Localization.UiText.Message("RemoveAllTitle")),
-                ("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("RemoveAllKeepCached")),
-                ("SecondaryButtonText",global::HybridMount.Services.Localization.UiText.Message("RemoveAllDiscard")),
-                ("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
-            _resetDialog=dialog;var answer=await Ui.ShowAsync(dialog);_resetDialog=null;
+            var dialog=UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=summary,DefaultButton=ContentDialogButton.Close},
+                ("Title",global::HybridMount.Services.Localization.ResourceMessage.Create("RemoveAllTitle")),
+                ("PrimaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("RemoveAllKeepCached")),
+                ("SecondaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("RemoveAllDiscard")),
+                ("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Cancel")));
+            _resetDialog=dialog;var answer=await UserInterface.ShowAsync(dialog);_resetDialog=null;
             cancel.Token.ThrowIfCancellationRequested();if(answer==ContentDialogResult.None||_disposed||App.Current.IsExiting)return;
             // 接纳后不再使用页面令牌；应用退出会经MountManager的停止链取消并排空。
             _resetCancel=null;
-            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("RemoveAllRunning"));
-            var result=await App.Current.Mounts.RemoveAllMountsAsync(plan,answer==ContentDialogResult.Primary?
+            ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.ResourceMessage.Create("RemoveAllRunning"));
+            var result=await ViewModel.RemoveAllMountsAsync(plan,answer==ContentDialogResult.Primary?
                 HybridMount.Models.Mounting.MountRemovalMode.PreserveCachedFiles:HybridMount.Models.Mounting.MountRemovalMode.ClearContents);
             if(!_disposed&&!App.Current.IsExiting)
-                ViewModel.ResetMessage.Show(global::HybridMount.Services.Localization.UiText.Text("RemoveAllSummary",result.Succeeded,result.Failed,result.Skipped)+"\n"+
+                ViewModel.ResetMessage.Show(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveAllSummary", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, result.Succeeded, result.Failed, result.Skipped)+"\n"+
                     string.Join("\n",result.Items.Where(item=>item.State!="Completed").Select(item=>item.Path+" — "+item.Error)),
                     result.Failed>0||result.Skipped>0?PageMessageSeverity.Warning:PageMessageSeverity.Success);
         }

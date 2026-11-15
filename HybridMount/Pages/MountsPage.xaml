@@ -10,32 +10,32 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/MountsPageTextBlockMount" loc:Ui.ResourceId="/Strings/MountsPageTextBlockMount"/>
+        <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/MountsPageTextBlockMount" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockMount"/>
         <StackPanel Grid.Row="1" Margin="0,16,0,0" Spacing="12">
-            <InfoBar IsOpen="{x:Bind ViewModel.HasRuntimeFailedMounts,Mode=OneWay}" IsClosable="False" Severity="Warning" x:Uid="/Strings/MountsPageInfoBarNativeBackendDisconnected" loc:Ui.ResourceId="/Strings/MountsPageInfoBarNativeBackendDisconnected">
+            <InfoBar IsOpen="{x:Bind ViewModel.HasRuntimeFailedMounts,Mode=OneWay}" IsClosable="False" Severity="Warning" x:Uid="/Strings/MountsPageInfoBarNativeBackendDisconnected" loc:UserInterface.ResourceId="/Strings/MountsPageInfoBarNativeBackendDisconnected">
                 <InfoBar.ActionButton>
-                    <Button Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}" x:Uid="/Strings/MountsPageButtonReconnectAll" loc:Ui.ResourceId="/Strings/MountsPageButtonReconnectAll"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Sync"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountsPageTextBlockReconnectAll" loc:Ui.ResourceId="/Strings/MountsPageTextBlockReconnectAll"/></StackPanel></Button>
+                    <Button Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}" x:Uid="/Strings/MountsPageButtonReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageButtonReconnectAll"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Sync"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountsPageTextBlockReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockReconnectAll"/></StackPanel></Button>
                 </InfoBar.ActionButton>
             </InfoBar>
-            <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/MountsPageCommandBarMountActions" loc:Ui.ResourceId="/Strings/MountsPageCommandBarMountActions">
-                <AppBarButton x:Name="AddButton" Icon="Add" AccessKey="N" x:Uid="/Strings/MountsPageAddButton" loc:Ui.ResourceId="/Strings/MountsPageAddButton">
+            <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/MountsPageCommandBarMountActions" loc:UserInterface.ResourceId="/Strings/MountsPageCommandBarMountActions">
+                <AppBarButton x:Name="AddButton" Icon="Add" AccessKey="N" x:Uid="/Strings/MountsPageAddButton" loc:UserInterface.ResourceId="/Strings/MountsPageAddButton">
                     <AppBarButton.Flyout><MenuFlyout>
                         <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
                         <MenuFlyoutItem Text="WebDAV(HTTPS)" Click="CreateWebDavHttpsMount"/>
-                        <MenuFlyoutItem Click="CreateS3Mount" x:Uid="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage" loc:Ui.ResourceId="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage"/>
-                        <MenuFlyoutItem Click="CreateSynologyMount" x:Uid="/Strings/MountsPageMenuFlyoutItemSynologyNAS" loc:Ui.ResourceId="/Strings/MountsPageMenuFlyoutItemSynologyNAS"/>
+                        <MenuFlyoutItem Click="CreateS3Mount" x:Uid="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage" loc:UserInterface.ResourceId="/Strings/MountsPageMenuFlyoutItemS3ObjectStorage"/>
+                        <MenuFlyoutItem Click="CreateSynologyMount" x:Uid="/Strings/MountsPageMenuFlyoutItemSynologyNAS" loc:UserInterface.ResourceId="/Strings/MountsPageMenuFlyoutItemSynologyNAS"/>
                     </MenuFlyout></AppBarButton.Flyout>
                 </AppBarButton>
-                <AppBarButton x:Name="ExportButton" Icon="Save" AccessKey="E" Click="ExportConfigurations" x:Uid="/Strings/MountsPageExportButton" loc:Ui.ResourceId="/Strings/MountsPageExportButton"/>
-                <AppBarButton x:Name="ImportButton" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations" x:Uid="/Strings/MountsPageImportButton" loc:Ui.ResourceId="/Strings/MountsPageImportButton"/>
-                <AppBarButton x:Name="RecoveryButton" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts" x:Uid="/Strings/MountsPageRecoveryButton" loc:Ui.ResourceId="/Strings/MountsPageRecoveryButton"/>
+                <AppBarButton x:Name="ExportButton" Icon="Save" AccessKey="E" Click="ExportConfigurations" x:Uid="/Strings/MountsPageExportButton" loc:UserInterface.ResourceId="/Strings/MountsPageExportButton"/>
+                <AppBarButton x:Name="ImportButton" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations" x:Uid="/Strings/MountsPageImportButton" loc:UserInterface.ResourceId="/Strings/MountsPageImportButton"/>
+                <AppBarButton x:Name="RecoveryButton" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts" x:Uid="/Strings/MountsPageRecoveryButton" loc:UserInterface.ResourceId="/Strings/MountsPageRecoveryButton"/>
             </CommandBar>
         </StackPanel>
         <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
                   SelectionMode="Single"
                   HorizontalContentAlignment="Stretch"
                   ScrollViewer.HorizontalScrollMode="Disabled"
-                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" x:Uid="/Strings/MountsPageMountList" loc:Ui.ResourceId="/Strings/MountsPageMountList">
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" x:Uid="/Strings/MountsPageMountList" loc:UserInterface.ResourceId="/Strings/MountsPageMountList">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -49,6 +49,6 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
-        <TextBlock Grid.Row="2" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Items.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" x:Uid="/Strings/MountsPageTextBlockNoMountsYetSelectAddMount" loc:Ui.ResourceId="/Strings/MountsPageTextBlockNoMountsYetSelectAddMount"/>
+        <TextBlock Grid.Row="2" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Items.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" x:Uid="/Strings/MountsPageTextBlockNoMountsYetSelectAddMount" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockNoMountsYetSelectAddMount"/>
     </Grid>
 </Page>

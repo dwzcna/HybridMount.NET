@@ -71,7 +71,7 @@ public sealed class ClearRemovalTests
             var pending=Assert.Single(test.Repository.LoadDefinitions());Assert.True(pending.RemovalPending);Assert.Equal(MountRemovalMode.ClearContents,pending.RemovalMode);
             Assert.Throws<IOException>(()=>test.Manager.Queue(test.Mount.Id,"remove"));
         }
-        await test.RestartAsync();Assert.True(File.Exists(path));Assert.Equal("移除未完成",Assert.Single(test.Manager.Mounts).Status);
+        await test.RestartAsync();Assert.True(File.Exists(path));Assert.Equal("RemovalIncomplete",Assert.Single(test.Manager.Mounts).Status);
         Assert.Equal("PartialFailure",test.Manager.GetOperation(first)!.State);
         Assert.Equal("Completed",(await Terminal(test.Manager,test.Manager.Queue(test.Mount.Id,"clearAndRemove"))).State);
         Assert.Empty(Directory.EnumerateFileSystemEntries(test.Local));Assert.Empty(test.Repository.LoadDefinitions());

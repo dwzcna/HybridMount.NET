@@ -38,7 +38,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
             var connecting=startup?host.Manager.StartAsync():host.Manager.ConnectAsync(host.Id);
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));await StopWithinTarget(host.Manager);
             if(startup)await connecting;else await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>connecting);
-            Assert.Equal("未连接",host.Manager.Mounts.Single().Status);Assert.Contains("ConnectionCanceled.Shutdown",phases);Assert.Null(CloudFilesNative.RootIdentity(host.Local,strict:true));
+            Assert.Equal("NotConnected",host.Manager.Mounts.Single().Status);Assert.Contains("ConnectionCanceled.Shutdown",phases);Assert.Null(CloudFilesNative.RootIdentity(host.Local,strict:true));
             await NoErrorLogs(host.Logger);Assert.All(s3.Server.Requests,request=>Assert.Equal("GET",request.Method));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>host.Manager.ConnectAsync(host.Id));
             Assert.ThrowsAny<OperationCanceledException>(()=>host.Manager.Queue(host.Id,"refresh"));
@@ -61,7 +61,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         var connecting=startup?host.Manager.StartAsync():host.Manager.ConnectAsync(host.Id);
         await waiting.Task.WaitAsync(TimeSpan.FromSeconds(5));await StopWithinTarget(host.Manager);
         if(startup)await connecting;else await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>connecting);
-        Assert.Equal(1,requests);Assert.Contains("ConnectionCanceled.Shutdown",phases);Assert.Equal("未连接",host.Manager.Mounts.Single().Status);
+        Assert.Equal(1,requests);Assert.Contains("ConnectionCanceled.Shutdown",phases);Assert.Equal("NotConnected",host.Manager.Mounts.Single().Status);
         Assert.Null(CloudFilesNative.RootIdentity(host.Local,strict:true));await NoErrorLogs(host.Logger);
     }
     /// <summary>只制造可重试的连接重置；准确到达退避后停止，不创建服务器或写入对象。</summary>
@@ -87,7 +87,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
             var connecting=host.Manager.ConnectAsync(host.Id,caller.Token);await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             if(callerCancellation)await caller.CancelAsync();else await host.Manager.DisconnectAsync(host.Id).WaitAsync(TimeSpan.FromSeconds(5));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>connecting);Assert.Contains("ConnectionCanceled."+(callerCancellation?"Caller":"Disconnect"),phases);
-            Assert.Equal("未连接",host.Manager.Mounts.Single().Status);Assert.False(host.Manager.IsStopping);await NoErrorLogs(host.Logger);
+            Assert.Equal("NotConnected",host.Manager.Mounts.Single().Status);Assert.False(host.Manager.IsStopping);await NoErrorLogs(host.Logger);
         }
         finally{release.TrySetResult();s3.Server.Handler=handler;}
     }
@@ -157,7 +157,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         var connecting=host.Manager.ConnectAsync(host.Id);await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var stopping=host.Manager.DisposeAsync().AsTask();Assert.True(connection.IsCancellationRequested);Assert.False(stopping.IsCompleted);
         release.TrySetResult();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>connecting);await stopping.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(1,source.Disposals);Assert.Null(CloudFilesNative.RootIdentity(host.Local,strict:true));Assert.Equal("未连接",host.Manager.Mounts.Single().Status);await NoErrorLogs(host.Logger);
+        Assert.Equal(1,source.Disposals);Assert.Null(CloudFilesNative.RootIdentity(host.Local,strict:true));Assert.Equal("NotConnected",host.Manager.Mounts.Single().Status);await NoErrorLogs(host.Logger);
     }
     [Fact(Timeout=30000)]
     public async Task CleanupFailureStillDisposesOtherRootsAndIsNotReportedAsSuccess()
@@ -219,7 +219,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         host.Repository.SaveDefinition(other);await host.Manager.DisposeAsync();host.Manager=new MountManager(host.Repository,host.Logger,factory);
         var first=host.Manager.ConnectAsync(host.Id);var second=host.Manager.ConnectAsync(other.Id);await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await StopWithinTarget(host.Manager);await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>first);await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>second);
-        Assert.Equal(2,canceled);Assert.All(host.Manager.Mounts,mount=>Assert.Equal("未连接",mount.Status));await NoErrorLogs(host.Logger);
+        Assert.Equal(2,canceled);Assert.All(host.Manager.Mounts,mount=>Assert.Equal("NotConnected",mount.Status));await NoErrorLogs(host.Logger);
     }
     [Fact(Timeout=15000)]
     public async Task IpcStopsPartialClientAndRepeatedDisposalUsesSameTask()

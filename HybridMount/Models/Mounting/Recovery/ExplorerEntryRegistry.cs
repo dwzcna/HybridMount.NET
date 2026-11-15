@@ -21,7 +21,7 @@ internal sealed class ExplorerEntryRegistry : IExplorerEntryRegistry
         using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
         using var key = baseKey.OpenSubKey(path);
         var names = key?.GetSubKeyNames() ?? [];
-        if (names.Length > 16384) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError01"));
+        if (names.Length > 16384) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError01", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return names;
     }
     public RecoveryRegistryBackup? Read(RegistryHive hive, string path)
@@ -37,7 +37,7 @@ internal sealed class ExplorerEntryRegistry : IExplorerEntryRegistry
         {
             if (key is null) return;
             if (!Same(expected, RecoveryShellRegistration.Backup(expected.Hive, expected.Path, key)))
-                throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError02"));
+                throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError02", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         baseKey.DeleteSubKeyTree(expected.Path, false);
     }
@@ -48,7 +48,7 @@ internal sealed class ExplorerEntryRegistry : IExplorerEntryRegistry
         if (key is null || !key.GetValueNames().Contains(expected.Value.Name, StringComparer.OrdinalIgnoreCase)) return;
         if (RecoveryShellRegistration.Owner(key) != expected.Owner ||
             JsonSerializer.Serialize(RecoveryShellRegistration.ReadValue(key, expected.Value.Name)) != JsonSerializer.Serialize(expected.Value))
-            throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError03"));
+            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError03", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         key.DeleteValue(expected.Value.Name, false);
     }
     internal static bool Same(RecoveryRegistryBackup left, RecoveryRegistryBackup right) =>
@@ -79,7 +79,7 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
     {
         var value = tree.Values.FirstOrDefault(x => x.Name == name);
         if (value is {Kind: RegistryValueKind.ExpandString} && value.Data.Any(x => x.Contains('%')))
-            throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError09"));
+            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError09", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         return Value(tree,name);
     }
     private static string? GuidText(string? raw) => Guid.TryParseExact(raw, "B", out var value) && value != Guid.Empty ? value.ToString("B").ToUpperInvariant() : null;
@@ -126,28 +126,28 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
                 {
                     if (!root.Tree.Children.TryGetValue("UserSyncRoots", out var users) || users.Values.Length != 1 ||
                         users.Values[0].Name != sid || PathValue(users, sid) is not {} path)
-                        throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError04"));
+                        throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError04", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                     paths.Add(path);
                     if (Value(root.Tree, "DisplayNameResource") is {} title) names.Add(title);
                     if (Value(root.Tree, "NamespaceCLSID") is {} raw && GuidText(raw) != key.NamespaceId)
-                        throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError05"));
+                        throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError05", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                 }
                 if (key.NamespaceId is {} ns)
                 {
                     var space = registry.Read(RegistryHive.CurrentUser, Namespace + ns);
                     if (space is not null && !keys.Any(x => x.Path == space.Path)) keys.Add(space);
                     if (space is not null && (Value(space.Tree, "") != key.SyncRootId || space.Tree.Children.Count != 0))
-                        throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError06"));
+                        throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError06", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                     var cls = registry.Read(RegistryHive.CurrentUser, Classes + ns);
                     if (cls is not null)
                     {
                         keys.Add(cls);
                         if (!cls.Tree.Children.TryGetValue("Instance", out var instance) || !instance.Children.TryGetValue("InitPropertyBag", out var bag) ||
-                            PathValue(bag, "TargetFolderPath") is not {} path) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError07"));
+                            PathValue(bag, "TargetFolderPath") is not {} path) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError07", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                         paths.Add(path); if (Value(cls.Tree, "") is {} title) names.Add(title);
                     }
                     if (roots.Any(x => Value(x.Tree, "NamespaceCLSID") is {} raw && GuidText(raw) == ns && x.Path[(Manager.Length + 1)..] != key.SyncRootId))
-                        throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError08"));
+                        throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError08", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
                     foreach (var hiddenPath in RecoveryShellRegistration.HiddenPaths)
                     {
                         var tree = registry.Read(RegistryHive.CurrentUser, hiddenPath);
@@ -156,8 +156,8 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
                     }
                 }
                 if (paths.Count == 0 || paths.Any(x => !Path.IsPathFullyQualified(x) || x.StartsWith(@"\\", StringComparison.Ordinal)) ||
-                    paths.Any(x => !SamePath(paths[0], x))) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError09"));
-                if (keys.Any(x => x.Owner != sid) || hidden.Any(x => x.Owner != sid)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError10"));
+                    paths.Any(x => !SamePath(paths[0], x))) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError09", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (keys.Any(x => x.Owner != sid) || hidden.Any(x => x.Owner != sid)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError10", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
             }
             catch (Exception failure) when (failure is IOException or ArgumentException) { error = failure.Message; }
             var pathValue = paths.FirstOrDefault();
@@ -178,18 +178,18 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
         {
             if (entry.Key.NamespaceId is {} ns && Roots().Any(x => Value(x.Tree,"NamespaceCLSID") is {} raw &&
                 GuidText(raw) == ns && x.Path[(Manager.Length+1)..] != entry.Key.SyncRootId))
-                throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError08"));
+                throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError08", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         CheckShared();
         var current = Discover(token).FirstOrDefault(x => x.Key == entry.Key);
         if (current?.Error is {} error) throw new IOException(error);
-        if (current is not null && !SamePath(current.LocalPath, entry.LocalPath)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError11"));
+        if (current is not null && !SamePath(current.LocalPath, entry.LocalPath)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError11", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         foreach (var key in current?.Local?.Keys ?? [])
-            if (!proof.Keys.Any(x => ExplorerEntryRegistry.Same(x, key))) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError12"));
+            if (!proof.Keys.Any(x => ExplorerEntryRegistry.Same(x, key))) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError12", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         foreach (var hidden in current?.Local?.Hidden ?? [])
-            if (!proof.Hidden.Any(x => JsonSerializer.Serialize(x) == JsonSerializer.Serialize(hidden))) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError13"));
+            if (!proof.Hidden.Any(x => JsonSerializer.Serialize(x) == JsonSerializer.Serialize(hidden))) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError13", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         foreach (var key in proof.Keys)
-            if (registry.Read(key.Hive, key.Path) is {} actual && !ExplorerEntryRegistry.Same(key, actual)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError14"));
+            if (registry.Read(key.Hive, key.Path) is {} actual && !ExplorerEntryRegistry.Same(key, actual)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError14", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         foreach (var key in proof.Keys)
         {
             token.ThrowIfCancellationRequested(); validate(); CheckShared(); registry.Delete(key);
@@ -212,33 +212,33 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
     private void ValidateProof(ExplorerEntryCandidate entry, ExplorerEntryProof proof)
     {
         if (!TryIdentity(entry.Key.SyncRootId, sid, out var mode) || mode != entry.Key.Mode || entry.Error is not null || entry.LocalPath is null || entry.Evidence is null)
-            throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError15"));
+            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError15", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var ns = entry.Key.NamespaceId;
-        if (ns is not null && GuidText(ns) != ns) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError16"));
-        if (proof.Keys.Length == 0) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError17"));
+        if (ns is not null && GuidText(ns) != ns) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError16", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if (proof.Keys.Length == 0) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError17", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         foreach (var item in proof.Keys)
         {
-            if (item.Owner != sid) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError18"));
+            if (item.Owner != sid) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError18", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
             if (Hives.Contains(item.Hive) && item.Path == Manager + "\\" + entry.Key.SyncRootId)
             {
                 if (!item.Tree.Children.TryGetValue("UserSyncRoots", out var users) || users.Values.Length != 1 ||
                     users.Values[0].Name != sid || !SamePath(PathValue(users, sid), entry.LocalPath) ||
-                    Value(item.Tree, "NamespaceCLSID") is {} raw && GuidText(raw) != ns) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError19"));
+                    Value(item.Tree, "NamespaceCLSID") is {} raw && GuidText(raw) != ns) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError19", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
             }
             else if (item.Hive == RegistryHive.CurrentUser && ns is not null && item.Path == Namespace + ns)
             {
-                if (Value(item.Tree, "") != entry.Key.SyncRootId || item.Tree.Children.Count != 0) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError20"));
+                if (Value(item.Tree, "") != entry.Key.SyncRootId || item.Tree.Children.Count != 0) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError20", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
             }
             else if (item.Hive == RegistryHive.CurrentUser && ns is not null && item.Path == Classes + ns)
             {
                 if (!item.Tree.Children.TryGetValue("Instance", out var instance) || !instance.Children.TryGetValue("InitPropertyBag", out var bag) ||
-                    !SamePath(PathValue(bag, "TargetFolderPath"), entry.LocalPath)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError21"));
-                if (!proof.Keys.Any(x => x.Path == Namespace + ns || x.Path == Manager + "\\" + entry.Key.SyncRootId)) throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError22"));
+                    !SamePath(PathValue(bag, "TargetFolderPath"), entry.LocalPath)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError21", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (!proof.Keys.Any(x => x.Path == Namespace + ns || x.Path == Manager + "\\" + entry.Key.SyncRootId)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError22", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
             }
-            else throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError23"));
+            else throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError23", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         }
         foreach (var item in proof.Hidden)
             if (item.Owner != sid || ns is null || !RecoveryShellRegistration.HiddenPaths.Contains(item.Path) || !item.Value.Name.Equals(ns, StringComparison.OrdinalIgnoreCase))
-                throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError24"));
+                throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError24", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
     }
 }

@@ -1,0 +1,2785 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AConditionalUploadWasSubmittedAgainstTheConfirmedRemoteVersionFurtherRemote" xml:space="preserve">
+    <value>已按确认的远端版本提交条件上传；远端再次变化时仍会保留冲突。</value>
+  </data>
+  <data name="ADataFolderOrAncestorContainsAReparseLinkAndCannotBe" xml:space="preserve">
+    <value>数据目录或其祖先含重解析链接，无法安全清理：{0}</value>
+  </data>
+  <data name="ADataFolderOverlapsAnActiveSyncRootSettingsCannotBeReset" xml:space="preserve">
+    <value>数据目录与有效同步根重叠，无法还原设置。</value>
+  </data>
+  <data name="AFolderIdentityHasChangedCheckAndConfirmAgain" xml:space="preserve">
+    <value>目录身份已变化，请重新核验并确认：{0}</value>
+  </data>
+  <data name="ANewTaskAppearedOnARelatedPathDuringProcessingCheckAgain" xml:space="preserve">
+    <value>处理期间相关路径出现新任务，请重新核对。</value>
+  </data>
+  <data name="ARelatedFolderOperationOrLocalCommitIsIncompleteItsProtectionCannot" xml:space="preserve">
+    <value>相关目录或本地提交尚未完成，不能绕过其保护。</value>
+  </data>
+  <data name="ARelatedPathHasAnUploadOrAnUnconfirmedResultFinishChecking" xml:space="preserve">
+    <value>相关路径仍有上传或结果待核对，请先完成核对。</value>
+  </data>
+  <data name="ARemovalModeCannotBeChangedAfterItHasStarted" xml:space="preserve">
+    <value>不能切换已开始的移除模式。</value>
+  </data>
+  <data name="Account" xml:space="preserve">
+    <value>账号</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>新增</value>
+  </data>
+  <data name="AddDefaultRules" xml:space="preserve">
+    <value>添加默认规则</value>
+  </data>
+  <data name="AddMount" xml:space="preserve">
+    <value>新增挂载</value>
+  </data>
+  <data name="AddRule" xml:space="preserve">
+    <value>添加规则</value>
+  </data>
+  <data name="All" xml:space="preserve">
+    <value>全部</value>
+  </data>
+  <data name="AllLevels" xml:space="preserve">
+    <value>全部级别</value>
+  </data>
+  <data name="AllLocalContentInTheFolderIncludingEditedAndNewFilesWill" xml:space="preserve">
+    <value>{0}
+
+目录内全部本地内容（包括修改和新建文件）将被永久删除。保留空根目录及远端数据，已删除内容不会回滚。</value>
+  </data>
+  <data name="AllLocalContentInTheListedItemsMarkedForClearingIncludingLocal" xml:space="preserve">
+    <value>
+
+所列清空项目的全部本地内容（包括本地修改和新建文件）将永久删除，已删除内容不会回滚。保留空根目录及远端内容。</value>
+  </data>
+  <data name="AllMounts" xml:space="preserve">
+    <value>全部挂载</value>
+  </data>
+  <data name="AllowThisApplicationAgainInWindowsStartupAppSettings" xml:space="preserve">
+    <value>请在 Windows 的启动应用设置中重新允许此应用。</value>
+  </data>
+  <data name="AllowUnencryptedHTTPPort5000" xml:space="preserve">
+    <value>允许明文 HTTP（5000 端口）</value>
+  </data>
+  <data name="AllowUnencryptedHTTPTrustedTestEnvironmentsOnly" xml:space="preserve">
+    <value>允许明文 HTTP（仅可信测试环境）</value>
+  </data>
+  <data name="AlwaysKeep" xml:space="preserve">
+    <value>始终保留</value>
+  </data>
+  <data name="AlwaysKeepOnDevice" xml:space="preserve">
+    <value>始终保留在设备上</value>
+  </data>
+  <data name="AlwaysKeepOnThisDevice" xml:space="preserve">
+    <value>始终保留在此设备上</value>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>外观</value>
+  </data>
+  <data name="AppearanceSettingsHaveNotBeenLoadedYet" xml:space="preserve">
+    <value>外观设置尚未读取。</value>
+  </data>
+  <data name="AppearanceSettingsSavedAndAppliedImmediately" xml:space="preserve">
+    <value>外观设置已保存，立即生效。</value>
+  </data>
+  <data name="ApplyRemoteChanges" xml:space="preserve">
+    <value>应用远端更改</value>
+  </data>
+  <data name="AutomaticRemoteDetection" xml:space="preserve">
+    <value>远端自动检测</value>
+  </data>
+  <data name="AutomaticRemoteDetectionDisabled" xml:space="preserve">
+    <value>远端自动检测已关闭。</value>
+  </data>
+  <data name="AutomaticRemoteDetectionEnabled" xml:space="preserve">
+    <value>远端自动检测已打开。</value>
+  </data>
+  <data name="AutomaticRemoteDetectionFullFolderPolling" xml:space="preserve">
+    <value>远端自动检测（完整目录轮询）</value>
+  </data>
+  <data name="AutomaticRemoteDetectionFullScanEverySecondsLastSuccess" xml:space="preserve">
+    <value>远端自动检测：{0}；{1}完整 {2} 秒；最近成功：{3}{4}</value>
+  </data>
+  <data name="AutomaticRemoteDetectionOff" xml:space="preserve">
+    <value>远端自动检测：关闭</value>
+  </data>
+  <data name="AutomaticRemoteDetectionRFC6578" xml:space="preserve">
+    <value>远端自动检测(RFC 6578)</value>
+  </data>
+  <data name="AvailableTotalBasedOn" xml:space="preserve">
+    <value>可用{0}/总{1}，基于{2}{3}{4}</value>
+  </data>
+  <data name="Average" xml:space="preserve">
+    <value>平均 {0} · </value>
+  </data>
+  <data name="AwaitingInitialConfirmation" xml:space="preserve">
+    <value>等待首次确认</value>
+  </data>
+  <data name="BackgroundServicesDidNotShutDownCompletelySettingsAndDataFoldersHave" xml:space="preserve">
+    <value>后台服务未完整退出，已保留设置和数据目录。</value>
+  </data>
+  <data name="BackupInvalidFile" xml:space="preserve">
+    <value>配置备份格式无效或文件已损坏。</value>
+  </data>
+  <data name="BackupInvalidOptions" xml:space="preserve">
+    <value>配置备份包含无效连接参数或选项。</value>
+  </data>
+  <data name="BackupPasswordMinimum" xml:space="preserve">
+    <value>启用密码保护时至少需要 8 个字符。</value>
+  </data>
+  <data name="BackupPasswordOptionalAtLeast8CharactersIfSet" xml:space="preserve">
+    <value>备份密码（可留空，设置时至少 8 个字符）</value>
+  </data>
+  <data name="BackupPasswordRequired" xml:space="preserve">
+    <value>此配置备份需要密码。</value>
+  </data>
+  <data name="BackupUnsupportedFile" xml:space="preserve">
+    <value>仅支持 .hmxbk 配置备份；旧格式已停止支持。</value>
+  </data>
+  <data name="BackupUnsupportedVersion" xml:space="preserve">
+    <value>不支持此配置备份格式或版本。</value>
+  </data>
+  <data name="BooleanNo" xml:space="preserve">
+    <value>否</value>
+  </data>
+  <data name="BucketName" xml:space="preserve">
+    <value>桶名 / Bucket</value>
+  </data>
+  <data name="ByteUnit" xml:space="preserve">
+    <value>字节</value>
+  </data>
+  <data name="Bytes" xml:space="preserve">
+    <value>{0:N0} / {1:N0} 字节</value>
+  </data>
+  <data name="BytesModifiedCurrentLocalContentMayDifferFromTheOriginalUploadSnapshot" xml:space="preserve">
+    <value>{0:N0} 字节
+修改于 {1:G}
+{2}
+当前本地内容（可能不同于原上传快照）</value>
+  </data>
+  <data name="BytesModifiedVersion" xml:space="preserve">
+    <value>{0:N0} 字节
+修改于 {1:G}
+版本：{2}</value>
+  </data>
+  <data name="CacheLimitSaved" xml:space="preserve">
+    <value>缓存上限已保存。</value>
+  </data>
+  <data name="CacheSoftLimitGiB0DisablesAutomaticEviction" xml:space="preserve">
+    <value>缓存软上限（GiB，0 关闭自动回收）</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="CancelConnection" xml:space="preserve">
+    <value>取消连接</value>
+  </data>
+  <data name="CancelSelectedTask" xml:space="preserve">
+    <value>取消选中任务</value>
+  </data>
+  <data name="CancelTest" xml:space="preserve">
+    <value>取消测试</value>
+  </data>
+  <data name="Canceled" xml:space="preserve">
+    <value>已取消</value>
+  </data>
+  <data name="CanceledCompletedDeletionsCannotBeUndone" xml:space="preserve">
+    <value>已取消，已完成的删除不回滚。</value>
+  </data>
+  <data name="Canceling" xml:space="preserve">
+    <value>取消中…</value>
+  </data>
+  <data name="CancellationInProgress" xml:space="preserve">
+    <value>正在取消…</value>
+  </data>
+  <data name="CancellationRequestedCompletedStepsAreKeptAndDeletedContentWillNotBe" xml:space="preserve">
+    <value>已请求取消；已完成的步骤保留，已删除内容不会恢复。</value>
+  </data>
+  <data name="CancellationRequestedCompletedStepsWillBeKept" xml:space="preserve">
+    <value>已请求取消，已完成步骤保留。</value>
+  </data>
+  <data name="CannotVerifyTheDataFolder" xml:space="preserve">
+    <value>无法核验数据目录：{0}</value>
+  </data>
+  <data name="CannotVerifyThePackageDataFolder" xml:space="preserve">
+    <value>无法核验包数据目录。</value>
+  </data>
+  <data name="CapabilityProbeCancel" xml:space="preserve">
+    <value>取消检测</value>
+  </data>
+  <data name="CapabilityProbeCaseDetails" xml:space="preserve">
+    <value>{0}；耗时 {1} 毫秒</value>
+  </data>
+  <data name="CapabilityProbeCleanupRecord" xml:space="preserve">
+    <value>检测清理记录 {0}（{1}）</value>
+  </data>
+  <data name="CapabilityProbeManualOwned" xml:space="preserve">
+    <value>请手动删除以下测试遗留文件</value>
+  </data>
+  <data name="CapabilityProbeManualUnknown" xml:space="preserve">
+    <value>请核对后手动删除</value>
+  </data>
+  <data name="CapabilityProbeOperation" xml:space="preserve">
+    <value>协议能力检测</value>
+  </data>
+  <data name="CapabilityProbePendingHistory" xml:space="preserve">
+    <value>检测资源清理未完成，请查看精确路径。</value>
+  </data>
+  <data name="CapabilityProbeReason" xml:space="preserve">
+    <value>原因：{0}</value>
+  </data>
+  <data name="CapabilityProbeRetryCleanup" xml:space="preserve">
+    <value>仅重试清理</value>
+  </data>
+  <data name="CapabilityProbeSkipped" xml:space="preserve">
+    <value>本次未验证：{0}</value>
+  </data>
+  <data name="CapabilityProbeStageCanceled" xml:space="preserve">
+    <value>检测已取消；清理结果如下</value>
+  </data>
+  <data name="CapabilityProbeStageCanceledCleanupPending" xml:space="preserve">
+    <value>检测已取消，以下测试资源仍待清理</value>
+  </data>
+  <data name="CapabilityProbeStageCleaning" xml:space="preserve">
+    <value>正在清理测试文件</value>
+  </data>
+  <data name="CapabilityProbeStageCleanupPending" xml:space="preserve">
+    <value>检测已结束，部分测试资源仍待清理</value>
+  </data>
+  <data name="CapabilityProbeStageCompleted" xml:space="preserve">
+    <value>检测及清理已完成</value>
+  </data>
+  <data name="CapabilityProbeStagePreflight" xml:space="preserve">
+    <value>正在检查当前草稿</value>
+  </data>
+  <data name="CapabilityProbeStageTesting" xml:space="preserve">
+    <value>正在检测协议能力</value>
+  </data>
+  <data name="CapabilityProbeStart" xml:space="preserve">
+    <value>检测所有能力</value>
+  </data>
+  <data name="CapabilityProbeSummary" xml:space="preserve">
+    <value>已记录 {0} 项结果；开始时间 {1}</value>
+  </data>
+  <data name="CapabilityProbeVerified" xml:space="preserve">
+    <value>实际请求及核对通过</value>
+  </data>
+  <data name="CapabilityProbeWarning" xml:space="preserve">
+    <value>可能会对你的云端执行修改以获得各个测试的结果</value>
+  </data>
+  <data name="CapabilityProbeWritePermission" xml:space="preserve">
+    <value>部分写入测试失败，可能是测试目录未开放写入权限。</value>
+  </data>
+  <data name="CapacityCheck" xml:space="preserve">
+    <value>容量检查</value>
+  </data>
+  <data name="CapacityLimit" xml:space="preserve">
+    <value>容量上限</value>
+  </data>
+  <data name="CapacitySettingsSavedUploadsWillBeCheckedAgainstTheCurrentSettings" xml:space="preserve">
+    <value>容量设置已保存；上传前将按当前设置检查。</value>
+  </data>
+  <data name="CapacitySourceSettingSaved" xml:space="preserve">
+    <value>容量来源设置已保存。</value>
+  </data>
+  <data name="CapacityVerifiedWaitingTasksWillCheckAvailableSpaceAgain" xml:space="preserve">
+    <value>容量核实完成；等待任务将重新检查可用空间。</value>
+  </data>
+  <data name="CertificateChainUntrusted" xml:space="preserve">
+    <value>系统无法验证证书信任链</value>
+  </data>
+  <data name="CertificateClearTrust" xml:space="preserve">
+    <value>清除已确认的证书</value>
+  </data>
+  <data name="CertificateDetails" xml:space="preserve">
+    <value>服务器：{0}
+主体：{1}
+颁发者：{2}
+有效期：{3} — {4}
+SHA-256：{5}</value>
+  </data>
+  <data name="CertificateExpired" xml:space="preserve">
+    <value>证书已过期</value>
+  </data>
+  <data name="CertificateFetchButton" xml:space="preserve">
+    <value>获取证书指纹</value>
+  </data>
+  <data name="CertificateFetchCanceled" xml:space="preserve">
+    <value>获取已取消，原指纹输入保留。</value>
+  </data>
+  <data name="CertificateFetchHttpsRequired" xml:space="preserve">
+    <value>获取证书指纹只需有效的 HTTPS 服务器地址。</value>
+  </data>
+  <data name="CertificateFetchRunning" xml:space="preserve">
+    <value>正在获取服务器叶证书；不发送 WebDAV 凭据或读取文件。</value>
+  </data>
+  <data name="CertificateFetchSucceeded" xml:space="preserve">
+    <value>已获取并填入证书指纹；尚未测试 WebDAV 连接。请检查下方证书信息，再使用原有保存或测试按钮。</value>
+  </data>
+  <data name="CertificateFetchUnavailable" xml:space="preserve">
+    <value>未取得服务器叶证书，原指纹输入保留。</value>
+  </data>
+  <data name="CertificateNameMismatch" xml:space="preserve">
+    <value>名称与服务器地址不匹配</value>
+  </data>
+  <data name="CertificateNotYetValid" xml:space="preserve">
+    <value>证书尚未生效</value>
+  </data>
+  <data name="CertificateTrustAndRetry" xml:space="preserve">
+    <value>信任此证书并重试</value>
+  </data>
+  <data name="CertificateTrustScope" xml:space="preserve">
+    <value>仅对当前挂载与预期服务器生效，保存连接后保留。系统验证失败时仅接受已确认指纹，地址或异常证书变化需重新确认。</value>
+  </data>
+  <data name="CertificateTrustWarning" xml:space="preserve">
+    <value>服务器证书验证失败。请核对证书详情后再决定是否信任。</value>
+  </data>
+  <data name="CertificateValidationSystemTrust" xml:space="preserve">
+    <value>证书验证：系统信任证书。</value>
+  </data>
+  <data name="CheckAgain" xml:space="preserve">
+    <value>重新核对</value>
+  </data>
+  <data name="CheckAgainFirst" xml:space="preserve">
+    <value>请先重新核对。</value>
+  </data>
+  <data name="CheckEvictionNow" xml:space="preserve">
+    <value>立即检查回收</value>
+  </data>
+  <data name="CheckedAt" xml:space="preserve">
+    <value>核对时间：{0}</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>检查中</value>
+  </data>
+  <data name="CheckingBothSidesWithoutMakingChanges" xml:space="preserve">
+    <value>正在只读核对两端信息…</value>
+  </data>
+  <data name="CheckingMountsAndDataFoldersForTheCurrentDeployment" xml:space="preserve">
+    <value>正在核验当前运行模式的挂载及数据目录…</value>
+  </data>
+  <data name="CheckingStopped" xml:space="preserve">
+    <value>核对已停止。</value>
+  </data>
+  <data name="CleanUpTaskHistory" xml:space="preserve">
+    <value>清理任务历史</value>
+  </data>
+  <data name="CleanupCancellationRequestedCompletedCloudRenamesOrDestinationCopiesWillBeKept" xml:space="preserve">
+    <value>已请求停止收尾；已完成的云端改名或目标复制会保留。</value>
+  </data>
+  <data name="CleanupFailed" xml:space="preserve">
+    <value>收尾失败</value>
+  </data>
+  <data name="CleanupFailedWhenStoppingTheConnectionCheckTheLifecycleStages" xml:space="preserve">
+    <value>连接停止时清理失败，请查看生命周期阶段。</value>
+  </data>
+  <data name="CleanupStopped" xml:space="preserve">
+    <value>已停止收尾</value>
+  </data>
+  <data name="Clear" xml:space="preserve">
+    <value>清除</value>
+  </data>
+  <data name="ClearAllAppSettings" xml:space="preserve">
+    <value>清空所有程序设置</value>
+  </data>
+  <data name="ClearAllEndedTasks" xml:space="preserve">
+    <value>清除所有</value>
+  </data>
+  <data name="ClearAllEndedTasksKeepActiveWaitingConflictingAndUnconfirmedTasksWithout" xml:space="preserve">
+    <value>清除所有已结束任务；保留进行中、等待、冲突和结果待核对，不删除文件或恢复数据。</value>
+  </data>
+  <data name="ClearAllLocalContentThenUnregisterOfflineKeepTheEmptyRootFolder" xml:space="preserve">
+    <value>清空全部本地内容后离线注销，保留空根目录及远端内容。</value>
+  </data>
+  <data name="ClearAndExit" xml:space="preserve">
+    <value>清空并退出</value>
+  </data>
+  <data name="ClearAndRemove" xml:space="preserve">
+    <value>清空并移除</value>
+  </data>
+  <data name="ClearAndUnregister" xml:space="preserve">
+    <value>清空并注销</value>
+  </data>
+  <data name="ClearCompletedTasks" xml:space="preserve">
+    <value>清除已完成</value>
+  </data>
+  <data name="ClearFailedAndPartiallyFailedTaskHistoryWithoutDeletingFilesOrRecovery" xml:space="preserve">
+    <value>清除失败及部分失败的任务历史，不删除文件或恢复数据。</value>
+  </data>
+  <data name="ClearFailedTasks" xml:space="preserve">
+    <value>清除失败</value>
+  </data>
+  <data name="ClearLogs" xml:space="preserve">
+    <value>清除日志</value>
+  </data>
+  <data name="ClearOrphanedPlaceholderFolder" xml:space="preserve">
+    <value>清空孤立占位目录</value>
+  </data>
+  <data name="ClearSettingsLogsAndCachesForTheCurrentDeploymentOnlyAllMounts" xml:space="preserve">
+    <value>仅清理当前运行模式的设置、日志和缓存。没有挂载点或待恢复记录时才可执行；完成后退出程序。</value>
+  </data>
+  <data name="ClearSuccessfullyCompletedTaskHistoryWhileKeepingOtherTasksAndSyncData" xml:space="preserve">
+    <value>清除成功完成的任务历史，保留其他任务及同步数据。</value>
+  </data>
+  <data name="ClearTheRuntimeLogsSavedOnThisComputer" xml:space="preserve">
+    <value>清除本机已保存的运行日志？</value>
+  </data>
+  <data name="ClearThisMountSPinnedFingerprint" xml:space="preserve">
+    <value>清除本挂载固定指纹</value>
+  </data>
+  <data name="ClearedTaskHistoryEntriesActiveAndPendingTasksWereKept" xml:space="preserve">
+    <value>已清除 {0} 条{1}任务历史；进行中和待处理任务保留。</value>
+  </data>
+  <data name="Clearing" xml:space="preserve">
+    <value>清空中</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="ClosingTheWindowWillExitTheApplication" xml:space="preserve">
+    <value>关闭窗口时将退出应用。</value>
+  </data>
+  <data name="ClosingTheWindowWillHideItToTheTray" xml:space="preserve">
+    <value>关闭窗口时将隐藏到托盘。</value>
+  </data>
+  <data name="CloudInvalid" xml:space="preserve">
+    <value>请输入 1—128 的整数。</value>
+  </data>
+  <data name="CloudReadFailed" xml:space="preserve">
+    <value>云操作线程数读取失败，暂用 4；原设置未改写。</value>
+  </data>
+  <data name="CloudRecommendation" xml:space="preserve">
+    <value>建议值：{0}（CPU 逻辑处理器数 ÷ 2）。有效范围 1—128，默认 4；保存后生效。</value>
+  </data>
+  <data name="CloudSaveFailed" xml:space="preserve">
+    <value>云操作线程数保存失败，保留原设置。</value>
+  </data>
+  <data name="CloudSaved" xml:space="preserve">
+    <value>云操作线程数已保存并生效。现有传输将正常收尾。</value>
+  </data>
+  <data name="CloudWaitingChannel" xml:space="preserve">
+    <value>等待通道或路径：{0}</value>
+  </data>
+  <data name="CloudWorkflowPhase" xml:space="preserve">
+    <value>文件工作流</value>
+  </data>
+  <data name="CommitLocalState" xml:space="preserve">
+    <value>本地提交</value>
+  </data>
+  <data name="CommitLocalStatus" xml:space="preserve">
+    <value>提交本地状态</value>
+  </data>
+  <data name="Compact" xml:space="preserve">
+    <value>紧凑</value>
+  </data>
+  <data name="CompleteLocalContent" xml:space="preserve">
+    <value>本地完整内容</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>已完成</value>
+  </data>
+  <data name="ConfigurationBackup" xml:space="preserve">
+    <value>配置备份</value>
+  </data>
+  <data name="ConfigurationWasCanceledSavedEntriesAreKeptAndCanBeViewedIn" xml:space="preserve">
+    <value>配置操作已取消。已保存的条目保留，可在挂载列表查看。</value>
+  </data>
+  <data name="ConfirmClearAndRemove" xml:space="preserve">
+    <value>确认清空并移除</value>
+  </data>
+  <data name="ConfirmProcessing" xml:space="preserve">
+    <value>确认处理</value>
+  </data>
+  <data name="ConfirmProcessingLegacyItems" xml:space="preserve">
+    <value>确认处理 {0} 个遗留项目</value>
+  </data>
+  <data name="Conflict" xml:space="preserve">
+    <value>冲突</value>
+  </data>
+  <data name="ConflictResolutionDidNotFinishCheckAgainAndChooseExplicitlyRecoveryBackups" xml:space="preserve">
+    <value>冲突处理未完成：{0}；请重新核对后明确选择，恢复备份保留。</value>
+  </data>
+  <data name="ConflictResolutionPending" xml:space="preserve">
+    <value>冲突处理待完成</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>连接</value>
+  </data>
+  <data name="ConnectAtApplicationStartupThumbnails" xml:space="preserve">
+    <value>随程序启动连接：{0}；缩略图：{1}{2}</value>
+  </data>
+  <data name="ConnectAtStartupSettingSaved" xml:space="preserve">
+    <value>启动连接设置已保存。</value>
+  </data>
+  <data name="ConnectTheMountBeforeCheckingTheConflict" xml:space="preserve">
+    <value>请先连接挂载，再核对冲突。</value>
+  </data>
+  <data name="ConnectWhenTheApplicationStarts" xml:space="preserve">
+    <value>随程序启动连接</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>已连接</value>
+  </data>
+  <data name="ConnectedTo" xml:space="preserve">
+    <value>已连接 {0}。</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>正在连接</value>
+  </data>
+  <data name="ConnectingDetails" xml:space="preserve">
+    <value>连接中…</value>
+  </data>
+  <data name="ConnectionInProgress" xml:space="preserve">
+    <value>连接中</value>
+  </data>
+  <data name="ConnectionIncompleteTheSavedConfigurationIsKeptAndCanBeEditedOr" xml:space="preserve">
+    <value>连接未完成：{0}；已保存的配置保留，可编辑或重试。</value>
+  </data>
+  <data name="ConnectionSettings" xml:space="preserve">
+    <value>连接配置</value>
+  </data>
+  <data name="ConnectionTestFailedCheckTheConfigurationNetworkAndCredentialSource" xml:space="preserve">
+    <value>连接测试失败，请检查配置、网络和凭据来源。</value>
+  </data>
+  <data name="ContentClearingIsIncomplete" xml:space="preserve">
+    <value>内容清空未完成。</value>
+  </data>
+  <data name="ContentProcessingIsAlreadyCompleteOnlyUnregistrationAndExplorerEntryCleanupWill" xml:space="preserve">
+    <value>
+内容处理已经完成，只继续注销和 Explorer 入口收尾。</value>
+  </data>
+  <data name="ContinueClearingAndRemoving" xml:space="preserve">
+    <value>继续清空并移除</value>
+  </data>
+  <data name="ContinueDownloadingAndRemoving" xml:space="preserve">
+    <value>继续下载并移除</value>
+  </data>
+  <data name="ContinueRemovalCleanup" xml:space="preserve">
+    <value>继续移除收尾</value>
+  </data>
+  <data name="ContinueWithTheSameRemovalMethod" xml:space="preserve">
+    <value>
+请继续相同的移除方式。</value>
+  </data>
+  <data name="ContinueWithTheSelectedRemovalMethodDeletionsWillNotBeReplayedAutomatically" xml:space="preserve">
+    <value>请继续已选择的移除方式；不会自动重放删除操作。</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>{0} (副本){1}</value>
+  </data>
+  <data name="CopyDetails" xml:space="preserve">
+    <value>复制</value>
+  </data>
+  <data name="CopyNotice" xml:space="preserve">
+    <value>副本</value>
+  </data>
+  <data name="CopyTaskSubmittedAnExistingDestinationWillNotBeOverwritten" xml:space="preserve">
+    <value>副本任务已提交；目标已存在时会拒绝覆盖。</value>
+  </data>
+  <data name="CouldNotChangeStartAtSignInCheckingTheActualWindowsSetting" xml:space="preserve">
+    <value>修改登录启动失败，正在核对系统实际状态。</value>
+  </data>
+  <data name="CouldNotClear" xml:space="preserve">
+    <value>清除失败：{0}</value>
+  </data>
+  <data name="CouldNotReadAppearanceSettings" xml:space="preserve">
+    <value>外观设置读取失败。</value>
+  </data>
+  <data name="CouldNotReadAppearanceSettingsTheCurrentValidChoicesWereKept" xml:space="preserve">
+    <value>外观设置读取失败，已保留当前有效选择。</value>
+  </data>
+  <data name="CouldNotReadCacheSettingsSavingHasBeenStopped" xml:space="preserve">
+    <value>缓存设置读取失败，已停止保存。</value>
+  </data>
+  <data name="CouldNotReadInterfaceDensityTheStandardLayoutWillBeUsedFor" xml:space="preserve">
+    <value>界面密度读取失败，暂用标准布局。</value>
+  </data>
+  <data name="CouldNotReadLocalMetadata" xml:space="preserve">
+    <value>本地元数据读取失败：{0}</value>
+  </data>
+  <data name="CouldNotReadRecoveryRecords" xml:space="preserve">
+    <value>恢复记录读取失败：{0}</value>
+  </data>
+  <data name="CouldNotReadRemoteMetadata" xml:space="preserve">
+    <value>远端元数据读取失败：{0}</value>
+  </data>
+  <data name="CouldNotReadTheClosePreferenceTheWindowWillHideToThe" xml:space="preserve">
+    <value>关闭偏好读取失败，暂按隐藏到托盘处理。</value>
+  </data>
+  <data name="CouldNotReadTheInterfaceLanguageTheCurrentLanguageWasKept" xml:space="preserve">
+    <value>界面语言读取失败，已保留当前语言。</value>
+  </data>
+  <data name="CouldNotReadTheStartAtSignInStatus" xml:space="preserve">
+    <value>读取登录启动状态失败。</value>
+  </data>
+  <data name="CouldNotSaveAppearanceSettings" xml:space="preserve">
+    <value>外观设置保存失败。</value>
+  </data>
+  <data name="CouldNotSaveAppearanceSettingsThePreviousBackgroundAndThemeWereKept" xml:space="preserve">
+    <value>外观设置保存失败，已保留原背景和主题。</value>
+  </data>
+  <data name="CouldNotSaveInterfaceDensity" xml:space="preserve">
+    <value>界面密度保存失败。</value>
+  </data>
+  <data name="CouldNotSaveInterfaceDensityThePreviousValueWasKept" xml:space="preserve">
+    <value>界面密度保存失败，已保留原值。</value>
+  </data>
+  <data name="CouldNotSaveTheClosePreference" xml:space="preserve">
+    <value>关闭偏好保存失败。</value>
+  </data>
+  <data name="CouldNotSaveTheClosePreferenceThePreviousValueWasKept" xml:space="preserve">
+    <value>关闭偏好保存失败，已保留原值。</value>
+  </data>
+  <data name="CouldNotSaveTheInterfaceLanguageThePreviousLanguageWasKept" xml:space="preserve">
+    <value>界面语言保存失败，已保留原语言。</value>
+  </data>
+  <data name="CreateAndConnect" xml:space="preserve">
+    <value>创建并连接</value>
+  </data>
+  <data name="CredentialsCannotBeChangedDuringRemoval" xml:space="preserve">
+    <value>移除过程中不能更换凭据。</value>
+  </data>
+  <data name="CurrentLocalVersion" xml:space="preserve">
+    <value>当前本地</value>
+  </data>
+  <data name="CurrentRemoteVersion" xml:space="preserve">
+    <value>当前远端</value>
+  </data>
+  <data name="CustomizeTheAppearance" xml:space="preserve">
+    <value>按喜好调整外观</value>
+  </data>
+  <data name="DSMServerAddress" xml:space="preserve">
+    <value>DSM 服务器地址</value>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>深色</value>
+  </data>
+  <data name="DecryptAndPreview" xml:space="preserve">
+    <value>解密并预览</value>
+  </data>
+  <data name="DeleteRule" xml:space="preserve">
+    <value>删除规则</value>
+  </data>
+  <data name="DeselectAll" xml:space="preserve">
+    <value>取消全选</value>
+  </data>
+  <data name="DetectVolumeCapacityAutomaticallyNotAccountQuota" xml:space="preserve">
+    <value>自动识别卷容量（非账号配额）</value>
+  </data>
+  <data name="DetectionIntervalsMustBeValidWholeNumbersOfSeconds" xml:space="preserve">
+    <value>检测间隔必须为有效的整数秒。</value>
+  </data>
+  <data name="DetectionSchedulingIntervalSeconds" xml:space="preserve">
+    <value>检测调度间隔（秒）</value>
+  </data>
+  <data name="DetectionSettingsSaved" xml:space="preserve">
+    <value>检测设置已保存。</value>
+  </data>
+  <data name="Diagnostics" xml:space="preserve">
+    <value>诊断</value>
+  </data>
+  <data name="DisableAutomaticRemoteDetection" xml:space="preserve">
+    <value>关闭远端自动检测</value>
+  </data>
+  <data name="Disconnect" xml:space="preserve">
+    <value>断开</value>
+  </data>
+  <data name="Disconnecting" xml:space="preserve">
+    <value>断开中…</value>
+  </data>
+  <data name="DisconnectingDetails" xml:space="preserve">
+    <value>正在断开</value>
+  </data>
+  <data name="Download" xml:space="preserve">
+    <value>下载</value>
+  </data>
+  <data name="DownloadAndRemove" xml:space="preserve">
+    <value>下载并移除</value>
+  </data>
+  <data name="DownloadAndRemoveDownloadCompletelyThenKeepAsARegularLocalFolder" xml:space="preserve">
+    <value>{0}
+
+下载并移除：完整下载后保留为普通本地目录。
+
+清空并移除：永久删除目录内全部内容，包括本地修改和新建文件，保留空根目录；不删除文件源内容。</value>
+  </data>
+  <data name="DownloadCompletelyAndKeepAsARegularLocalFolder" xml:space="preserve">
+    <value>完整下载后保留为普通本地目录。</value>
+  </data>
+  <data name="DownloadRemoteSnapshot" xml:space="preserve">
+    <value>下载远端快照</value>
+  </data>
+  <data name="EarlierRecordsAreAvailable" xml:space="preserve">
+    <value> 可加载更早记录。</value>
+  </data>
+  <data name="EditSettings" xml:space="preserve">
+    <value>修改设置</value>
+  </data>
+  <data name="EmptyLocalNTFSFolder" xml:space="preserve">
+    <value>本地 NTFS 空目录</value>
+  </data>
+  <data name="EnableAutomaticRemoteDetection" xml:space="preserve">
+    <value>打开远端自动检测</value>
+  </data>
+  <data name="EnableSQSEventAcceleration" xml:space="preserve">
+    <value>启用 SQS 事件加速</value>
+  </data>
+  <data name="EndDateAny" xml:space="preserve">
+    <value>结束日期（不限）</value>
+  </data>
+  <data name="Ended" xml:space="preserve">
+    <value>已结束</value>
+  </data>
+  <data name="EnterABucketName" xml:space="preserve">
+    <value>请输入桶名。</value>
+  </data>
+  <data name="EnterAPassword" xml:space="preserve">
+    <value>请输入密码。</value>
+  </data>
+  <data name="EnterAValidCacheLimit" xml:space="preserve">
+    <value>请输入有效缓存上限。</value>
+  </data>
+  <data name="EnterAWholeNumberDetectionIntervalWithinTheAllowedRange" xml:space="preserve">
+    <value>请输入范围内的整数检测间隔。</value>
+  </data>
+  <data name="EnterAWholeNumberOfSecondsFrom10To86400" xml:space="preserve">
+    <value>请输入10至86400范围内的整数秒。</value>
+  </data>
+  <data name="EnterAWholeNumberOfSecondsFrom30To604800" xml:space="preserve">
+    <value>请输入30至604800范围内的整数秒。</value>
+  </data>
+  <data name="EnterAnAccessKeyIDOrSelectTheDefaultSDKCredentialChain" xml:space="preserve">
+    <value>请输入访问密钥 ID，或选择 SDK 默认凭据链。</value>
+  </data>
+  <data name="EnterTheAccessKey" xml:space="preserve">
+    <value>请输入访问密钥。</value>
+  </data>
+  <data name="EnterTheSigningRegionUsedByTheService" xml:space="preserve">
+    <value>请输入服务实际使用的签名区域。</value>
+  </data>
+  <data name="EnterTheSynologyAccount" xml:space="preserve">
+    <value>请输入群晖账号。</value>
+  </data>
+  <data name="Entries" xml:space="preserve">
+    <value>条目</value>
+  </data>
+  <data name="EntriesInThisSessionWereNotSaved" xml:space="preserve">
+    <value> 本会话未保存 {0} 条。</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>错误</value>
+  </data>
+  <data name="Excluded" xml:space="preserve">
+    <value>已排除</value>
+  </data>
+  <data name="ExcludedFiles" xml:space="preserve">
+    <value>排除文件</value>
+  </data>
+  <data name="ExcludedFilesAdvanced" xml:space="preserve">
+    <value>排除文件（高级）</value>
+  </data>
+  <data name="ExclusionRulesSaved" xml:space="preserve">
+    <value>排除规则已保存。{0}</value>
+  </data>
+  <data name="ExitHybridMountNET" xml:space="preserve">
+    <value>退出 HybridMount.NET</value>
+  </data>
+  <data name="ExplorerEntryConfirm" xml:space="preserve">
+    <value>仅移除以下 Explorer 导航注册，保留目录、文件及应用配置。执行前将重新核验两种运行模式的归属和原生同步根状态。</value>
+  </data>
+  <data name="ExplorerEntryExplanation" xml:space="preserve">
+    <value>检索当前用户打包版和非打包版的同步根导航入口。有效挂载和受管目录受到保护；不处理手动固定的快速访问项目。</value>
+  </data>
+  <data name="ExplorerEntryFound" xml:space="preserve">
+    <value>找到 {0} 个入口；请核对状态后选择。</value>
+  </data>
+  <data name="ExplorerEntryNoPath" xml:space="preserve">
+    <value>缺少目标路径</value>
+  </data>
+  <data name="ExplorerEntryNone" xml:space="preserve">
+    <value>未发现本产品的导航入口。</value>
+  </data>
+  <data name="ExplorerEntryNotStarted" xml:space="preserve">
+    <value>尚未开始</value>
+  </data>
+  <data name="ExplorerEntryReady" xml:space="preserve">
+    <value>可仅移除入口，保留目录和文件</value>
+  </data>
+  <data name="ExplorerEntryReload" xml:space="preserve">
+    <value>重新检索</value>
+  </data>
+  <data name="ExplorerEntryRemove" xml:space="preserve">
+    <value>仅移除入口（保留文件）</value>
+  </data>
+  <data name="ExplorerEntryRemoved" xml:space="preserve">
+    <value>注册已移除并核验；已通知资源管理器，显示刷新可能稍有延迟。</value>
+  </data>
+  <data name="ExplorerEntryResetHelp" xml:space="preserve">
+    <value>可使用“从资源管理器检索”处理仅剩导航入口的项目。有效挂载请先正常移除；旧数据无法加载时，请先用 0.0.14.0 完成处理、导出配置并移除挂载。</value>
+  </data>
+  <data name="ExplorerEntrySearch" xml:space="preserve">
+    <value>从资源管理器检索</value>
+  </data>
+  <data name="ExplorerEntrySearching" xml:space="preserve">
+    <value>正在只读检索导航入口…</value>
+  </data>
+  <data name="ExplorerEntryTitle" xml:space="preserve">
+    <value>Explorer 遗留导航入口</value>
+  </data>
+  <data name="ExplorerNotice" xml:space="preserve">
+    <value>Explorer提示：{0}
+{1}</value>
+  </data>
+  <data name="ExplorerRecoveryError01" xml:space="preserve">
+    <value>Explorer 注册数量超过安全限制。</value>
+  </data>
+  <data name="ExplorerRecoveryError02" xml:space="preserve">
+    <value>Explorer 注册快照或所有者已经变化。</value>
+  </data>
+  <data name="ExplorerRecoveryError03" xml:space="preserve">
+    <value>Explorer 隐藏值已经变化。</value>
+  </data>
+  <data name="ExplorerRecoveryError04" xml:space="preserve">
+    <value>缺少当前用户独占的同步根路径证明。</value>
+  </data>
+  <data name="ExplorerRecoveryError05" xml:space="preserve">
+    <value>命名空间标识无效。</value>
+  </data>
+  <data name="ExplorerRecoveryError06" xml:space="preserve">
+    <value>导航入口的产品身份不匹配。</value>
+  </data>
+  <data name="ExplorerRecoveryError07" xml:space="preserve">
+    <value>导航类缺少目标路径证明。</value>
+  </data>
+  <data name="ExplorerRecoveryError08" xml:space="preserve">
+    <value>命名空间被其他同步根共享。</value>
+  </data>
+  <data name="ExplorerRecoveryError09" xml:space="preserve">
+    <value>目标路径缺失或不同注册视图的路径不一致。</value>
+  </data>
+  <data name="ExplorerRecoveryError10" xml:space="preserve">
+    <value>注册所有者不是当前用户。</value>
+  </data>
+  <data name="ExplorerRecoveryError11" xml:space="preserve">
+    <value>导航目标路径已经变化。</value>
+  </data>
+  <data name="ExplorerRecoveryError12" xml:space="preserve">
+    <value>出现未确认的 Explorer 注册，须重新检索。</value>
+  </data>
+  <data name="ExplorerRecoveryError13" xml:space="preserve">
+    <value>出现未确认的隐藏值。</value>
+  </data>
+  <data name="ExplorerRecoveryError14" xml:space="preserve">
+    <value>Explorer 注册快照已变化。</value>
+  </data>
+  <data name="ExplorerRecoveryError15" xml:space="preserve">
+    <value>导航候选身份无效。</value>
+  </data>
+  <data name="ExplorerRecoveryError16" xml:space="preserve">
+    <value>导航命名空间无效。</value>
+  </data>
+  <data name="ExplorerRecoveryError17" xml:space="preserve">
+    <value>缺少已确认的注册备份。</value>
+  </data>
+  <data name="ExplorerRecoveryError18" xml:space="preserve">
+    <value>备份不属于当前用户。</value>
+  </data>
+  <data name="ExplorerRecoveryError19" xml:space="preserve">
+    <value>根备份身份不一致。</value>
+  </data>
+  <data name="ExplorerRecoveryError20" xml:space="preserve">
+    <value>入口备份身份不一致。</value>
+  </data>
+  <data name="ExplorerRecoveryError21" xml:space="preserve">
+    <value>类备份路径不一致。</value>
+  </data>
+  <data name="ExplorerRecoveryError22" xml:space="preserve">
+    <value>类备份缺少产品配对证明。</value>
+  </data>
+  <data name="ExplorerRecoveryError23" xml:space="preserve">
+    <value>导航恢复注册范围越界。</value>
+  </data>
+  <data name="ExplorerRecoveryError24" xml:space="preserve">
+    <value>隐藏值范围越界。</value>
+  </data>
+  <data name="ExplorerRecoveryError25" xml:space="preserve">
+    <value>仅支持本地绝对目录路径。</value>
+  </data>
+  <data name="ExplorerRecoveryError26" xml:space="preserve">
+    <value>不能清理磁盘根入口。</value>
+  </data>
+  <data name="ExplorerRecoveryError27" xml:space="preserve">
+    <value>目标磁盘不可访问，不能当作目录已不存在。</value>
+  </data>
+  <data name="ExplorerRecoveryError28" xml:space="preserve">
+    <value>目标或其祖先已不是目录。</value>
+  </data>
+  <data name="ExplorerRecoveryError29" xml:space="preserve">
+    <value>目标路径包含重解析点，保留入口。</value>
+  </data>
+  <data name="ExplorerRecoveryError30" xml:space="preserve">
+    <value>缺少可核验的路径祖先。</value>
+  </data>
+  <data name="ExplorerRecoveryError31" xml:space="preserve">
+    <value>目标仍属于有效的原生同步根，请使用挂载移除入口。</value>
+  </data>
+  <data name="ExplorerRecoveryError32" xml:space="preserve">
+    <value>维护入口未返回导航清单。</value>
+  </data>
+  <data name="ExplorerRecoveryError33" xml:space="preserve">
+    <value>应用与真实视图目标不一致。</value>
+  </data>
+  <data name="ExplorerRecoveryError34" xml:space="preserve">
+    <value>真实视图仍有导航注册残留。</value>
+  </data>
+  <data name="ExplorerRecoveryError35" xml:space="preserve">
+    <value>缺少真实视图核验结果。</value>
+  </data>
+  <data name="ExplorerRecoveryError36" xml:space="preserve">
+    <value>入口不属于当前用户的已知运行模式。</value>
+  </data>
+  <data name="ExplorerRecoveryError37" xml:space="preserve">
+    <value>入口仍由打包版或非打包版配置管理，请使用该挂载的移除入口。</value>
+  </data>
+  <data name="ExplorerRecoveryError38" xml:space="preserve">
+    <value>入口缺少可核验的目标路径。</value>
+  </data>
+  <data name="ExplorerRecoveryError39" xml:space="preserve">
+    <value>该导航入口尚未通过核验。</value>
+  </data>
+  <data name="ExplorerRecoveryError40" xml:space="preserve">
+    <value>入口与已有恢复记录身份不同，请先核对原失败记录。</value>
+  </data>
+  <data name="ExplorerRecoveryError41" xml:space="preserve">
+    <value>目录状态或身份已经变化，停止清理入口。</value>
+  </data>
+  <data name="ExplorerRecoveryError42" xml:space="preserve">
+    <value>入口恢复记录过大。</value>
+  </data>
+  <data name="ExplorerRecoveryError43" xml:space="preserve">
+    <value>入口恢复记录为空。</value>
+  </data>
+  <data name="ExplorerRecoveryError44" xml:space="preserve">
+    <value>入口恢复记录身份或版本无效。</value>
+  </data>
+  <data name="ExplorerRecoveryError45" xml:space="preserve">
+    <value>入口恢复备份超过安全限制。</value>
+  </data>
+  <data name="ExplorerRecoveryError46" xml:space="preserve">
+    <value>导航维护参数不匹配。</value>
+  </data>
+  <data name="ExplorerRecoveryError47" xml:space="preserve">
+    <value>缺少导航备份。</value>
+  </data>
+  <data name="ExplorerRecoveryError48" xml:space="preserve">
+    <value>未知导航维护操作。</value>
+  </data>
+  <data name="ExplorerRecoveryError49" xml:space="preserve">
+    <value>真实视图目录身份已经变化。</value>
+  </data>
+  <data name="ExplorerRecoveryError50" xml:space="preserve">
+    <value>请选择已通过核验的导航入口。</value>
+  </data>
+  <data name="Export" xml:space="preserve">
+    <value>导出</value>
+  </data>
+  <data name="ExportConfiguration" xml:space="preserve">
+    <value>导出配置</value>
+  </data>
+  <data name="ExportedMountConfigurationsWithEncryption" xml:space="preserve">
+    <value>已加密导出 {0} 个挂载配置。</value>
+  </data>
+  <data name="Failed" xml:space="preserve">
+    <value>失败</value>
+  </data>
+  <data name="FailedAndPartiallyFailed" xml:space="preserve">
+    <value>失败及部分失败</value>
+  </data>
+  <data name="Faulted" xml:space="preserve">
+    <value>异常</value>
+  </data>
+  <data name="FetchCapacityInformationFromServer" xml:space="preserve">
+    <value>从服务器抓取容量信息</value>
+  </data>
+  <data name="FetchLocallyAndVerify" xml:space="preserve">
+    <value>取回本地并核验</value>
+  </data>
+  <data name="FetchingCapacityInformation" xml:space="preserve">
+    <value>
+正在抓取容量信息…</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>文件</value>
+  </data>
+  <data name="FileCancelInProgress" xml:space="preserve">
+    <value>固定取消已在处理。</value>
+  </data>
+  <data name="FileCancelSessionChanged" xml:space="preserve">
+    <value>取消前下载连接已变化。</value>
+  </data>
+  <data name="FileCancelVersionChanged" xml:space="preserve">
+    <value>取消固定前文件身份或内容版本已变化。</value>
+  </data>
+  <data name="FileNameText" xml:space="preserve">
+    <value>文件名文本</value>
+  </data>
+  <data name="FilePinCancelPending" xml:space="preserve">
+    <value>固定下载正在取消，请等待收尾后重新固定。</value>
+  </data>
+  <data name="FileReleaseChanged" xml:space="preserve">
+    <value>释放意图已改变。</value>
+  </data>
+  <data name="FileReleaseCompleted" xml:space="preserve">
+    <value>释放已完成。</value>
+  </data>
+  <data name="FileReleaseGuardPending" xml:space="preserve">
+    <value>等待释放保护条件就绪。</value>
+  </data>
+  <data name="FileReleaseIdentityBefore" xml:space="preserve">
+    <value>释放前文件身份已变化，保留内容。</value>
+  </data>
+  <data name="FileReleaseIdentityChanged" xml:space="preserve">
+    <value>释放文件身份已变化。</value>
+  </data>
+  <data name="FileReleaseIntentChanged" xml:space="preserve">
+    <value>文件的固定或释放意图已改变。</value>
+  </data>
+  <data name="FileReleaseLocalProtected" xml:space="preserve">
+    <value>文件被本地修改或排除规则保护。</value>
+  </data>
+  <data name="FileReleaseOwnershipMismatch" xml:space="preserve">
+    <value>释放意图不属于此文件，已保留内容。</value>
+  </data>
+  <data name="FileReleaseQueued" xml:space="preserve">
+    <value>等待本地释放核验。</value>
+  </data>
+  <data name="FileReleaseReadActive" xml:space="preserve">
+    <value>文件仍有活动读取，等待占用释放。</value>
+  </data>
+  <data name="FileReleaseRecheck" xml:space="preserve">
+    <value>等待重新核验释放条件。</value>
+  </data>
+  <data name="FileReleaseRemotePending" xml:space="preserve">
+    <value>等待远端变更核对。</value>
+  </data>
+  <data name="FileReleaseUploadPending" xml:space="preserve">
+    <value>等待本地上传完成。</value>
+  </data>
+  <data name="FileReleaseVersionChanged" xml:space="preserve">
+    <value>释放内容版本已变化，请重新核对。</value>
+  </data>
+  <data name="FileSelectionCanceled" xml:space="preserve">
+    <value>已取消文件选择。</value>
+  </data>
+  <data name="FileTargetDetails" xml:space="preserve">
+    <value>{0}：{1}{2}</value>
+  </data>
+  <data name="FileTaskFailure" xml:space="preserve">
+    <value>阶段：{0}；HRESULT={1}；{2}</value>
+  </data>
+  <data name="FingerprintVerifiedTrustForThisMountOnlyAndRetry" xml:space="preserve">
+    <value>已核对指纹，仅此挂载信任并重试</value>
+  </data>
+  <data name="FinishExcludedRename" xml:space="preserve">
+    <value>改名排除收尾</value>
+  </data>
+  <data name="FinishLocalExclusion" xml:space="preserve">
+    <value>本地排除收尾</value>
+  </data>
+  <data name="FirstSelectAnUploadRemoteUpdateOrExcludedRenameCleanupTask" xml:space="preserve">
+    <value>请先选择上传、远端更新或排除改名收尾任务。</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>目录</value>
+  </data>
+  <data name="FolderPrefixOptional" xml:space="preserve">
+    <value>目录前缀（可选）</value>
+  </data>
+  <data name="FollowSystem" xml:space="preserve">
+    <value>跟随系统</value>
+  </data>
+  <data name="FollowTheWindowsDisplayLanguageUseSimplifiedChineseWhenTheLanguageIs" xml:space="preserve">
+    <value>跟随 Windows 显示语言；未支持的语言使用简体中文。</value>
+  </data>
+  <data name="ForASelfSignedCertificateVerifyTheFingerprintThroughATrustedChannel" xml:space="preserve">
+    <value>自签名证书需先通过可信渠道核对指纹后填写，仅信任当前挂载；证书更新后需重新核验。不要填写未经核对的指纹。</value>
+  </data>
+  <data name="ForExampleDocumentsProject" xml:space="preserve">
+    <value>例如：文档/项目</value>
+  </data>
+  <data name="FreeUpSpace" xml:space="preserve">
+    <value>释放空间</value>
+  </data>
+  <data name="FreedMiBCurrentUsageIsApproximatelyMiB" xml:space="preserve">
+    <value>本次回收 {0:F1} MiB，当前占用约 {1:F1} MiB。</value>
+  </data>
+  <data name="FullDiagnostics" xml:space="preserve">
+    <value>完整诊断 · {0}</value>
+  </data>
+  <data name="FullDiagnosticsDetails" xml:space="preserve">
+    <value>完整诊断</value>
+  </data>
+  <data name="FullReconciliationIntervalSeconds" xml:space="preserve">
+    <value>完整对账间隔（秒）</value>
+  </data>
+  <data name="FullS3Reconciliation" xml:space="preserve">
+    <value>S3 完整对账</value>
+  </data>
+  <data name="HTTPSCertificateSHA256FingerprintOptional" xml:space="preserve">
+    <value>HTTPS 证书 SHA-256 指纹（可选）</value>
+  </data>
+  <data name="HTTPSendsTheAccountPasswordAndFileContentWithoutEncryptionAllowIt" xml:space="preserve">
+    <value>HTTP 会以明文传输账号、密码和文件内容。仅在可信网络中明确允许后使用；建议使用 HTTPS（5001）。</value>
+  </data>
+  <data name="HideThumbnails" xml:space="preserve">
+    <value>不显示缩略图</value>
+  </data>
+  <data name="HideToTheTrayWhenClosingTheWindow" xml:space="preserve">
+    <value>关闭窗口时隐藏到托盘</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>首页</value>
+  </data>
+  <data name="HttpsNasExampleCom5006SharedFolder" xml:space="preserve">
+    <value>https://nas.example.com:5006/共享文件夹/</value>
+  </data>
+  <data name="HybridMountJSONConfigurationBackup" xml:space="preserve">
+    <value>HybridMount JSON 配置备份</value>
+  </data>
+  <data name="HybridMountNETFailedToStartSeeTheLifecycleStartupDiagnosticsInLogs" xml:space="preserve">
+    <value>HybridMount.NET 启动失败：
+{0}
+{1}
+请查看 Logs 中的 lifecycle 启动诊断。</value>
+  </data>
+  <data name="HybridMountNETIsAlreadyRunning" xml:space="preserve">
+    <value>HybridMount.NET 已运行。</value>
+  </data>
+  <data name="HydrateFromSnapshot" xml:space="preserve">
+    <value>从快照水合</value>
+  </data>
+  <data name="IfAnUploadSnapshotExistsTheCopyUsesThatSnapshotAndLater" xml:space="preserve">
+    <value>已有上传快照时，副本使用该快照，后续本地编辑不会改变副本。没有快照时，将使用上传准备时的当前本地内容，而不是冲突时的内容。</value>
+  </data>
+  <data name="ImportConfiguration" xml:space="preserve">
+    <value>导入配置</value>
+  </data>
+  <data name="ImportResultsSavedSkippedFailedCanceledSavedMountsAreNotConnectedYet" xml:space="preserve">
+    <value>导入结果：已保存 {0}，跳过 {1}，失败 {2}，取消 {3}。已保存的挂载尚未连接。</value>
+  </data>
+  <data name="ImportSelectedItems" xml:space="preserve">
+    <value>导入选中项</value>
+  </data>
+  <data name="IncrementalDetectionIntervalSeconds" xml:space="preserve">
+    <value>增量检测间隔（秒）</value>
+  </data>
+  <data name="IncrementalScanEverySeconds" xml:space="preserve">
+    <value>增量 {0} 秒，</value>
+  </data>
+  <data name="IndexAccessDenied" xml:space="preserve">
+    <value>无法读取应用数据，访问被拒绝。请检查当前用户的目录权限。</value>
+  </data>
+  <data name="IndexCorrupt" xml:space="preserve">
+    <value>应用数据索引损坏。请保留日志和原始数据进行排查；当前不会连接挂载或执行任务。</value>
+  </data>
+  <data name="IndexGoToSettings" xml:space="preserve">
+    <value>前往设置</value>
+  </data>
+  <data name="IndexNewerVersion" xml:space="preserve">
+    <value>应用数据由较新版本创建。请使用相应新版程序；当前不会连接挂载或执行任务。</value>
+  </data>
+  <data name="IndexOldResetRequired" xml:space="preserve">
+    <value>检测到旧版应用数据格式。请前往“设置 → 还原”重置当前运行模式的应用数据，然后重新导入 .hmxbk 配置。</value>
+  </data>
+  <data name="IndexReadFailed" xml:space="preserve">
+    <value>应用数据索引读取失败。请查看日志；当前不会连接挂载或执行任务。</value>
+  </data>
+  <data name="IndexResetBlocked" xml:space="preserve">
+    <value>无法重置：{0} 请先使用 0.0.14.0 完成未决任务、导出配置并移除挂载，再重置当前模式的数据。</value>
+  </data>
+  <data name="IndexRestrictedTitle" xml:space="preserve">
+    <value>应用数据需要处理</value>
+  </data>
+  <data name="Information" xml:space="preserve">
+    <value>信息</value>
+  </data>
+  <data name="InterfaceDensity" xml:space="preserve">
+    <value>界面密度</value>
+  </data>
+  <data name="InterfaceDensitySavedAndAppliedImmediately" xml:space="preserve">
+    <value>界面密度已保存，立即生效。</value>
+  </data>
+  <data name="InterfaceLanguage" xml:space="preserve">
+    <value>界面语言</value>
+  </data>
+  <data name="InterfaceLanguageSavedAndAppliedImmediately" xml:space="preserve">
+    <value>界面语言已保存，立即生效。</value>
+  </data>
+  <data name="Interrupted" xml:space="preserve">
+    <value>已中断</value>
+  </data>
+  <data name="InvalidAddress" xml:space="preserve">
+    <value>地址无效</value>
+  </data>
+  <data name="InvalidRequest" xml:space="preserve">
+    <value>请求无效。</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>{0:N0} / {1:N0} 项</value>
+  </data>
+  <data name="ItemsFromDifferentMountsCannotBeCombined" xml:space="preserve">
+    <value>不能混合不同挂载。</value>
+  </data>
+  <data name="ItemsSelected" xml:space="preserve">
+    <value>已选择 {0} 项</value>
+  </data>
+  <data name="JoinedText" xml:space="preserve">
+    <value>{0}{1}</value>
+  </data>
+  <data name="KeptAsARegularLocalFile" xml:space="preserve">
+    <value>已保留为普通本地文件。</value>
+  </data>
+  <data name="LanguageResourcesAreMissingFallingBackToSimplifiedChinese" xml:space="preserve">
+    <value>语言资源缺失，已回退至简体中文。</value>
+  </data>
+  <data name="LastSuccess" xml:space="preserve">
+    <value>
+最近成功：{0:g}</value>
+  </data>
+  <data name="LastSuccessDetails" xml:space="preserve">
+    <value>{0}最近成功：{1}{2}</value>
+  </data>
+  <data name="Later" xml:space="preserve">
+    <value>稍后</value>
+  </data>
+  <data name="LeaveBlankForSystemCertificateValidation" xml:space="preserve">
+    <value>留空使用系统证书验证</value>
+  </data>
+  <data name="LeavingThisBlankGivesNoPasswordProtectionAnyoneWithTheBackupCan" xml:space="preserve">
+    <value>留空时无密码保护，任何获得备份的人均可读取其中的凭据。</value>
+  </data>
+  <data name="LegacyEntryRemoved" xml:space="preserve">
+    <value>遗留入口已移除：</value>
+  </data>
+  <data name="LegacyMountClearedAndUnregistered" xml:space="preserve">
+    <value>遗留挂载已清空并注销：</value>
+  </data>
+  <data name="LegacyMountNotRemoved" xml:space="preserve">
+    <value>遗留挂载尚未移除：{0}</value>
+  </data>
+  <data name="LegacyMounts" xml:space="preserve">
+    <value>遗留挂载</value>
+  </data>
+  <data name="LegacySimulatedSourceMigrationOutOnly" xml:space="preserve">
+    <value>旧版模拟源（仅迁出）</value>
+  </data>
+  <data name="LegacySourcesSupportMigrationOutOnly" xml:space="preserve">
+    <value>旧版源仅支持迁出</value>
+  </data>
+  <data name="LifecycleRecords" xml:space="preserve">
+    <value>生命周期记录</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>浅色</value>
+  </data>
+  <data name="LoadEarlier" xml:space="preserve">
+    <value>加载更早</value>
+  </data>
+  <data name="LoadingLogs" xml:space="preserve">
+    <value>正在加载日志</value>
+  </data>
+  <data name="LocalCloudDestination" xml:space="preserve">
+    <value>本地：{0}；云端目标：{1}</value>
+  </data>
+  <data name="LocalContentClearedUnregistrationCleanupIsPending" xml:space="preserve">
+    <value>本地已清空，注销收尾待完成</value>
+  </data>
+  <data name="LocalContentWasReplacedWithVerifiedRemoteContentOriginalLocalBackup" xml:space="preserve">
+    <value>已使用已核验的远端内容替换本地。原本地内容备份：{0}</value>
+  </data>
+  <data name="LocalDirectoryRequired" xml:space="preserve">
+    <value>请选择本地 NTFS 空目录。</value>
+  </data>
+  <data name="LocalEditsRegularFilesActiveItemsOrUnknownStatesWereKept" xml:space="preserve">
+    <value>本地修改、普通文件、活动项或状态不明，已保留。</value>
+  </data>
+  <data name="LocalFolder" xml:space="preserve">
+    <value>本地目录</value>
+  </data>
+  <data name="LocalRecoveryBackupKeptAt" xml:space="preserve">
+    <value>保留的本地恢复备份：{0}</value>
+  </data>
+  <data name="LocalScanCompletedNewAndEditedFilesContinueToUploadViewConflicts" xml:space="preserve">
+    <value>本地扫描完成；新增和修改持续上传，冲突可在任务页查看。</value>
+  </data>
+  <data name="LogActions" xml:space="preserve">
+    <value>日志操作</value>
+  </data>
+  <data name="LogEndDate" xml:space="preserve">
+    <value>日志结束日期</value>
+  </data>
+  <data name="LogLevel" xml:space="preserve">
+    <value>日志级别</value>
+  </data>
+  <data name="LogList" xml:space="preserve">
+    <value>日志列表</value>
+  </data>
+  <data name="LogOperationFailed" xml:space="preserve">
+    <value>日志操作失败：{0}</value>
+  </data>
+  <data name="LogStartDate" xml:space="preserve">
+    <value>日志开始日期</value>
+  </data>
+  <data name="LogStorageError" xml:space="preserve">
+    <value>日志存储异常：{0}；</value>
+  </data>
+  <data name="Logs" xml:space="preserve">
+    <value>日志</value>
+  </data>
+  <data name="MainNavigation" xml:space="preserve">
+    <value>主导航</value>
+  </data>
+  <data name="ManageMounts" xml:space="preserve">
+    <value>管理挂载</value>
+  </data>
+  <data name="ManageRemoteFilesThroughLocalViews" xml:space="preserve">
+    <value>远端文件本地视图管理</value>
+  </data>
+  <data name="ManageThisMountSOfflineCacheLocalEditsAreProtected" xml:space="preserve">
+    <value>管理此挂载的离线缓存；本地修改会受到保护。</value>
+  </data>
+  <data name="ManualCapacityLimitBlankForUnlimited" xml:space="preserve">
+    <value>手动最大容量（留空不限）</value>
+  </data>
+  <data name="ManualCapacityLimitGBBlankForUnlimited" xml:space="preserve">
+    <value>手动最大容量（GB，留空不限）</value>
+  </data>
+  <data name="ManualRemoteDetection" xml:space="preserve">
+    <value>远端手动检测</value>
+  </data>
+  <data name="ManualRemoteDetectionFullReconciliation" xml:space="preserve">
+    <value>远端手动检测（完整对账）</value>
+  </data>
+  <data name="MatchMode" xml:space="preserve">
+    <value>匹配方式</value>
+  </data>
+  <data name="MigrationOutRequired" xml:space="preserve">
+    <value>需要迁出</value>
+  </data>
+  <data name="MoreActions" xml:space="preserve">
+    <value>更多操作</value>
+  </data>
+  <data name="MoreMountActions" xml:space="preserve">
+    <value>更多挂载操作</value>
+  </data>
+  <data name="Mount" xml:space="preserve">
+    <value>挂载</value>
+  </data>
+  <data name="MountActions" xml:space="preserve">
+    <value>挂载操作</value>
+  </data>
+  <data name="MountConfigurationBackupList" xml:space="preserve">
+    <value>备份挂载配置列表</value>
+  </data>
+  <data name="MountList" xml:space="preserve">
+    <value>挂载列表</value>
+  </data>
+  <data name="MountNameRequired" xml:space="preserve">
+    <value>请输入挂载名称。</value>
+  </data>
+  <data name="MountOperationFailed" xml:space="preserve">
+    <value>挂载操作失败：{0}</value>
+  </data>
+  <data name="MountTasks" xml:space="preserve">
+    <value>挂载任务</value>
+  </data>
+  <data name="MountsBeingRemovedCannotBeExportedYet" xml:space="preserve">
+    <value>移除中的挂载暂不可导出。</value>
+  </data>
+  <data name="NFSReserved" xml:space="preserve">
+    <value>NFS（预留）</value>
+  </data>
+  <data name="Name" xml:space="preserve">
+    <value>名称</value>
+  </data>
+  <data name="NativeBackendDisconnected" xml:space="preserve">
+    <value>原生后台已断开</value>
+  </data>
+  <data name="New" xml:space="preserve">
+    <value>新增 · </value>
+  </data>
+  <data name="NewAndEditedLocalFilesUploadContinuously" xml:space="preserve">
+    <value>本地新增和修改持续自动上传</value>
+  </data>
+  <data name="NewLogsAreAvailableRefreshToViewThem" xml:space="preserve">
+    <value> 有新日志，请刷新。</value>
+  </data>
+  <data name="NewSynologyNAS" xml:space="preserve">
+    <value>新增 · 群晖 NAS</value>
+  </data>
+  <data name="NextRetry" xml:space="preserve">
+    <value> · 下次重试：{0}</value>
+  </data>
+  <data name="NoConfigurationDialogIsAvailableForThisProtocolYet" xml:space="preserve">
+    <value>此协议尚未提供配置窗口。</value>
+  </data>
+  <data name="NoDiagnosticInformationIsAvailable" xml:space="preserve">
+    <value>当前没有诊断信息。</value>
+  </data>
+  <data name="NoFileSelected" xml:space="preserve">
+    <value>未选择文件。</value>
+  </data>
+  <data name="NoHistoryEntriesCanBeClearedActiveTasksAndTasksAwaitingRecovery" xml:space="preserve">
+    <value>没有可清除的{0}历史；进行中或待恢复的任务已保留。</value>
+  </data>
+  <data name="NoLogsMatchTheCurrentFilters" xml:space="preserve">
+    <value>当前筛选下没有日志。</value>
+  </data>
+  <data name="NoMaterial" xml:space="preserve">
+    <value>无材质</value>
+  </data>
+  <data name="NoMountsYetSelectAddMountToConnectAFileSource" xml:space="preserve">
+    <value>尚无挂载。选择“新增挂载”以连接文件源。</value>
+  </data>
+  <data name="NoTasksMatchTheCurrentFilters" xml:space="preserve">
+    <value>当前筛选下没有任务。</value>
+  </data>
+  <data name="NoVerifiableLegacyMountsWereFoundSelectAnOldMountFolderTo" xml:space="preserve">
+    <value>未发现可核对的遗留挂载，可选择旧挂载目录进行核验。</value>
+  </data>
+  <data name="NoneNewLocalItem" xml:space="preserve">
+    <value>无（本地新增）</value>
+  </data>
+  <data name="NoneYet" xml:space="preserve">
+    <value>尚无</value>
+  </data>
+  <data name="NotCheckedYet" xml:space="preserve">
+    <value>尚未核对</value>
+  </data>
+  <data name="NotConnected" xml:space="preserve">
+    <value>未连接</value>
+  </data>
+  <data name="NotDetectedYet" xml:space="preserve">
+    <value>尚未检测</value>
+  </data>
+  <data name="NotIncludedInUpload" xml:space="preserve">
+    <value>未纳入上传</value>
+  </data>
+  <data name="NotStartedYet" xml:space="preserve">
+    <value>尚未启动</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>已关闭</value>
+  </data>
+  <data name="OfflineCache" xml:space="preserve">
+    <value>离线缓存</value>
+  </data>
+  <data name="OnDemandMountsAreReady" xml:space="preserve">
+    <value>按需挂载已就绪</value>
+  </data>
+  <data name="OpenFileLocation" xml:space="preserve">
+    <value>打开所在位置</value>
+  </data>
+  <data name="OpenFolder" xml:space="preserve">
+    <value>打开目录</value>
+  </data>
+  <data name="OpenSettings" xml:space="preserve">
+    <value>打开设置</value>
+  </data>
+  <data name="OpenWindowsStartupSettings" xml:space="preserve">
+    <value>打开 Windows 启动设置</value>
+  </data>
+  <data name="OperationCompleted" xml:space="preserve">
+    <value>操作已完成。</value>
+  </data>
+  <data name="OperationIncomplete" xml:space="preserve">
+    <value>未能完成操作</value>
+  </data>
+  <data name="OperationSubmittedViewPerItemResultsOnTheTasksPage" xml:space="preserve">
+    <value>操作已提交，可在任务页查看逐项结果。</value>
+  </data>
+  <data name="OperationSubmittedViewProgressAndPerItemResultsOnTheTasksPage" xml:space="preserve">
+    <value>操作已提交，可在任务页查看进度和逐项结果。</value>
+  </data>
+  <data name="OriginalSyncedVersion" xml:space="preserve">
+    <value>原同步版本：{0}{1}</value>
+  </data>
+  <data name="OrphanedPlaceholderFolderTheOriginalProviderCannotBeVerified" xml:space="preserve">
+    <value>孤立占位目录，原提供程序归属无法核验</value>
+  </data>
+  <data name="ParagraphWithSuffix" xml:space="preserve">
+    <value>
+
+{0}{1}</value>
+  </data>
+  <data name="PartialPlaceholder" xml:space="preserve">
+    <value>部分占位</value>
+  </data>
+  <data name="PartiallyFailed" xml:space="preserve">
+    <value>部分失败</value>
+  </data>
+  <data name="Password" xml:space="preserve">
+    <value>密码</value>
+  </data>
+  <data name="PasswordOrThirdPartyApplicationPassword" xml:space="preserve">
+    <value>密码或第三方应用密码</value>
+  </data>
+  <data name="PathStyleAddressing" xml:space="preserve">
+    <value>路径寻址 / Path-Style</value>
+  </data>
+  <data name="PendingApplication" xml:space="preserve">
+    <value>待应用</value>
+  </data>
+  <data name="PinnedCertificateSHA256ForThisMount" xml:space="preserve">
+    <value>本挂载固定的证书 SHA-256：
+{0}</value>
+  </data>
+  <data name="PlaceholderIdentityVerificationFailedDirectReplacementIsUnavailable" xml:space="preserve">
+    <value>占位身份未通过核验，未提供直接覆盖。</value>
+  </data>
+  <data name="PlaceholderOwnershipDoesNotMatchRevertingStopped" xml:space="preserve">
+    <value>占位归属不匹配，停止解除。</value>
+  </data>
+  <data name="PreparingTheSelectedConflictResolutionWritingIsAllowedOnlyAfterTheLocal" xml:space="preserve">
+    <value>正在准备用户选择的冲突处理；本地备份完成后才允许写入。</value>
+  </data>
+  <data name="PreviousStageRecoveryBackup" xml:space="preserve">
+    <value>
+上次阶段：{0}
+恢复备份：{1}</value>
+  </data>
+  <data name="ProcessLegacyMounts" xml:space="preserve">
+    <value>处理遗留挂载</value>
+  </data>
+  <data name="ProcessSelected" xml:space="preserve">
+    <value>处理所选</value>
+  </data>
+  <data name="ProcessSelectedDetails" xml:space="preserve">
+    <value>处理所选（{0}）</value>
+  </data>
+  <data name="Processing" xml:space="preserve">
+    <value>业务处理</value>
+  </data>
+  <data name="ProcessingStoppedSavedBackupsAndRecoveryStagesAreKept" xml:space="preserve">
+    <value>处理已停止；已保存的备份和恢复阶段保留。</value>
+  </data>
+  <data name="ProtocolCapabilitiesHeader" xml:space="preserve">
+    <value>协议能力</value>
+  </data>
+  <data name="ProtocolCapabilitiesHint" xml:space="preserve">
+    <value>可展开查看程序使用的接口；尚无证据显示为 --。修改连接参数后需重新检测。</value>
+  </data>
+  <data name="ProtocolCapabilitiesHistory" xml:space="preserve">
+    <value>已断开：以下为上次连接的历史证据，仅适用于当时已验证的范围。</value>
+  </data>
+  <data name="ProtocolCapabilitiesScope" xml:space="preserve">
+    <value>结果仅适用于当前账号已验证的范围，不代表所有子目录；声明支持尚未实测。</value>
+  </data>
+  <data name="ProtocolEvidenceDetails" xml:space="preserve">
+    <value>证据范围：{0}；最近验证：{1}</value>
+  </data>
+  <data name="ProtocolPurposeAccess" xml:space="preserve">
+    <value>只读查询精确资源的有效权限；权限结论与正文版本及条件写能力独立。</value>
+  </data>
+  <data name="ProtocolPurposeAuthentication" xml:space="preserve">
+    <value>建立或归还当前账号的服务端会话。</value>
+  </data>
+  <data name="ProtocolPurposeChanges" xml:space="preserve">
+    <value>读取集合增量变化，减少重复完整扫描。</value>
+  </data>
+  <data name="ProtocolPurposeChecksum" xml:space="preserve">
+    <value>取得文件摘要，用于验证下载与上传的实际内容。</value>
+  </data>
+  <data name="ProtocolPurposeCleanup" xml:space="preserve">
+    <value>仅清理已确认归属的临时探测文件，不开放一般文件删除。</value>
+  </data>
+  <data name="ProtocolPurposeConditionalDelete" xml:space="preserve">
+    <value>仅在目标版本匹配时删除。</value>
+  </data>
+  <data name="ProtocolPurposeConditionalMove" xml:space="preserve">
+    <value>验证源版本和目标防覆盖条件；权限可能随路径不同。</value>
+  </data>
+  <data name="ProtocolPurposeCreateOnly" xml:space="preserve">
+    <value>仅在目标不存在时创建，避免覆盖已有内容。</value>
+  </data>
+  <data name="ProtocolPurposeDelete" xml:space="preserve">
+    <value>删除目标；条件删除能力另行验证。</value>
+  </data>
+  <data name="ProtocolPurposeDirectory" xml:space="preserve">
+    <value>在目标范围创建新目录。</value>
+  </data>
+  <data name="ProtocolPurposeDiscovery" xml:space="preserve">
+    <value>读取服务端声明的接口和版本。</value>
+  </data>
+  <data name="ProtocolPurposeDownload" xml:space="preserve">
+    <value>读取文件正文，用于下载和水合。</value>
+  </data>
+  <data name="ProtocolPurposeLock" xml:space="preserve">
+    <value>验证独占锁，用于受保护的写入流程。</value>
+  </data>
+  <data name="ProtocolPurposeMetadata" xml:space="preserve">
+    <value>读取目录列表、文件属性或共享信息。</value>
+  </data>
+  <data name="ProtocolPurposeMetadataCompression" xml:space="preserve">
+    <value>只压缩目录元数据，流式解压并限制展开大小；文件正文与范围读取保持identity表示。</value>
+  </data>
+  <data name="ProtocolPurposeMove" xml:space="preserve">
+    <value>移动、重命名或复制目标；防覆盖条件另行验证。</value>
+  </data>
+  <data name="ProtocolPurposeMultipartAbort" xml:space="preserve">
+    <value>中止并清理本程序创建的未完成分片上传。</value>
+  </data>
+  <data name="ProtocolPurposeMultipartComplete" xml:space="preserve">
+    <value>合并已上传的分片；条件完成另行验证。</value>
+  </data>
+  <data name="ProtocolPurposeMultipartCopy" xml:space="preserve">
+    <value>在服务端分片复制大对象。</value>
+  </data>
+  <data name="ProtocolPurposeMultipartPart" xml:space="preserve">
+    <value>上传单个文件分片。</value>
+  </data>
+  <data name="ProtocolPurposeMultipartStart" xml:space="preserve">
+    <value>启动大文件分片上传。</value>
+  </data>
+  <data name="ProtocolPurposeProbeInventory" xml:space="preserve">
+    <value>用于核对测试资源、历史版本和分片清理，不读取用户正文。</value>
+  </data>
+  <data name="ProtocolPurposeQueueAttributes" xml:space="preserve">
+    <value>读取并核对队列身份及属性。</value>
+  </data>
+  <data name="ProtocolPurposeQueueConfirm" xml:space="preserve">
+    <value>提示持久化后确认消息，避免重复处理。</value>
+  </data>
+  <data name="ProtocolPurposeQueueReceive" xml:space="preserve">
+    <value>接收远端变更消息；不会在测试连接时调用。</value>
+  </data>
+  <data name="ProtocolPurposeQuota" xml:space="preserve">
+    <value>查询服务器报告的账户／目录配额，不等于物理磁盘容量。</value>
+  </data>
+  <data name="ProtocolPurposeRange" xml:space="preserve">
+    <value>只读取文件片段，可用于缩略图等；要求范围及版本校验通过。</value>
+  </data>
+  <data name="ProtocolPurposeRedirect" xml:space="preserve">
+    <value>仅跟随同源、配置根内的301／308；保留方法、正文和保护条件，最多五跳。</value>
+  </data>
+  <data name="ProtocolPurposeRepresentationDigest" xml:space="preserve">
+    <value>验证完整正文摘要，识别弱或缺失ETag文件的内容变化；不替代条件写保护。</value>
+  </data>
+  <data name="ProtocolPurposeUnlock" xml:space="preserve">
+    <value>归还本次流程持有的锁。</value>
+  </data>
+  <data name="ProtocolPurposeUpdate" xml:space="preserve">
+    <value>依据已知版本提交内容，防止覆盖并发修改。</value>
+  </data>
+  <data name="ProtocolPurposeUpload" xml:space="preserve">
+    <value>上传文件内容；普通上传成功不代表条件覆盖安全。</value>
+  </data>
+  <data name="ProtocolReasonConditionIgnored" xml:space="preserve">
+    <value>未通过该范围的条件保护验证。</value>
+  </data>
+  <data name="ProtocolReasonDeclared" xml:space="preserve">
+    <value>服务端声明支持，尚未进行实际验证。</value>
+  </data>
+  <data name="ProtocolReasonMixedScopes" xml:space="preserve">
+    <value>不同路径的实测结果不一致，不能汇总为全部支持或不支持。</value>
+  </data>
+  <data name="ProtocolReasonPermission" xml:space="preserve">
+    <value>认证或权限不足，无法据此判断接口是否受支持。</value>
+  </data>
+  <data name="ProtocolReasonQuotaMissing" xml:space="preserve">
+    <value>服务端明确未提供所查询的配额属性。</value>
+  </data>
+  <data name="ProtocolReasonRangeIgnored" xml:space="preserve">
+    <value>服务端忽略了范围请求，不能使用严格片段读取。</value>
+  </data>
+  <data name="ProtocolReasonUncertain" xml:space="preserve">
+    <value>尚未取得可验证的结果。</value>
+  </data>
+  <data name="ProtocolScopeQueue" xml:space="preserve">
+    <value>当前队列订阅</value>
+  </data>
+  <data name="ProtocolScopeRoot" xml:space="preserve">
+    <value>配置根目录</value>
+  </data>
+  <data name="ProtocolScopeServer" xml:space="preserve">
+    <value>服务器会话／共享发现</value>
+  </data>
+  <data name="ProtocolStatusAdvertised" xml:space="preserve">
+    <value>声明支持</value>
+  </data>
+  <data name="ProtocolStatusSupported" xml:space="preserve">
+    <value>支持</value>
+  </data>
+  <data name="ProtocolStatusUnknown" xml:space="preserve">
+    <value>--</value>
+  </data>
+  <data name="ProtocolStatusUnsupported" xml:space="preserve">
+    <value>不支持</value>
+  </data>
+  <data name="Querying" xml:space="preserve">
+    <value>
+正在查询…</value>
+  </data>
+  <data name="QueueCredentialSource" xml:space="preserve">
+    <value>队列凭据来源</value>
+  </data>
+  <data name="QueuePriorityAndPhase" xml:space="preserve">
+    <value>P{0} · {1}{2}</value>
+  </data>
+  <data name="QueueRegionMustMatchS3" xml:space="preserve">
+    <value>队列区域（必须与 S3 一致）</value>
+  </data>
+  <data name="Queued" xml:space="preserve">
+    <value>排队中</value>
+  </data>
+  <data name="RFC6578IncrementalDetection" xml:space="preserve">
+    <value>RFC 6578 增量检测</value>
+  </data>
+  <data name="ReEnterBackupPassword" xml:space="preserve">
+    <value>再次输入备份密码</value>
+  </data>
+  <data name="ReadOnlyCheckRequestedThisDoesNotAuthorizeOverwritingOrResending" xml:space="preserve">
+    <value>已请求只读核对；不会因此授权覆盖或重新发送。</value>
+  </data>
+  <data name="ReadOnlyConnectionTest" xml:space="preserve">
+    <value>只读连接测试</value>
+  </data>
+  <data name="ReadOnlySQSConnectionTest" xml:space="preserve">
+    <value>SQS 只读连接测试</value>
+  </data>
+  <data name="ReadingQueueAttributes" xml:space="preserve">
+    <value>正在读取队列属性…</value>
+  </data>
+  <data name="RecheckCapacity" xml:space="preserve">
+    <value>重新核实容量</value>
+  </data>
+  <data name="RecheckingFolderIdentity" xml:space="preserve">
+    <value>正在重新核对目录身份…</value>
+  </data>
+  <data name="ReconnectAll" xml:space="preserve">
+    <value>重新连接全部</value>
+  </data>
+  <data name="RecoveryBackup" xml:space="preserve">
+    <value>
+恢复备份：{0}</value>
+  </data>
+  <data name="RecoveryManagedDirectory" xml:space="preserve">
+    <value>目录仍由挂载“{0}”管理。
+目录：{1}
+所属模式：{2}
+请使用该挂载的移除入口。</value>
+  </data>
+  <data name="RecoveryModePackaged" xml:space="preserve">
+    <value>有包运行</value>
+  </data>
+  <data name="RecoveryModeUnpackaged" xml:space="preserve">
+    <value>无包运行</value>
+  </data>
+  <data name="RecoveryRecordsStillNeedVerificationOrCompletionResolveLeftoverMountsOrSync" xml:space="preserve">
+    <value>仍有待核验或未完成的恢复记录，请先处理遗留挂载或同步问题。</value>
+  </data>
+  <data name="RecoveryRecordsWereKeptCheckUnconfirmedResultsBeforeReconnectingTheAffectedMounts" xml:space="preserve">
+    <value>已保留恢复记录。请先核对未确认结果，再重新连接受影响的挂载。</value>
+  </data>
+  <data name="RecoveryRequired" xml:space="preserve">
+    <value>需要恢复</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="RegistrationIsMissingAndCloudPlaceholdersRemainExistingDataIsKeptUnchanged" xml:space="preserve">
+    <value>注册已丢失且残留云占位，保留现场。</value>
+  </data>
+  <data name="RegistrationIsMissingButTheMaterializedIndexRemainsConfigurationWasKeptFor" xml:space="preserve">
+    <value>注册丢失但存在物化索引，保留配置待恢复。</value>
+  </data>
+  <data name="RegularLocalFile" xml:space="preserve">
+    <value>本地普通文件</value>
+  </data>
+  <data name="RegularLocalFileOrUnknownItemKeptUnchanged" xml:space="preserve">
+    <value>普通本地文件或未知项，已保留。</value>
+  </data>
+  <data name="RelatedTasksWereStoppedAndRecoveryRecordsKeptCheckUnconfirmedResultsBefore" xml:space="preserve">
+    <value>已停止相关任务并保留恢复记录；重新连接前先核对未确认结果。</value>
+  </data>
+  <data name="RelativePathForTheNewRemoteFile" xml:space="preserve">
+    <value>远端新文件相对路径</value>
+  </data>
+  <data name="Remote" xml:space="preserve">
+    <value> → 远端：{0}</value>
+  </data>
+  <data name="RemoteCapacityAutomaticDetectionNotQueriedYet" xml:space="preserve">
+    <value>远端容量：自动识别，尚未查询。</value>
+  </data>
+  <data name="RemoteCapacityAvailableUsedTotal" xml:space="preserve">
+    <value>远端容量：{0}
+可用 {1} · 已用 {2} · 总量 {3}{4}{5}{6}</value>
+  </data>
+  <data name="RemoteCapacityManualLimitUsedAndAvailableSpaceHaveNotBeenVerified" xml:space="preserve">
+    <value>远端容量：手动配置上限 {0}；已用及可用尚未核实。</value>
+  </data>
+  <data name="RemoteCapacityNoCapacityLimitSet" xml:space="preserve">
+    <value>远端容量：未设置容量限制。</value>
+  </data>
+  <data name="RemoteChangesArePending" xml:space="preserve">
+    <value>远端变更待处理。</value>
+  </data>
+  <data name="RemoteContentChangedButLocalContentIsEditedPinnedOrInUse" xml:space="preserve">
+    <value>远端内容变化，但本地已修改、固定或正在使用；已保留旧内容，请处理后刷新。</value>
+  </data>
+  <data name="RemoteContentWasDeletedAndLocalContentIsIncompleteConfigurationAndExisting" xml:space="preserve">
+    <value>远端已删除且本地尚不完整，保留配置与现有内容。</value>
+  </data>
+  <data name="RemoteDeletionCleanupCompleted" xml:space="preserve">
+    <value>远端删除已清理。</value>
+  </data>
+  <data name="RemoteEventsStillNeedAFullCheckRefreshFirst" xml:space="preserve">
+    <value>远端事件仍待完整核对，请先刷新。</value>
+  </data>
+  <data name="RemoteVersionApplied" xml:space="preserve">
+    <value>远端版本已应用。</value>
+  </data>
+  <data name="RemovalIncomplete" xml:space="preserve">
+    <value>移除未完成</value>
+  </data>
+  <data name="RemovalIsIncompleteChangingTheRemovalModeOrRunningCacheTasksIs" xml:space="preserve">
+    <value>移除未完成，不能改用其他模式或执行缓存任务。</value>
+  </data>
+  <data name="RemovalTaskSubmittedViewProgressAndPerItemResultsOnTheTasks" xml:space="preserve">
+    <value>移除任务已提交，可在任务页查看进度和逐项结果。</value>
+  </data>
+  <data name="RemoveLegacyEntry" xml:space="preserve">
+    <value>移除遗留入口</value>
+  </data>
+  <data name="RemoveMount" xml:space="preserve">
+    <value>移除挂载</value>
+  </data>
+  <data name="RemoveMountKeepLocalFiles" xml:space="preserve">
+    <value>移除挂载</value>
+  </data>
+  <data name="RemoveMountKeepLocalFilesWithoutConnectingToTheRemoteSourceClear" xml:space="preserve">
+    <value>{0}
+
+移除挂载：保留本地文件，不连接远端。
+
+清空并移除：永久删除根目录内全部本地内容，保留空根目录及远端数据。</value>
+  </data>
+  <data name="RemoveOnlyTheCurrentUserSLegacyExplorerEntryKeepTheFolder" xml:space="preserve">
+    <value>仅移除当前用户的 Explorer 遗留入口，保留目录和全部文件。</value>
+  </data>
+  <data name="RemovedMount" xml:space="preserve">
+    <value>已移除挂载</value>
+  </data>
+  <data name="Removing" xml:space="preserve">
+    <value>移除中</value>
+  </data>
+  <data name="RenameConflict" xml:space="preserve">
+    <value>改名冲突</value>
+  </data>
+  <data name="RenameResultNeedsChecking" xml:space="preserve">
+    <value>改名结果待核对</value>
+  </data>
+  <data name="RenamedAndExcluded" xml:space="preserve">
+    <value>已改名并排除</value>
+  </data>
+  <data name="RenamingRemotely" xml:space="preserve">
+    <value>远端改名中</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>还原</value>
+  </data>
+  <data name="ResetIncomplete" xml:space="preserve">
+    <value>还原未完成</value>
+  </data>
+  <data name="ResetIncomplete0xCompletedDeletionsAreNotRolledBackCloseThisNotice" xml:space="preserve">
+    <value>还原未完成（{0}，0x{1:X8}）：
+{2}
+
+已清理的内容不会回滚。关闭此提示后程序退出，下次启动可重新核验。</value>
+  </data>
+  <data name="ResolveConflict" xml:space="preserve">
+    <value>处理冲突</value>
+  </data>
+  <data name="ResolveConflictDetails" xml:space="preserve">
+    <value>处理冲突 · {0}</value>
+  </data>
+  <data name="ResultNeedsChecking" xml:space="preserve">
+    <value>结果待核对</value>
+  </data>
+  <data name="RetryConnection" xml:space="preserve">
+    <value>重试连接</value>
+  </data>
+  <data name="RetrySelected" xml:space="preserve">
+    <value>重试选中</value>
+  </data>
+  <data name="RetrySubmittedIfTheMountIsDisconnectedConnectItOnTheMounts" xml:space="preserve">
+    <value>已提交重试；如挂载未连接，请先在挂载页连接。</value>
+  </data>
+  <data name="Retrying" xml:space="preserve">
+    <value>正在重试 · </value>
+  </data>
+  <data name="Running" xml:space="preserve">
+    <value>执行中</value>
+  </data>
+  <data name="RunningReadOnlyProbes" xml:space="preserve">
+    <value>正在执行只读探测…</value>
+  </data>
+  <data name="S3BucketPrefix" xml:space="preserve">
+    <value>S3：{0}；桶 {1}；前缀 {2}</value>
+  </data>
+  <data name="S3Mount" xml:space="preserve">
+    <value>S3 挂载</value>
+  </data>
+  <data name="S3ObjectStorage" xml:space="preserve">
+    <value>S3 对象存储</value>
+  </data>
+  <data name="SMBReserved" xml:space="preserve">
+    <value>SMB（预留）</value>
+  </data>
+  <data name="SQSEventAccelerationOffScheduledFullReconciliationRemainsEnabled" xml:space="preserve">
+    <value>SQS 事件加速：关闭，定时完整对账仍保留</value>
+  </data>
+  <data name="SQSEventAccelerationPausedAutomaticRemoteDetectionIsOff" xml:space="preserve">
+    <value>SQS 事件加速：已暂停（远端自动检测关闭）</value>
+  </data>
+  <data name="SQSEventAccelerationSettings" xml:space="preserve">
+    <value>SQS 事件加速设置</value>
+  </data>
+  <data name="SQSEventAccelerationSettingsSaved" xml:space="preserve">
+    <value>SQS 事件加速设置已保存。</value>
+  </data>
+  <data name="SQSLastEventHintsAwaitingChecking" xml:space="preserve">
+    <value>SQS：{0}；最近事件：{1}；待核对提示 {2}{3}</value>
+  </data>
+  <data name="SQSSwitchSaved" xml:space="preserve">
+    <value>SQS 开关已保存。</value>
+  </data>
+  <data name="SaveACopy" xml:space="preserve">
+    <value>另存副本</value>
+  </data>
+  <data name="SaveACopyFirstWhenAConflictInvolvesARenameOrA" xml:space="preserve">
+    <value>改名或映射路径不同的冲突请先另存副本，本版不直接替换。</value>
+  </data>
+  <data name="SaveACopyToResolveFileFolderTypeConflictsFirstThisVersion" xml:space="preserve">
+    <value>文件／目录类型冲突需先另存处理，本版仅直接替换普通文件。</value>
+  </data>
+  <data name="SaveARemoteCopy" xml:space="preserve">
+    <value>另存远端副本</value>
+  </data>
+  <data name="SaveCapacitySettings" xml:space="preserve">
+    <value>保存容量设置</value>
+  </data>
+  <data name="SaveConnectionAndReconnect" xml:space="preserve">
+    <value>保存连接并重连</value>
+  </data>
+  <data name="SaveDetectionIntervals" xml:space="preserve">
+    <value>保存检测间隔</value>
+  </data>
+  <data name="SaveDetectionSettings" xml:space="preserve">
+    <value>保存检测设置</value>
+  </data>
+  <data name="SaveExclusionRules" xml:space="preserve">
+    <value>保存排除规则</value>
+  </data>
+  <data name="SaveLimit" xml:space="preserve">
+    <value>保存上限</value>
+  </data>
+  <data name="SaveSQSSettings" xml:space="preserve">
+    <value>保存 SQS 设置</value>
+  </data>
+  <data name="ScanLocalChanges" xml:space="preserve">
+    <value>扫描本地改动</value>
+  </data>
+  <data name="SearchLogs" xml:space="preserve">
+    <value>搜索日志</value>
+  </data>
+  <data name="SelectAFileConflictFirst" xml:space="preserve">
+    <value>请先选择文件冲突。</value>
+  </data>
+  <data name="SelectAMountFirst" xml:space="preserve">
+    <value>请先选择一个挂载。</value>
+  </data>
+  <data name="SelectASupportedInterfaceLanguage" xml:space="preserve">
+    <value>请选择受支持的界面语言。</value>
+  </data>
+  <data name="SelectASyncIssueFirst" xml:space="preserve">
+    <value>请先选择同步问题。</value>
+  </data>
+  <data name="SelectATaskFirst" xml:space="preserve">
+    <value>请先选择任务。</value>
+  </data>
+  <data name="SelectAllEligibleItems" xml:space="preserve">
+    <value>全选可处理项</value>
+  </data>
+  <data name="SelectAnUnresolvedFileConflict" xml:space="preserve">
+    <value>请选择仍未解决的文件冲突。</value>
+  </data>
+  <data name="SelectAnUploadRemoteUpdateOrExcludedRenameCleanupTask" xml:space="preserve">
+    <value>请选择上传、远端更新或改名排除收尾任务。</value>
+  </data>
+  <data name="SelectAnUploadTaskFirst" xml:space="preserve">
+    <value>请先选择上传任务。</value>
+  </data>
+  <data name="SelectFolder" xml:space="preserve">
+    <value>选择目录</value>
+  </data>
+  <data name="SelectOldMountFolder" xml:space="preserve">
+    <value>选择旧挂载目录</value>
+  </data>
+  <data name="SelectTheMountsToExport" xml:space="preserve">
+    <value>请选择要导出的挂载。</value>
+  </data>
+  <data name="SeparateAccessKey" xml:space="preserve">
+    <value>独立访问密钥</value>
+  </data>
+  <data name="SeparateAccessKeyID" xml:space="preserve">
+    <value>独立访问密钥 ID</value>
+  </data>
+  <data name="ServerAddress" xml:space="preserve">
+    <value>服务器地址</value>
+  </data>
+  <data name="ServerAddressRequired" xml:space="preserve">
+    <value>请输入完整的 HTTP 或 HTTPS 服务器地址。</value>
+  </data>
+  <data name="ServerInformation" xml:space="preserve">
+    <value>服务器信息</value>
+  </data>
+  <data name="SessionTokenTemporaryCredentialsOptional" xml:space="preserve">
+    <value>Session Token（临时凭据，可选）</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>设置 · {0}</value>
+  </data>
+  <data name="SettingsDetails" xml:space="preserve">
+    <value>设置 · </value>
+  </data>
+  <data name="SettingsNotice" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="SharedFolder" xml:space="preserve">
+    <value>共享文件夹</value>
+  </data>
+  <data name="ShellEntryOnly" xml:space="preserve">
+    <value>仅剩 Shell 入口</value>
+  </data>
+  <data name="ShowMainWindow" xml:space="preserve">
+    <value>显示主窗口</value>
+  </data>
+  <data name="ShowThisFileOrFolderSSyncIssuesInTheApplicationDoes" xml:space="preserve">
+    <value>在应用中定位此文件或目录的同步问题；不会自动上传。</value>
+  </data>
+  <data name="ShowThumbnailsExperimental" xml:space="preserve">
+    <value>显示缩略图（实验性）</value>
+  </data>
+  <data name="ShowingEntriesRetainingTheMostRecent30DaysUpTo10000Entries" xml:space="preserve">
+    <value>{0}已显示 {1} 条；保留最近30天／最多10000条。{2}{3}{4}</value>
+  </data>
+  <data name="SigningRegion" xml:space="preserve">
+    <value>签名区域 / Region</value>
+  </data>
+  <data name="SnapshotReady" xml:space="preserve">
+    <value>快照已就绪</value>
+  </data>
+  <data name="SomeCloudFilesHaveNotBeenRevertedConfigurationAndRegistrationWereKept" xml:space="preserve">
+    <value>仍有未解除的云文件，保留配置和注册以供恢复。</value>
+  </data>
+  <data name="SomeMountResourcesCouldNotBeCleanedUp" xml:space="preserve">
+    <value>挂载资源清理未全部完成。</value>
+  </data>
+  <data name="SourcePermissionBlocked" xml:space="preserve">
+    <value>远端权限不允许此操作：{0}（{1}）。本地文件、基线和快照已保留；请调整权限后重试。</value>
+  </data>
+  <data name="SourcePermissionPending" xml:space="preserve">
+    <value>远端权限尚未核验：{0}（{1}）。目标写入暂缓，保留本地文件和快照。</value>
+  </data>
+  <data name="Stage" xml:space="preserve">
+    <value>阶段：{0}</value>
+  </data>
+  <data name="Standard" xml:space="preserve">
+    <value>标准</value>
+  </data>
+  <data name="StartAfterSigningInToWindows" xml:space="preserve">
+    <value>登录 Windows 后启动</value>
+  </data>
+  <data name="StartAtSignInIsDisabledBySystemPolicy" xml:space="preserve">
+    <value>登录启动已被系统策略禁用。</value>
+  </data>
+  <data name="StartAtSignInIsEnabledBySystemPolicy" xml:space="preserve">
+    <value>登录启动已由系统策略启用。</value>
+  </data>
+  <data name="StartAtSignInIsOff" xml:space="preserve">
+    <value>登录启动已关闭。</value>
+  </data>
+  <data name="StartAtSignInIsOffByDefault" xml:space="preserve">
+    <value>登录启动默认关闭。</value>
+  </data>
+  <data name="StartAtSignInRegisteredForTheCurrentUserDevelopmentRun" xml:space="preserve">
+    <value>已注册当前用户登录启动（开发运行）。</value>
+  </data>
+  <data name="StartDateAny" xml:space="preserve">
+    <value>开始日期（不限）</value>
+  </data>
+  <data name="StartSilentlyInTheTrayAfterSigningInToWindows" xml:space="preserve">
+    <value>登录 Windows 后静默进入托盘。</value>
+  </data>
+  <data name="StartupAndTray" xml:space="preserve">
+    <value>启动与托盘</value>
+  </data>
+  <data name="StoppingBackgroundServicesAndClearingSettingsForTheCurrentDeployment" xml:space="preserve">
+    <value>正在停止当前模式的后台服务并清空设置…</value>
+  </data>
+  <data name="SubfolderOptionalRelativeToTheSharedFolder" xml:space="preserve">
+    <value>子文件夹（可选，相对共享文件夹）</value>
+  </data>
+  <data name="SucceededFailedCanceledNotStarted" xml:space="preserve">
+    <value>成功 {0} 项，失败 {1} 项，取消 {2} 项，未开始 {3} 项。</value>
+  </data>
+  <data name="SupersededByANewerVersion" xml:space="preserve">
+    <value>已被新版本替代</value>
+  </data>
+  <data name="SwitchOn" xml:space="preserve">
+    <value>开启</value>
+  </data>
+  <data name="SwitchPlaceholderVersion" xml:space="preserve">
+    <value>切换占位版本</value>
+  </data>
+  <data name="SwitchTheInterfaceLanguageImmediatelyWhileKeepingTheCurrentPageAndUnsaved" xml:space="preserve">
+    <value>立即切换界面语言，保留当前页面和未保存内容。</value>
+  </data>
+  <data name="SyncAndPreviews" xml:space="preserve">
+    <value>同步与预览</value>
+  </data>
+  <data name="SyncCapacityAndPreviewsAdvanced" xml:space="preserve">
+    <value>同步、容量与预览（高级）</value>
+  </data>
+  <data name="SyncIssues" xml:space="preserve">
+    <value>同步问题 · {0}</value>
+  </data>
+  <data name="SyncIssuesClickToViewRightClickForFullDiagnostics" xml:space="preserve">
+    <value>{0} 个同步问题；点击查看，右键打开完整诊断</value>
+  </data>
+  <data name="SyncIssuesDetails" xml:space="preserve">
+    <value>同步问题</value>
+  </data>
+  <data name="SynologyDoesNotProvideAnIncrementalChangeCursorFolderScansUseThe" xml:space="preserve">
+    <value>群晖没有增量变更游标，目录扫描按完整对账间隔执行。</value>
+  </data>
+  <data name="SynologyMount" xml:space="preserve">
+    <value>群晖挂载</value>
+  </data>
+  <data name="SynologyNAS" xml:space="preserve">
+    <value>群晖 NAS（Synology）</value>
+  </data>
+  <data name="SynologyNASRemoteRoot" xml:space="preserve">
+    <value>群晖 NAS：{0}；远端根 {1}</value>
+  </data>
+  <data name="SynologyWebDAVHttpsNasExampleCom5006SharedFolderEnableHTTPSInThe" xml:space="preserve">
+    <value>群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。</value>
+  </data>
+  <data name="SystemPolicyStillEnablesThisAppAtSignInResetCannotComplete" xml:space="preserve">
+    <value>系统策略仍启用当前应用的登录启动，无法完成还原。</value>
+  </data>
+  <data name="TakenOverByALaterRename" xml:space="preserve">
+    <value>已由后续改名接管</value>
+  </data>
+  <data name="TaskActions" xml:space="preserve">
+    <value>任务操作</value>
+  </data>
+  <data name="TaskAlreadyCompleted" xml:space="preserve">
+    <value>任务已经完成。</value>
+  </data>
+  <data name="TaskCanceling" xml:space="preserve">
+    <value>取消中</value>
+  </data>
+  <data name="TaskChangedSelectAgain" xml:space="preserve">
+    <value>任务状态已变化，请重新选择。</value>
+  </data>
+  <data name="TaskDeferred" xml:space="preserve">
+    <value>暂缓</value>
+  </data>
+  <data name="TaskID" xml:space="preserve">
+    <value>任务 ID</value>
+  </data>
+  <data name="TaskIDMount" xml:space="preserve">
+    <value>任务 ID：{0}
+挂载：{1}
+{2}
+{3}
+{4}
+{5}
+{6}
+{7}
+{8}
+</value>
+  </data>
+  <data name="TaskIDSelectAndCopyItForLookupOrFeedback" xml:space="preserve">
+    <value>任务 ID，可选中复制以便查询或反馈。</value>
+  </data>
+  <data name="TaskPermissionBlocked" xml:space="preserve">
+    <value>权限阻止</value>
+  </data>
+  <data name="TaskPermissionPending" xml:space="preserve">
+    <value>权限待核验</value>
+  </data>
+  <data name="TaskRemoteApplyProgress" xml:space="preserve">
+    <value>核对远端更改：{0} / {1}</value>
+  </data>
+  <data name="TaskRemoteScanProgress" xml:space="preserve">
+    <value>远端扫描：已发现 {0} 项</value>
+  </data>
+  <data name="TaskWorkflowStep" xml:space="preserve">
+    <value>步骤 {0}：{1}；状态：{2}；依赖：{3}；尝试：{4}</value>
+  </data>
+  <data name="Tasks" xml:space="preserve">
+    <value>任务</value>
+  </data>
+  <data name="TemporarySessionTokenOptional" xml:space="preserve">
+    <value>临时会话令牌（可选）</value>
+  </data>
+  <data name="TestConnection" xml:space="preserve">
+    <value>测试连接</value>
+  </data>
+  <data name="TestSQSConnectionReadOnly" xml:space="preserve">
+    <value>测试 SQS 连接（只读）</value>
+  </data>
+  <data name="TestTheConnectionAndSelectASharedFolderFirst" xml:space="preserve">
+    <value>请先测试连接并选择共享文件夹。</value>
+  </data>
+  <data name="TestTheConnectionFirstToLoadSharedFoldersFileStationIsNot" xml:space="preserve">
+    <value>先测试连接以加载共享文件夹；电脑无需安装 File Station，NAS 需启用 File Station 服务。</value>
+  </data>
+  <data name="TextLog" xml:space="preserve">
+    <value>文本日志</value>
+  </data>
+  <data name="TextToMatch" xml:space="preserve">
+    <value>匹配文本</value>
+  </data>
+  <data name="TheApplicationIsExiting" xml:space="preserve">
+    <value>程序正在退出。</value>
+  </data>
+  <data name="TheApplicationIsExitingAndNoLongerAcceptsNewTasks" xml:space="preserve">
+    <value>程序正在退出，不再接收新任务。</value>
+  </data>
+  <data name="TheApplicationIsExitingCleanupHasStopped" xml:space="preserve">
+    <value>程序正在退出，已停止清理。</value>
+  </data>
+  <data name="TheApplicationIsExitingTheConnectionHasStopped" xml:space="preserve">
+    <value>程序正在退出，连接已停止。</value>
+  </data>
+  <data name="TheApplicationIsStopping" xml:space="preserve">
+    <value>程序正在停止。</value>
+  </data>
+  <data name="TheApplicationPathCannotBeDetermined" xml:space="preserve">
+    <value>无法确定应用路径。</value>
+  </data>
+  <data name="TheBackupPasswordIsOptionalIfSetItMustContainAtLeast" xml:space="preserve">
+    <value>备份密码可留空；设置时至少需要 8 个字符。</value>
+  </data>
+  <data name="TheConflictResolutionRecordChangedBackupsWereKeptAndProcessingStopped" xml:space="preserve">
+    <value>冲突处理记录已变化，保留备份并停止。</value>
+  </data>
+  <data name="TheConflictTaskDoesNotExist" xml:space="preserve">
+    <value>冲突任务不存在。</value>
+  </data>
+  <data name="TheConnectionHasStopped" xml:space="preserve">
+    <value>连接已停止。</value>
+  </data>
+  <data name="TheConnectionSettingsOrTransactionChangedDuringProcessingBackupsWereKeptAnd" xml:space="preserve">
+    <value>处理期间连接、设置或事务变化，保留备份并停止。</value>
+  </data>
+  <data name="TheConnectionTestWasCanceled" xml:space="preserve">
+    <value>连接测试已取消。</value>
+  </data>
+  <data name="TheConnectionWasCanceled" xml:space="preserve">
+    <value>连接已取消。</value>
+  </data>
+  <data name="TheCurrentUserSStartupEntryIsInaccessible" xml:space="preserve">
+    <value>无法访问当前用户启动项。</value>
+  </data>
+  <data name="TheDeploymentOrDataFoldersHaveChangedCheckAndConfirmAgain" xml:space="preserve">
+    <value>运行模式或数据目录已变化，请重新核验并确认。</value>
+  </data>
+  <data name="TheDetectionIntervalIsOutsideTheAllowedRange" xml:space="preserve">
+    <value>检测间隔超出允许范围。</value>
+  </data>
+  <data name="TheDownloadSessionHasEnded" xml:space="preserve">
+    <value>下载会话已结束。</value>
+  </data>
+  <data name="TheExistingInstanceDidNotRespondExitItAndTryAgain" xml:space="preserve">
+    <value>已有实例未响应，请退出旧实例后重试。
+{0}</value>
+  </data>
+  <data name="TheFileIsBeingReadOrDownloadedCheckAgainLater" xml:space="preserve">
+    <value>文件正在读取或下载，请稍后重新核对。</value>
+  </data>
+  <data name="TheFileIsNotFullyHydratedRemovalHasStopped" xml:space="preserve">
+    <value>文件尚未完整水合，停止移除。</value>
+  </data>
+  <data name="TheFileMatchedAnExclusionRuleAndWasNotUploaded" xml:space="preserve">
+    <value>文件已匹配排除规则，未上传。</value>
+  </data>
+  <data name="TheFileMatchesAnUploadExclusionRuleAdjustTheRuleFirst" xml:space="preserve">
+    <value>文件匹配上传排除规则，请先调整规则。</value>
+  </data>
+  <data name="TheInterfaceLanguageSettingHasNotBeenLoadedYet" xml:space="preserve">
+    <value>界面语言设置尚未读取。</value>
+  </data>
+  <data name="TheLegacySimulatedSourceWasKeptChooseDownloadAndRemoveOrClear" xml:space="preserve">
+    <value>旧版模拟源保留；请选择下载并移除或清空。</value>
+  </data>
+  <data name="TheLocalFileChangedAfterConfirmationAndWasNotOverwritten" xml:space="preserve">
+    <value>本地文件在确认后变化，未覆盖。</value>
+  </data>
+  <data name="TheLocalFileChangedDuringDownloadAndWasNotReplaced" xml:space="preserve">
+    <value>下载期间本地文件变化，未替换。</value>
+  </data>
+  <data name="TheLocalFileChangedDuringPreparationCheckAgain" xml:space="preserve">
+    <value>准备期间本地文件变化，请重新核对。</value>
+  </data>
+  <data name="TheLocalFileChangedWhileCheckingCheckAgain" xml:space="preserve">
+    <value>核对期间本地文件变化，请重新核对。</value>
+  </data>
+  <data name="TheLocalFileIsNotFullyDownloadedOpenOrDownloadItBefore" xml:space="preserve">
+    <value>本地文件尚未完整下载；为保留全部本地内容，请先打开或下载后再处理。</value>
+  </data>
+  <data name="TheMenuTargetIsNotPartOfAMountOwnedByThis" xml:space="preserve">
+    <value>菜单目标不属于本产品挂载。</value>
+  </data>
+  <data name="TheMountConnectionOrSettingsChangedCheckAgain" xml:space="preserve">
+    <value>挂载连接或设置变化，请重新核对。</value>
+  </data>
+  <data name="TheMountDoesNotExist" xml:space="preserve">
+    <value>挂载不存在。</value>
+  </data>
+  <data name="TheMountHasBeenRemoved" xml:space="preserve">
+    <value>挂载已被移除。</value>
+  </data>
+  <data name="TheMountIsBeingRemoved" xml:space="preserve">
+    <value>挂载正在移除。</value>
+  </data>
+  <data name="TheMountIsBeingRemovedOrHasAlreadyBeenRemoved" xml:space="preserve">
+    <value>挂载正在移除或已经移除。</value>
+  </data>
+  <data name="TheMountIsConnectingWaitForTheCurrentConnectionToFinish" xml:space="preserve">
+    <value>挂载正在连接，请等待当前连接完成。</value>
+  </data>
+  <data name="TheMountIsDisconnectingReconnectAfterItFinishes" xml:space="preserve">
+    <value>挂载正在断开，请完成后重新连接。</value>
+  </data>
+  <data name="TheMountIsNotConnectedConnectItOnTheMountsPageAnd" xml:space="preserve">
+    <value>挂载尚未连接，请在挂载页连接后重试。</value>
+  </data>
+  <data name="TheMountIsNotConnectedYet" xml:space="preserve">
+    <value>挂载尚未连接。</value>
+  </data>
+  <data name="TheNativeMountSessionIsMissing" xml:space="preserve">
+    <value>缺少原生挂载会话。</value>
+  </data>
+  <data name="TheOldMenuDidNotPerformAnyFileOperationUpdateTheExtension" xml:space="preserve">
+    <value>旧版菜单未执行文件操作，请更新扩展后重试。</value>
+  </data>
+  <data name="TheOriginalProviderCannotBeVerifiedATemporaryLocalProviderWillTake" xml:space="preserve">
+    <value>原提供程序归属无法核验。临时本地接管并永久删除全部本地内容，随后注销临时根，保留空根目录。</value>
+  </data>
+  <data name="TheOriginalSyncRootRegistrationIsMissingDataWasKeptAutomaticRegistration" xml:space="preserve">
+    <value>原同步根注册已丢失；保留数据，不能自动重新注册。</value>
+  </data>
+  <data name="ThePreviousLocalReplacementWasInterruptedFinishRecoveryUsingTheRemoteVersion" xml:space="preserve">
+    <value>上次本地替换中断；先使用远端完成恢复，原始本地备份仍保留。</value>
+  </data>
+  <data name="ThePreviousRemovalIsIncompleteContinueWithTheSameRemovalMethod" xml:space="preserve">
+    <value>上次移除尚未完成，请继续相同的移除方式。</value>
+  </data>
+  <data name="TheProtocolCannotBeChangedForALegacyMount" xml:space="preserve">
+    <value>旧版挂载不能更换协议。</value>
+  </data>
+  <data name="TheRecoveryFolderContainsAReparsePointWritingWasRefused" xml:space="preserve">
+    <value>恢复目录包含重解析点，拒绝写入。</value>
+  </data>
+  <data name="TheRecoveryFolderMustBeOutsideEverySyncRoot" xml:space="preserve">
+    <value>恢复目录不能位于任何同步根内。</value>
+  </data>
+  <data name="TheRemoteConflictStateChangedSelectItAgain" xml:space="preserve">
+    <value>远端冲突状态已变化，请重新选择。</value>
+  </data>
+  <data name="TheRemoteFileFolderTypeChangedLocalContentWasKeptResolveThe" xml:space="preserve">
+    <value>远端文件与目录类型变化，保留本地内容，请处理冲突。</value>
+  </data>
+  <data name="TheRemoteFileNoLongerExistsSaveACopyOrDetectChanges" xml:space="preserve">
+    <value>远端文件已不存在；请另存副本或重新检测。</value>
+  </data>
+  <data name="TheRemoteListingContainsOutOfScopeDuplicateCaseConflictingOrInvalid" xml:space="preserve">
+    <value>远端枚举包含越界、重复、大小写冲突或无效元数据；未应用快照。</value>
+  </data>
+  <data name="TheRemoteRootOfAnExistingMountCannotBeChangedCreateA" xml:space="preserve">
+    <value>已有挂载不能更换远端根，请新建挂载。</value>
+  </data>
+  <data name="TheRemoteSourceChangedAgainAfterDownloadCheckAgain" xml:space="preserve">
+    <value>下载后远端再次变化，请重新核对。</value>
+  </data>
+  <data name="TheRemoteSourceKeepsChangingAndTheInitialScanIsNotStable" xml:space="preserve">
+    <value>远端持续变化，初始扫描暂未稳定；连接保留，后台立即继续完整扫描。</value>
+  </data>
+  <data name="TheRemoteVersionChangedAfterConfirmationCheckAgainNeitherSideWasOverwritten" xml:space="preserve">
+    <value>远端版本在确认后变化，请重新核对；未覆盖任何一端。</value>
+  </data>
+  <data name="TheRemoteWriteSucceededLocalVerificationIsPendingTheFileWillNot" xml:space="preserve">
+    <value>远端已写入，本地核验未完成；不会重复上传，请重试本地提交。</value>
+  </data>
+  <data name="TheRemovalModeIsFixedContinueTheOriginalRemovalTask" xml:space="preserve">
+    <value>移除模式已固定，请继续原来的移除任务。</value>
+  </data>
+  <data name="TheSQSTestWasCanceled" xml:space="preserve">
+    <value>SQS 测试已取消。</value>
+  </data>
+  <data name="TheServerDoesNotSupportReliableConditionalUpdatesSaveACopyInstead" xml:space="preserve">
+    <value>服务器不支持可靠的条件更新，请另存副本。</value>
+  </data>
+  <data name="TheSessionIndexOrTaskChangedDuringCheckingCheckAgain" xml:space="preserve">
+    <value>核对期间会话、索引或任务变化，请重新核对。</value>
+  </data>
+  <data name="TheSnapshotExceedsTheOneMillionItemSafetyLimitSelectASmaller" xml:space="preserve">
+    <value>快照超过首版百万条安全限制，请缩小远端根。</value>
+  </data>
+  <data name="TheSyncIssueDoesNotExist" xml:space="preserve">
+    <value>同步问题不存在。</value>
+  </data>
+  <data name="TheSyncIssueHasBeenLocated" xml:space="preserve">
+    <value>已定位同步问题。</value>
+  </data>
+  <data name="TheSyncRootRegistrationIsMissingButCloudPlaceholdersRemainRecoveryInformation" xml:space="preserve">
+    <value>同步根注册丢失且残留云占位，保留恢复信息，禁止直接清空。</value>
+  </data>
+  <data name="TheTaskHasEndedOrDoesNotExist" xml:space="preserve">
+    <value>任务已结束或不存在。</value>
+  </data>
+  <data name="TheTaskIndexOrRemoteEventsChangedCheckAgain" xml:space="preserve">
+    <value>任务、索引或远端事件变化，请重新核对。</value>
+  </data>
+  <data name="TheTaskIsRunningOrHasAlreadyEnded" xml:space="preserve">
+    <value>当前任务正在执行或已经结束。</value>
+  </data>
+  <data name="TheTwoBackupPasswordsDoNotMatch" xml:space="preserve">
+    <value>两次输入的备份密码不一致。</value>
+  </data>
+  <data name="TheUploadQueueChangedReconnectAndCheckAgain" xml:space="preserve">
+    <value>上传队列已变化，请重新连接后核对。</value>
+  </data>
+  <data name="TheUploadQueueIsNotReadyReconnectTheMount" xml:space="preserve">
+    <value>上传队列尚未就绪，请重新连接。</value>
+  </data>
+  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddresses" xml:space="preserve">
+    <value>WebDAV(HTTPS) 入口仅接受 HTTPS 地址。</value>
+  </data>
+  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddressesSynologyCommonlyUsesPort" xml:space="preserve">
+    <value>WebDAV(HTTPS) 入口仅接受 HTTPS 地址；群晖通常使用 5006 端口。</value>
+  </data>
+  <data name="ThereAreNoWebDAVS3OrSynologyMountsToExport" xml:space="preserve">
+    <value>当前没有可导出的 WebDAV、S3 或群晖挂载。</value>
+  </data>
+  <data name="ThisAccountHasNoAccessibleSharedFoldersSoAMountCannotBe" xml:space="preserve">
+    <value>该账号没有可访问的共享文件夹，不能创建挂载。</value>
+  </data>
+  <data name="ThisAddressSendsCredentialsAndContentWithoutEncryptionUseItOnlyOn" xml:space="preserve">
+    <value>当前地址会以明文传输凭据和内容，仅在可信测试网络使用。</value>
+  </data>
+  <data name="ThisConfigurationIsBusyWithAnotherOperation" xml:space="preserve">
+    <value>该配置正在处理其他操作。</value>
+  </data>
+  <data name="ThisConflictBelongsToAnOldConnectionScopeDetectTheCurrentRemote" xml:space="preserve">
+    <value>此冲突属于旧连接范围，请重新检测当前远端。</value>
+  </data>
+  <data name="ThisDeploymentStillHasMountConfigurationsRemoveAllMountsFirst" xml:space="preserve">
+    <value>当前模式仍有挂载配置，请先移除所有挂载。</value>
+  </data>
+  <data name="ThisDeploymentStillHasSyncRootsOrExplorerEntriesCleanUpLeftover" xml:space="preserve">
+    <value>当前模式仍有同步根或 Explorer 入口，请先处理遗留挂载。</value>
+  </data>
+  <data name="ThisFileIsExcludedRemoveTheMatchingRuleBeforePinningOrFreeing" xml:space="preserve">
+    <value>文件已排除；固定或释放空间前请先解除对应规则。</value>
+  </data>
+  <data name="ThisPermanentlyDeletesAllSettingsLogsAndCachesForTheCurrentDeployment" xml:space="preserve">
+    <value>这将永久删除当前运行模式（{0}）的全部设置、日志和缓存，并退出程序。
+
+注册表：HKCU\{1}
+
+数据目录：
+{2}
+
+已删除的内容无法恢复。</value>
+  </data>
+  <data name="ThisReleaseSupportsReadingCreatingAndSavingCopiesConflictProtectionRemainsFor" xml:space="preserve">
+    <value>首版支持读取、新建及另存副本。覆盖、删除和移动保持冲突保护；仅联机缩略图暂不支持。</value>
+  </data>
+  <data name="ThisTaskCannotBeRetried" xml:space="preserve">
+    <value>当前任务不能重试。</value>
+  </data>
+  <data name="ThumbnailsDisabledBackgroundPreviewsStopped" xml:space="preserve">
+    <value>缩略图已关闭，后台预览已停止。</value>
+  </data>
+  <data name="ThumbnailsEnabledARegularIconIsShownWhenContentCannotBeRead" xml:space="preserve">
+    <value>缩略图已开启，无法高效读取时显示普通图标。</value>
+  </data>
+  <data name="ThumbnailsExperimental" xml:space="preserve">
+    <value>缩略图（实验性）</value>
+  </data>
+  <data name="ThumbnailsOff" xml:space="preserve">
+    <value>缩略图：关闭</value>
+  </data>
+  <data name="ThumbnailsOnExperimentalGeneratedAccordingToFileAndServiceReadCapabilitiesA" xml:space="preserve">
+    <value>缩略图：开启（实验性）；依文件与服务读取能力生成，可能显示普通图标。</value>
+  </data>
+  <data name="TotalSpace" xml:space="preserve">
+    <value>总空间：{0}</value>
+  </data>
+  <data name="TwoLineDetails" xml:space="preserve">
+    <value>{0}
+{1}</value>
+  </data>
+  <data name="TwoStepVerificationCodeThisSignInOnlyNotSaved" xml:space="preserve">
+    <value>二步验证码（仅本次登录，不保存）</value>
+  </data>
+  <data name="UnencryptedConnectionIsUnsafe" xml:space="preserve">
+    <value>明文连接不安全</value>
+  </data>
+  <data name="UnencryptedHTTP" xml:space="preserve">
+    <value>明文 HTTP</value>
+  </data>
+  <data name="UnencryptedHTTPRequiresExplicitPermissionHTTPSIsRecommended" xml:space="preserve">
+    <value>使用明文 HTTP 需先明确允许；建议改用 HTTPS。</value>
+  </data>
+  <data name="Unit" xml:space="preserve">
+    <value>单位</value>
+  </data>
+  <data name="Unknown" xml:space="preserve">
+    <value>未知</value>
+  </data>
+  <data name="UnknownMountOperation" xml:space="preserve">
+    <value>未知挂载操作。</value>
+  </data>
+  <data name="UnknownNotSuppliedByTheService" xml:space="preserve">
+    <value>未知（服务未提供）</value>
+  </data>
+  <data name="UnknownVersion" xml:space="preserve">
+    <value>未知版本</value>
+  </data>
+  <data name="Unlimited" xml:space="preserve">
+    <value>不限</value>
+  </data>
+  <data name="Upload" xml:space="preserve">
+    <value>上传</value>
+  </data>
+  <data name="UploadCopy" xml:space="preserve">
+    <value>上传副本</value>
+  </data>
+  <data name="UploadExclusion" xml:space="preserve">
+    <value>上传排除</value>
+  </data>
+  <data name="UploadFailed" xml:space="preserve">
+    <value>上传失败</value>
+  </data>
+  <data name="UploadIssuesNeedAttention" xml:space="preserve">
+    <value>{0} 个上传问题需要处理</value>
+  </data>
+  <data name="UploadLocalChanges" xml:space="preserve">
+    <value>上传本地更改</value>
+  </data>
+  <data name="Uploading" xml:space="preserve">
+    <value>上传中</value>
+  </data>
+  <data name="UseCheckAgainRetryOrCancelCleanupForThisTaskAnExisting" xml:space="preserve">
+    <value>此任务请使用重新核对、重试或取消收尾；目标已存在时不会自动覆盖。</value>
+  </data>
+  <data name="UseLocalFreezeTheCurrentLocalContentAndUploadAgainstTheConfirmed" xml:space="preserve">
+    <value>使用本地：冻结当前本地内容，按已确认的远端版本条件上传。使用远端：先在同步根外保存可恢复的本地备份，再用核验后的远端内容替换本地。任一端在确认后变化时会停止处理。</value>
+  </data>
+  <data name="UseLocalToReplaceRemote" xml:space="preserve">
+    <value>使用本地覆盖远端</value>
+  </data>
+  <data name="UseRemoteToReplaceLocal" xml:space="preserve">
+    <value>使用远端替换本地</value>
+  </data>
+  <data name="UseServerCapacityInformationAutomatically" xml:space="preserve">
+    <value>自动从服务器信息替代</value>
+  </data>
+  <data name="UseTheDefaultAWSSDKCredentialChain" xml:space="preserve">
+    <value>使用 AWS SDK 默认凭据链</value>
+  </data>
+  <data name="UseTheDestinationMachineSDefaultSDKCredentialChain" xml:space="preserve">
+    <value>；使用目标机器的 SDK 默认凭据链</value>
+  </data>
+  <data name="Used" xml:space="preserve">
+    <value>已用：{0}</value>
+  </data>
+  <data name="UserInput" xml:space="preserve">
+    <value>用户输入</value>
+  </data>
+  <data name="VerifiedLegacySyncRootOwnedByThisProduct" xml:space="preserve">
+    <value>已核对本产品遗留同步根</value>
+  </data>
+  <data name="VerifyTheFollowingSHA256ThroughATrustedNASAdministrationChannelSystem" xml:space="preserve">
+    <value>请通过 NAS 管理渠道核对以下 SHA-256；不会修改系统或其他挂载的信任设置：
+{0}</value>
+  </data>
+  <data name="VerifyTheServerCertificate" xml:space="preserve">
+    <value>请核对服务器证书</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>版本 {0}</value>
+  </data>
+  <data name="VersionOrTypeConflict" xml:space="preserve">
+    <value>版本或类型冲突</value>
+  </data>
+  <data name="ViewLogs" xml:space="preserve">
+    <value>查看日志</value>
+  </data>
+  <data name="ViewResults" xml:space="preserve">
+    <value>查看详情</value>
+  </data>
+  <data name="ViewRuntimeRecords" xml:space="preserve">
+    <value>查看运行记录</value>
+  </data>
+  <data name="ViewSyncIssues" xml:space="preserve">
+    <value>查看同步问题</value>
+  </data>
+  <data name="ViewTaskResultsOnTheTasksPage" xml:space="preserve">
+    <value>任务结果见任务页。</value>
+  </data>
+  <data name="ViewUnresolvedSyncIssuesStoredSeparately" xml:space="preserve">
+    <value>查看独立保存的未解决同步问题</value>
+  </data>
+  <data name="WaitingForCapacity" xml:space="preserve">
+    <value>等待容量</value>
+  </data>
+  <data name="WaitingForFileAvailability" xml:space="preserve">
+    <value>等待文件可用</value>
+  </data>
+  <data name="WaitingForOriginalUploadResult" xml:space="preserve">
+    <value>等待原上传结果</value>
+  </data>
+  <data name="WaitingForRemoteRename" xml:space="preserve">
+    <value>等待远端改名</value>
+  </data>
+  <data name="WaitingForTheCurrentTaskToFinishThenBackingUpLocalContent" xml:space="preserve">
+    <value>正在等待当前任务完成，随后备份本地、下载并核验远端内容…</value>
+  </data>
+  <data name="WaitingForTheCurrentTaskToFinishThenFreezingLocalContentAnd" xml:space="preserve">
+    <value>正在等待当前任务完成，随后冻结本地内容并提交条件上传…</value>
+  </data>
+  <data name="Warning" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="WebDAVHTTPSMount" xml:space="preserve">
+    <value>WebDAV(HTTPS) 挂载</value>
+  </data>
+  <data name="WebDAVMount" xml:space="preserve">
+    <value>WebDAV 挂载</value>
+  </data>
+  <data name="WebDavBeforeCertificate" xml:space="preserve">
+    <value>尚未进入证书校验。</value>
+  </data>
+  <data name="WebDavRedirectDiagnostic" xml:space="preserve">
+    <value>重定向（{0}，{1}跳）：{2} → {3}</value>
+  </data>
+  <data name="WindowBackground" xml:space="preserve">
+    <value>窗口背景</value>
+  </data>
+  <data name="WindowDisplayRequested" xml:space="preserve">
+    <value>已请求显示窗口。</value>
+  </data>
+  <data name="WindowTheme" xml:space="preserve">
+    <value>窗口主题</value>
+  </data>
+  <data name="WriteResultNeedsChecking" xml:space="preserve">
+    <value>写入结果待核对</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="TaskResultSkipped" xml:space="preserve">
+    <value>已跳过</value>
+  </data>
+  <data name="TaskResultSaved" xml:space="preserve">
+    <value>已保存</value>
+  </data>
+  <data name="BackupImportReady" xml:space="preserve">
+    <value>可导入；仅保存，之后手动连接。</value>
+  </data>
+  <data name="RemoveAllTitle" xml:space="preserve">
+    <value>移除当前模式的全部挂载</value>
+  </data>
+  <data name="RemoveAllConfirmation" xml:space="preserve">
+    <value>共 {0} 个挂载（包含未连接和连接失败的配置）。保留缓存只保留完整本地文件，未下载完整的干净占位文件将被移除；不保留文件会清空本地内容，包含本地修改。两种方式都不删除远端，保留根目录。完成后不会自动重置设置或退出。</value>
+  </data>
+  <data name="RemoveAllKeepCached" xml:space="preserve">
+    <value>保留已缓存文件</value>
+  </data>
+  <data name="RemoveAllDiscard" xml:space="preserve">
+    <value>不保留挂载点文件</value>
+  </data>
+  <data name="RemoveAllEmpty" xml:space="preserve">
+    <value>当前模式没有已配置挂载。</value>
+  </data>
+  <data name="RemoveAllBusy" xml:space="preserve">
+    <value>正在批量移除挂载，暂不能新建、导入、重置或开始另一批移除。</value>
+  </data>
+  <data name="RemoveAllSnapshotChanged" xml:space="preserve">
+    <value>挂载配置已变化，请重新查看并确认移除范围。</value>
+  </data>
+  <data name="RemoveAllModeChanged" xml:space="preserve">
+    <value>挂载身份或移除方式已改变，已跳过并保留原任务。</value>
+  </data>
+  <data name="RemoveAllRunning" xml:space="preserve">
+    <value>正在逐个移除挂载；可在任务页查看进度或取消当前任务。离开此页不会停止已接纳的操作。</value>
+  </data>
+  <data name="RemoveAllSummary" xml:space="preserve">
+    <value>挂载移除结束：成功 {0}，失败 {1}，跳过／取消 {2}。详情见任务页；未完成项保留配置与恢复记录。</value>
+  </data>
+  <data name="RemoveCachedOperation" xml:space="preserve">
+    <value>保留缓存并移除</value>
+  </data>
+  <data name="RemoveCachedResume" xml:space="preserve">
+    <value>继续保留已缓存文件并移除：{0}
+{1}
+不会下载未缓存内容；已完成的处理不会回滚。</value>
+  </data>
+  <data name="RemoveCachedUnresolved" xml:space="preserve">
+    <value>存在尚未核对的上传回执、改名或远端应用，请先完成核对。配置、本地文件和恢复证据已保留。</value>
+  </data>
+  <data name="RemoveCachedLinkKept" xml:space="preserve">
+    <value>已保留链接本体，未访问链接目标。</value>
+  </data>
+  <data name="RemoveCachedChildrenFailed" xml:space="preserve">
+    <value>子项处理未完成，保留此目录的占位状态。</value>
+  </data>
+  <data name="RemoveCachedOwnership" xml:space="preserve">
+    <value>占位身份或索引路径不一致，已保留。</value>
+  </data>
+  <data name="RemoveCachedPartialProtected" xml:space="preserve">
+    <value>内容不完整且存在本地修改或未决保护，已保留配置和内容。</value>
+  </data>
+  <data name="RemoveCachedPartialRemoved" xml:space="preserve">
+    <value>已移除干净的不完整占位文件，未读取远端。</value>
+  </data>
+  <data name="RemoveCachedKept" xml:space="preserve">
+    <value>已保留为普通本地文件或目录。</value>
+  </data>
+  <data name="SettingsMountServiceUnavailable" xml:space="preserve">
+    <value>挂载服务尚未就绪。</value>
+  </data>
+</root>

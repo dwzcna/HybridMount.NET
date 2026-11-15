@@ -13,14 +13,14 @@ public sealed partial class TasksPage : Page, IDisposable
 {
     private IDisposable? _localization;
     /// <summary>UI 线程上的任务快照集合。</summary>
-    public TasksViewModel ViewModel { get; }=new(App.Current.TasksQueue,App.Current.UiDispatcher,App.Current.TaskFocus);
+    public TasksViewModel ViewModel { get; }=new(App.Current.TasksQueue,App.Current.UIDispatcher,App.Current.TaskFocus);
     private bool _restoring,_disposed;
     private HeaderLayoutCoordinator? _header;
     private readonly PageScrollBookmark _viewport=new();
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
     public TasksPage()
     {
-        try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.Ui.ObserveLanguage(this,()=>{Bindings.Update();_header?.Invalidate();});NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
+        try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();_header?.Invalidate();});NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}
         _header=new(TaskToolbar,TaskFilters,TaskActions,SetFilterLabels);
         JobList.SelectionChanged+=(_,_)=>{if(!_restoring&&JobList.SelectedItem is TaskListItem job)ViewModel.SelectedJobId=job.Id;};
         ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.PropertyChanged+=ToolbarStateChanged;Loaded+=PageLoaded;
@@ -65,7 +65,7 @@ public sealed partial class TasksPage : Page, IDisposable
     private async void ResolveConflict(object sender,RoutedEventArgs args)
     {
         var owned=false;
-        try{owned=await ViewModel.BeginConflictAsync();if(!owned)return;await global::HybridMount.Helpers.UI.Ui.ShowAsync(new ConflictResolutionContentDialog(ViewModel){XamlRoot=XamlRoot});}
+        try{owned=await ViewModel.BeginConflictAsync();if(!owned)return;await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(new ConflictResolutionContentDialog(ViewModel){XamlRoot=XamlRoot});}
         catch(Exception error){if(!_disposed)ViewModel.ReportError(error.Message);}
         finally{if(owned)ViewModel.EndDialog();}
     }
@@ -77,11 +77,11 @@ public sealed partial class TasksPage : Page, IDisposable
         if(!ViewModel.BeginCopy())return;
         try
         {
-            var field=global::HybridMount.Helpers.UI.Ui.Configure(new TextBox{Text=ViewModel.CopyPath},("Header",global::HybridMount.Services.Localization.UiText.Message("Text_E01311A466BF")));
+            var field=global::HybridMount.Helpers.UI.UserInterface.Configure(new TextBox{Text=ViewModel.CopyPath},("Header",global::HybridMount.Services.Localization.ResourceMessage.Create("RelativePathForTheNewRemoteFile")));
             field.TextChanged+=(_,_)=>ViewModel.CopyPath=field.Text;
             var content=new StackPanel{Spacing=12};content.Children.Add(new TextBlock{Text=ViewModel.CopyContentNotice,TextWrapping=TextWrapping.Wrap});content.Children.Add(field);
-            var dialog=global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=content,DefaultButton=ContentDialogButton.Close},("Title",global::HybridMount.Services.Localization.UiText.Message("Text_9867EF04D433")),("PrimaryButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_F66DF4636FF4")),("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_2CD0F3BE8738")));
-            if(await global::HybridMount.Helpers.UI.Ui.ShowAsync(dialog)!=ContentDialogResult.Primary)return;
+            var dialog=global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=content,DefaultButton=ContentDialogButton.Close},("Title",global::HybridMount.Services.Localization.ResourceMessage.Create("SaveARemoteCopy")),("PrimaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("UploadCopy")),("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Cancel")));
+            if(await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(dialog)!=ContentDialogResult.Primary)return;
             await ViewModel.SubmitCopyAsync();RestoreSelection();
         }
         catch(Exception error){ViewModel.ReportError(error.Message);}
@@ -98,9 +98,9 @@ public sealed partial class TasksPage : Page, IDisposable
         {
             var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,SelectionMode=ListViewSelectionMode.None};
             var details=new StackPanel{Spacing=12};
-            details.Children.Add(global::HybridMount.Helpers.UI.Ui.Bind(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.IssueDetails+(job.WorkflowDetails.Length==0?"":"\n"+job.WorkflowDetails))));
+            details.Children.Add(global::HybridMount.Helpers.UI.UserInterface.Bind(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.IssueDetails+(job.WorkflowDetails.Length==0?"":"\n"+job.WorkflowDetails))));
             if(!ViewModel.IssuesOnly&&!ViewModel.ConflictsOnly)details.Children.Add(list);
-            await global::HybridMount.Helpers.UI.Ui.ShowAsync(global::HybridMount.Helpers.UI.Ui.Bind(global::HybridMount.Helpers.UI.Ui.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=460,Content=details}},("CloseButtonText",global::HybridMount.Services.Localization.UiText.Message("Text_3FD47EDCE45B"))),"Title",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation+"："+job.DisplayState)));
+            await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(global::HybridMount.Helpers.UI.UserInterface.Bind(global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=460,Content=details}},("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close"))),"Title",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation+"："+job.DisplayState)));
         }
         catch(Exception error) { ViewModel.ReportError(error.Message); }
         finally { ViewModel.EndDialog(); }

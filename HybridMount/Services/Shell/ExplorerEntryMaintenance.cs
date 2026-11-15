@@ -44,7 +44,7 @@ internal sealed class ExplorerEntryMaintenance : IAsyncDisposable
         CancellationToken token, Action<int,int,string> progress) => RunAsync<IReadOnlyList<ExplorerEntryResult>>(cancel =>
     {
         var captured=entries.DistinctBy(x=>x.Key).ToArray();
-        if(captured.Length==0||captured.Any(x=>!x.CanRemove))throw new IOException(global::HybridMount.Services.Localization.UiText.Text("ExplorerRecoveryError50"));
+        if(captured.Length==0||captured.Any(x=>!x.CanRemove))throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError50", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
         var results=new List<ExplorerEntryResult>();var refresh=false;
         try
         {
@@ -53,7 +53,7 @@ internal sealed class ExplorerEntryMaintenance : IAsyncDisposable
                 var entry=captured[index];
                 if(cancel.IsCancellationRequested){results.Add(new(entry,false,"NotStarted"));continue;}
                 try{progress(index+1,captured.Length,entry.Name);results.Add(Recovery(_=>refresh=true).Remove(entry,cancel));}
-                catch(OperationCanceledException)when(cancel.IsCancellationRequested){results.Add(new(entry,false,"Canceled",global::HybridMount.Services.Localization.UiText.Legacy("已取消")));}
+                catch(OperationCanceledException)when(cancel.IsCancellationRequested){results.Add(new(entry,false,"Canceled",("已取消" ?? "")));}
                 catch(Exception error){results.Add(new(entry,false,"Failed",error.Message,OrphanedMountBatch.Code(error)));}
             }
             return results;

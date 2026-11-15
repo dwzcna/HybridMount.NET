@@ -116,7 +116,7 @@ public sealed class ConflictCopySnapshotTests
         }
         throw new TimeoutException(System.Text.Json.JsonSerializer.Serialize(item));
     }
-    private sealed class Dispatcher:IUiDispatcher {public bool TryEnqueue(Action action)=>true;}
+    private sealed class Dispatcher:IUIDispatcher {public bool TryEnqueue(Action action)=>true;}
     private sealed class Definitions:IMountDefinitionStore
     {
         internal readonly List<MountDefinition> Items=[];

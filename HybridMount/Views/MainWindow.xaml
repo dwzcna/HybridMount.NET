@@ -20,31 +20,31 @@
                 <BitmapIconSource UriSource="ms-appx:///Assets/HybridMount.png" ShowAsMonochrome="False"/>
             </TitleBar.IconSource>
         </TitleBar>
-        <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" x:Uid="/Strings/MainWindowNavigation" loc:Ui.ResourceId="/Strings/MainWindowNavigation">
+        <NavigationView x:Name="Navigation" Grid.Row="1" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False" x:Uid="/Strings/MainWindowNavigation" loc:UserInterface.ResourceId="/Strings/MainWindowNavigation">
             <NavigationView.MenuItems>
-                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Home}" x:Uid="/Strings/MainWindowNavigationViewItemHome" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemHome">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Home}" x:Uid="/Strings/MainWindowNavigationViewItemHome" loc:UserInterface.ResourceId="/Strings/MainWindowNavigationViewItemHome">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Home" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Mounts}" x:Uid="/Strings/MainWindowNavigationViewItemMount" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemMount">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Mounts}" x:Uid="/Strings/MainWindowNavigationViewItemMount" loc:UserInterface.ResourceId="/Strings/MainWindowNavigationViewItemMount">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="MapDrive" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Tasks}" x:Uid="/Strings/MainWindowNavigationViewItemTasks" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemTasks">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Tasks}" x:Uid="/Strings/MainWindowNavigationViewItemTasks" loc:UserInterface.ResourceId="/Strings/MainWindowNavigationViewItemTasks">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7C4;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Logs}" x:Uid="/Strings/MainWindowNavigationViewItemLogs" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemLogs">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Logs}" x:Uid="/Strings/MainWindowNavigationViewItemLogs" loc:UserInterface.ResourceId="/Strings/MainWindowNavigationViewItemLogs">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xF120;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Settings}" x:Uid="/Strings/MainWindowNavigationViewItemSettings" loc:Ui.ResourceId="/Strings/MainWindowNavigationViewItemSettings">
+                <NavigationViewItem Tag="{x:Bind models:ApplicationPage.Settings}" x:Uid="/Strings/MainWindowNavigationViewItemSettings" loc:UserInterface.ResourceId="/Strings/MainWindowNavigationViewItemSettings">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Setting" />
                     </NavigationViewItem.Icon>
