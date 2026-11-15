@@ -56,7 +56,9 @@ public partial class App:Application
                     language=>global::Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride=language,
                     selection=>_languageBridge?.Publish(selection)));
         }
-        Languages=languages;_languageScope=Services.Localization.UILanguageService.Use(languages);try{InitializeComponent();}catch{_languageScope.Dispose();_languageBridge?.Dispose();throw;}
+        Languages=languages;_languageScope=Services.Localization.UILanguageService.Use(languages);
+        // 先于生成代码的Debugger.Break记录异常，保留原调试中断和异常处理语义。
+        UnhandledException+=OnUIUnhandled;try{InitializeComponent();}catch{_languageScope.Dispose();_languageBridge?.Dispose();throw;}
     }
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
@@ -74,7 +76,7 @@ public partial class App:Application
                 _legacyInstance.Dispose();_instance.Dispose();_legacyInstance=null;_instance=null;Exit();return;
             }
             _lifecycle=new LifecycleDiagnostics(ApplicationPaths.LogsDirectory,Version,WinRegisterService.IsPackaged()?"Packaged":"Unpackaged");
-            UnhandledException+=OnUIUnhandled;AppDomain.CurrentDomain.UnhandledException+=OnDomainUnhandled;TaskScheduler.UnobservedTaskException+=OnTaskUnobserved;
+            AppDomain.CurrentDomain.UnhandledException+=OnDomainUnhandled;TaskScheduler.UnobservedTaskException+=OnTaskUnobserved;
             Logger=await Task.Run(()=>new LoggerService());
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
             Appearance=new AppearanceSettingsService();if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
@@ -111,6 +113,8 @@ public partial class App:Application
         var reason=phase.StartsWith("ConnectionCanceled.",StringComparison.Ordinal)?phase["ConnectionCanceled.".Length..]:_exiting?"Shutdown":null;
         _lifecycle?.Record("Mounts."+phase,error,cancellationReason:reason);
     }
+    /// <summary>UI密度的固定阶段诊断，不保存输入或认证材料。</summary>
+    internal void RecordDensityStage(string stage)=>_lifecycle?.Record(stage);
     /// <summary>只记录未处理异常的安全堆栈，不将其标记为已处理。</summary>
     private void OnUIUnhandled(object sender,Microsoft.UI.Xaml.UnhandledExceptionEventArgs args){_lifecycle?.Record("UIUnhandled",args.Exception,true);Services.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Error","UI未处理异常",args.Exception);}
     private void OnDomainUnhandled(object sender,System.UnhandledExceptionEventArgs args){_lifecycle?.Record(args.IsTerminating?"DomainTerminating":"DomainUnhandled",args.ExceptionObject as Exception,args.IsTerminating);if(args.ExceptionObject is Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("应用异常","Error","域未处理异常",error);}}

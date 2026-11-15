@@ -43,7 +43,7 @@ public sealed partial class MainWindow : Window
                 DispatcherQueue.TryEnqueue(()=>{if(ViewModel.CurrentPage is {} current)SynchronizeSelection(current);});
         };
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
-        _densityResources=new(RootGrid,()=>App.Current.Preferences.CompactLayout,error=>{App.Current.Logger.QueueException("外观","Error","密度资源更新失败",error);ViewModel.ShowNotification("外观",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("DensityApplyFailed",global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);});
+        _densityResources=new(RootGrid,()=>App.Current.Preferences.CompactLayout,error=>{App.Current.Logger.QueueException("外观","Error","密度资源更新失败",error);ViewModel.ShowNotification("外观",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("DensityApplyFailed",global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);}){Stage=App.Current.RecordDensityStage};
         App.Current.Preferences.LayoutChanged+=ApplyDensity;ObserveThemeSettings();ApplyDensity();
         ApplyAppearance();
         if(!App.Current.RuntimeAvailable)

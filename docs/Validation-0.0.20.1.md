@@ -32,3 +32,11 @@
 最终源码交付重新执行：`release-density-final-build-tests-package.log`为147/147及x64签名包；`arm64-density-final-package.log`、`arm64-density-final-tests-build.log`为ARM64签名包／检查及测试交叉编译0警告0错误。此前相同名称以外的构建不代替此次结果。
 
 Computer Use的Node helper两次启动失败（helper_unknown_error），没有真实鼠标输入；实际WinUI／MSIX测试由自有隔离程序设置选择索引、等待关闭及动画后测量。标准尺寸恢复已有可重复证据，但现场参数异常缺少原始原生栈，未声称已确定所有触发位置；生产调试及真实鼠标／辅助功能、高对比度、跨屏DPI仍须复验。
+
+## 紧凑切回标准仍中断后的追加修订
+
+用户在首个.20.1提交后报告调试时回切仍中断。没有修改生成代码或关闭Debugger.Break。标准回切不再Clear／Remove资源：在首次挂接前读取全部16个SDK标准尺寸，核对标准／紧凑值类型，保持应用拥有的同一字典及所有键，逐项写回标准值。窗口释放只取消调度，应用资源随Application寿命保留，新窗口复用，不留窗口引用。异常订阅移到App.InitializeComponent之前，在生成断点前记录类型／HRESULT／堆栈，并记录Density.Compact／Standard.Begin／End固定阶段；不改Handled。
+
+追加最终实测：`density-stable-package-debug.json`、`density-stable-package-release.json`均为真实独立MSIX各65组；`density-stable-standard-start-debug.json`为标准冷启动对照65组，Failures均为空，包含严格的Padding、MinHeight往返及草稿保持。全部随机包已按精确身份卸载，未操作生产包。`release-stable-final-build-tests-package.log`为150/150、0失败0跳过及x64签名包；`arm64-stable-final-package.log`和`arm64-stable-final-tests-build.log`为ARM64包／交叉编译0警告0错误。
+
+`interactive-standard-resources.json.resources.json`留存SDK标准值与类型基线，证明16项均可正确读取，两个TreeView键标准为Thickness、紧凑原值却为Double(0)。没有把资源键移除认定为现场异常的唯一根因；隔离测试没有附加Visual Studio调试器，真实鼠标工具亦不可用，用户现场调试回切仍须复验。新增诊断可在再次中断时直接取得先前来不及写出的证据。追加补丁`0.0.20.1-density-followup.patch`独立保留，不改写首个提交历史。
