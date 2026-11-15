@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Diagnostics;
+﻿namespace HybridMount.Models.Diagnostics;
 
 /// <summary>将本地日历日转换为UTC半开区间，分别解析两端，支持夏令时的23／25小时日期。</summary>
 internal static class LocalCalendarDay

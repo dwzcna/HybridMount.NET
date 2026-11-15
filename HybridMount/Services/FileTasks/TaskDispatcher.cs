@@ -1,8 +1,14 @@
+﻿using HybridMount.Commons.Diagnostics;
+using HybridMount.Commons.Persistence;
+using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Models.Runtime;
 using System.Threading.Channels;
 namespace HybridMount.Services.FileTasks;
 
 /// <summary>.NET文件任务唯一执行入口；持久化意图、分发适配器、步骤核验及原生结果回应互相分离。</summary>
-internal sealed class TaskDispatcher(MountRepository repository,LoggerService logger):IAsyncDisposable
+internal sealed class TaskDispatcher(IMountRepository repository,ILogWriter logger):IAsyncDisposable
 {
     /// <summary>所有挂载共用待接纳内存上限，防止断库时重发复制为每挂载4096项。</summary>
     internal sealed class InboxBudget
@@ -58,7 +64,7 @@ internal sealed class TaskDispatcher(MountRepository repository,LoggerService lo
     /// <summary>每挂载独立接纳、路由与结果发送；传输线程仅投递内存，慢处理不会阻塞其他挂载。</summary>
     internal sealed class RootLease:IAsyncDisposable
     {
-        private readonly MountRepository _repository;private readonly LoggerService _logger;private readonly Guid _mount;private readonly string _session;
+        private readonly IMountRepository _repository;private readonly ILogWriter _logger;private readonly Guid _mount;private readonly string _session;
         private readonly NativeRuntimeClient _runtime;private readonly Func<NativeTaskIntent,CancellationToken,Task<IReadOnlyCollection<string>?>> _route;private readonly Func<Task<long>>? _captureStop;private readonly Action<NativeTaskIntent>? _accepted;private readonly InboxBudget _budget;
         private readonly Func<IReadOnlyList<NativeTaskIntent>,CancellationToken,Task<IReadOnlyDictionary<string,IReadOnlyCollection<string>>?>>? _routeBatch;
         private readonly Channel<object> _inbox=Channel.CreateBounded<object>(new BoundedChannelOptions(4096){SingleReader=true,FullMode=BoundedChannelFullMode.Wait});
@@ -66,7 +72,7 @@ internal sealed class TaskDispatcher(MountRepository repository,LoggerService lo
         private readonly Channel<bool> _routeWake=Channel.CreateBounded<bool>(new BoundedChannelOptions(1){FullMode=BoundedChannelFullMode.DropOldest});
         private readonly Channel<bool> _resultWake=Channel.CreateBounded<bool>(new BoundedChannelOptions(1){FullMode=BoundedChannelFullMode.DropOldest});
         private readonly Task _accepting,_routing,_results;private readonly object _postGate=new(),_stopGate=new();private long _bytes;private volatile bool _paused;private int _needsRescan;private Task? _stopCapture,_dispose;
-        internal RootLease(MountRepository repository,LoggerService logger,Guid mount,string session,NativeRuntimeClient runtime,Func<NativeTaskIntent,CancellationToken,Task<IReadOnlyCollection<string>?>> route,Func<Task<long>>? stopCapture,Action<NativeTaskIntent>? accepted,Func<IReadOnlyList<NativeTaskIntent>,CancellationToken,Task<IReadOnlyDictionary<string,IReadOnlyCollection<string>>?>>? routeBatch,InboxBudget budget)
+        internal RootLease(IMountRepository repository,ILogWriter logger,Guid mount,string session,NativeRuntimeClient runtime,Func<NativeTaskIntent,CancellationToken,Task<IReadOnlyCollection<string>?>> route,Func<Task<long>>? stopCapture,Action<NativeTaskIntent>? accepted,Func<IReadOnlyList<NativeTaskIntent>,CancellationToken,Task<IReadOnlyDictionary<string,IReadOnlyCollection<string>>?>>? routeBatch,InboxBudget budget)
         {
             _repository=repository;_logger=logger;_mount=mount;_session=session;_runtime=runtime;_route=route;_captureStop=stopCapture;_accepted=accepted;_routeBatch=routeBatch;_budget=budget;
             _sink=runtime.RegisterTaskSink(mount,session,Post,id=>Post(id));

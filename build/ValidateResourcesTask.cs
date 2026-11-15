@@ -101,9 +101,9 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
                 if (keys.Length == 0)
                 {
                     var name = Path.GetFileName(file);
-                    var carrier = name == "ResourceMessage.cs" && argument.Trim() == "Key";
+                    var carrier = name == "MessageRenderer.cs" && argument.Trim() == "key";
                     var mapped = name == "ProtocolCapabilitiesView.cs" && Regex.IsMatch(argument.Trim(), @"\A(?:item\.DescriptionKey|StatusKey\(.+\)|ReasonKey\(.+\)|TransportKey\(.+\)|ProbeStageKey\(.+\))\z");
-                    var operationStage = name == "OperationDetails.cs" && argument.Trim() == "Name";
+                    var operationStage = (name == "OperationDetails.cs" || name == "OperationStepSnapshotPresentationView.cs") && argument.Trim() == "Name";
                     var resourceTest = name == "LocalizationTests.cs" && argument.Trim() == "key";
                     var catalogTest = name == "ProtocolCapabilityTests.cs" && argument.Trim() == "row.DescriptionKey";
                     if (!carrier && !mapped && !operationStage && !resourceTest && !catalogTest) throw new InvalidDataException("Unmapped dynamic resource key: " + file + "/" + argument);
@@ -201,7 +201,7 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
     /// <summary>核对UID登记、控件字符串属性、编辑草稿保护及清单资源引用；不加载WinUI或访问包身份。</summary>
     private static void ValidateXamlAndManifest(string root, Dictionary<string, string> values)
     {
-        const string x = "http://schemas.microsoft.com/winfx/2006/xaml", ui = "using:HybridMount.Helpers.UI";
+        const string x = "http://schemas.microsoft.com/winfx/2006/xaml", ui = "using:HybridMount.UI";
         var properties = new Dictionary<string, string>(StringComparer.Ordinal) {
             {"TextBlock", "Text"}, {"Run", "Text"}, {"MenuFlyoutItem", "Text"},
             {"AppBarButton", "Label"}, {"AppBarToggleButton", "Label"},

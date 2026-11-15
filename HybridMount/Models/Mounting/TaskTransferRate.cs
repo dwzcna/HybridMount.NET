@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 namespace HybridMount.Models.Mounting;
 
 /// <summary>任务显示严重程度；普通任务绿色，问题红色，冲突黄色。</summary>

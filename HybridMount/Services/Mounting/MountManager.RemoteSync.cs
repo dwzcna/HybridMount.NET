@@ -1,7 +1,13 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-using HybridMount.Commons;
+﻿using HybridMount.Commons.Protocols;
+using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files.Content;
+using HybridMount.Infrastructure.Windows.CloudFiles;
 using HybridMount.Models.Mounting;
+using HybridMount.Services.Scheduling;
+using HybridMount.Services.Sync;
+using System.Security.Cryptography;
+using System.Text;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -132,7 +138,7 @@ public sealed partial class MountManager
                     BeginTrace(runtime.Engine.Detection.Id,"remoteBatch",runtime.ConnectionIdentity);Stage(runtime.Engine.Detection.Id,"OperationStageReadChanges");
                     runtime.Discovered=runtime.Created=runtime.Published=runtime.LastPublicationProgress=0;
                     runtime.ProgressTaskId=TasksQueueService.CurrentTask?.Id;
-                    if(runtime.ProgressTaskId is {} progressId)_taskProgress[progressId]=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskRemoteScanProgress", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, 0);
+                    if(runtime.ProgressTaskId is {} progressId)_taskProgress[progressId]=HybridMount.Models.Localization.ResourceMessage.Create("TaskRemoteScanProgress", 0).Render();
                     await runtime.Engine.ObserveEventHintsAsync(token).ConfigureAwait(false);
                     try{await runtime.Engine.PollAsync(full,TimeSpan.FromSeconds(root.Definition.RemoteFullSeconds),token).ConfigureAwait(false);}
                     finally

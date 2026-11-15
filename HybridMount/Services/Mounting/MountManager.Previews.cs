@@ -1,3 +1,10 @@
+﻿using HybridMount.Helpers.Paths;
+using HybridMount.Commons.Protocols;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files.Content;
+using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Thumbnails;
+using HybridMount.Infrastructure.Windows.CloudFiles;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
@@ -130,7 +137,7 @@ public sealed partial class MountManager
 #else
         allowRemote = allowRemote && RemoteThumbnailsAllowed;
 #endif
-        NativeLocalReadLease? local=null;PreviewDecodeLease? decode=null;LocalFileStamp? stamp=null;Commons.IFileSource? source=null;CloudMountSession? session=null;long length=0;var nativeLocal=false;
+        NativeLocalReadLease? local=null;PreviewDecodeLease? decode=null;LocalFileStamp? stamp=null;HybridMount.Commons.Protocols.IFileSource? source=null;CloudMountSession? session=null;long length=0;var nativeLocal=false;
         var path=RelativePaths.ToLocal(mount.LocalPath,entry.LocalPath);
 #if HYBRIDMOUNT_HEADLESS_TEST
         // 旧预算专项显式保留原经纪路径；生产和新的本地原生集成回归使用单一Stock生成者。

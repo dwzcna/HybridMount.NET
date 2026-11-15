@@ -1,4 +1,15 @@
-﻿namespace HybridMount.Services.Mounting;
+﻿using HybridMount.Models.Mounting.Renames;
+using HybridMount.Helpers.Paths;
+using HybridMount.Models.Mounting.Tasks;
+using HybridMount.Commons.Protocols;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Infrastructure.Windows.CloudFiles;
+using HybridMount.Models.Mounting;
+using HybridMount.Models.Runtime;
+using HybridMount.Services.Sync;
+namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
@@ -72,7 +83,7 @@ public sealed partial class MountManager
             (byPath.TryGetValue(intent.Path,out var tasks)?tasks:[]).Concat(intent.OldPath is {} old&&byPath.TryGetValue(old,out var previous)?previous:[]).ToHashSet(StringComparer.Ordinal)).ToArray(),StringComparer.Ordinal);
     }
     /// <summary>详情按需读取步骤及依赖，列表快照不增加逐行查询，公共IPC不包含此字段。</summary>
-    internal string FileWorkflowDetails(string id)=>string.Join("\n",_repository.TaskSteps(id).Select(step=>string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskWorkflowStep", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, step.Ordinal+1, step.Name, step.State, step.DependsOn??"—", step.AttemptId??"—")));
+    internal string FileWorkflowDetails(string id)=>string.Join("\n",_repository.TaskSteps(id).Select(step=>HybridMount.Models.Localization.ResourceMessage.Create("TaskWorkflowStep", step.Ordinal+1, step.Name, step.State, step.DependsOn??"—", step.AttemptId??"—").Render()));
     /// <summary>FETCH按独立回调身份执行，只有实际传输与原生结束成功才核验；不重放退出前的读取。</summary>
     private async Task DispatchNativeReadAsync(Runtime root,CloudMountSession session,string id,string entryId,Func<CancellationToken,Task<NativeReadOutcome>> execute,CancellationToken token)
     {

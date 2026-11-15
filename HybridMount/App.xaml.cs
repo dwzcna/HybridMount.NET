@@ -1,6 +1,28 @@
+﻿using HybridMount.UI.Windows;
+using HybridMount.Commons.Settings;
+using HybridMount.Commons.UI;
+using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Infrastructure.IPC;
+using HybridMount.Infrastructure.Localization;
+using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Infrastructure.Settings;
+using HybridMount.Infrastructure.Shell;
+using HybridMount.Infrastructure.Windows;
+using HybridMount.Infrastructure.Windows.CloudFiles;
+using HybridMount.Models;
+using HybridMount.Models.Diagnostics;
+using HybridMount.Models.Recovery;
+using HybridMount.Models.Settings;
+using HybridMount.Services.Lifecycle;
 using HybridMount.Services.Mounting;
-using HybridMount.ViewModels;
-using HybridMount.Views;
+using HybridMount.Services.Navigation;
+using HybridMount.Services.Notifications;
+using HybridMount.Services.Scheduling;
+using HybridMount.Services.Settings;
+using HybridMount.UI.Dispatch;
+using HybridMount.UI.Localization;
+using HybridMount.Views.Windows;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -24,7 +46,7 @@ public partial class App:Application
     public bool IsExiting=>_exiting;
     private LifecycleDiagnostics? _lifecycle;
     public new static App Current=>(App)Application.Current;
-    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("UnknownVersion", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+    public static string Version=>System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion.Split('+')[0]??typeof(App).Assembly.GetName().Version?.ToString()??global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("UnknownVersion", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
     public NavigationService Navigation{get;}=new();
     public MainWindow? MainWindow{get;private set;}
     public LoggerService Logger{get;private set;}=null!;
@@ -39,24 +61,25 @@ public partial class App:Application
     public MountManager Mounts{get;private set;}=null!;
     internal MountIndexFormat IndexFormat {get;private set;}=new("New");
     internal bool RuntimeAvailable=>Mounts is not null;
-    internal string IndexRestrictionMessage=>global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(IndexFormat.State switch
-    {"Old"=>"IndexOldResetRequired","Newer"=>"IndexNewerVersion","Corrupt"=>"IndexCorrupt","AccessDenied"=>"IndexAccessDenied",_=>"IndexReadFailed"}, global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-    public Services.Localization.UILanguageService Languages{get;private set;}=null!;
-    private IDisposable? _languageScope;private Services.Localization.NativeUILanguageBridge? _languageBridge;
+    internal string IndexRestrictionMessage=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(IndexFormat.State switch
+    {"Old"=>"IndexOldResetRequired","Newer"=>"IndexNewerVersion","Corrupt"=>"IndexCorrupt","AccessDenied"=>"IndexAccessDenied",_=>"IndexReadFailed"}, global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+    public HybridMount.UI.Localization.UILanguageService Languages{get;private set;}=null!;
+    private IDisposable? _languageScope;private HybridMount.Infrastructure.Localization.NativeUILanguageBridge? _languageBridge;
     public App():this(null){}
-    protected internal App(Services.Localization.UILanguageService? languages)
+    protected internal App(HybridMount.UI.Localization.UILanguageService? languages)
     {
         if(languages is null)
         {
             try{_languageBridge=new();}catch(Exception error){System.Diagnostics.Trace.TraceWarning("Language bridge initialization: 0x{0:X8}",error.HResult);}
             var queue=DispatcherQueue.GetForCurrentThread();
-            languages=new(new Services.Localization.RegistryUILanguageStore(ApplicationPaths.RegistryPath),new Services.Localization.MrtXamlPropertyProvider(),
+            languages=new(new HybridMount.Infrastructure.Localization.RegistryUILanguageStore(ApplicationPaths.RegistryPath),new HybridMount.UI.Localization.MrtXamlPropertyProvider(),
+                windows:WindowsPreferredLanguages.Read,
                 dispatch:action=>{if(queue is null||queue.HasThreadAccess)action();else queue.TryEnqueue(()=>action());},
-                publish:value=>Services.Localization.UILanguagePublication.Publish(value,WinRegisterService.IsPackaged,
+                publish:value=>HybridMount.UI.Localization.UILanguagePublication.Publish(value,WinRegisterService.IsPackaged,
                     language=>global::Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride=language,
                     selection=>_languageBridge?.Publish(selection)));
         }
-        Languages=languages;_languageScope=Services.Localization.UILanguageService.Use(languages);
+        Languages=languages;_languageScope=HybridMount.UI.Localization.UILanguageService.Use(languages);
         // 先于生成代码的Debugger.Break记录异常，保留原调试中断和异常处理语义。
         UnhandledException+=OnUIUnhandled;try{InitializeComponent();}catch{_languageScope.Dispose();_languageBridge?.Dispose();throw;}
     }
@@ -72,16 +95,16 @@ public partial class App:Application
             {
                 var request=new IpcRequest(2,Guid.NewGuid().ToString(),silent?"ping":"showWindow",[]);
                 try{await IpcClient.SendAsync(request);}
-                catch{try{await IpcClient.SendAsync(request with{Version=1},IpcProtocol.LegacyPipeName);}catch(Exception error){if(!silent)MessageBox(0,string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheExistingInstanceDidNotRespondExitItAndTryAgain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, error.Message),"HybridMount.NET",0x10);}}
+                catch{try{await IpcClient.SendAsync(request with{Version=1},IpcProtocol.LegacyPipeName);}catch(Exception error){if(!silent)MessageBox(0,string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheExistingInstanceDidNotRespondExitItAndTryAgain", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, error.Message),"HybridMount.NET",0x10);}}
                 _legacyInstance.Dispose();_instance.Dispose();_legacyInstance=null;_instance=null;Exit();return;
             }
             _lifecycle=new LifecycleDiagnostics(ApplicationPaths.LogsDirectory,Version,WinRegisterService.IsPackaged()?"Packaged":"Unpackaged");
             AppDomain.CurrentDomain.UnhandledException+=OnDomainUnhandled;TaskScheduler.UnobservedTaskException+=OnTaskUnobserved;
-            Logger=await Task.Run(()=>new LoggerService());
+            Logger=await Task.Run(()=>new LoggerService(action => { if (_dispatcher.HasThreadAccess) action(); else _dispatcher.TryEnqueue(() => action()); }));
             if(_lifecycle.PreviousSessionIncomplete)Logger.Queue("生命周期","Warning","上次会话缺少退出完成记录，原因待定位；请查看 Logs 中的 lifecycle 诊断。该记录不单独证明发生崩溃。");
-            Appearance=new AppearanceSettingsService();if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
-            Preferences=new ApplicationPreferencesService(Logger);Startup=new StartupService(Logger);
-            CloudOperations=await Task.Run(()=>new CloudOperationSettings(Logger));
+            Appearance=new AppearanceSettingsService(new RegistryAppearancePreferenceStore());if(Appearance.ErrorStatus is not null)Logger.Queue("外观","Warning","外观偏好读取失败，已采用安全回退设置。");
+            Preferences=new ApplicationPreferencesService(new RegistryApplicationPreferenceStore(), Logger);Startup=new StartupService(Logger);
+            CloudOperations=await Task.Run(()=>new CloudOperationSettings(new RegistryApplicationPreferenceStore(), Logger));
             // 只读格式预检先于仓库和全部挂载业务服务；不迁移旧索引或因关闭提示解除限制。
             IndexFormat=await Task.Run(()=>MountIndexFormat.Inspect(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")));
             if(IndexFormat.CanStart)
@@ -106,7 +129,7 @@ public partial class App:Application
             if(!silent||_tray?.IsRegistered!=true||!RuntimeAvailable)RestoreWindow();
             _lifecycle.Record("Ready");
         }
-        catch(Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("HybridMountNETFailedToStartSeeTheLifecycleStartupDiagnosticsInLogs", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error), error.Message),"HybridMount.NET",0x10);await ExitAsync();}
+        catch(Exception error){HybridMount.Infrastructure.Diagnostics.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("启动","Error","应用启动失败",error);_lifecycle?.Record("StartupFailed",error,true);MessageBox(0,string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("HybridMountNETFailedToStartSeeTheLifecycleStartupDiagnosticsInLogs", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error), error.Message),"HybridMount.NET",0x10);await ExitAsync();}
     }
     private void RecordMountStop(string phase,Exception? error)
     {
@@ -116,25 +139,25 @@ public partial class App:Application
     /// <summary>UI密度的固定阶段诊断，不保存输入或认证材料。</summary>
     internal void RecordDensityStage(string stage)=>_lifecycle?.Record(stage);
     /// <summary>只记录未处理异常的安全堆栈，不将其标记为已处理。</summary>
-    private void OnUIUnhandled(object sender,Microsoft.UI.Xaml.UnhandledExceptionEventArgs args){_lifecycle?.Record("UIUnhandled",args.Exception,true);Services.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Error","UI未处理异常",args.Exception);}
-    private void OnDomainUnhandled(object sender,System.UnhandledExceptionEventArgs args){_lifecycle?.Record(args.IsTerminating?"DomainTerminating":"DomainUnhandled",args.ExceptionObject as Exception,args.IsTerminating);if(args.ExceptionObject is Exception error){Services.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("应用异常","Error","域未处理异常",error);}}
-    private void OnTaskUnobserved(object? sender,UnobservedTaskExceptionEventArgs args){_lifecycle?.Record("TaskUnobserved",args.Exception);Services.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Warning","未观察任务异常",args.Exception);}
+    private void OnUIUnhandled(object sender,Microsoft.UI.Xaml.UnhandledExceptionEventArgs args){_lifecycle?.Record("UIUnhandled",args.Exception,true);HybridMount.Infrastructure.Diagnostics.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Error","UI未处理异常",args.Exception);}
+    private void OnDomainUnhandled(object sender,System.UnhandledExceptionEventArgs args){_lifecycle?.Record(args.IsTerminating?"DomainTerminating":"DomainUnhandled",args.ExceptionObject as Exception,args.IsTerminating);if(args.ExceptionObject is Exception error){HybridMount.Infrastructure.Diagnostics.HostDiagnosticStore.Record("Startup",error);Logger?.QueueException("应用异常","Error","域未处理异常",error);}}
+    private void OnTaskUnobserved(object? sender,UnobservedTaskExceptionEventArgs args){_lifecycle?.Record("TaskUnobserved",args.Exception);HybridMount.Infrastructure.Diagnostics.HostDiagnosticStore.Record("Startup",args.Exception);Logger?.QueueException("应用异常","Warning","未观察任务异常",args.Exception);}
     private IpcResponse HandleRequest(IpcRequest request,bool legacy)
     {
         var version=legacy?1:2;
-        if(_exiting)return new(version,request.RequestId??"","stopping",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheApplicationIsExitingAndNoLongerAcceptsNewTasks", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-        if((legacy&&request.Version!=1)||!IpcProtocol.IsValid(request with{Version=legacy?2:request.Version}))return new(version,request.RequestId??"","invalidRequest",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("InvalidRequest", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-        if(request.Operation=="ping")return new(version,request.RequestId,"ready",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("HybridMountNETIsAlreadyRunning", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-        if(request.Operation=="showWindow") {_dispatcher?.TryEnqueue(RestoreWindow);return new(version,request.RequestId,"accepted",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WindowDisplayRequested", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);}
+        if(_exiting)return new(version,request.RequestId??"","stopping",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheApplicationIsExitingAndNoLongerAcceptsNewTasks", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        if((legacy&&request.Version!=1)||!IpcProtocol.IsValid(request with{Version=legacy?2:request.Version}))return new(version,request.RequestId??"","invalidRequest",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("InvalidRequest", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        if(request.Operation=="ping")return new(version,request.RequestId,"ready",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("HybridMountNETIsAlreadyRunning", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        if(request.Operation=="showWindow") {_dispatcher?.TryEnqueue(RestoreWindow);return new(version,request.RequestId,"accepted",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("WindowDisplayRequested", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);}
         if(!RuntimeAvailable)return new(version,request.RequestId,"rejected",IndexRestrictionMessage);
-        if(legacy)return new(1,request.RequestId,"notImplemented",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheOldMenuDidNotPerformAnyFileOperationUpdateTheExtension", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if(legacy)return new(1,request.RequestId,"notImplemented",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheOldMenuDidNotPerformAnyFileOperationUpdateTheExtension", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
         try
         {
             if(request.Operation=="showSyncIssues")
             {
                 var focus=Mounts.LocateUploadIssues(request.Paths);
                 var queued=_dispatcher?.TryEnqueue(()=>{if(_exiting)return;RestoreWindow();TaskFocus.ShowIssues(focus.MountId,focus.Paths);})==true;
-                return new(2,request.RequestId,queued?"accepted":"stopping",queued?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheSyncIssueHasBeenLocated", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheApplicationIsExiting", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                return new(2,request.RequestId,queued?"accepted":"stopping",queued?global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheSyncIssueHasBeenLocated", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TheApplicationIsExiting", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
             }
             if(request.Operation=="getPreview")
             {
@@ -147,11 +170,11 @@ public partial class App:Application
             if(request.Operation=="getOperation")
             {
                 var job=Mounts.GetOperation(request.JobId!);
-                return new(2,request.RequestId,job is null?"notFound":"ok",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ViewTaskResultsOnTheTasksPage", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,request.JobId,job is null?null:job.WithoutLocalEvidence() with{Results=job.Results.Take(3).ToArray()});
+                return new(2,request.RequestId,job is null?"notFound":"ok",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ViewTaskResultsOnTheTasksPage", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,request.JobId,job is null?null:job.WithoutLocalEvidence() with{Results=job.Results.Take(3).ToArray()});
             }
-            if(request.Operation=="cancelOperation")return new(2,request.RequestId,Mounts.Cancel(request.JobId!)?"accepted":"notFound",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CancellationRequestedCompletedStepsWillBeKept", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,request.JobId);
+            if(request.Operation=="cancelOperation")return new(2,request.RequestId,Mounts.Cancel(request.JobId!)?"accepted":"notFound",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CancellationRequestedCompletedStepsWillBeKept", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,request.JobId);
             var mount=Mounts.FindMount(request.Paths);var id=Mounts.Queue(mount,request.Operation,request.Paths);
-            return new(2,request.RequestId,"accepted",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("OperationSubmittedViewPerItemResultsOnTheTasksPage", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,id);
+            return new(2,request.RequestId,"accepted",global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("OperationSubmittedViewPerItemResultsOnTheTasksPage", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,id);
         }
         catch(Exception error){if(request.Operation is not("getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"))Logger.QueueException("资源管理器","Warning","操作未完成",error);return new(2,request.RequestId,"rejected",request.Operation is "getPreview" or "requestPreview" or "requestLocalPreview" or "requestThumbnail"?"":error.Message);}
     }
@@ -187,10 +210,10 @@ public partial class App:Application
         {
             var result=RuntimeAvailable?await Mounts.InspectSettingsResetAsync(token):await _explorerMaintenance.RunAsync(SettingsResetService.Inspect,token);
             return !RuntimeAvailable&&IndexFormat.State=="Old"&&result.BlockedReason is {} reason?
-                result with{BlockedReason=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("IndexResetBlocked", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, reason)}:result;
+                result with{BlockedReason=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("IndexResetBlocked", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, reason)}:result;
         }
         catch(IOException error)when(!RuntimeAvailable&&IndexFormat.State=="Old")
-        {throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("IndexResetBlocked", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, error.Message),error);}
+        {throw new IOException(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("IndexResetBlocked", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, error.Message),error);}
     }
     /// <summary>已确认的当前模式还原先在配置锁内复核并停止接纳业务；删除仅在完整退出阶段执行。</summary>
     internal async Task ResetSettingsAndExitAsync(SettingsResetPlan plan,CancellationToken token)
@@ -254,7 +277,7 @@ public partial class App:Application
             _lifecycle=null;
             try
             {
-                if(stages.Failures!=0)throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackgroundServicesDidNotShutDownCompletelySettingsAndDataFoldersHave", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!+"\n"+string.Join("\n",resetStopFailures));
+                if(stages.Failures!=0)throw new IOException(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("BackgroundServicesDidNotShutDownCompletelySettingsAndDataFoldersHave", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!+"\n"+string.Join("\n",resetStopFailures));
                 await SettingsResetService.CompleteAsync(reset);
             }
             catch(Exception error)

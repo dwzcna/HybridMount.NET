@@ -1,9 +1,12 @@
+﻿using HybridMount.Commons.Persistence;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Models.Runtime;
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 namespace HybridMount.Services.FileTasks;
 
 /// <summary>持久步骤就绪与单任务所有权；等待不占云执行位，实际通道／路径租约由执行适配器取得。</summary>
-internal sealed class TaskQueue(MountRepository repository)
+internal sealed class TaskQueue(IMountRepository repository)
 {
     private sealed class Running(long generation,CancellationToken token)
     {

@@ -1,4 +1,12 @@
-﻿using HybridMount.Models.Mounting;
+﻿using HybridMount.Helpers.Paths;
+using HybridMount.Commons.Protocols;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files.Content;
+using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Windows.CloudFiles;
+using HybridMount.Models.Mounting;
+using HybridMount.Models.Runtime;
+using HybridMount.Services.Scheduling;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -35,7 +43,7 @@ public sealed partial class MountManager
         foreach(var prior in pending)
         {
             token.ThrowIfCancellationRequested();if(!RemoteSessionCurrent(root,runtime))throw new OperationCanceledException(token);
-            if(progressTaskId is {} taskId)_taskProgress[taskId]=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskRemoteApplyProgress", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, ++inspected, pending.Length);
+            if(progressTaskId is {} taskId)_taskProgress[taskId]=HybridMount.Models.Localization.ResourceMessage.Create("TaskRemoteApplyProgress", ++inspected, pending.Length).Render();
             if(repeated.Contains(prior.Id))continue;
             if(runtime.StagingRetries.ShouldWait(prior,DateTimeOffset.UtcNow)||HasConflictResolution(root.Definition.Id,prior.Path)||!RemoteDependenciesReady(root,prior))continue;
             var parentPriority=TasksQueueService.CurrentTask?.Priority;

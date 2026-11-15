@@ -1,3 +1,7 @@
+﻿using HybridMount.Infrastructure.Configuration;
+using HybridMount.Infrastructure.Protocols;
+using HybridMount.Models.Configuration;
+using HybridMount.Models.Mounting;
 using System.Security.Cryptography;
 
 namespace HybridMount.Services.Mounting;
@@ -23,8 +27,8 @@ public sealed partial class MountManager
         MountBackupCodec.ValidatePath(path);
         var fullPath = Path.GetFullPath(path);
         if (selected.Length is < 1 or > MountBackupCodec.MaximumItems || selected.Distinct().Count() != selected.Length)
-            throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectTheMountsToExport", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-        if (password.Length is > 0 and < 8) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupPasswordMinimum", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+            throw new ArgumentException(HybridMount.Models.Localization.ResourceMessage.Create("SelectTheMountsToExport").Render());
+        if (password.Length is > 0 and < 8) throw new ArgumentException(HybridMount.Models.Localization.ResourceMessage.Create("BackupPasswordMinimum").Render());
         return OwnAsync(cancel =>
         {
             lock (_lifetime)
@@ -33,9 +37,9 @@ public sealed partial class MountManager
                 foreach (var id in selected)
                 {
                     var root = Root(id);
-                    if (root.RemovalRequested || root.Definition.RemovalPending) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("MountsBeingRemovedCannotBeExportedYet", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                    if (root.RemovalRequested || root.Definition.RemovalPending) throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("MountsBeingRemovedCannotBeExportedYet").Render());
                 }
-                if (_configurationExports.Count >= 16 || !_configurationExports.Add(fullPath)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupExportTargetBusy", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (_configurationExports.Count >= 16 || !_configurationExports.Add(fullPath)) throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("BackupExportTargetBusy").Render());
                 var job = new Job(Guid.NewGuid().ToString("N"), Guid.Empty, "exportConfiguration", _stop.Token);
                 var request = new ConfigurationExportRequest(selected, password, fullPath);
                 job.Snapshot = job.Snapshot with { MountId = null, MountName = "HybridMount.NET", ItemPath = fullPath, Total = 1, BackupProtected = password.Length > 0 };
@@ -63,7 +67,7 @@ public sealed partial class MountManager
         {
             job.Snapshot = job.Snapshot with { State = "Running" }; Save(job);
             await ExportConfigurationsCoreAsync(request, cancel.Token, job.Snapshot.Id).ConfigureAwait(false);
-            if (!request.Committed) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupExportCommitIncomplete", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+            if (!request.Committed) throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("BackupExportCommitIncomplete").Render());
             job.Snapshot = job.Snapshot with { State = "Completed", Completed = 1, Results = [new(request.Path, "Completed", "")] };
             EndTrace(job.Snapshot.Id, "Completed"); Save(job);
         }
@@ -96,7 +100,7 @@ public sealed partial class MountManager
             await Task.CompletedTask.ConfigureAwait(false);
         }
         MountBackupCodec.ValidatePath(request.Path);
-        if (request.Ids.Length is < 1 or > MountBackupCodec.MaximumItems || request.Ids.Distinct().Count() != request.Ids.Length) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectTheMountsToExport", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if (request.Ids.Length is < 1 or > MountBackupCodec.MaximumItems || request.Ids.Distinct().Count() != request.Ids.Length) throw new ArgumentException(HybridMount.Models.Localization.ResourceMessage.Create("SelectTheMountsToExport").Render());
         await Enter("OperationStageReadConfiguration").ConfigureAwait(false);
         var items = new List<MountBackupItem>();
         foreach (var id in request.Ids)
@@ -105,9 +109,9 @@ public sealed partial class MountManager
             try
             {
                 token.ThrowIfCancellationRequested();
-                if (!_roots.ContainsKey(id) || root.RemovalRequested || root.Definition.RemovalPending) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("MountsBeingRemovedCannotBeExportedYet", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (!_roots.ContainsKey(id) || root.RemovalRequested || root.Definition.RemovalPending) throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("MountsBeingRemovedCannotBeExportedYet").Render());
                 var definition = root.Definition;
-                if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology } source) throw new NotSupportedException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupSupportedProtocolsOnly", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology } source) throw new NotSupportedException(HybridMount.Models.Localization.ResourceMessage.Create("BackupSupportedProtocolsOnly").Render());
                 items.Add(new(definition.Name, definition.LocalPath, source, FileSourceFactory.BackupCredentials(definition, _repository.DataDirectory), definition.AutoConnect,
                     definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds, definition.Sqs,
                     FileSourceFactory.BackupAdditionalCredentials(definition, _repository.DataDirectory), definition.CapacityAutoDetectEnabled, definition.MaximumCapacityBytes, definition.ExclusionRules));
@@ -141,7 +145,7 @@ public sealed partial class MountManager
     {
         var task = _repository.FindOperation(taskId);
         return task is { Operation: "exportConfiguration", State: "Queued" or "Running" or "Canceling" }
-            ? task with { State = "Interrupted", Error = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupExportInterrupted", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! } : task;
+            ? task with { State = "Interrupted", Error = HybridMount.Models.Localization.ResourceMessage.Create("BackupExportInterrupted").Render() } : task;
     }
     /// <summary>只读取本机导出任务的用户目标，不借挂载身份解析，不访问远端。</summary>
     internal string? ConfigurationExportLocation(string taskId)

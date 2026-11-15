@@ -1,9 +1,11 @@
-﻿using HybridMount.Commons;
+﻿using HybridMount.UI.Binding;
+using HybridMount.Commons.UI;
 using HybridMount.Helpers.Threading;
-using HybridMount.Helpers.UI;
 using HybridMount.Models.Mounting;
-using HybridMount.Services;
-using HybridMount.Services.Localization;
+using HybridMount.Services.Scheduling;
+using HybridMount.UI;
+using HybridMount.UI.Localization;
+using HybridMount.UI.Presentation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;

@@ -1,3 +1,6 @@
+﻿using HybridMount;
+using HybridMount.Services.Settings;
+using HybridMount.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
@@ -18,7 +21,7 @@ public sealed partial class SettingRow:UserControl
     public string Description{get=>(string)GetValue(DescriptionProperty);set=>SetValue(DescriptionProperty,value);}
     public object? Setting{get=>GetValue(SettingProperty);set=>SetValue(SettingProperty,value);}
     private ApplicationPreferencesService? _preferences;private long _generation;
-    public SettingRow(){InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());Loaded+=OnLoaded;Unloaded+=OnUnloaded;}
+    public SettingRow(){InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());Loaded+=OnLoaded;Unloaded+=OnUnloaded;}
     private void OnLoaded(object sender,RoutedEventArgs args){Unsubscribe();_preferences=App.Current.Preferences;_preferences.LayoutChanged+=Refresh;Refresh();if(Setting is FrameworkElement field)AutomationProperties.SetLabeledBy(field,Label);}
     private void OnUnloaded(object sender,RoutedEventArgs args)=>Unsubscribe();
     private void Unsubscribe(){++_generation;if(_preferences is {} previous)previous.LayoutChanged-=Refresh;_preferences=null;}

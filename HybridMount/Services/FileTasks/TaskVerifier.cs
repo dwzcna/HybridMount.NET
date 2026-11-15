@@ -1,3 +1,4 @@
+﻿using HybridMount.Models.Runtime;
 namespace HybridMount.Services.FileTasks;
 
 /// <summary>只读核验已有回执和实际业务状态；不重发写入，未知结果不会放行后续步骤。</summary>

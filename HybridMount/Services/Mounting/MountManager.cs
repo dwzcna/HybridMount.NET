@@ -1,7 +1,27 @@
-using System.Collections.Concurrent;
+﻿using HybridMount.Commons.Diagnostics;
+using HybridMount.Commons.Windows;
+using HybridMount.Helpers.Paths;
+using HybridMount.Models.Mounting.Tasks;
+using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Mounting;
+using HybridMount.Commons.Protocols;
+using HybridMount.Commons.Scheduling;
+using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files.Content;
+using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Infrastructure.Protocols;
+using HybridMount.Infrastructure.Protocols.Capabilities;
+using HybridMount.Infrastructure.Recovery;
+using HybridMount.Infrastructure.Thumbnails;
+using HybridMount.Infrastructure.Windows.CloudFiles;
 using HybridMount.Models.Mounting;
-using HybridMount.Commons;
-
+using HybridMount.Services.Capacity;
+using HybridMount.Services.FileTasks;
+using HybridMount.Services.Scheduling;
+using HybridMount.Services.Sync;
+using System.Collections.Concurrent;
 namespace HybridMount.Services.Mounting;
 
 /// <summary>应用范围的挂载协调器；每个根串行执行变更，文件内容通过 CFAPI 回调独立传输。</summary>
@@ -77,12 +97,12 @@ public sealed partial class MountManager : IAsyncDisposable
     private bool CustomPreviewsAvailable=>ShellExtensionPolicy.CustomThumbnailsEnabled&&_nativeThumbnails;
     private bool RemoteThumbnailsAllowed=>CustomPreviewsAvailable;
 #endif
-    private static string PreviewDirectory(MountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
+    private static string PreviewDirectory(IMountRepository repository)=>ThumbnailCachePaths.DirectoryPath;
     private readonly Services.FileTasks.TaskDispatcher _fileDispatcher;
-    private readonly MountRepository _repository;
+    private readonly IMountRepository _repository;
     private readonly ILocalUploadCommitter _uploadCommitter;
     private readonly IAsyncDisposable _remoteEvents;
-    private readonly LoggerService _logger;
+    private readonly ILogWriter _logger;
     private readonly IRecoveryShellRegistration _removalShell=RecoveryShellRegistration.Create();
     internal IRecoveryShellRegistration? RemovalShellForTests {get;set;}
     internal Action<string>? RemovalStageForTests {get;set;}
@@ -106,7 +126,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public event Action? Changed;
     public TasksQueueService TasksQueue {get;}
     private readonly bool _ownsTasksQueue;
-    public MountManager(MountRepository repository,LoggerService logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null,TasksQueueService? tasksQueue=null)
+    public MountManager(IMountRepository repository,ILogWriter logger,IFileSourceFactory? factory=null,ILocalUploadCommitter? uploadCommitter=null,TasksQueueService? tasksQueue=null)
     {
         TasksQueue=tasksQueue??new();_ownsTasksQueue=tasksQueue is null;_fileDispatcher=new(repository,logger);
         var definitions=repository.LoadDefinitions();

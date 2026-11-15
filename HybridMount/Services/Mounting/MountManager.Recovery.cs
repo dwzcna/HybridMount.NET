@@ -1,5 +1,10 @@
+﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Infrastructure.Recovery;
+using HybridMount.Infrastructure.Settings;
+using HybridMount.Infrastructure.Windows.CloudFiles;
 using HybridMount.Models.Mounting;
-using HybridMount.Models.Persistence;
+using HybridMount.Models.Recovery;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -21,7 +26,7 @@ public sealed partial class MountManager
         CancellationToken token, Action<int, int, string>? progress = null)
     {
         var captured = selected.DistinctBy(x => x.Key).ToArray();
-        if (captured.Length == 0 || captured.Any(x => !x.CanRemove)) throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerRecoveryError50", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        if (captured.Length == 0 || captured.Any(x => !x.CanRemove)) throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ExplorerRecoveryError50").Render());
         return OwnAsync<IReadOnlyList<ExplorerEntryResult>>(async cancel =>
         {
             if (Interlocked.CompareExchange(ref _recoveryBatchRunning, 1, 0) != 0) throw new IOException(("已有一批遗留挂载正在处理。" ?? ""));

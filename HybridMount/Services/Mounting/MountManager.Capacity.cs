@@ -1,5 +1,10 @@
-using System.Text.Json;
+﻿using HybridMount.Commons.Protocols;
+using HybridMount.Infrastructure.Protocols;
 using HybridMount.Models.Mounting;
+using HybridMount.Services.Capacity;
+using HybridMount.Services.Scheduling;
+using HybridMount.Services.Sync;
+using System.Text.Json;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -153,7 +158,7 @@ public sealed partial class MountManager
                     catch(Exception error){throw new CapacityWaitingException("等待核实容量：完整用量查询未完成（"+error.GetType().Name+"）。");}
                     PublishCapacity(root,definition,lease.Snapshot(key));
                     if(value.AvailableBytes is not >=0)throw new CapacityWaitingException("等待核实容量：服务器未提供可靠可用量。");
-                    if(growth>value.AvailableBytes.Value)throw new CapacityWaitingException($"容量不足：本次净增长 {TaskByteFormat.Format(growth)}，可用 {TaskByteFormat.Format(value.AvailableBytes.Value)}。");
+                    if(growth>value.AvailableBytes.Value)throw new CapacityWaitingException($"容量不足：本次净增长 {HybridMount.Commons.Presentation.ModelPresentation.Render(growth,"Bytes")}，可用 {HybridMount.Commons.Presentation.ModelPresentation.Render(value.AvailableBytes.Value,"Bytes")}。");
                 }
             }
             return new(lease,definition,key,oldLength);

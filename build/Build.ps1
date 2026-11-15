@@ -10,10 +10,18 @@ param(
     [switch]$WithoutThumbnails,
     [ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails',
     [string]$CertificateThumbprint,
-    # 默认排除已停止专项；定向回归仍使用同一套隔离原生映像与输出规则。
+    [ValidateSet("Gate","Unit","Integration","Native","Architecture","Acceptance")][string]$TestGroup="Gate",
+    # 默认完整门禁保留既有停止专项边界，长时性能验收单独顺序执行。
     [string]$TestFilter='FullyQualifiedName!~FailedMountTests&FullyQualifiedName!~OrphanedMountRecoveryTests&FullyQualifiedName!~ClearRemovalTests'
 )
 $ErrorActionPreference = 'Stop'
+# 分组只改变测试选择；自定义filter仍使用相同原生映像与编译步骤。
+$runAcceptanceAfterGate=$Test -and $TestGroup -eq 'Gate' -and -not $PSBoundParameters.ContainsKey('TestFilter')
+if(-not $PSBoundParameters.ContainsKey('TestFilter')) {
+    if($TestGroup -eq 'Gate') { $TestFilter+='&FullyQualifiedName!~HybridMount.Tests.Acceptance.' }
+    else { $TestFilter="FullyQualifiedName~HybridMount.Tests.$TestGroup.&$TestFilter" }
+}
+
 if (-not $Deployment) { $Deployment = if ($Package) { 'Packaged' } else { 'Unpackaged' } }
 if($ExperimentalThumbnails -and $WithoutThumbnails){throw '缩略图构建参数冲突。'}
 if(($ExperimentalThumbnails -or $WithoutThumbnails) -and $PSBoundParameters.ContainsKey('ShellProfile')){throw '不要混用旧参数与ShellProfile。'}
@@ -49,7 +57,10 @@ try {
         Invoke-BuildStep $msbuild @('HybridMount.Stock\HybridMount.Stock.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountNativeTests=true',"/p:OutDir=$runtimeTest","/p:IntDir=$($runtimeTest)obj\HybridMount.Stock\",'/v:minimal','/nologo') "runtime-tests-$Platform-$Configuration"
         $thumbnailTest=Join-Path $repoRoot "artifacts\native-thumbnail-host\$Platform\$Configuration\"
         Invoke-BuildStep $msbuild @('HybridMount.Ext\HybridMount.Ext.vcxproj','/m',"/p:Configuration=$Configuration","/p:Platform=$Platform",'/p:HybridMountShellProbeTag=d0037037',"/p:OutDir=$thumbnailTest","/p:IntDir=$($thumbnailTest)obj\HybridMount.Ext\",'/v:minimal','/nologo') "native-thumbnail-host-$Platform-$Configuration"
-        Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'--filter',$TestFilter,'-v:minimal') "tests-$Platform-$Configuration"
+        Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=contracts-$Platform-$Configuration.trx",'--results-directory',$validation,'--filter',$TestFilter,'--logger','console;verbosity=normal','-v:minimal') "tests-$Platform-$Configuration"
+        if($runAcceptanceAfterGate) {
+            Invoke-BuildStep 'dotnet' @('test','HybridMount.Tests\HybridMount.Tests.csproj','--no-build','-c',$Configuration,"-p:Platform=$Platform",'--logger',"trx;LogFileName=acceptance-$Platform-$Configuration.trx",'--results-directory',$validation,'--filter','FullyQualifiedName~HybridMount.Tests.Acceptance.','--logger','console;verbosity=normal','-v:minimal') "acceptance-$Platform-$Configuration"
+        }
     }
     if ($Package) {
         [xml]$versionProps=Get-Content -LiteralPath (Join-Path $repoRoot 'Directory.Build.props') -Raw

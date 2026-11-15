@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>定义的持久字段校验，不读取或改写任何配置；读取失败不能触发默认值覆盖。</summary>
 public static class MountDefinitionRules

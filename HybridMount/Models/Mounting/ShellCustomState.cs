@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 namespace HybridMount.Models.Mounting;
 
 /// <summary>单个自定义状态的非秘密元数据；编号、文字和图标必须成组保留。</summary>

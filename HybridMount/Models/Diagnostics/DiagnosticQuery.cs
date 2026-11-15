@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Diagnostics;
+﻿namespace HybridMount.Models.Diagnostics;
 
 /// <summary>持久日志查询；UTC结束时间不包含边界，游标固定本次快照，不拼接SQL。</summary>
 public sealed record DiagnosticQuery(string Severity="All",string Text="",DateTimeOffset? FromUtc=null,DateTimeOffset? ToUtc=null,long? BeforeId=null,long? ThroughId=null,int Limit=100)

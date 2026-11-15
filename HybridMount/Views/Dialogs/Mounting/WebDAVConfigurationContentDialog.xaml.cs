@@ -1,0 +1,364 @@
+﻿using HybridMount.Models.UI;
+using HybridMount;
+using HybridMount.Commons.UI;
+using HybridMount.Controls.Mounting;
+using HybridMount.Infrastructure.Protocols;
+using HybridMount.Infrastructure.Protocols.WebDAV;
+using HybridMount.Models.Configuration;
+using HybridMount.Models.Localization;
+using HybridMount.Models.Mounting;
+using HybridMount.Models.Protocols.WebDAV;
+using HybridMount.UI;
+using HybridMount.UI.Localization;
+using HybridMount.UI.Presentation;
+using HybridMount.ViewModels;
+using HybridMount.Views.Windows;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using global::Windows.Storage.Pickers;
+namespace HybridMount.Views.Dialogs.Mounting;
+
+/// <summary>WebDAV 完整配置对话框；连接、凭据、容量及检测控件在同一 XAML 中，业务由唯一挂载模型拥有。</summary>
+public sealed partial class WebDAVConfigurationContentDialog : ContentDialog,IMountConfigurationDialog
+{
+    private IDisposable? _localization;
+    private ProtocolCapabilityDialogBinding? _capabilityBinding;
+    private ProtocolCapabilityProbeBinding? _probeBinding;
+    private readonly HybridMount.Models.Protocols.WebDAV.WebDavCertificateTrustSession _certificateTrust = new();
+    private readonly HybridMount.UI.FormFieldFeedback _fieldFeedback=new();
+    private MountsViewModel _model=null!;
+    private MountDefinition? _existing;
+    private FileSourceKind _kind;
+    private Guid? _importExclusionScope;
+    private Guid? ExclusionOwner=>_importExclusionScope??_existing?.Id;
+    private CancellationTokenSource? _testing,_fetching;
+    private long _certificateFetchRevision;
+    private HybridMount.Models.Protocols.WebDAV.WebDavCertificateInfo? _fetchedCertificate;
+    private bool _loading=true,_submitting,_picking,_disposed,_stopping,_savingSwitch;
+    private string? _httpWarningContext;
+    public MountsViewModel ViewModel=>_model;
+    public MountDefinition? CreatedMount {get;private set;}
+    public string? AcceptedTaskId {get;private set;}
+    private CancellationTokenSource? _submission;
+    public string ResultMessage {get;private set;}="";
+    public PageMessageSeverity ResultSeverity {get;private set;}=PageMessageSeverity.Information;
+    private bool Stopped=>_disposed||_stopping||_model.IsStopping;
+    /// <summary>只加载一次连接草稿；后续刷新仅更新已保存设置，不覆盖正在编辑的账号或地址。</summary>
+    public WebDAVConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,MountBackupItem? imported=null)
+    {
+        InitializeComponent();_localization=global::HybridMount.UI.UserInterface.ObserveLanguage(this,()=>{Bindings.Update();UpdateCertificatePresentation();});_model=model;_kind=FileSourceKind.WebDav;_existing=existing;
+        try
+        {
+            NameField.Text=existing?.Name??global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+            global::HybridMount.UI.UserInterface.Set(EndpointField, "PlaceholderText", global::HybridMount.Models.Localization.ResourceMessage.Raw("https://dav.example.com/dav/"));
+            if(existing is not null)
+            {
+                var editable=false;var source=existing.Source!;
+                NameField.IsReadOnly=true;PathField.Text=existing.LocalPath;ChooseButton.IsEnabled=false;
+                EndpointField.Text=source.Endpoint;EndpointField.IsReadOnly=!editable;
+                CertificatePinField.Text=source.PinnedCertificateSha256??"";
+                AutoConnectField.IsOn=existing.AutoConnect;
+                LoadProtocol(existing,model.ReadCredentials(existing.Id),editable);SettingsFields.Visibility=Visibility.Visible;
+            }
+            EndpointField.TextChanged+=EndpointChanged;
+            EndpointField.BeforeTextChanging+=EndpointChanging;
+            UserField.BeforeTextChanging+=CertificateInputChanging; CertificatePinField.BeforeTextChanging+=CertificateInputChanging;
+            PasswordField.PasswordChanging+=CertificatePasswordChanging;
+            SettingsFields.Visibility=Visibility.Visible;ThumbnailToggle.Visibility=model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;
+            SaveCapacityButton.Visibility=RecheckButton.Visibility=SaveIntervalsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
+            if(existing is null){RemoteAuto.IsOn=true;IncrementalField.Value=60;FullField.Value=300;CapacityUnit.SelectedIndex=0;}
+            if(imported is not null)
+            {
+                if(existing is not null||imported.Source.Kind!=_kind)throw new ArgumentException("导入协议与新建表单不匹配。");
+                _importExclusionScope=model.CreateImportExclusions(_kind,imported.ExclusionRules);
+                LoadImported(imported);
+            }
+            ExclusionList.ItemsSource=model.ExclusionDraft(ExclusionOwner,_kind);
+            SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
+            global::HybridMount.UI.UserInterface.Set(this,"Title",global::HybridMount.Models.Localization.ResourceMessage.Create("JoinedText", existing is null ? global::HybridMount.Models.Localization.ResourceMessage.Create("New") : global::HybridMount.Models.Localization.ResourceMessage.Create("SettingsDetails"), (existing?.Name??global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!)));
+            global::HybridMount.UI.UserInterface.Set(this, "PrimaryButtonText", existing is null ? global::HybridMount.Models.Localization.ResourceMessage.Create("CreateAndConnect") : global::HybridMount.Models.Localization.ResourceMessage.Create("SaveConnectionAndReconnect"));global::HybridMount.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("TestConnection"));global::HybridMount.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Close"));
+            DefaultButton=existing is null?ContentDialogButton.Primary:ContentDialogButton.Close;
+            PrimaryButtonClick+=SaveConnection;SecondaryButtonClick+=TestConnection;Closing+=OnClosing;Closed+=OnClosed;
+            model.Refreshed+=Refresh;model.StateChanged+=Refresh;_capabilityBinding = new(this, CapabilityView, FileSourceKind.WebDav, ()=>ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim()),ReadCredentials()), ()=>_existing is {} saved ? _model.FindMount(saved.Id) : null);_probeBinding = new(this,CapabilityView,_capabilityBinding,model,()=>new(ReadSettings(EndpointField.Text.Trim()),ReadCredentials()),()=>ValidateFields(false),Refresh,message=>{global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", message);ErrorBar.IsOpen=true;});_loading=false;Refresh();UpdateHttpWarning();
+            if(existing is not null)_=LoadRemoteRootEditabilityAsync(existing.Id);
+        }
+        catch{Dispose();throw;}
+    }
+    /// <summary>后台核验可编辑性，返回窗口线程后再次检查生命周期，关闭后不更新任何控件。</summary>
+    private async Task LoadRemoteRootEditabilityAsync(Guid id)
+    {
+        var dispatcher=DispatcherQueue;
+        try
+        {
+            var editable=await _model.CanEditRemoteRootAsync(id).ConfigureAwait(false);
+            dispatcher.TryEnqueue(()=>{if(Stopped)return;EndpointField.IsReadOnly=!editable;});
+        }
+        catch(Exception error){dispatcher.TryEnqueue(()=>{if(Stopped)return;global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;});}
+    }
+    private void Refresh()
+    {
+        _capabilityBinding?.Refresh();
+        UpdateCertificatePresentation();
+        if(_disposed)return;
+        if(_model.IsStopping){CancelForShutdown();return;}
+        var mount=_existing is {} definition?_model.FindMount(definition.Id):null;
+        if(_existing is not null&&mount is null){CancelForShutdown();return;}
+        var busy=_probeBinding?.IsRunning==true||_savingSwitch||_submitting||_picking||(_testing is not null||_fetching is not null)||(mount is not null&&!MountActionState.From(mount,_model.IsBusy(mount.Definition.Id)).CanEdit);
+        ExclusionFields.IsEnabled=!busy;ConnectionFields.IsEnabled=!busy;SettingsFields.IsEnabled=!busy;
+        _probeBinding?.Refresh(!_submitting&&!_picking&&_testing is null&&_fetching is null&&!busy);
+        IsPrimaryButtonEnabled=!busy;IsSecondaryButtonEnabled=!_submitting&&!_picking&&(_testing is not null||!busy);
+        if(mount is null||_savingSwitch)return;
+        var settings=mount.Definition;var capacity=_model.CapacitySettingsDraft(settings);var detection=_model.Draft(settings);_loading=true;
+        try
+        {
+            AutoConnectField.IsOn=settings.AutoConnect;
+            CapacityAuto.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;CapacityAuto.IsOn=capacity.Automatic;
+            MaximumField.Text=capacity.Text;CapacityUnit.SelectedIndex=capacity.Unit=="TB"?1:0;
+            MaximumField.IsEnabled=CapacityUnit.IsEnabled=!capacity.Automatic;
+            CapacityDescription.Text=MountsViewModel.CapacitySummary(mount);RecheckButton.IsEnabled=mount.IsConnected&&CapacityRules.Enabled(settings);
+            ThumbnailToggle.Visibility=_model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;ThumbnailToggle.IsOn=_model.ThumbnailDraft(settings);ThumbnailDescription.Text=_model.CanConfigureThumbnails?mount.ThumbnailDisplay:"";
+            RemoteAuto.IsOn=detection.Enabled;IncrementalField.Value=detection.Incremental;FullField.Value=detection.Full;
+            IncrementalField.Visibility=_kind==FileSourceKind.WebDav?Visibility.Visible:Visibility.Collapsed;
+            DetectionDescription.Text=MountsViewModel.DetectionSummary(mount);
+
+        }
+        finally{_loading=false;}
+    }
+    private void AddExclusionRule(object sender,RoutedEventArgs args){if(!Stopped)_model.AddExclusionRule(ExclusionOwner,_kind);}
+    private void AddDefaultExclusionRules(object sender,RoutedEventArgs args){if(!Stopped)_model.AddDefaultExclusionRules(ExclusionOwner,_kind);}
+    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&sender is FrameworkElement{Tag:FileExclusionRuleViewModel row})_model.RemoveExclusionRule(ExclusionOwner,_kind,row);}
+    private async void SaveExclusions(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
+    private void CaptureCapacity(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateCapacityDraft(mount.Id,CapacityAuto.IsOn,MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}
+    private void CaptureDetection(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateDraft(mount.Id,RemoteAuto.IsOn,IncrementalField.Value,FullField.Value);}
+    private void CapacityTextChanged(object sender,TextChangedEventArgs args)=>CaptureCapacity();
+    private void CapacityUnitChanged(object sender,SelectionChangedEventArgs args)=>CaptureCapacity();
+    private async void CapacityModeChanged(object sender,RoutedEventArgs args){if(_loading||Stopped)return;if(_existing is {} mount)await SaveSwitchAsync(()=>_model.SetCapacityAutomaticAsync(mount.Id,CapacityAuto.IsOn));else MaximumField.IsEnabled=CapacityUnit.IsEnabled=!CapacityAuto.IsOn;}
+    private void IntervalChanged(NumberBox sender,NumberBoxValueChangedEventArgs args)=>CaptureDetection();
+    private async void SaveCapacity(object sender,RoutedEventArgs args){if(Stopped||_existing is null)return;CaptureCapacity();await _model.SaveCapacityAsync(_existing.Id);}
+    private async void RecheckCapacity(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.RecheckCapacityAsync(mount.Id);}
+    private async void SaveIntervals(object sender,RoutedEventArgs args){if(Stopped||_existing is null)return;CaptureDetection();await _model.SaveDetectionAsync(_existing.Id);}
+    private async void RemoteAutoChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetRemoteDetectionEnabledAsync(mount.Id,RemoteAuto.IsOn));}
+    private async void ThumbnailChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetThumbnailAsync(mount.Id,ThumbnailToggle.IsOn));}
+    /// <summary>开关提交期间保留候选值并禁用交互，结束后统一重读正式快照；失败时回滚而不覆盖其他草稿。</summary>
+    private async Task SaveSwitchAsync(Func<Task> save)
+    {if(Stopped||_savingSwitch)return;_savingSwitch=true;Refresh();try{await save();}finally{_savingSwitch=false;if(!Stopped)Refresh();}}
+    private async void AutoConnectChanged(object sender,RoutedEventArgs args){if(!_loading&&!Stopped&&_existing is {} mount)await SaveSwitchAsync(()=>_model.SetAutoConnectAsync(mount.Id,AutoConnectField.IsOn));}
+    private MountCreationOptions CreationOptions()
+    {
+        var incremental=IncrementalField.Value;var full=FullField.Value;
+        if(!double.IsFinite(incremental)||incremental!=Math.Truncate(incremental)||!double.IsFinite(full)||full!=Math.Truncate(full))throw new ArgumentException(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("DetectionIntervalsMustBeValidWholeNumbersOfSeconds", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        return new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,checked((int)incremental),checked((int)full),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB"));
+    }
+    private async void ChooseFolder(object sender,RoutedEventArgs args)
+    {
+        if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||(_testing is not null||_fetching is not null))return;_picking=true;Refresh();
+        try
+        {
+            var picker=new FolderPicker();picker.FileTypeFilter.Add("*");WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
+            var folder=await picker.PickSingleFolderAsync();if(!Stopped&&folder is not null)PathField.Text=folder.Path;
+        }
+        catch(Exception error){if(!Stopped){global::HybridMount.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;}}
+        finally{_picking=false;if(!Stopped)Refresh();}
+    }
+    /// <summary>只读测试由应用拥有；关闭只取消，证书结果必须对应本次草稿及代次。</summary>
+    private async void TestConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
+    {
+        args.Cancel=true;
+        if(Stopped)return;
+        if(_testing is {} testing)
+        {
+            global::HybridMount.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Canceling"));
+            IsSecondaryButtonEnabled=false;testing.Cancel();return;
+        }
+        if(!_submitting&&!_picking&&_fetching is null)await ProbeConnectionAsync();
+    }
+    private async Task ProbeConnectionAsync()
+    {
+        if(Stopped||_fetching is not null||!ValidateFields(false))return;
+        using var cancel=new CancellationTokenSource();_testing=cancel;
+        var identity=CertificateIdentity();_certificateTrust.Begin(identity);CertificateWarning.IsOpen=false;
+        Refresh();global::HybridMount.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("CancelTest"));
+        ErrorBar.IsOpen=false;ProbeBar.Severity=InfoBarSeverity.Informational;
+        global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("RunningReadOnlyProbes"));ProbeBar.IsOpen=true;
+        try
+        {
+            _capabilityBinding?.BeginTest();
+            var result=await _model.TestConnectionAsync(ReadSettings(EndpointField.Text.Trim()),ReadCredentials(),cancel.Token);
+            if(!Stopped)
+            {
+                _capabilityBinding?.CompleteTest(result.Capabilities);
+                _certificateTrust.Offer(CertificateIdentity(),result.Certificate);UpdateCertificatePresentation();
+                CertificateWarning.IsOpen=_certificateTrust.Candidate is not null;
+                ProbeBar.Severity=result.Success?InfoBarSeverity.Success:InfoBarSeverity.Error;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", result.Message);
+            }
+        }
+        catch(OperationCanceledException)
+        {
+            _certificateTrust.Invalidate();_capabilityBinding?.CancelTest();
+            if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("TheConnectionTestWasCanceled"));}
+        }
+        catch(Exception)
+        {
+            _certificateTrust.Invalidate();
+            if(!Stopped){_capabilityBinding?.CompleteTest(null);ProbeBar.Severity=InfoBarSeverity.Error;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("ConnectionTestFailedCheckTheConfigurationNetworkAndCredentialSource"));}
+        }
+        finally{_testing=null;if(!Stopped){global::HybridMount.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("TestConnection"));Refresh();}}
+    }
+    private string CertificateIdentity() => ProtocolCapabilityDialogBinding.Fingerprint(ReadSettings(EndpointField.Text.Trim()),ReadCredentials());
+    /// <summary>成功直接填框，不添加确认步骤；任何输入变化或关闭均拒绝迟到结果，失败保持原输入。</summary>
+    private async void FetchCertificate(object sender,RoutedEventArgs args)
+    {
+        if(Stopped||_fetching is not null||_testing is not null||_submitting||_picking)return;
+        var address=EndpointField.Text.Trim();
+        _fieldFeedback.Begin();
+        try{var endpoint=FileSourceFactory.Endpoint(new(FileSourceKind.WebDav,address));_fieldFeedback.Check(endpoint.Scheme=="https",EndpointField,global::HybridMount.Models.Localization.ResourceMessage.Create("CertificateFetchHttpsRequired"));}
+        catch(ArgumentException error){_fieldFeedback.Check(false,EndpointField,error.Message);}
+        if(!_fieldFeedback.Complete(this))return;
+        using var cancel=new CancellationTokenSource();_fetching=cancel;var revision=_certificateFetchRevision;
+        Refresh();ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("CertificateFetchRunning"));ProbeBar.IsOpen=true;
+        try
+        {
+            var certificate=await _model.FetchCertificateAsync(address,cancel.Token);
+            if(Stopped||cancel.IsCancellationRequested||revision!=_certificateFetchRevision||address!=EndpointField.Text.Trim())return;
+            CertificatePinField.Text=certificate.Sha256;_fetchedCertificate=certificate;
+            _capabilityBinding?.Refresh();UpdateCertificatePresentation();
+            ProbeBar.Severity=InfoBarSeverity.Success;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("CertificateFetchSucceeded"));
+        }
+        catch(OperationCanceledException){if(!Stopped){ProbeBar.Severity=InfoBarSeverity.Informational;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("CertificateFetchCanceled"));}}
+        catch(Exception error){if(!Stopped&&revision==_certificateFetchRevision){ProbeBar.Severity=InfoBarSeverity.Error;global::HybridMount.UI.UserInterface.Set(ProbeBar, "Message", error.Message);}}
+        finally{_fetching=null;if(!Stopped)Refresh();}
+    }
+    private async void TrustCertificate(object sender,RoutedEventArgs args)
+    {
+        if(Stopped||(_testing is not null||_fetching is not null)||_submitting||_picking||_certificateTrust.Candidate is null)return;
+        var settings=ReadSettings(EndpointField.Text.Trim());
+        if(_certificateTrust.Confirm(CertificateIdentity(),FileSourceFactory.Endpoint(settings)) is not {} pin)return;
+        CertificatePinField.Text=pin;CertificateWarning.IsOpen=false;
+        _capabilityBinding?.Refresh();await ProbeConnectionAsync();
+    }
+    private void ClearCertificateTrust(object sender,RoutedEventArgs args)
+    {
+        if(Stopped||(_testing is not null||_fetching is not null)||_submitting)return;
+        CertificatePinField.Text="";InvalidateCertificateCandidate();_capabilityBinding?.Refresh();
+    }
+    /// <summary>证书详情仅来自TLS回调已复制的公开字段；展示／语言切换不重新连接服务器。</summary>
+    private void UpdateCertificatePresentation()
+    {
+        var https=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme=="https";
+        HttpsFields.Visibility=https?Visibility.Visible:Visibility.Collapsed;
+        ClearCertificateTrustLabel.Text=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateClearTrust", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+        ClearCertificateTrustButton.IsEnabled=!string.IsNullOrWhiteSpace(CertificatePinField.Text)&&_testing is null&&_fetching is null&&!_submitting;
+        TrustCertificateButton.Content=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateTrustAndRetry", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+        TrustCertificateButton.IsEnabled=_certificateTrust.Candidate is not null&&_testing is null&&_fetching is null&&!_submitting;
+        FetchCertificateLabel.Text=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateFetchButton", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+        FetchCertificateButton.IsEnabled=_probeBinding?.IsRunning!=true&&https&&_testing is null&&_fetching is null&&!_submitting&&!_picking;
+        FetchedCertificateDetails.Visibility=_fetchedCertificate is null?Visibility.Collapsed:Visibility.Visible;
+        FetchedCertificateDetails.Text=_fetchedCertificate is {} fetched?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateDetails", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, fetched.Server, fetched.Subject, fetched.Issuer,             fetched.NotBeforeUtc.ToLocalTime().ToString("g"), fetched.NotAfterUtc.ToLocalTime().ToString("g"), fetched.Sha256):"";
+        if(_certificateTrust.Candidate is not {} certificate){CertificateWarning.IsOpen=false;return;}
+        var reasons=new List<string>();var now=DateTimeOffset.UtcNow;
+        if(now>certificate.NotAfterUtc)reasons.Add(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateExpired", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        if(now<certificate.NotBeforeUtc)reasons.Add(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateNotYetValid", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        if((certificate.PolicyErrors&System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch)!=0)reasons.Add(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateNameMismatch", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        if((certificate.PolicyErrors&System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors)!=0)reasons.Add(global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateChainUntrusted", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+        global::HybridMount.UI.UserInterface.Set(CertificateWarning, "Message", global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateTrustWarning", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!+"\n"+string.Join("；",reasons)+"\n"+
+            string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateDetails", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, certificate.Server, certificate.Subject, certificate.Issuer,                 certificate.NotBeforeUtc.ToLocalTime().ToString("g"), certificate.NotAfterUtc.ToLocalTime().ToString("g"), certificate.Sha256)+"\n"+
+            global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CertificateTrustScope", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!);
+    }
+    private void InvalidateCertificateCandidate(){_certificateFetchRevision++;_fetchedCertificate=null;_certificateTrust.Invalidate();CertificateWarning.IsOpen=false;}
+    private void CertificateInputChanging(TextBox sender,TextBoxBeforeTextChangingEventArgs args)
+    {if(!_loading&&args.NewText!=sender.Text)InvalidateCertificateCandidate();}
+    private void CertificatePasswordChanging(PasswordBox sender,PasswordBoxPasswordChangingEventArgs args)
+    {if(!_loading&&args.IsContentChanging)InvalidateCertificateCandidate();}
+    private void EndpointChanging(TextBox sender,TextBoxBeforeTextChangingEventArgs args)
+    {if(!_loading&&args.NewText!=sender.Text){CertificatePinField.Text="";InvalidateCertificateCandidate();}}
+    /// <summary>在禁用控件或发起请求之前校验草稿，字段错误保持原输入并聚焦首个错误。</summary>
+    private bool ValidateFields(bool saving)
+    {
+        _fieldFeedback.Begin();
+        if(saving){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(NameField.Text),NameField,global::HybridMount.Models.Localization.ResourceMessage.Create("MountNameRequired"));_fieldFeedback.Check(Path.IsPathFullyQualified(PathField.Text),PathField,global::HybridMount.Models.Localization.ResourceMessage.Create("LocalDirectoryRequired"));}
+        var validAddress=Uri.TryCreate(EndpointField.Text.Trim(),UriKind.Absolute,out var address)&&address.Scheme is "https" or "http";
+        _fieldFeedback.Check(validAddress,EndpointField,global::HybridMount.Models.Localization.ResourceMessage.Create("ServerAddressRequired"));
+        if(saving&&_existing is null)
+        {
+            _fieldFeedback.Check(double.IsFinite(IncrementalField.Value)&&IncrementalField.Value==Math.Truncate(IncrementalField.Value)&&IncrementalField.Value is >=10 and <=86400,IncrementalField,global::HybridMount.Models.Localization.ResourceMessage.Create("EnterAWholeNumberOfSecondsFrom10To86400"));
+            _fieldFeedback.Check(double.IsFinite(FullField.Value)&&FullField.Value==Math.Truncate(FullField.Value)&&FullField.Value is >=30 and <=604800,FullField,global::HybridMount.Models.Localization.ResourceMessage.Create("EnterAWholeNumberOfSecondsFrom30To604800"));
+            if(!CapacityAuto.IsOn)try{_=CapacityRules.ParseMaximum(MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}catch(ArgumentException error){_fieldFeedback.Check(false,MaximumField,error.Message);}
+        }
+        if (validAddress)
+        {
+            var source = ReadSettings(EndpointField.Text.Trim());
+            try { _ = FileSourceFactory.Endpoint(source); }
+            catch (ArgumentException error) { _fieldFeedback.Check(false, EndpointField, error.Message); }
+            try { _ = WebDavFileSource.NormalizeCertificatePin(source); }
+            catch (ArgumentException error) { _fieldFeedback.Check(false, CertificatePinField, error.Message); }
+        }
+        return _fieldFeedback.Complete(this);
+    }
+    /// <summary>只预填独立新建草稿；加载期间不发布开关、认证、能力结果或配置写入。</summary>
+    private void LoadImported(MountBackupItem item)
+    {
+        var draft=ConnectionSubmissionDraft.FromBackup(item);
+        NameField.Text=draft.Name;PathField.Text=draft.Path;EndpointField.Text=draft.Source.Endpoint;
+        AutoConnectField.IsOn=item.AutoConnect;
+        ThumbnailToggle.IsOn=item.ThumbnailsEnabled;RemoteAuto.IsOn=item.RemoteAutoDetectEnabled;
+        IncrementalField.Value=item.RemoteIncrementalSeconds;FullField.Value=item.RemoteFullSeconds;
+        CapacityAuto.IsOn=item.CapacityAutoDetectEnabled;CapacityUnit.SelectedIndex=0;
+        MaximumField.Text=item.MaximumCapacityBytes is {} maximum?((decimal)maximum/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"";
+        UserField.Text=item.Credentials.UserName;PasswordField.Password=item.Credentials.Password;
+        CertificatePinField.Text=item.Source.PinnedCertificateSha256??"";
+    }
+    private ConnectionSubmissionDraft CaptureSubmission()=>new(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim()),ReadCredentials(),_model.ReadExclusionRules(ExclusionOwner,_kind),CreationOptions());
+    /// <summary>本次只读认证完成且应用持久接纳后关闭；配置、连接和同步继续由应用拥有。</summary>
+    private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
+    {
+        args.Cancel=true;if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null||_fetching is not null)return;
+        if(!ValidateFields(true))return;var deferral=args.GetDeferral();using var cancel=new CancellationTokenSource();_submission=cancel;_submitting=true;Refresh();ErrorBar.IsOpen=false;
+        try
+        {
+            _certificateTrust.Begin(CertificateIdentity());var draft=CaptureSubmission();string? otp=null;
+            using var guard=new global::HybridMount.UI.SubmissionInputGuard(this,()=>cancel.Cancel());
+            await using var proof=await _model.AuthenticateSubmissionAsync(draft,otp,cancel.Token);
+            if(Stopped||!draft.SameInput(CaptureSubmission())){cancel.Cancel();return;}
+            cancel.Token.ThrowIfCancellationRequested();var accepted=await _model.AcceptSubmissionAsync(proof,cancel.Token);
+            AcceptedTaskId=accepted.TaskId;ResultMessage=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ConfigurationAcceptedAsTask",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+            ResultSeverity=PageMessageSeverity.Information;args.Cancel=false;
+        }
+        catch(ConnectionSubmissionException error)
+        {
+            if(Stopped)return;if(error.Certificate is {} certificate){_certificateTrust.Offer(CertificateIdentity(),certificate);UpdateCertificatePresentation();CertificateWarning.IsOpen=_certificateTrust.Candidate is not null;}
+            global::HybridMount.UI.UserInterface.Set(ErrorBar,"Message",error.Message);ErrorBar.IsOpen=true;
+        }
+        catch(OperationCanceledException)
+        {
+            if(!Stopped){global::HybridMount.UI.UserInterface.Set(ErrorBar,"Message",global::HybridMount.Models.Localization.ResourceMessage.Create("ConfigurationSubmissionCanceled"));ErrorBar.IsOpen=true;}
+        }
+        catch(Exception error){if(!Stopped){global::HybridMount.UI.UserInterface.Set(ErrorBar,"Message",error.Message);ErrorBar.IsOpen=true;}}
+        finally{_submission=null;_submitting=false;if(!Stopped)Refresh();deferral.Complete();}
+    }
+
+    private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args)
+    {_submission?.Cancel();_fetching?.Cancel();if(_testing is {} testing)testing.Cancel();if(!_stopping&&(_submitting||_picking||(_existing is {} mount&&_model.IsBusy(mount.Id))))args.Cancel=true;}
+    private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
+    /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
+    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();_fetching?.Cancel();Hide();Dispose();}
+    public void Dispose()
+    {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
+        if(_disposed)return;_disposed=true;if(_importExclusionScope is {} scope)_model.ReleaseImportExclusions(scope,_kind);_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_fetching?.Cancel();ClearSecrets();
+        _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
+        _certificateTrust.Invalidate();EndpointField.TextChanged-=EndpointChanged;EndpointField.BeforeTextChanging-=EndpointChanging;
+        UserField.BeforeTextChanging-=CertificateInputChanging;CertificatePinField.BeforeTextChanging-=CertificateInputChanging;
+        PasswordField.PasswordChanging-=CertificatePasswordChanging;
+        PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
+    }
+    /// <summary>窗口线程只构造草稿；空白及半输入地址留给字段验证，未变更地址保留旧AllowHttp。</summary>
+    private FileSourceConfiguration ReadSettings(string endpoint) =>
+        HybridMount.Models.Protocols.WebDAV.WebDavEndpointDraft.Create(endpoint,_existing?.Source,CertificatePinField.Text);
+    private SourceCredentials ReadCredentials()=>new(UserField.Text.Trim(),PasswordField.Password);
+    private void LoadProtocol(MountDefinition definition,SourceCredentials credentials,bool rootEditable){UserField.Text=credentials.UserName;PasswordField.Password=credentials.Password;}
+    /// <summary>地址变更立即撤销旧指纹草稿，防止将旧服务器授权带到新地址；初始化加载不触发撤销。</summary>
+    private void EndpointChanged(object sender,TextChangedEventArgs args)
+    {if(!_loading){UpdateHttpWarning();UpdateCertificatePresentation();}}
+    /// <summary>只有用户改变地址才更新明文警告，后台刷新不会重开已关闭提示。</summary>
+    private void UpdateHttpWarning(){var current=EndpointField.Text.Trim();if(_httpWarningContext==current)return;_httpWarningContext=current;HttpWarning.IsOpen=Uri.TryCreate(current,UriKind.Absolute,out var address)&&address.Scheme=="http";}
+    private void ClearSecrets()=>PasswordField.Password="";
+}

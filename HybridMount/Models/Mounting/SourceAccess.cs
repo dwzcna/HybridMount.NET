@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>有效权限独立于内容版本；缺失证据不等于拒绝，权限不能证明条件写或原子替换可靠。</summary>
 public enum SourceAccessDecision { Unknown,Allowed,Denied }
@@ -12,7 +12,7 @@ public sealed record SourceAccessSnapshot(Guid SessionId,string Path,DateTimeOff
 }
 /// <summary>本地意图已持久化后，在任何目标写入前返回；失败只阻止相关路径，原正文／快照／基线保留。</summary>
 public sealed class SourcePermissionException(SourceAccessSnapshot access,SourcePrivilege privilege):IOException(
-    string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(access.For(privilege)==SourceAccessDecision.Denied?"SourcePermissionBlocked":"SourcePermissionPending", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, access.Path, privilege.ToString()))
+    global::HybridMount.Models.Localization.ResourceMessage.Create(access.For(privilege)==SourceAccessDecision.Denied?"SourcePermissionBlocked":"SourcePermissionPending", access.Path, privilege.ToString()).Render())
 {
     public SourceAccessSnapshot Access {get;}=access;
     public bool Pending=>Access.For(privilege)==SourceAccessDecision.Unknown;

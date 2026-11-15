@@ -1,5 +1,6 @@
-using HybridMount.Models.Mounting.Synology;
-using HybridMount.Services.Localization;
+﻿using HybridMount.Commons.Protocols;
+using HybridMount.Infrastructure.Protocols.Synology;
+using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -11,7 +12,7 @@ public sealed partial class MountManager
     internal Task<ConnectionSubmissionProof> AuthenticateSubmissionAsync(ConnectionSubmissionDraft input,string? otp,CancellationToken token)
     {
         var draft=input.Freeze();var scope=SubmissionScope(draft);
-        lock(_lifetime){ThrowIfStopping();if(_connectionSubmissions.Count>=32||!_connectionSubmissions.Add(scope))throw new IOException(UILanguageService.Messages.GetString("ConfigurationAlreadySubmitting",UILanguageService.ResourceCulture)!);}
+        lock(_lifetime){ThrowIfStopping();if(_connectionSubmissions.Count>=32||!_connectionSubmissions.Add(scope))throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ConfigurationAlreadySubmitting").Render());}
         try{return OwnAsync(async cancel=>
         {
             SynologyProbeResult? synology=null;
@@ -46,7 +47,7 @@ public sealed partial class MountManager
         ValidateSqsSettings(draft.Source,options.Sqs,options.SqsCredentials);FileExclusionRules.Validate(draft.Exclusions);
         if(draft.ExistingId is {} id)
         {
-            var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException(UILanguageService.Messages.GetString("ThisConfigurationIsBusyWithAnotherOperation",UILanguageService.ResourceCulture)!);
+            var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ThisConfigurationIsBusyWithAnotherOperation").Render());
             var previous=root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
             if(previous.Kind!=draft.Source.Kind||(!CanEditRemoteRoot(id)&&(previous.Endpoint!=draft.Source.Endpoint||previous.Bucket!=draft.Source.Bucket||previous.Prefix!=draft.Source.Prefix||previous.AllowHttp!=draft.Source.AllowHttp)))throw new IOException("已有挂载不能更换远端根，请新建挂载。");
         }
@@ -59,14 +60,14 @@ public sealed partial class MountManager
             lock(_lifetime)
             {
                 ThrowIfStopping();cancel.ThrowIfCancellationRequested();EnsureNoRemovalBatch();
-                if(!ReferenceEquals(proof.Owner,this)||proof.Transferred)throw new IOException(UILanguageService.Messages.GetString("ConfigurationAuthenticationExpired",UILanguageService.ResourceCulture)!);
+                if(!ReferenceEquals(proof.Owner,this)||proof.Transferred)throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ConfigurationAuthenticationExpired").Render());
                 var draft=proof.Draft;var mount=draft.ExistingId??Guid.NewGuid();var job=new Job(Guid.NewGuid().ToString("N"),mount,"connect",_stop.Token);
                 job.Snapshot=job.Snapshot with{Total=1,ItemPath=draft.Path,MountName=draft.Name};
                 var stages=new List<string>{"OperationStageAuthenticate"};if(draft.ExistingId is not null)stages.Add("OperationStageStopPreviousConnection");
                 stages.AddRange(["OperationStageSaveConfiguration","OperationStageConnectSource","OperationStageInitialize","OperationStageReadChanges","OperationStageSummarize"]);
                 try
                 {
-                    if(DateTimeOffset.UtcNow-proof.Finished>TimeSpan.FromMinutes(4))throw new IOException(UILanguageService.Messages.GetString("ConfigurationAuthenticationExpired",UILanguageService.ResourceCulture)!);
+                    if(DateTimeOffset.UtcNow-proof.Finished>TimeSpan.FromMinutes(4))throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ConfigurationAuthenticationExpired").Render());
                     _repository.AcceptApplicationTask(job.Snapshot,stages,proof.Started,proof.Finished);proof.Transfer();
                     _jobs[job.Snapshot.Id]=job;
                     job.Work=OwnAsync(appToken=>RunSubmissionAsync(job,proof,appToken),_stop.Token);Notify();
@@ -83,7 +84,7 @@ public sealed partial class MountManager
     {
         var scope=SubmissionScope(proof.Draft);
         using var cancel=CancellationTokenSource.CreateLinkedTokenSource(appToken,job.Cancel.Token);
-        using var authenticated=SynologySessionTicket.Use(proof.Session);
+        using var authenticated=AuthenticationSessionContext.Use(proof.Session);
         using var parent=TasksQueue.EnterTask(job.Root,job.Snapshot.Id,MountingPriority.User,"connect");
         try
         {

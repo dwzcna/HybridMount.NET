@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 namespace HybridMount.Models.Mounting;
 
 /// <summary>配置内的不可变值列表；防止调用方修改数组，并保持JSON往返后的记录值相等性。</summary>

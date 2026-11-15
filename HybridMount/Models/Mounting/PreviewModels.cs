@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>预览范围结果；不支持与有效的文件末尾零字节分开表达。</summary>
 public readonly record struct PreviewRangeResult(bool Supported,int Bytes);

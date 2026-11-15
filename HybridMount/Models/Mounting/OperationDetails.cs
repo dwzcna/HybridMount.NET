@@ -1,12 +1,12 @@
-﻿using HybridMount.Services.Localization;
+﻿using HybridMount.Commons.Presentation;
 namespace HybridMount.Models.Mounting;
 
 /// <summary>只读展示阶段；Name为语义资源键，Reason保留业务原文。不得用于授予写入或放行依赖。</summary>
 public sealed record OperationStepSnapshot(int Ordinal,string Name,string State,DateTimeOffset? StartedUtc,DateTimeOffset? FinishedUtc,string? Reason,long Completed=0,long Total=0,string? Evidence=null)
 {
-    public string DisplayName=>UILanguageService.Messages.GetString(Name,UILanguageService.ResourceCulture)??Name;
+    public string DisplayName => ModelPresentation.Render(this,nameof(DisplayName));
     public string Glyph=>State switch{"Completed"=>"\uE930","Running"=>"\uE72A","Pending"=>"\uE712","Canceled"=>"\uE711","Conflict"=>"\uE7BA","Skipped" or "Superseded"=>"\uE893","Waiting" or "Deferred" or "Queued"=>"\uE823","Interrupted"=>"\uE769","OutcomeUnknown"=>"\uE9CE",_=>"\uEA39"};
-    public string DisplayState=>UILanguageService.Messages.GetString(State switch{"Completed"=>"Completed","Running"=>"Running","Pending"=>"OperationStepPending","Canceled"=>"Canceled","Conflict"=>"Conflict","Skipped" or "Superseded"=>"TaskResultSkipped","Waiting" or "Deferred" or "Queued"=>"TaskDeferred","Interrupted"=>"Interrupted","OutcomeUnknown"=>"ResultNeedsChecking",_=>"Failed"},UILanguageService.ResourceCulture)!;
+    public string DisplayState => ModelPresentation.Render(this,nameof(DisplayState));
 }
 /// <summary>同一任务的一次展示尝试，重试保留此前所有真实阶段。</summary>
 public sealed record OperationRunSnapshot(string Id,string TaskId,int Attempt,string Generation,string State,DateTimeOffset StartedUtc,DateTimeOffset? FinishedUtc,string? Reason,IReadOnlyList<OperationStepSnapshot> Steps);

@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>已成功读取的远端变更响应不满足结构约束；不用于网络、HTTP 拒绝或取消。</summary>
 public sealed class InvalidRemoteChangeResponseException(string message,Exception? innerException=null):IOException(message,innerException);

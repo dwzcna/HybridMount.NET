@@ -1,10 +1,15 @@
+﻿using HybridMount.Infrastructure.Native;
+using HybridMount.Infrastructure.Protocols;
+using HybridMount.Infrastructure.Protocols.Synology;
+using HybridMount.Infrastructure.Protocols.WebDAV;
 using HybridMount.Models.Mounting;
+using HybridMount.Models.Protocols.WebDAV;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
     private readonly object _lifetime=new();
-    private readonly List<Models.Mounting.Synology.SynologySessionTicket> _synologySessions=[];
+    private readonly List<HybridMount.Infrastructure.Protocols.Synology.SynologySessionTicket> _synologySessions=[];
     private readonly HashSet<Task> _foreground=[];
     private int _stopping;
     private Task _cancellation=Task.CompletedTask;
@@ -41,13 +46,13 @@ public sealed partial class MountManager
             return result;
         },token);
     /// <summary>无凭据获取由应用拥有；只验证HTTPS地址，关闭和退出取消并等待连接资源归还。</summary>
-    internal Task<Models.Mounting.WebDAV.WebDavCertificateInfo> FetchCertificateAsync(string address,CancellationToken token=default)
-        =>OwnAsync(cancel=>Models.Mounting.WebDAV.WebDavCertificateFetcher.FetchCertificateAsync(address,cancel),token);
+    internal Task<HybridMount.Models.Protocols.WebDAV.WebDavCertificateInfo> FetchCertificateAsync(string address,CancellationToken token=default)
+        =>OwnAsync(cancel=>HybridMount.Infrastructure.Protocols.WebDAV.WebDavCertificateFetcher.FetchCertificateAsync(address,cancel),token);
     private Task OwnAsync(Func<CancellationToken,Task> action,CancellationToken token)
         =>OwnAsync(async cancel=>{await action(cancel).ConfigureAwait(false);return true;},token);
     /// <summary>表单探测会话由应用生命周期拥有；退出与迟到结果均释放尚未交接的认证。</summary>
-    internal Task<Models.Mounting.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,CancellationToken token,
-        Models.Mounting.Synology.SynologySessionTicket? previous=null)
+    internal Task<HybridMount.Infrastructure.Protocols.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings,SourceCredentials credentials,string? oneTimePassword,CancellationToken token,
+        HybridMount.Infrastructure.Protocols.Synology.SynologySessionTicket? previous=null)
         =>OwnAsync(async cancel=>
         {
             var result=await (_factory as FileSourceFactory??new FileSourceFactory()).TestSynologyConnectionAsync(settings,credentials,oneTimePassword,cancel,previous).ConfigureAwait(false);

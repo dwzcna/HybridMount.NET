@@ -1,10 +1,11 @@
+﻿using HybridMount.Commons.Mounting;
 namespace HybridMount.Models.Mounting;
 
 /// <summary>P0最高、P5最低；枚举数值按降序调度，不以等待时间提高后台任务优先级。</summary>
 public enum MountingPriority { Maintenance=100,Thumbnail=200,Observation=300,Transaction=400,User=500,Demand=600 }
 /// <summary>仅内存中的调度描述，不替代上传、远端应用或改名的持久恢复记录。</summary>
 public sealed record MountingTask(string Id,Guid MountId,long Generation,MountingPriority Priority,DateTimeOffset SubmitTime,
-    string Operation,string? Path=null,string? EntryId=null,string? Version=null) : Commons.IMountingTask
+    string Operation,string? Path=null,string? EntryId=null,string? Version=null) : HybridMount.Commons.Mounting.IMountingTask
 {
     public IReadOnlyList<string> Dependencies {get;init;}=[];
     // 以下仅供进程内协调，不进入公共模型、IPC、备份或数据库格式。

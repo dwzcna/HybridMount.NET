@@ -1,5 +1,4 @@
-using HybridMount.Models.Mounting;
-namespace HybridMount.Helpers.IO;
+﻿namespace HybridMount.Helpers.IO;
 
 /// <summary>请求只借用调用者的流；HttpContent 释放不能关闭调用者数据源。</summary>
 internal sealed class BorrowedStream(Stream inner) : Stream

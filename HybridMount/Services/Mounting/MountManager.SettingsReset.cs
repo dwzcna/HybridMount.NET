@@ -1,3 +1,5 @@
+﻿using HybridMount.Infrastructure.Settings;
+using HybridMount.Models.Settings;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -6,7 +8,7 @@ public sealed partial class MountManager
     internal Task<SettingsResetInspection> InspectSettingsResetAsync(CancellationToken token=default)=>OwnAsync(async cancel=>
     {
         EnsureNoRemovalBatch();await _configurationGate.WaitAsync(cancel).ConfigureAwait(false);
-        try{EnsureNoRemovalBatch();return await Task.Run(()=>{if(!_roots.IsEmpty||_repository.LoadDefinitions().Count>0)return new SettingsResetInspection(null,global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ThisDeploymentStillHasMountConfigurationsRemoveAllMountsFirst", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);return SettingsResetService.Inspect(cancel);},cancel).ConfigureAwait(false);}
+        try{EnsureNoRemovalBatch();return await Task.Run(()=>{if(!_roots.IsEmpty||_repository.LoadDefinitions().Count>0)return new SettingsResetInspection(null,HybridMount.Models.Localization.ResourceMessage.Create("ThisDeploymentStillHasMountConfigurationsRemoveAllMountsFirst").Render());return SettingsResetService.Inspect(cancel);},cancel).ConfigureAwait(false);}
         finally{_configurationGate.Release();}
     },token);
     /// <summary>确认后在相同配置锁内重新核验并发出停止；后续新建、导入及连接无法再被接纳，不在此处删除。</summary>
@@ -21,5 +23,5 @@ public sealed partial class MountManager
         finally{_configurationGate.Release();}
     },token);
     private void EnsureNoSettingsResetMounts()
-    {if(!_roots.IsEmpty||_repository.LoadDefinitions().Count>0)throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ThisDeploymentStillHasMountConfigurationsRemoveAllMountsFirst", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);}
+    {if(!_roots.IsEmpty||_repository.LoadDefinitions().Count>0)throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ThisDeploymentStillHasMountConfigurationsRemoveAllMountsFirst").Render());}
 }

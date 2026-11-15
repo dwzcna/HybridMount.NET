@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>0 保留旧配置的迁出语义；SMB/NFS 仅预留适配器标识。</summary>
 public enum FileSourceKind { LegacyMock, WebDav, S3, Smb, Nfs, Synology }

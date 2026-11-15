@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>任务展示历史的清理范围，不代表取消、回滚或删除同步数据。</summary>
 public enum TaskHistoryClearMode { Completed,Failed,All }

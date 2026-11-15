@@ -1,7 +1,10 @@
+﻿using HybridMount;
+using HybridMount.Models.Localization;
+using HybridMount.Models.Recovery;
+using HybridMount.UI;
+using HybridMount.UI.Dispatch;
+using HybridMount.UI.Localization;
 using System.Collections.ObjectModel;
-using HybridMount.Helpers.UI;
-using HybridMount.Models.Mounting.Recovery;
-using HybridMount.Services.Localization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -33,12 +36,12 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
         var commands = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         commands.Children.Add(selectAll); commands.Children.Add(clearAll);
         var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(UserInterface.Configure(new TextBlock { TextWrapping = TextWrapping.Wrap }, ("Text", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryExplanation"))));
+        panel.Children.Add(UserInterface.Configure(new TextBlock { TextWrapping = TextWrapping.Wrap }, ("Text", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryExplanation"))));
         panel.Children.Add(commands); panel.Children.Add(count); panel.Children.Add(list); panel.Children.Add(feedback);
-        var dialog = global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog
+        var dialog = global::HybridMount.UI.UserInterface.Configure(new ContentDialog
         {
             XamlRoot = XamlRoot,Content = panel,DefaultButton = ContentDialogButton.Close,IsPrimaryButtonEnabled = false
-        }, ("Title", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryTitle")), ("PrimaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryRemove")), ("SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryReload")), ("CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Close")));
+        }, ("Title", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryTitle")), ("PrimaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryRemove")), ("SecondaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryReload")), ("CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Close")));
         _recoveryDialog = dialog;
         var loading = false; var active = true; var changing = false;
         void UpdateSelection()
@@ -50,7 +53,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
                 try { foreach (var row in list.SelectedItems.OfType<ExplorerEntryCandidate>().Where(x => !x.CanRemove).ToArray()) list.SelectedItems.Remove(row); }
                 finally { changing = false; }
             }
-            UserInterface.Set(count, "Text", global::HybridMount.Services.Localization.ResourceMessage.Create("ItemsSelected", list.SelectedItems.Count));
+            UserInterface.Set(count, "Text", global::HybridMount.Models.Localization.ResourceMessage.Create("ItemsSelected", list.SelectedItems.Count));
             dialog.IsPrimaryButtonEnabled = !loading && list.SelectedItems.Count > 0;
             dialog.IsSecondaryButtonEnabled = selectAll.IsEnabled = clearAll.IsEnabled = !loading;
         }
@@ -64,19 +67,19 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
         {
             if (loading || cancel.IsCancellationRequested) return;
             loading = true; UpdateSelection();
-            feedback.Severity = InfoBarSeverity.Informational; global::HybridMount.Helpers.UI.UserInterface.Set(feedback, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntrySearching")); feedback.IsOpen = true;
+            feedback.Severity = InfoBarSeverity.Informational; global::HybridMount.UI.UserInterface.Set(feedback, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntrySearching")); feedback.IsOpen = true;
             try
             {
                 var found = await App.Current.DiscoverExplorerEntriesAsync(cancel.Token);
                 if (!active || _disposed || stopping() || cancel.IsCancellationRequested) return;
                 list.SelectedItems.Clear(); rows.Clear(); foreach (var row in found) rows.Add(row);
-                global::HybridMount.Helpers.UI.UserInterface.Set(feedback, "Message", global::HybridMount.Services.Localization.ResourceMessage.Create(found.Count == 0 ? "ExplorerEntryNone" : "ExplorerEntryFound", found.Count));
+                global::HybridMount.UI.UserInterface.Set(feedback, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create(found.Count == 0 ? "ExplorerEntryNone" : "ExplorerEntryFound", found.Count));
             }
             catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
             catch (Exception error)
             {
                 if (active && !_disposed && !stopping() && !cancel.IsCancellationRequested)
-                { list.SelectedItems.Clear(); rows.Clear(); feedback.Severity = InfoBarSeverity.Error; global::HybridMount.Helpers.UI.UserInterface.Set(feedback, "Message", error.Message); feedback.IsOpen = true; }
+                { list.SelectedItems.Clear(); rows.Clear(); feedback.Severity = InfoBarSeverity.Error; global::HybridMount.UI.UserInterface.Set(feedback, "Message", error.Message); feedback.IsOpen = true; }
             }
             finally { loading = false; UpdateSelection(); }
         }
@@ -93,10 +96,10 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
             if (result != ContentDialogResult.Primary || _disposed || stopping() || cancel.IsCancellationRequested) return;
             var captured = list.SelectedItems.OfType<ExplorerEntryCandidate>().Where(x => x.CanRemove).ToArray();
             if (captured.Length == 0) return;
-            var details = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExplorerEntryConfirm", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! + "\n\n" + string.Join("\n\n", captured.Select(x => x.Display));
-            _recoveryDialog = global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog
+            var details = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ExplorerEntryConfirm", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! + "\n\n" + string.Join("\n\n", captured.Select(x => x.Display));
+            _recoveryDialog = global::HybridMount.UI.UserInterface.Configure(new ContentDialog
             {
-                XamlRoot = XamlRoot,DefaultButton = ContentDialogButton.Close,                Content = new ScrollViewer { MaxHeight = 420, Content = new TextBlock { Text = details, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } }            }, ("Title", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryTitle")), ("PrimaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryRemove")), ("CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Cancel")));
+                XamlRoot = XamlRoot,DefaultButton = ContentDialogButton.Close,                Content = new ScrollViewer { MaxHeight = 420, Content = new TextBlock { Text = details, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true } }            }, ("Title", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryTitle")), ("PrimaryButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryRemove")), ("CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Cancel")));
             if (await UserInterface.ShowAsync(_recoveryDialog) != ContentDialogResult.Primary || _disposed || stopping()) return;
             await RemoveExplorerEntriesAsync(captured, cancel);
         }
@@ -114,14 +117,14 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
     private async Task RemoveExplorerEntriesAsync(ExplorerEntryCandidate[] captured, CancellationTokenSource cancel)
     {
         var text = new TextBlock { TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
-        var dialog = global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog
+        var dialog = global::HybridMount.UI.UserInterface.Configure(new ContentDialog
         {
-            XamlRoot = XamlRoot,            Content = new ScrollViewer { Content = text, MaxHeight = 420 }        }, ("Title", global::HybridMount.Services.Localization.ResourceMessage.Create("ExplorerEntryTitle")), ("CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Cancel")));
+            XamlRoot = XamlRoot,            Content = new ScrollViewer { Content = text, MaxHeight = 420 }        }, ("Title", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryTitle")), ("CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Cancel")));
         _recoveryDialog = dialog; var working = true;
         void Closing(ContentDialog _, ContentDialogClosingEventArgs args)
         {
             if (!working || _disposed || stopping()) return;
-            args.Cancel = true; cancel.Cancel(); UserInterface.Set(dialog, "CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("CancellationInProgress"));
+            args.Cancel = true; cancel.Cancel(); UserInterface.Set(dialog, "CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("CancellationInProgress"));
         }
         dialog.Closing += Closing;
         var shown = UserInterface.ShowAsync(dialog);
@@ -132,7 +135,7 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
             if (!_disposed && !stopping()) text.Text = string.Join("\n\n", results.Select(x => x.Display));
         }
         catch (Exception error) { if (!_disposed && !stopping()) text.Text = error.Message; }
-        finally { working = false; if (!_disposed && !stopping()) UserInterface.Set(dialog, "CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Close")); }
+        finally { working = false; if (!_disposed && !stopping()) UserInterface.Set(dialog, "CloseButtonText", global::HybridMount.Models.Localization.ResourceMessage.Create("Close")); }
         await shown; dialog.Closing -= Closing;
     }
     public void Dispose()

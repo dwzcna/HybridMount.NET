@@ -1,6 +1,10 @@
-﻿using HybridMount.Helpers.UI;
+﻿using HybridMount.Models.Mounting.Capabilities;
+using HybridMount.Infrastructure.Protocols.Capabilities;
+using HybridMount.Models.Localization;
 using HybridMount.Models.Mounting;
-using HybridMount.Services.Localization;
+using HybridMount.UI;
+using HybridMount.UI.Localization;
+using HybridMount.UI.Presentation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -78,40 +82,40 @@ public sealed class ProtocolCapabilitiesView : UserControl
     }
     private void Render()
     {
-        global::HybridMount.Helpers.UI.UserInterface.Set(_expander, "Header", global::HybridMount.Services.Localization.ResourceMessage.Create("ProtocolCapabilitiesHeader"));
+        global::HybridMount.UI.UserInterface.Set(_expander, "Header", global::HybridMount.Models.Localization.ResourceMessage.Create("ProtocolCapabilitiesHeader"));
         _expander.IsEnabled = true;
         _hint.Visibility = _snapshot is null ? Visibility.Visible : Visibility.Collapsed;
-        _hint.Text = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ProtocolCapabilitiesHint", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-        _summary.Text = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(_history ? "ProtocolCapabilitiesHistory" : "ProtocolCapabilitiesScope", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+        _hint.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolCapabilitiesHint", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+        _summary.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(_history ? "ProtocolCapabilitiesHistory" : "ProtocolCapabilitiesScope", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
         foreach (var retry in _cleanupRows.Children.OfType<StackPanel>().SelectMany(panel => panel.Children).OfType<Button>()) retry.IsEnabled = !_probeRunning;
-        _probeButton.Content = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(_probeRunning ? "CapabilityProbeCancel" : "CapabilityProbeStart", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-        _probeWarning.Text = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbeWarning", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-        _probeProgress.Text = _probe is null ? "" : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(ProbeStageKey(_probe.Stage), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! + "\n" +
-            string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbeSummary", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, _probe.Cases.Length, _probe.StartedUtc.ToLocalTime().ToString("g")) +
-            (_probe.Cases.Any(item => item.PermissionDenied) ? "\n" + global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbeWritePermission", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : "");
+        _probeButton.Content = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(_probeRunning ? "CapabilityProbeCancel" : "CapabilityProbeStart", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+        _probeWarning.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeWarning", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+        _probeProgress.Text = _probe is null ? "" : global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(ProbeStageKey(_probe.Stage), global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! + "\n" +
+            string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeSummary", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, _probe.Cases.Length, _probe.StartedUtc.ToLocalTime().ToString("g")) +
+            (_probe.Cases.Any(item => item.PermissionDenied) ? "\n" + global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeWritePermission", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! : "");
         foreach (var item in ProtocolCapabilityCatalog.For(_kind, _sqs))
         {
             if (!_fields.TryGetValue(item.Id, out var field)) continue;
             var value = _snapshot is null ? null : ProtocolCapabilitySummary.Read(_snapshot, item.Id);
-            field.Status.Text = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(StatusKey(value?.Status ?? ProtocolCapabilityStatus.Unknown), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-            var text = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(item.DescriptionKey, global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+            field.Status.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(StatusKey(value?.Status ?? ProtocolCapabilityStatus.Unknown), global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+            var text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(item.DescriptionKey, global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
             if (value?.Evidence.Count > 0)
             {
-                var paths = value.Evidence.Select(e => e.Scope switch { "" => global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ProtocolScopeRoot", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, "@server" => global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ProtocolScopeServer", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, "@queue" => global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ProtocolScopeQueue", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, _ => e.Scope }).Distinct().Take(4);
-                text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ProtocolEvidenceDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, string.Join("；", paths), value.Evidence.Max(e => e.ObservedUtc).ToLocalTime().ToString("g"));
+                var paths = value.Evidence.Select(e => e.Scope switch { "" => global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolScopeRoot", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, "@server" => global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolScopeServer", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, "@queue" => global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolScopeQueue", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, _ => e.Scope }).Distinct().Take(4);
+                text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolEvidenceDetails", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, string.Join("；", paths), value.Evidence.Max(e => e.ObservedUtc).ToLocalTime().ToString("g"));
             }
-            if (value is { Reason: not ProtocolCapabilityReason.None }) text += "\n" + global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(ReasonKey(value.Reason), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+            if (value is { Reason: not ProtocolCapabilityReason.None }) text += "\n" + global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(ReasonKey(value.Reason), global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
             if (item.Id == "dav.tls13" && _snapshot?.Transport is {} transport)
             {
                 text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                    global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(TransportKey(transport.Version), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,
+                    global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(TransportKey(transport.Version), global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,
                     transport.ObservedUtc.ToLocalTime().ToString("g"));
             }
             field.Details.Text = text;
             if (_probe?.Cases.LastOrDefault(step => step.Id == item.Id) is {} step)
             {
-                if (!step.Skipped || value?.Status is null or ProtocolCapabilityStatus.Unknown) field.Status.Text = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(StatusKey(step.Status), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-                field.Details.Text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(step.Skipped ? "CapabilityProbeSkipped" : "CapabilityProbeCaseDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,                     ProbeReason(step.Reason), step.Milliseconds);
+                if (!step.Skipped || value?.Status is null or ProtocolCapabilityStatus.Unknown) field.Status.Text = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(StatusKey(step.Status), global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
+                field.Details.Text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString(step.Skipped ? "CapabilityProbeSkipped" : "CapabilityProbeCaseDetails", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,                     ProbeReason(step.Reason), step.Milliseconds);
             }
         }
     }
@@ -131,14 +135,14 @@ public sealed class ProtocolCapabilitiesView : UserControl
         var selection = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
         var details = new StackPanel { Spacing = 8 };
         foreach (var run in candidates)
-            selection.Items.Add(new ComboBoxItem { Content = string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbeCleanupRecord", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, run.StartedUtc.ToLocalTime().ToString("g"), run.RunId), Tag = run });
+            selection.Items.Add(new ComboBoxItem { Content = string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeCleanupRecord", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, run.StartedUtc.ToLocalTime().ToString("g"), run.RunId), Tag = run });
         selection.SelectionChanged += (_, _) =>
         {
             details.Children.Clear();
             if (selection.SelectedItem is not ComboBoxItem { Tag: CapabilityProbeRun run }) return;
             foreach (var item in run.Resources.Where(item => item.Stage is not ("Cleaned" or "Planned")))
                 details.Children.Add(new TextBlock { Text = CapabilityProbePresentation.ResourceDetails(item), IsTextSelectionEnabled = true, TextWrapping = TextWrapping.Wrap });
-            var retry = global::HybridMount.Helpers.UI.UserInterface.Configure(new Button { IsEnabled = !_probeRunning,                Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"] }, ("Content", global::HybridMount.Services.Localization.ResourceMessage.Create("CapabilityProbeRetryCleanup")));
+            var retry = global::HybridMount.UI.UserInterface.Configure(new Button { IsEnabled = !_probeRunning,                Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"] }, ("Content", global::HybridMount.Models.Localization.ResourceMessage.Create("CapabilityProbeRetryCleanup")));
             retry.Click += (_, _) => CleanupRequested?.Invoke(this, run.RunId);
             details.Children.Add(retry);
         };
@@ -182,7 +186,7 @@ public sealed class ProtocolCapabilitiesView : UserControl
         "CleanupPending" => "CapabilityProbeStageCleanupPending",
         _ => "CapabilityProbeStagePreflight"
     };
-    private static string ProbeReason(string reason) => string.IsNullOrEmpty(reason) ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbeVerified", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! :
-        string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbeReason", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, reason);
+    private static string ProbeReason(string reason) => string.IsNullOrEmpty(reason) ? global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeVerified", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! :
+        string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("CapabilityProbeReason", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, reason);
 
 }

@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>Shell只读属性的原始值和SDK语义；未知或未完成状态不能冒充暂停或已同步。</summary>
 internal sealed record ShellFileStatus(uint? ProviderState,uint? TransferStatus,uint? PlaceholderStatus,string? Error=null)

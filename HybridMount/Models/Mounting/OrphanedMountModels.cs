@@ -1,3 +1,4 @@
+﻿using HybridMount.Commons.Presentation;
 namespace HybridMount.Models.Mounting;
 
 /// <summary>仅包含本地身份的遗留根快照；ShellOnly候选只清注册，绝不清空目录。可选字段兼容旧日志。</summary>
@@ -10,8 +11,8 @@ public sealed record OrphanedMountCandidate(Guid MountId,string LocalPath,string
     public string? NamespaceId {get;init;}
     public string? ContentStamp {get;init;}
     public bool CanRemove=>Error is null;
-    public string ActionText=>OrphanedDirectory?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ClearOrphanedPlaceholderFolder", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:ShellOnly?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveLegacyEntry", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ClearAndUnregister", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
-    public string Display=>string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TwoLineDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, LocalPath, (Error??(OrphanedDirectory?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("OrphanedPlaceholderFolderTheOriginalProviderCannotBeVerified", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:ShellOnly?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ShellEntryOnly", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:Registered?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("VerifiedLegacySyncRootOwnedByThisProduct", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("LocalContentClearedUnregistrationCleanupIsPending", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!)));
+    public string ActionText => ModelPresentation.Render(this,nameof(ActionText));
+    public string Display => ModelPresentation.Render(this,nameof(Display));
 }
 /// <summary>离线移除的实际结果；部分删除不回滚，失败保留阶段供用户显式重试。</summary>
 public sealed record OrphanedMountResult(bool Completed,int Deleted,string Stage,IReadOnlyList<string> Errors)
@@ -32,14 +33,13 @@ public sealed record OrphanedMountBatchResult(IReadOnlyList<OrphanedMountItemRes
     public int Failed=>Items.Count(x=>x.State==OrphanedMountItemState.Failed);
     public int Canceled=>Items.Count(x=>x.State==OrphanedMountItemState.Canceled);
     public int NotStarted=>Items.Count(x=>x.State==OrphanedMountItemState.NotStarted);
-    public string Summary=>string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SucceededFailedCanceledNotStarted", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, Completed, Failed, Canceled, NotStarted);
+    public string Summary => ModelPresentation.Render(this,nameof(Summary));
     /// <summary>生成用户可复制的阶段及错误清单；成功项也保留路径。</summary>
-    public string Detail=>Summary+"\n\n"+string.Join("\n\n",Items.Select(x=>x.Root.LocalPath+"\n"+x.State+" · "+x.Stage+
-        (x.HResult is {} code?$" · 0x{code:X8}":"")+(x.Errors.Count>0?"\n"+string.Join("\n",x.Errors):"")));
+    public string Detail => ModelPresentation.Render(this,nameof(Detail));
 }
 
 /// <summary>手动目录检查的正常结果；受管目录是可展示的拒绝，不以异常驱动界面。</summary>
 public sealed record OrphanedMountInspection(OrphanedMountCandidate? Candidate,MountDefinition? Managed=null,string? OwnerMode=null)
 {
-    public string Message=>Managed is null?"":string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RecoveryManagedDirectory", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, Managed.Name, Managed.LocalPath,         global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(OwnerMode=="Packaged"?"RecoveryModePackaged":"RecoveryModeUnpackaged", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+    public string Message => ModelPresentation.Render(this,nameof(Message));
 }

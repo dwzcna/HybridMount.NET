@@ -1,0 +1,17 @@
+﻿using HybridMount.Models.Protocols.S3;
+using HybridMount.Infrastructure.Protocols.S3;
+using HybridMount.UI.Localization;
+using HybridMount.UI.Presentation;
+using HybridMount.Models.Mounting;
+namespace HybridMount.UI.Presentation;
+
+/// <summary>只格式化不可变模型；后台调用不访问控件、Dispatcher、系统目录或网络。</summary>
+internal sealed class MountItemResultPresentationView(MountItemResult value)
+{
+    private readonly MountItemResult _value=value;
+    private string Path => _value.Path;
+    private string Status => _value.Status;
+    private string Message => _value.Message;
+/// <summary>只在展示时翻译自有状态，持久值与原错误消息保持原文。</summary>
+    public string DisplayStatus=>Status switch{"Pending" or "Queued"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Queued",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Committing"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("OperationStageApplyPlaceholder",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Conflict"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Conflict",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Superseded"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TaskResultSkipped",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Interrupted"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Interrupted",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Completed"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Completed",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Failed"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Failed",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Canceled"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Canceled",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Deferred"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TaskDeferred",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Waiting"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TaskDeferred",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Supported"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolStatusSupported",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Unsupported"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolStatusUnsupported",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Unknown"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolStatusUnknown",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Advertised"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProtocolStatusAdvertised",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Skipped"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TaskResultSkipped",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,"Saved"=>global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("TaskResultSaved",global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,_=>Status};
+}

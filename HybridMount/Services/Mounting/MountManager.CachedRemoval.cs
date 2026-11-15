@@ -1,3 +1,7 @@
+﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Windows.CloudFiles;
+using HybridMount.Models.Mounting;
+using HybridMount.Services.Sync;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -18,7 +22,7 @@ public sealed partial class MountManager
         if(uploads.Any(item=>UploadRules.InFlight(item)||item.Receipt is not null&&item.State!="Completed"||item.Resolution is not null||item.SnapshotPath is not null&&UploadRules.Unfinished(item))||
             RenameIntents(mount.Id).Any(item=>!item.Finished)||_renameErrors.ContainsKey(mount.Id)||
             RemotePendingFor(root).Any(item=>item.State is "Committing" or "Hydrating"||item.SnapshotPath is not null&&item.State is not("Completed" or "Superseded")))
-            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedUnresolved", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+            throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedUnresolved").Render());
         // 不可逆内容处理开始前才固定移除意图；未决回执拒绝后仍可重新连接核对。
         var journal=PrepareRemoval(root,MountRemovalMode.PreserveCachedFiles);
         var uploadPaths=uploads.Where(UploadRules.Unfinished).Select(item=>item.LocalPath).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -28,7 +32,7 @@ public sealed partial class MountManager
             root.Session=new CloudMountSession(mount,null,_repository,_logger,blockHydration:true);
             ConnectSession(root);await root.Session.BeginClearAsync().ConfigureAwait(false);
         }
-        Status(root,"Removing",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedOperation", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+        Status(root,"Removing",HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedOperation").Render());
         using var rootLease=MountContentCleaner.HoldRoot(mount);
         var count=0;var failures=WalkCached(mount.LocalPath,0);
         if(failures!=0)
@@ -53,14 +57,14 @@ public sealed partial class MountManager
                     var tag=LocalFileMetadata.ReadTag(path);
                     // 外部联接和符号链接只保留本体，绝不进入其目标或交给CFAPI查询。
                     if((tag.Attributes&0x400)!=0&&tag.Tag!=0&&!CloudFilesNative.IsCloudTag(tag.Tag))
-                    {Result(job,path,"Completed",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedLinkKept", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);continue;}
+                    {Result(job,path,"Completed",HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedLinkKept").Render());continue;}
                     var snapshot=CloudFilesNative.ReadNative(path,ranges:true);
                     var childrenFailed=0;
                     if(snapshot.Stamp.IsDirectory)
                     {
                         using(var handle=MountContentCleaner.HoldDirectory(path,snapshot.Stamp.Identity))childrenFailed=WalkCached(path,depth+1);
                         failed+=childrenFailed;
-                        if(childrenFailed!=0){Result(job,path,"Failed",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedChildrenFailed", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);continue;}
+                        if(childrenFailed!=0){Result(job,path,"Failed",HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedChildrenFailed").Render());continue;}
                         snapshot=CloudFilesNative.ReadNative(path,ranges:true,expectedIdentity:snapshot.Stamp.Identity);
                     }
                     if(snapshot.Placeholder is {} info)
@@ -69,14 +73,14 @@ public sealed partial class MountManager
                         var entry=marker is null?null:_repository.EntryById(mount.Id,marker.EntryId);
                         var relative=Path.GetRelativePath(mount.LocalPath,path).Replace('\\','/');
                         if(root.Session is null||marker?.MountId!=mount.Id||entry is null||!entry.LocalPath.Equals(relative,StringComparison.OrdinalIgnoreCase))
-                            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedOwnership", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                            throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedOwnership").Render());
                         var discard=!snapshot.Stamp.IsDirectory&&!snapshot.Full;
                         if(discard&&(info.ModifiedSize!=0||info.InSyncState!=1||entry.Protected||entry.Deleted||uploadPaths.Contains(relative)||_repository.HasPendingRemote(mount.Id,entry.SourcePath)))
-                            throw new IOException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedPartialProtected", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                            throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedPartialProtected").Render());
                         root.Session.Runtime.Invoke("preserveCachedLocal",root.Session.EntryArgs(entry,new{discard,proofStamp=snapshot.Stamp.Key}),token:job.Cancel.Token);
-                        Result(job,path,"Completed",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(discard?"RemoveCachedPartialRemoved":"RemoveCachedKept", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                        Result(job,path,"Completed",HybridMount.Models.Localization.ResourceMessage.Create(discard?"RemoveCachedPartialRemoved":"RemoveCachedKept").Render());
                     }
-                    else Result(job,path,"Completed",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RemoveCachedKept", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                    else Result(job,path,"Completed",HybridMount.Models.Localization.ResourceMessage.Create("RemoveCachedKept").Render());
                 }
                 catch(OperationCanceledException){throw;}
                 catch(Exception error){failed++;Result(job,path,"Failed",error.Message);}

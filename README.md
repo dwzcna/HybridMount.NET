@@ -1,6 +1,6 @@
-﻿# HybridMount.NET
+# HybridMount.NET
 
-当前源码版本 **0.0.21.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.22.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 导入 `.hmxbk` 后先单选一项，再打开完整预填的新建配置表单；只有一项也需要选择。预填与取消不保存、不注册或连接；无效或不存在的本地目录可在表单内修改。导出保持多选，选择保存位置且后台任务持久接纳后关闭弹窗并定位任务；编码、写入及原子提交继续在后台，失败可重新选择并导出，保护密码需重新输入。
 
@@ -18,7 +18,7 @@ WebDAV、S3 和群晖配置在本次只读身份认证成功、任务服务持�
 
 WebDAV、S3和群晖配置中的“协议能力”可在测试连接或连接后展开，显示支持、不支持、声明支持或--。结论仅适用于已验证范围；连接测试保持只读，未验证的写入能力不会因连接成功被标为支持。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.21.0_<架构>.msix`。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.22.0_<架构>.msix`。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 WebDAV连接按目标地址族建立TCP，IPv4及IPv4映射地址使用纯IPv4连接；域名有界尝试IPv4／IPv6，保留系统代理及挂载级证书校验。连接测试先读取根集合，再有界查询OPTIONS。HTTPS证书区可独立获取叶证书SHA-256并直接填框；获取不需要账号或本地目录，不代表目录访问成功，请核对显示的证书公开信息。 支持RFC 9530 Repr-Digest（SHA-256／512）：弱或缺失ETag时以HEAD表示摘要补足内容变化判断，完整GET在头／尾摘要校验通过后才发布缓存；摘要不替代强ETag、条件写或独占锁。
 
@@ -175,7 +175,7 @@ Explorer 继续通过原生后台的 Windows 自定义存储提供程序属性�
 
 ## 构建
 
-挂载公共职责与注入边界见 [结构说明](docs/Mounting-structure-0.0.8.7.md)，测试工程递归登记模型和服务源文件。
+当前四工程目录、依赖与装配边界见 [源码结构](docs/SourceStructure-0.0.22.0.md)，测试入口与共享夹具见 [测试说明](docs/TestConsolidation-0.0.22.0.md)。四工程构建均执行同一结构与资源检查；测试工程按功能集中登记生产源码。
 
 安装 .NET SDK 10.0.401、Visual Studio 2026 的 C++ 桌面／ARM64 工具链、Windows SDK 10.0.26100.0 和 MSIX 工具。打开根目录的 **HybridMount.slnx**；解决方案仅包含以下四个工程：
 
@@ -216,7 +216,7 @@ Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64
 
 已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
 
-本版构建、验收记录及待测项目见 [docs/Validation-0.0.16.md](docs/Validation-0.0.16.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+本版构建、验收记录及待测项目见 [docs/Validation-0.0.22.0.md](docs/Validation-0.0.22.0.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
 
 
 真实自动同步验收为显式操作，可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。

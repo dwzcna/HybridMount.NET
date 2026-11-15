@@ -1,4 +1,9 @@
-﻿using System.Diagnostics;
+﻿using HybridMount.Helpers.Paths;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Protocols.Synology;
+using HybridMount.Infrastructure.Windows.CloudFiles;
+using HybridMount.Models.Mounting;
+using System.Diagnostics;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -6,7 +11,7 @@ public sealed partial class MountManager
     /// <summary>群晖列表只提供线索：零正文的干净占位只更新元数据，已有范围则在根锁外取得摘要。</summary>
     private async Task<RemotePendingChange> ResolveListedMetadataAsync(Runtime root,RemoteSyncRuntime runtime,RemotePendingChange pending,CancellationToken token)
     {
-        if(runtime.Source is not Models.Mounting.Synology.SynologyFileSource source||pending.Entry is not {IsDirectory:false} metadata||source.HasReliableVersion(metadata))return pending;
+        if(runtime.Source is not HybridMount.Infrastructure.Protocols.Synology.SynologyFileSource source||pending.Entry is not {IsDirectory:false} metadata||source.HasReliableVersion(metadata))return pending;
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -53,7 +58,7 @@ public sealed partial class MountManager
     private void PublishDiscoveryProgress(Runtime root,RemoteSyncRuntime runtime,bool force=false)
     {
         if(!RemoteSessionCurrent(root,runtime))return;var now=Stopwatch.GetTimestamp();if(!force&&runtime.LastPublicationProgress!=0&&Stopwatch.GetElapsedTime(runtime.LastPublicationProgress,now)<TimeSpan.FromMilliseconds(250))return;
-        if(runtime.ProgressTaskId is {} taskId)_taskProgress[taskId]=string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskRemoteScanProgress", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, runtime.Discovered);
+        if(runtime.ProgressTaskId is {} taskId)_taskProgress[taskId]=HybridMount.Models.Localization.ResourceMessage.Create("TaskRemoteScanProgress", runtime.Discovered).Render();
         runtime.LastPublicationProgress=now;root.Detection=root.Detection with{Mode=$"{runtime.Engine.Mode}；发现 {runtime.Discovered}／创建 {runtime.Created}／发布 {runtime.Published}"};Notify();
     }
     /// <summary>只快速发布新建的冷占位，已有内容仍走原保护路径；同一层最多256项，父目录先发布。</summary>

@@ -1,4 +1,4 @@
-using global::System.Text.Json;
+﻿using global::System.Text.Json;
 
 namespace HybridMount.Models;
 

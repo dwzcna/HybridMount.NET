@@ -1,0 +1,4 @@
+<Project>
+  <!-- 四工程构建使用同一只读结构门禁；IDE设计时不启动仓库扫描。 -->
+  <Import Project="build\HybridMount.StructureValidation.targets" />
+</Project>

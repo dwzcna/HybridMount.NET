@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>真实传输策略与字节，不包含地址、授权头或凭据。</summary>
 public sealed record SourceReadDiagnostic(string Strategy,long DownloadedBytes,string? FallbackReason,bool Completed=true);

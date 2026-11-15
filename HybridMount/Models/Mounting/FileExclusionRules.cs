@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>文件名的字面匹配方式；不解析通配符、正则或目录路径。</summary>
 public enum FileExclusionMatchKind { Contains, Prefix, Suffix }

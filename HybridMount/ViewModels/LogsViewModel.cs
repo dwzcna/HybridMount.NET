@@ -1,5 +1,10 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using HybridMount.Models.UI;
+using HybridMount.Commons.UI;
+using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Models.Diagnostics;
+using HybridMount.Models.Mounting;
+using HybridMount.UI.Localization;
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 namespace HybridMount.ViewModels;
 
@@ -16,7 +21,7 @@ public sealed class LogsViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _readCancel;
     private string _query = "", _severity = "All";
     /// <summary>统计静默更新，显式刷新或操作错误重新打开消息。</summary>
-    public PageStatusMessage StatusMessage { get; } = new();
+    public PageStatusViewModel StatusMessage { get; } = new();
     private DateTimeOffset? _selectedDate;
     private DiagnosticQuery _activeQuery = new();
     public ObservableCollection<DiagnosticEntry> Entries { get; } = [];
@@ -78,10 +83,10 @@ public sealed class LogsViewModel : ObservableObject, IDisposable
         finally { _clearing = false; NotifyActions(); }
         if (!_disposed) await RefreshAsync();
     }
-    public void ReportError(Exception error, bool reopenStatus = true) { if (_disposed) return; PublishStatus(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("LogOperationFailed", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, SafeDiagnostic.ExceptionSummary(error)), reopenStatus, PageMessageSeverity.Error); _logger.QueueException("日志", "Error", "日志页面操作未完成", error); }
+    public void ReportError(Exception error, bool reopenStatus = true) { if (_disposed) return; PublishStatus(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("LogOperationFailed", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, SafeDiagnostic.ExceptionSummary(error)), reopenStatus, PageMessageSeverity.Error); _logger.QueueException("日志", "Error", "日志页面操作未完成", error); }
     /// <summary>兼容复制当前显示行；导出调用异步完整筛选接口。</summary>
     public string ExportText() => string.Join(Environment.NewLine, Entries.Select(x => x.DisplayText));
-    private void SetStatus(bool reopen = false) => PublishStatus(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ShowingEntriesRetainingTheMostRecent30DaysUpTo10000Entries", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, (_logger.LastError is { } error ? string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("LogStorageError", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, error) : ""), _all.Count, (_hasMore ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("EarlierRecordsAreAvailable", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : ""), (_hasNew ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("NewLogsAreAvailableRefreshToViewThem", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : ""), (_logger.DroppedCount > 0 ? string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("EntriesInThisSessionWereNotSaved", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, _logger.DroppedCount) : "")), reopen, _logger.LastError is not null ? PageMessageSeverity.Error : _logger.DroppedCount > 0 ? PageMessageSeverity.Warning : PageMessageSeverity.Information);
+    private void SetStatus(bool reopen = false) => PublishStatus(string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ShowingEntriesRetainingTheMostRecent30DaysUpTo10000Entries", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, (_logger.LastError is { } error ? string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("LogStorageError", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, error) : ""), _all.Count, (_hasMore ? global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("EarlierRecordsAreAvailable", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! : ""), (_hasNew ? global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("NewLogsAreAvailableRefreshToViewThem", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)! : ""), (_logger.DroppedCount > 0 ? string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("EntriesInThisSessionWereNotSaved", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, _logger.DroppedCount) : "")), reopen, _logger.LastError is not null ? PageMessageSeverity.Error : _logger.DroppedCount > 0 ? PageMessageSeverity.Warning : PageMessageSeverity.Information);
     private void Apply() { if (!_disposed) SnapshotCollections.Reconcile(Entries, _all.OrderByDescending(x => x.Id).ToArray(), x => x.Id); }
     private void OnEntry(object? sender, DiagnosticEntry entry)
     {

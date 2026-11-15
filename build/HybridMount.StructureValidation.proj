@@ -1,0 +1,3 @@
+<Project DefaultTargets="ValidateHybridMountStructure">
+  <Import Project="HybridMount.StructureValidation.targets" />
+</Project>

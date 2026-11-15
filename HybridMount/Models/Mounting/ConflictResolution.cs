@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>显式冲突取舍的持久阶段；备份位于根外，未完成阶段始终屏障自动上传，旧JSON缺失时保持旧行为。</summary>
 public sealed record ConflictResolution(string Id,string Direction,string Phase,SourceEntry Remote,LocalFileStamp Original,

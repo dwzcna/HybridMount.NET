@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 /// <summary>用户偏好与当前Shell入口分开；按真实包身份与当前包绑定判断；非打包不通过文件类型关联接管其他应用。</summary>
 public sealed record ShellThumbnailCapability(bool Available,bool Packaged,string Reason)
 {

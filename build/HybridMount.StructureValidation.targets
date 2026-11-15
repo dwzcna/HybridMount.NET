@@ -1,0 +1,13 @@
+<Project>
+  <UsingTask TaskName="HybridMount.BuildTools.HybridMountValidateStructure" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <RepositoryRoot ParameterType="System.String" Required="true" />
+      <ProjectDirectory ParameterType="System.String" />
+      <ManagedSources ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+    </ParameterGroup>
+    <Task><Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)ValidateStructureTask.cs" /></Task>
+  </UsingTask>
+  <Target Name="ValidateHybridMountStructure" BeforeTargets="BeforeCompile;ClCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <HybridMount.BuildTools.HybridMountValidateStructure RepositoryRoot="$(MSBuildThisFileDirectory).." ProjectDirectory="$(MSBuildProjectDirectory)" ManagedSources="@(Compile)" />
+  </Target>
+</Project>

@@ -1,11 +1,18 @@
+﻿using HybridMount.Helpers.Paths;
+using HybridMount.Models.Protocols.S3;
+using HybridMount.Commons.Persistence;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Persistence;
+using HybridMount.Infrastructure.Protocols.S3;
+using HybridMount.Models.Mounting;
+using HybridMount.Services.Scheduling;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Observers;
 
 /// <summary>同进程同队列一个 receiver；跨机器必须使用独立队列，消息确认以所有相关挂载提示持久化为界。</summary>
-internal sealed class SqsEventHub(MountRepository repository,Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? factory=null,TasksQueueService? tasksQueue=null) : IAsyncDisposable
+internal sealed class SqsEventHub(IMountRepository repository,Func<FileSourceConfiguration,SqsConfiguration,SourceCredentials,ISqsQueueClient>? factory=null,TasksQueueService? tasksQueue=null) : IAsyncDisposable
 {
     internal sealed record Subscriber(MountDefinition Mount,string Scope,Action<DateTimeOffset> Wake,Action<string?> Error, Action<string>? Capability=null);
     private sealed class Group(string key,string fingerprint,ISqsQueueClient client)
