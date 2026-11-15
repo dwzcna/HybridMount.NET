@@ -29,6 +29,7 @@ public static class PageCommandBarSizing
         private readonly CommandBar _bar;
         private readonly Dictionary<AppBarButton, long> _buttons = [];
         private readonly Dictionary<AppBarButton, (FrameworkElement Root, double Height)> _normalized = [];
+        private readonly Dictionary<AppBarSeparator, (FrameworkElement Root, double Height)> _separators = [];
         private Segmented? _reference;
         private bool _pending, _loaded, _disposed;
         private long _generation;
@@ -88,16 +89,20 @@ public static class PageCommandBarSizing
         private void SetResources()
         {
             // WinUI展开和过渡状态只用此键给主条ContentRoot着色；Popup使用独立资源，保持原菜单。
-            _bar.Resources["CommandBarBackgroundOpen"] = _mainBackground;
+            SetResource("CommandBarBackgroundOpen", _mainBackground);
             // 仅移除主条展开时额外叠加的OpenBorder；Popup边框、焦点及高对比度专用边缘保持原生。
-            _bar.Resources["CommandBarBorderThicknessOpen"] = new Thickness(0);
+            SetResource("CommandBarBorderThicknessOpen", new Thickness(0));
             // 主区Viewbox使用20DIP；原生OverflowWithMenuIcons仍显式设为16DIP，不覆盖菜单图标。
-            _bar.Resources["AppBarButtonContentHeight"] = _iconSize;
-            _bar.Resources["AppBarThemeCompactHeight"] = _height;
-            _bar.Resources["AppBarThemeMinHeight"] = _height;
-            _bar.Resources["CommandBarMoreButtonMargin"] = new Thickness(14, 0, 14, 0);
-            _bar.Resources["AppBarButtonContentViewboxMargin"] = new Thickness(12, 0, 0, 0);
-            _bar.Resources["AppBarButtonContentViewboxCollapsedMargin"] = new Thickness(0);
+            SetResource("AppBarButtonContentHeight", _iconSize);
+            SetResource("AppBarThemeCompactHeight", _height);
+            SetResource("AppBarThemeMinHeight", _height);
+            SetResource("CommandBarMoreButtonMargin", new Thickness(14, 0, 14, 0));
+            SetResource("AppBarButtonContentViewboxMargin", new Thickness(12, 0, 0, 0));
+            SetResource("AppBarButtonContentViewboxCollapsedMargin", new Thickness(0));
+        }
+        private void SetResource(string key, object value)
+        {
+            if (!_bar.Resources.TryGetValue(key, out var previous) || !Equals(previous, value)) _bar.Resources[key] = value;
         }
         private void Apply()
         {
@@ -116,6 +121,7 @@ public static class PageCommandBarSizing
             foreach (var separator in _bar.PrimaryCommands.Concat(_bar.SecondaryCommands).OfType<AppBarSeparator>())
             {
                 if (VisualTreeHelper.GetChildrenCount(separator) == 0 || VisualTreeHelper.GetChild(separator, 0) is not FrameworkElement root) continue;
+                if (_separators.TryGetValue(separator, out var previous) && ReferenceEquals(previous.Root, root) && Math.Abs(previous.Height - _height) < .1) continue;
                 foreach (var group in VisualStateManager.GetVisualStateGroups(root).Where(group => group.Name == "ApplicationViewStates"))
                 {
                     foreach (var setter in group.States.Where(state => state.Name == "Compact").SelectMany(state => state.Setters).OfType<Setter>())
@@ -126,6 +132,7 @@ public static class PageCommandBarSizing
                         VisualStateManager.GoToState(separator, "Compact", false);
                     }
                 }
+                _separators[separator] = (root, _height);
             }
             foreach (var button in _bar.PrimaryCommands.Concat(_bar.SecondaryCommands).OfType<AppBarButton>())
             {
@@ -211,7 +218,7 @@ public static class PageCommandBarSizing
                 button.Loaded -= ButtonLoaded;
                 button.UnregisterPropertyChangedCallback(AppBarButton.IsInOverflowProperty, token);
             }
-            _buttons.Clear(); _normalized.Clear();
+            _buttons.Clear(); _normalized.Clear(); _separators.Clear();
         }
         public void Dispose()
         {

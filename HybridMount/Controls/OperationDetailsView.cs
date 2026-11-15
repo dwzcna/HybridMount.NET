@@ -45,7 +45,6 @@ public sealed class OperationDetailsView:UserControl,IDisposable
     private void Apply(OperationDetailsSnapshot? value)
     {
         if(_disposed||value is null||value.Task.Id!=_id||(value.Offset!=_offset||value.RunOffset!=_runOffset))return;_snapshot=value;
-        var scroll=Content as ScrollViewer;var position=scroll?.VerticalOffset??0;
         _summary.Text=value.Task.IssueDetails+"\n"+value.Task.ProgressText;
         _empty.Text=UILanguageService.Messages.GetString("OperationDetailsNoEvidence",UILanguageService.ResourceCulture)!;
         _empty.Visibility=value.Runs.Count==0?Visibility.Visible:Visibility.Collapsed;
@@ -86,7 +85,7 @@ public sealed class OperationDetailsView:UserControl,IDisposable
         _newer.Content=UILanguageService.Messages.GetString("OperationDetailsNewer",UILanguageService.ResourceCulture);_newer.Visibility=_runOffset>0?Visibility.Visible:Visibility.Collapsed;
         _more.Content=UILanguageService.Messages.GetString("OperationDetailsLoadMore",UILanguageService.ResourceCulture);_more.Visibility=_offset+value.Members.Count<value.MemberCount?Visibility.Visible:Visibility.Collapsed;
         _previous.Content=UILanguageService.Messages.GetString("OperationDetailsPrevious",UILanguageService.ResourceCulture);_previous.Visibility=_offset>0?Visibility.Visible:Visibility.Collapsed;
-        scroll?.ChangeView(null,position,null,true);
+        // 同ID内容原位更新，交由ScrollViewer锚定；不在每次进度刷新时重复请求相同滚动位置。
     }
     public void Dispose(){if(_disposed)return;_disposed=true;_queue.Changed-=Changed;Loaded-=LoadedView;_pump.Dispose();_language.Dispose();}
 }

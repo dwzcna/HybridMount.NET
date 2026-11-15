@@ -1,4 +1,4 @@
-﻿using HybridMount.UI.Binding;
+using HybridMount.UI.Binding;
 using HybridMount.Models.Mounting.Conflicts;
 using HybridMount.Models.UI;
 using HybridMount.Commons.UI;
@@ -36,6 +36,9 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private Guid? _filterMount;
     private IReadOnlyList<string> _filterPaths = [];
     private bool _disposed, _clearingHistory, _dialogBusy;
+    private string? _publishedIssueTitle;
+    private bool? _publishedIssueFilter, _publishedCancel;
+    private (bool Completed, bool Failed, bool All)? _publishedClear;
     private string? _selectedJob, _dialogJob;
     private string _copyPath = "";
     /// <summary>本页可关闭提示；后台刷新不重新打开已关闭消息。</summary>
@@ -49,7 +52,27 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public bool CanClearFailed => CanClear(TaskHistoryClearMode.Failed);
     public bool CanClearAll => CanClear(TaskHistoryClearMode.All);
     private bool CanClear(TaskHistoryClearMode mode) => !_disposed && !_queue.IsStopping && !_clearingHistory && _allForActions.Any(operation => TaskHistoryRules.Matches(mode, operation.State));
-    private void NotifyClearState() { OnPropertyChanged(nameof(CanClearCompleted)); OnPropertyChanged(nameof(CanClearFailed)); OnPropertyChanged(nameof(CanClearAll)); }
+    /// <summary>普通进度不重复发布未变化的命令可用性，保留真实终态、选择和退出的即时反馈。</summary>
+    private void NotifyClearState()
+    {
+        var next = (Completed: CanClearCompleted, Failed: CanClearFailed, All: CanClearAll);
+        if (_publishedClear?.Completed != next.Completed) OnPropertyChanged(nameof(CanClearCompleted));
+        if (_publishedClear?.Failed != next.Failed) OnPropertyChanged(nameof(CanClearFailed));
+        if (_publishedClear?.All != next.All) OnPropertyChanged(nameof(CanClearAll));
+        _publishedClear = next;
+    }
+    private void NotifyCancelState()
+    {
+        var next = CanCancelSelected;
+        if (_publishedCancel != next) { _publishedCancel = next; OnPropertyChanged(nameof(CanCancelSelected)); }
+    }
+    /// <summary>页头范围与任务字段分开；挂载名和实际筛选变化才通知，不用每条快照驱动重排。</summary>
+    private void PublishHeaderState()
+    {
+        var title = IssueViewTitle; var filter = HasIssueFilter;
+        if (_publishedIssueTitle != title) { _publishedIssueTitle = title; OnPropertyChanged(nameof(IssueViewTitle)); }
+        if (_publishedIssueFilter != filter) { _publishedIssueFilter = filter; OnPropertyChanged(nameof(HasIssueFilter)); }
+    }
     public Task ClearCompletedAsync() => ClearHistoryAsync(TaskHistoryClearMode.Completed);
     public Task ClearFailedAsync() => ClearHistoryAsync(TaskHistoryClearMode.Failed);
     public Task ClearAllAsync() => ClearHistoryAsync(TaskHistoryClearMode.All);
@@ -85,7 +108,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     }
     public string IssueViewTitle => _filterMount is { } id ? string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("SyncIssues", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, (_knownMounts.FirstOrDefault(x => x.Definition.Id == id)?.Definition.Name ?? global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Mount", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!)) : global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("SyncIssuesDetails", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!;
     public bool HasIssueFilter => _filterMount is not null || _filterPaths.Count > 0;
-    public void ClearIssueFilter() { _filterMount = null; _filterPaths = []; Refresh(); }
+    public void ClearIssueFilter() { _filterMount = null; _filterPaths = []; PublishHeaderState(); Refresh(); }
     public async Task<string?> SelectedLocationAsync()
     {
         if (_disposed || _queue.IsStopping || Selected is not { Operation: "upload" or "remoteUpdate" or "excludedRename" or "exportConfiguration" } selected) { Status = global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("SelectASyncIssueFirst", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!; return null; }
@@ -102,11 +125,11 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if (_focus?.Current is not { } focus || focus.Revision == _focusRevision) return;
         _pendingTaskFocus=focus.TaskId;_focusRevision = focus.Revision; _filterMount = focus.MountId; _filterPaths = focus.Paths; _issuesOnly = focus.IssuesOnly; _conflictsOnly = false; OnPropertyChanged(nameof(ConflictsOnly));
-        OnPropertyChanged(nameof(IssuesOnly)); OnPropertyChanged(nameof(SelectedTaskFilter)); Refresh(); SelectedJobId = focus.TaskId??Operations.FirstOrDefault()?.Id; Refreshed?.Invoke();
+        OnPropertyChanged(nameof(IssuesOnly)); OnPropertyChanged(nameof(SelectedTaskFilter)); PublishHeaderState(); Refresh(); SelectedJobId = focus.TaskId??Operations.FirstOrDefault()?.Id; Refreshed?.Invoke();
     }
     /// <summary>详情返回入口只面向当前仍有配置的连接任务；页面不直接查询业务执行器。</summary>
     public bool CanReturnToConfiguration(MountOperationSnapshot task)=>task.Operation=="connect"&&task.MountId is {} mount&&_knownMounts.Any(item=>item.Definition.Id==mount);
-    public string? SelectedJobId { get => _selectedJob; set { if (!_disposed && SetProperty(ref _selectedJob, value)) OnPropertyChanged(nameof(CanCancelSelected)); } }
+    public string? SelectedJobId { get => _selectedJob; set { if (!_disposed && SetProperty(ref _selectedJob, value)) NotifyCancelState(); } }
     public bool CanCancelSelected => !_disposed && !_queue.IsStopping && Selected is { State: not ("Completed" or "Canceled" or "Failed" or "Superseded" or "Interrupted" or "Canceling") } selected && selected.Operation != "freeSpace" && (selected.Operation != "capabilityProbe" || selected.State is "Running" or "Queued");
     public TaskListItemViewModel? SelectedRow => Operations.FirstOrDefault(x => x.Id == _selectedJob);
     public MountOperationSnapshot? Selected => SelectedRow?.Snapshot;
@@ -223,12 +246,12 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     private void PublishSnapshot(PageSnapshot snapshot)
     {
         if (_disposed) return; _allForActions = snapshot.All; _knownMounts = snapshot.Mounts;
-        OnPropertyChanged(nameof(IssueViewTitle)); OnPropertyChanged(nameof(HasIssueFilter));
+        PublishHeaderState();
         var structure = !Operations.Select(row => row.Id).SequenceEqual(snapshot.Visible.Select(value => value.Id), StringComparer.Ordinal);
         if (structure) Refreshing?.Invoke(); TaskListItemViewModel.Reconcile(Operations, snapshot.Visible);
         if (_selectedJob is null && HasIssueFilter) SelectedJobId = Operations.FirstOrDefault()?.Id;
         if(_pendingTaskFocus is {} target&&Operations.Any(row=>row.Id==target)){SelectedJobId=target;_pendingTaskFocus=null;Refreshed?.Invoke();}
-        NotifyClearState(); OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(CanCancelSelected)); if (structure) Refreshed?.Invoke();
+        NotifyClearState(); OnPropertyChanged(nameof(Selected)); NotifyCancelState(); if (structure) Refreshed?.Invoke();
     }
     private void SnapshotFailed(Exception error)
     {
