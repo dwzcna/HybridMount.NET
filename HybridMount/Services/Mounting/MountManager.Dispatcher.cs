@@ -1,4 +1,4 @@
-namespace HybridMount.Services.Mounting;
+﻿namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
@@ -74,11 +74,22 @@ public sealed partial class MountManager
     /// <summary>详情按需读取步骤及依赖，列表快照不增加逐行查询，公共IPC不包含此字段。</summary>
     internal string FileWorkflowDetails(string id)=>string.Join("\n",_repository.TaskSteps(id).Select(step=>string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskWorkflowStep", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, step.Ordinal+1, step.Name, step.State, step.DependsOn??"—", step.AttemptId??"—")));
     /// <summary>FETCH按独立回调身份执行，只有实际传输与原生结束成功才核验；不重放退出前的读取。</summary>
-    private async Task DispatchNativeReadAsync(Runtime root,CloudMountSession session,string id,string entryId,Func<CancellationToken,Task> execute,CancellationToken token)
+    private async Task DispatchNativeReadAsync(Runtime root,CloudMountSession session,string id,string entryId,Func<CancellationToken,Task<NativeReadOutcome>> execute,CancellationToken token)
     {
-        var entry=_repository.EntryById(root.Definition.Id,entryId)??throw new IOException("读取条目已不存在。");var completed=false;
-        await _fileDispatcher.ExecuteAsync(Workflow(root,id,entry.LocalPath,"download",DateTimeOffset.UtcNow.UtcTicks),async cancel=>
-        {await execute(cancel).ConfigureAwait(false);completed=true;},cancel=>Task.FromResult(new TaskVerification(completed?"Completed":"Interrupted","fetch-completion")),token).ConfigureAwait(false);
+        var entry=_repository.EntryById(root.Definition.Id,entryId)??throw new IOException("读取条目已不存在。");
+        var snapshot=new MountOperationSnapshot(id,"download","Running",0,1,[],null,root.Definition.Id,entry.LocalPath,IsDirectory:false){OperationEntryId=entry.Id,OperationVersion=entry.Version,AttemptId=id};
+        BeginTrace(id,"nativeRead",session.SessionId);Stage(id,"OperationStageTransfer");_repository.SaveOperation(snapshot);Notify();
+        NativeReadOutcome result=new("OutcomeUnknown",0,0);
+        try
+        {
+            await _fileDispatcher.ExecuteAsync(Workflow(root,id,entry.LocalPath,"download",DateTimeOffset.UtcNow.UtcTicks),async cancel=>
+            {result=await execute(cancel).ConfigureAwait(false);Stage(id,"OperationStageVerifyResult");},cancel=>Task.FromResult(new TaskVerification(result.State,"fetch-completion",result.HResult)),token).ConfigureAwait(false);
+        }
+        catch(Exception error){result=result with{State=error is OperationCanceledException?"Canceled":"OutcomeUnknown",Reason=error.Message,HResult=error.HResult};throw;}
+        finally
+        {
+            EndTrace(id,result.State,result.Reason);_repository.SaveOperation(snapshot with{State=result.State,Completed=result.State=="Completed"?1:0,BytesTransferred=result.Bytes,TotalBytes=result.Total,Error=result.Reason,FailureStage=result.State=="Completed"?null:"fetch-completion",FailureHResult=result.HResult});Notify();
+        }
     }
     /// <summary>上传后独立只读核对实际对象；弱版本用已冻结正文摘要，不把线索升级为强验证器。</summary>
     private async Task<TaskVerification> VerifyUploadReceiptAsync(Runtime root,LocalUpload upload,SourceEntry? receipt,CancellationToken token)

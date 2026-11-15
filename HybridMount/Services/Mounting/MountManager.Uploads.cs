@@ -93,6 +93,10 @@ public sealed partial class MountManager
         if(_roots.TryGetValue(item.MountId,out var root)&&FileExclusionRules.Matches(root.Definition,item)&&FileExclusionRules.Pause(item)!=item)
             item=_repository.UpdateUpload(item.Id,FileExclusionRules.Pause)??item;
         _repository.SaveOperation(UploadSnapshot(item));RecordUploadDiagnostic(item,error);
+        if(item.State=="Sending")_repository.UpdateOperationProgress(item.Id,"OperationStageTransfer",item.Bytes,item.Total);
+        if(item.State=="RemoteCommitted")Stage(item.Id,"OperationStageCommitLocal");
+        if(item.State=="Completed"){Stage(item.Id,"OperationStageCommitIndex");EndTrace(item.Id,"Completed");}
+        else if(item.State is "Failed" or "Conflict" or "Canceled" or "OutcomeUnknown" or "Waiting" or "PermissionBlocked" or "PermissionPending")EndTrace(item.Id,item.State,item.Error);
         if(_roots.TryGetValue(item.MountId,out var owner)&&owner.Session is not null)_fileDispatcher.Observe(Workflow(owner,item.Id,item.LocalPath,"upload",item.Generation,item.State));Notify();}
     private LocalUpload SaveUpload(LocalUpload item){_repository.SaveUpload(item);PublishUpload(item);return item;}
     private LocalUpload? ChangeUpload(string id,Func<LocalUpload,LocalUpload> change,Exception? error=null)
@@ -133,7 +137,7 @@ public sealed partial class MountManager
     public bool RetryUpload(string id){lock(_lifetime){if(IsStopping)return false;return RetryUploadCore(id);}}
     private bool RetryUploadCore(string id)
     {
-        if(IsStopping)return false;if(RetryRemovalOperation(id))return true;if(RetryFileOperation(id))return true;if(RetryExcludedRename(id) is {} renameRetry)return renameRetry;if(_repository.Upload(id)?.Resolution is not null)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
+        if(IsStopping)return false;if(ChangeDisplayedRemoteBatch(id,true))return true;if(RetryRemovalOperation(id))return true;if(RetryFileOperation(id))return true;if(RetryExcludedRename(id) is {} renameRetry)return renameRetry;if(_repository.Upload(id)?.Resolution is not null)return false;if(RetryRemoteChange(id))return true;var item=_repository.Upload(id);if(item is null||!_roots.TryGetValue(item.MountId,out var root)||root.RemovalRequested||root.Definition.RemovalPending)return false;
         if(!UploadRules.CanRetry(item)||(RenameOwnsUpload(item)||FileExclusionRules.Matches(root.Definition,item))&&!UploadRules.InFlight(item))return false;
         if(root.Source is IFileSourceAccess access)access.InvalidateAccess();
         if(item.State=="WaitingCapacity")Interlocked.Exchange(ref root.CapacityForce,1);

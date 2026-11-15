@@ -1,4 +1,4 @@
-using HybridMount.Commons;
+﻿using HybridMount.Commons;
 using HybridMount.Models.Mounting;
 using HybridMount.Services.Mounting;
 namespace HybridMount.Services;
@@ -25,7 +25,8 @@ public sealed partial class TasksQueueService
             var persistent=captured.Operations.Select(x=>Enrich(x,byTask[x.Id].ToArray(),schedule,definitions)).ToDictionary(x=>x.Id);
             foreach(var group in steps.GroupBy(x=>x.Task.Id))
             {
-                if(persistent.ContainsKey(group.Key))continue;
+                if(persistent.ContainsKey(group.Key)||captured.Suppressed.Contains(group.Key))continue;
+                if(group.All(item=>item.Task.Operation=="remoteScan"))continue;
                 var current=group.OrderBy(x=>x.Workflow?2:x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).First();var task=current.Task;
                 persistent[task.Id]=Enrich(new(task.Id,task.Operation,current.WaitingReason is null?"Running":"Queued",0,1,[],null,task.MountId,task.Path){SubmissionOrder=task.SubmitTime.UtcTicks},steps,schedule,definitions);
             }
@@ -39,7 +40,7 @@ public sealed partial class TasksQueueService
         var steps=queue.Where(x=>x.Task.Id==snapshot.Id).ToArray();
         var current=steps.OrderBy(x=>x.Workflow?2:x.WaitingReason is null?0:1).ThenBy(x=>x.Sequence).FirstOrDefault();
         schedule.TryGetValue(snapshot.Id,out var taskSchedule);
-        var priority=current?.EffectivePriority??(schedule.ContainsKey(snapshot.Id)?taskSchedule.Priority:snapshot.Operation is "upload" or "remoteUpdate" or "excludedRename"?MountingPriority.Transaction:MountingPriority.User);
+        var priority=current?.EffectivePriority??(schedule.ContainsKey(snapshot.Id)?taskSchedule.Priority:snapshot.Operation is "upload" or "remoteUpdate" or "remoteBatch" or "excludedRename"?MountingPriority.Transaction:MountingPriority.User);
         definitions.TryGetValue(snapshot.MountId??Guid.Empty,out var definition);
         var path=snapshot.ItemPath??snapshot.Results.LastOrDefault()?.Path;
         if(path is not null&&definition is not null&&Path.IsPathRooted(path)&&MountPathGuard.IsUnder(definition.LocalPath,path))path=Path.GetRelativePath(definition.LocalPath,path);
@@ -47,6 +48,12 @@ public sealed partial class TasksQueueService
         snapshot=WithDownloadProgress(snapshot);
         var progress=Backend.TaskProgress(snapshot.Id);
         return snapshot with{MountName=definition?.Name!,RelativeItemPath=progress??snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
+    }
+    /// <summary>固定任务身份的只读详情；由页面后台快照执行，不触发业务或源读取。</summary>
+    internal OperationDetailsSnapshot? ReadOperationDetails(string id,int offset=0,int runOffset=0)
+    {
+        var details=Backend.ReadOperationDetails(id,offset,runOffset);
+        return details is null?null:details with{Task=Enrich(details.Task,QueueSnapshots.Where(item=>item.Task.Id==id).ToArray(),Backend.TaskScheduleFor(id),Backend.TaskDefinitions)};
     }
     internal Task<T> RunClientActionAsync<T>(Func<T> action)=>Backend.RunClientActionAsync(action);
     public MountOperationSnapshot? GetOperation(string id)

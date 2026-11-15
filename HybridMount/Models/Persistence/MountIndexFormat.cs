@@ -1,11 +1,11 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 namespace HybridMount.Models.Persistence;
 
-/// <summary>业务服务创建前的只读索引格式检查；旧格式不迁移，读取失败与较新格式分别报告。</summary>
+/// <summary>业务服务创建前的只读索引格式检查；仅支持已知的7→8事务升级，其他旧格式、读取失败与较新格式分别报告。</summary>
 internal sealed record MountIndexFormat(string State,int Version=0,int? HResult=null)
 {
-    internal const int CurrentVersion=7;
-    internal bool CanStart=>State is "New" or "Current";
+    internal const int CurrentVersion=8;
+    internal bool CanStart=>State is "New" or "Current" or "Upgradeable";
     internal static MountIndexFormat Inspect(string directory)
     {
         var path=Path.Combine(directory,"mounts.db");
@@ -19,10 +19,13 @@ internal sealed record MountIndexFormat(string State,int Version=0,int? HResult=
             db.Open();MountDatabase.ConfigurePathComparison(db);using var command=db.CreateCommand();command.CommandText="PRAGMA quick_check(1)";
             if(command.ExecuteScalar() as string!="ok")return new("Corrupt");
             command.CommandText="PRAGMA user_version";var version=Convert.ToInt32(command.ExecuteScalar());
-            if(version<CurrentVersion)return new("Old",version);
+            if(version<7)return new("Old",version);
             if(version>CurrentVersion)return new("Newer",version);
             command.CommandText="SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('entries','operations','task_intents','file_tasks','task_steps','task_attempts','task_outbox','intent_tasks','task_sequences','task_dependencies')";
-            return Convert.ToInt32(command.ExecuteScalar())==10?new("Current",version):new("Corrupt",version);
+            if(Convert.ToInt32(command.ExecuteScalar())!=10)return new("Corrupt",version);
+            if(version==7)return new("Upgradeable",version);
+            command.CommandText="SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('operation_runs','operation_steps','remote_task_batches','remote_task_batch_members')";
+            return Convert.ToInt32(command.ExecuteScalar())==4?new("Current",version):new("Corrupt",version);
         }
         catch(UnauthorizedAccessException error){return new("AccessDenied",HResult:error.HResult);}
         catch(SqliteException error){return new(error.SqliteErrorCode is 11 or 26?"Corrupt":"ReadError",HResult:error.HResult);}

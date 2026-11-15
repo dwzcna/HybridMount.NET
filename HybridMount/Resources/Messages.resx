@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2782,4 +2782,35 @@ SHA-256：{5}</value>
   <data name="SettingsMountServiceUnavailable" xml:space="preserve">
     <value>挂载服务尚未就绪。</value>
   </data>
+  <data name="OperationStageAuthenticate" xml:space="preserve"><value>验证身份</value></data>
+  <data name="OperationStageInitialize" xml:space="preserve"><value>初始化挂载</value></data>
+  <data name="OperationStageReadChanges" xml:space="preserve"><value>读取变化</value></data>
+  <data name="OperationStageSummarize" xml:space="preserve"><value>汇总结果</value></data>
+  <data name="OperationStagePrepareSnapshot" xml:space="preserve"><value>准备快照</value></data>
+  <data name="OperationStageTransfer" xml:space="preserve"><value>传输正文</value></data>
+  <data name="OperationStageVerifyContent" xml:space="preserve"><value>核验内容</value></data>
+  <data name="OperationStageCommitLocal" xml:space="preserve"><value>提交本地状态</value></data>
+  <data name="OperationStageCommitIndex" xml:space="preserve"><value>提交索引</value></data>
+  <data name="OperationStageVerifyLocal" xml:space="preserve"><value>核对本地状态</value></data>
+  <data name="OperationStageApplyPlaceholder" xml:space="preserve"><value>创建或更新占位</value></data>
+  <data name="OperationStageApplyVersion" xml:space="preserve"><value>应用新版本</value></data>
+  <data name="OperationStageReleaseContent" xml:space="preserve"><value>释放内容</value></data>
+  <data name="OperationStageVerifyResult" xml:space="preserve"><value>核验结果</value></data>
+  <data name="OperationStageProcessFiles" xml:space="preserve"><value>处理本地文件</value></data>
+  <data name="OperationStageUnregister" xml:space="preserve"><value>移除注册</value></data>
+  <data name="OperationStageDetectCapabilities" xml:space="preserve"><value>检测协议能力</value></data>
+  <data name="OperationStageCleanup" xml:space="preserve"><value>清理检测资源</value></data>
+  <data name="OperationStageExecute" xml:space="preserve"><value>执行操作</value></data>
+  <data name="OperationStepPending" xml:space="preserve"><value>未处理</value></data>
+  <data name="OperationDetailsNoEvidence" xml:space="preserve"><value>此历史没有详细步骤证据。</value></data>
+  <data name="OperationDetailsAttempts" xml:space="preserve"><value>历史尝试 {0} · {1}</value></data>
+  <data name="OperationDetailsLoadMore" xml:space="preserve"><value>显示更多结果</value></data>
+  <data name="OperationConnect" xml:space="preserve"><value>连接挂载</value></data>
+  <data name="OperationDetailsPrevious" xml:space="preserve"><value>上一页结果</value></data>
+  <data name="OperationMemberCreated" xml:space="preserve"><value>新增</value></data>
+  <data name="OperationMemberUpdated" xml:space="preserve"><value>更新</value></data>
+  <data name="OperationMemberDeleted" xml:space="preserve"><value>删除</value></data>
+  <data name="OperationDetailsOlder" xml:space="preserve"><value>更早的尝试</value></data>
+  <data name="OperationDetailsNewer" xml:space="preserve"><value>较新的尝试</value></data>
+  <data name="OperationStepTiming" xml:space="preserve"><value>{0} · 已记录耗时 {1} 秒</value></data>
 </root>

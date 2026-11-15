@@ -1,4 +1,4 @@
-using HybridMount.Helpers.UI;
+﻿using HybridMount.Helpers.UI;
 using HybridMount.Views;
 using Microsoft.UI.Xaml.Navigation;
 using HybridMount.Models.Mounting;
@@ -96,11 +96,8 @@ public sealed partial class TasksPage : Page, IDisposable
         var job=await ViewModel.BeginResultsAsync();if(job is null)return;
         try
         {
-            var list=new ListView{ItemsSource=job.Results,ItemTemplate=(DataTemplate)Resources["JobResultTemplate"],MaxHeight=420,SelectionMode=ListViewSelectionMode.None};
-            var details=new StackPanel{Spacing=12};
-            details.Children.Add(global::HybridMount.Helpers.UI.UserInterface.Bind(new TextBlock{TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true},"Text",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.IssueDetails+(job.WorkflowDetails.Length==0?"":"\n"+job.WorkflowDetails))));
-            if(!ViewModel.IssuesOnly&&!ViewModel.ConflictsOnly)details.Children.Add(list);
-            await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(global::HybridMount.Helpers.UI.UserInterface.Bind(global::HybridMount.Helpers.UI.UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=new ScrollViewer{MaxHeight=460,Content=details}},("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close"))),"Title",()=>global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation+"："+job.DisplayState)));
+            using var details=new OperationDetailsView(App.Current.TasksQueue,App.Current.UIDispatcher,job.Id);
+            await UserInterface.ShowAsync(UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=details},("Title",global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation)),("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close"))));
         }
         catch(Exception error) { ViewModel.ReportError(error.Message); }
         finally { ViewModel.EndDialog(); }

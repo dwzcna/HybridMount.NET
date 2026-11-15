@@ -211,7 +211,7 @@ internal sealed partial class NativeRuntimeClient:ICloudFilesRuntime,IAsyncDispo
     {
         if(!data.TryGetProperty("failureStage",out var value)||value.ValueKind!=JsonValueKind.String)return "operation";
         var stage=value.GetString();
-        return stage is "local-read-canceled" or "local-read-close-pending" or "root-enumeration" or "root-native-query" or "root-register" or "orphan-inspect" or "orphan-register" or "orphan-connect" or "orphan-clear" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
+        return stage is "local-read-canceled" or "local-read-close-pending" or "root-enumeration" or "root-native-query" or "root-register" or "orphan-inspect" or "orphan-register" or "orphan-connect" or "orphan-clear" or "remote-open" or "remote-recovery-proof" or "remote-install-source" or "remote-commit-checkpoint" or "remote-metadata" or "remote-temporary-pin" or "remote-hydrating-checkpoint" or "remote-hydration" or "remote-content-verification" or "remote-restore-pin" or "remote-in-sync" or "remote-completed-checkpoint" or "std-exception" or "out-of-memory"||stage is {Length:>5 and <=16}&&stage.StartsWith("json:",StringComparison.Ordinal)&&stage[5..].All(char.IsAsciiDigit)?stage!:"operation";
     }
     private async Task EventLoopAsync()
     {

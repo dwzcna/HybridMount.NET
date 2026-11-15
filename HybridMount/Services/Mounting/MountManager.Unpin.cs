@@ -1,4 +1,4 @@
-using HybridMount.Models.Mounting;
+﻿using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -56,6 +56,7 @@ public sealed partial class MountManager
                     }
                     finally{root.Gate.Release();}
                     if(reason is not null){PublishFileTask(task,"Deferred","releaseGuard",reason:reason);continue;}
+                    BeginTrace(task.Snapshot.Id,"freeSpace",task.Snapshot.AttemptId??entry.Version);Stage(task.Snapshot.Id,"OperationStageReleaseContent");
                     PublishFileTask(task,"Running");
                     await PreserveBeforeDehydrateAsync(root,entry,token).ConfigureAwait(false);
                     var bytes=await _fileDispatcher.ExecuteAsync(Workflow(root,task.Snapshot.Id,entry.LocalPath,"freeSpace",task.Generation),

@@ -8,7 +8,8 @@ namespace {
 struct ProtectedFile {
     HANDLE Value{};HANDLE Raw{};bool Referenced{};
     ProtectedFile(const std::wstring& path,CF_OPEN_FILE_FLAGS flags){Check(CfOpenFileWithOplock(path.c_str(),flags,&Value));Referenced=CfReferenceProtectedHandle(Value)!=FALSE;if(!Referenced){CfCloseHandle(Value);Value=nullptr;throw Failure(HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));}Raw=CfGetWin32HandleFromProtectedHandle(Value);}
-    ~ProtectedFile(){if(Referenced)CfReleaseProtectedHandle(Value);if(Value)CfCloseHandle(Value);}
+    void Close(){if(Referenced){CfReleaseProtectedHandle(Value);Referenced=false;}if(Value){CfCloseHandle(Value);Value=nullptr;}Raw=nullptr;}
+    ~ProtectedFile(){Close();}
 };
 std::wstring EntryPath(const Json& data,bool exists=true){
     ValidateRuntimeRoot(data);auto root=FullPath(Text(data,"rootPath")),path=FullPath(Text(data,"path"));Require(path.size()>root.size()&&path[root.size()]==L'\\'&&SamePath(path.substr(0,root.size()),root),E_ACCESSDENIED);
@@ -135,14 +136,49 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
     }
     if(operation=="applyRemoteSnapshot"){
         auto path=EntryPath(data);Require(session!=nullptr&&!data.at("protected").get<bool>()&&!data.at("deleted").get<bool>()&&!data.at("directory").get<bool>(),E_ACCESSDENIED);auto size=Number(data,"size"),time=Number(data,"time");auto snapshot=Snapshot(Text(data,"snapshotPath"));Require(InspectFile(snapshot.Value).Length==size&&HashFile(snapshot.Value,size)==data.at("sha256").get<std::string>());
-        const auto recovery=data.at("recovering").get<bool>();if(!recovery)Require(!session->Active(data.at("entryId")),HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE|CF_OPEN_FILE_FLAG_WRITE_ACCESS);auto local=InspectFile(file.Raw);auto info=InspectPlaceholder(file.Raw);Identity(data,info);Clean(info);Require(!local.Directory);
-        auto original=data.at("originalStamp").get<std::string>();const auto expectedId=original.substr(0,original.find(':'));const auto recovering=recovery&&local.Identity==expectedId&&local.Length==size&&local.LastWrite==time&&info.Pin==data.at("pinState").get<CF_PIN_STATE>();Require(local.Key()==original||recovering,HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
-        host.Checkpoint(command,"installRemote",Json::object());bool restore=false;
+        const char* phase="remote-open";
         try{
-            if(!recovery){host.Checkpoint(command,"remoteCommitting",{{"pinState",info.Pin}},true);restore=info.Pin==CF_PIN_STATE_PINNED;if(restore)Check(CfSetPinState(file.Value,CF_PIN_STATE_UNPINNED,CF_SET_PIN_FLAG_NONE,nullptr));UpdateMetadata(file,data);host.Checkpoint(command,"remoteHydrating",{{"stamp",FileJson(InspectFile(file.Raw))},{"pinState",info.Pin}},false,true);if(restore){Check(CfSetPinState(file.Value,CF_PIN_STATE_PINNED,CF_SET_PIN_FLAG_NONE,nullptr));restore=false;}}
-            if(recovery)host.Checkpoint(command,"remoteHydrating",{{"stamp",FileJson(InspectFile(file.Raw))},{"pinState",info.Pin}},true,true);
-            if(size!=0)Hydrate(host,command,file);Require(HashFile(file.Raw,size)==data.at("sha256").get<std::string>());auto final=InspectPlaceholder(file.Raw);Require(final.Modified==0&&final.Pin==(recovery?data.at("pinState").get<CF_PIN_STATE>():info.Pin));USN usn{};Check(CfSetInSyncState(file.Value,CF_IN_SYNC_STATE_IN_SYNC,CF_SET_IN_SYNC_FLAG_NONE,&usn));auto stamp=InspectFile(file.Raw);host.Checkpoint(command,"remoteCompleted",{{"stamp",FileJson(stamp)}},false,true);return {{"stamp",FileJson(stamp)}};
-        }catch(...){if(restore)CfSetPinState(file.Value,CF_PIN_STATE_PINNED,CF_SET_PIN_FLAG_NONE,nullptr);throw;}
+        // 先以只共享读取的属性句柄锁住Pin和正文写入，再取得CFAPI保护引用。
+        // 冷UNPINNED文件的保护打开可由CldFlt清除UNPINNED位；原意图必须取自打开前的同一文件，不能误判为用户改动。
+        auto guarded=CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_BACKUP_SEMANTICS,nullptr);
+        if(guarded==INVALID_HANDLE_VALUE)throw Failure(HRESULT_FROM_WIN32(GetLastError()));Handle pinGuard(guarded);
+        const auto beforeOpen=InspectFile(guarded);const auto beforeInfo=InspectPlaceholder(guarded);Identity(data,beforeInfo);Clean(beforeInfo);Require(!beforeOpen.Directory);
+        const auto recovery=data.at("recovering").get<bool>();
+        auto original=data.at("originalStamp").get<std::string>();const auto expectedId=original.substr(0,original.find(':'));
+        const auto originalPin=recovery?data.at("pinState").get<CF_PIN_STATE>():beforeInfo.Pin;
+        const auto temporaryPin=recovery&&data.value("temporaryPin",false)&&originalPin==CF_PIN_STATE_UNPINNED&&beforeInfo.Pin==CF_PIN_STATE_UNSPECIFIED&&beforeOpen.Key()==original;
+        const auto recovering=recovery&&beforeOpen.Identity==expectedId&&beforeOpen.Length==size&&beforeOpen.LastWrite==time&&(beforeInfo.Pin==originalPin||temporaryPin);
+        if(beforeOpen.Key()!=original&&!recovering)throw Failure(HRESULT_FROM_WIN32(ERROR_FILE_INVALID),"remote-recovery-proof");
+        if(!recovery)Require(!session->Active(data.at("entryId")),HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));
+        ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE);auto local=InspectFile(file.Raw);auto info=InspectPlaceholder(file.Raw);SameContent(beforeOpen,local);Identity(data,info);Clean(info);
+        Require(info.Pin==beforeInfo.Pin||(beforeInfo.Pin==CF_PIN_STATE_UNPINNED&&info.Pin==CF_PIN_STATE_UNSPECIFIED),HRESULT_FROM_WIN32(ERROR_FILE_INVALID));
+        phase="remote-install-source";host.Checkpoint(command,"installRemote",Json::object());bool restorePinned=false,restoreUnpinned=false;
+        try{
+            if(!recovery){
+                phase="remote-commit-checkpoint";host.Checkpoint(command,"remoteCommitting",{{"pinState",originalPin}},true);
+                restorePinned=originalPin==CF_PIN_STATE_PINNED;
+                if(restorePinned)Check(CfSetPinState(file.Value,CF_PIN_STATE_UNPINNED,CF_SET_PIN_FLAG_NONE,nullptr));
+                phase="remote-metadata";UpdateMetadata(file,data);
+            }
+            // UNPINNED状态下显式水合可被CldFlt拒绝。只在保护句柄内暂设UNSPECIFIED，并把中间状态和原Pin一同保存。
+            phase="remote-temporary-pin";if(originalPin==CF_PIN_STATE_UNPINNED){restoreUnpinned=true;Check(CfSetPinState(file.Value,CF_PIN_STATE_UNSPECIFIED,CF_SET_PIN_FLAG_NONE,nullptr));}
+            phase="remote-hydrating-checkpoint";host.Checkpoint(command,"remoteHydrating",{{"stamp",FileJson(InspectFile(file.Raw))},{"pinState",originalPin},{"temporaryPin",restoreUnpinned}},recovery,true);
+            if(restorePinned){Check(CfSetPinState(file.Value,CF_PIN_STATE_PINNED,CF_SET_PIN_FLAG_NONE,nullptr));restorePinned=false;}
+            if(size!=0)try{Hydrate(host,command,file);}catch(const Failure& error){throw Failure(error.Code,"remote-hydration");}
+            try{Require(HashFile(file.Raw,size)==data.at("sha256").get<std::string>());}catch(const Failure& error){throw Failure(error.Code,"remote-content-verification");}
+            phase="remote-restore-pin";if(restoreUnpinned){Check(CfSetPinState(file.Value,CF_PIN_STATE_UNPINNED,CF_SET_PIN_FLAG_NONE,nullptr));restoreUnpinned=false;}
+            auto final=InspectPlaceholder(file.Raw);Require(final.Modified==0&&final.Pin==originalPin);
+            phase="remote-in-sync";USN usn{};Check(CfSetInSyncState(file.Value,CF_IN_SYNC_STATE_IN_SYNC,CF_SET_IN_SYNC_FLAG_NONE,&usn));auto stamp=InspectFile(file.Raw);
+            phase="remote-completed-checkpoint";host.Checkpoint(command,"remoteCompleted",{{"stamp",FileJson(stamp)}},false,true);return {{"stamp",FileJson(stamp)}};
+        }catch(...){
+            const auto originalError=std::current_exception();
+            if(restorePinned||restoreUnpinned){
+                auto code=CfSetPinState(file.Value,originalPin,CF_SET_PIN_FLAG_NONE,nullptr);
+                if(FAILED(code))try{host.Checkpoint(command,"remotePinRestore",{{"hresult",code}},false,true);}catch(...){}
+            }
+            std::rethrow_exception(originalError);
+        }
+        }catch(const Failure& error){throw Failure(error.Code,strcmp(error.Stage,"operation")==0?phase:error.Stage);}
     }
     if(operation=="commitUpload"){
         auto path=EntryPath(data);ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE|CF_OPEN_FILE_FLAG_WRITE_ACCESS);auto stamp=InspectFile(file.Raw);
@@ -182,7 +218,14 @@ Json ExecuteCloudFile(RuntimeHost& host,RuntimeCommand& command,CloudSession* se
         auto path=EntryPath(data);auto file=OpenAttributes(path,FILE_READ_ATTRIBUTES|FILE_WRITE_ATTRIBUTES);auto before=InspectFile(file.Value);auto info=InspectPlaceholder(file.Value);Identity(data,info);Require(info.Pin!=CF_PIN_STATE_EXCLUDED,E_ACCESSDENIED);Check(CfSetPinState(file.Value,operation=="requestPin"?CF_PIN_STATE_PINNED:CF_PIN_STATE_UNPINNED,CF_SET_PIN_FLAG_NONE,nullptr));SameContent(before,InspectFile(file.Value));return Json::object();
     }
     if(operation=="refreshPlaceholder"){
-        auto path=EntryPath(data);Require(session!=nullptr);Require(!session->Active(data.at("entryId")),HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE);auto info=InspectPlaceholder(file.Raw);Identity(data,info);Clean(info);Require(info.Pin==CF_PIN_STATE_UNSPECIFIED||info.Pin==CF_PIN_STATE_UNPINNED,HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));UpdateMetadata(file,data);return {{"stamp",FileJson(InspectFile(file.Raw))}};
+        auto path=EntryPath(data);Require(session!=nullptr);Require(!session->Active(data.at("entryId")),HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));ProtectedFile file(path,CF_OPEN_FILE_FLAG_EXCLUSIVE);auto info=InspectPlaceholder(file.Raw);Identity(data,info);Clean(info);
+        // 冷占位分类必须在原生排他保护句柄内重验；已有任何正文或完整状态时交回独立下载，不能脱水丢弃缓存。
+        if(data.value("coldOnly",false)){
+            FILE_ATTRIBUTE_TAG_INFO tag{};WinCheck(GetFileInformationByHandleEx(file.Raw,FileAttributeTagInfo,&tag,sizeof(tag)));
+            auto state=CfGetPlaceholderStateFromAttributeTag(tag.FileAttributes,tag.ReparseTag);
+            if(info.OnDisk>0||info.Validated>0||(state&CF_PLACEHOLDER_STATE_PARTIAL)==0||info.Pin==CF_PIN_STATE_PINNED)return {{"becameHot",true}};
+        }
+        Require(info.Pin==CF_PIN_STATE_UNSPECIFIED||info.Pin==CF_PIN_STATE_UNPINNED,HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION));UpdateMetadata(file,data);return {{"stamp",FileJson(InspectFile(file.Raw))}};
     }
     if(operation=="hydrateFile"||operation=="hydratePinned"){
         auto path=EntryPath(data);ProtectedFile file(path,operation=="hydratePinned"?CF_OPEN_FILE_FLAG_EXCLUSIVE:CF_OPEN_FILE_FLAG_WRITE_ACCESS|CF_OPEN_FILE_FLAG_FOREGROUND);auto before=InspectFile(file.Raw);auto info=InspectPlaceholder(file.Raw);Identity(data,info);

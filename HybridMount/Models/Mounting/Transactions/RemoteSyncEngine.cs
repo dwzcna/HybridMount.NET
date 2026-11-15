@@ -1,4 +1,4 @@
-using HybridMount.Commons;
+﻿using HybridMount.Commons;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Models.Mounting.Transactions;
 
@@ -7,6 +7,7 @@ internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSour
 {
     private readonly SemaphoreSlim _poll=new(1,1);
     public string Scope=>scope;
+    internal RemoteDetection? Detection {get;set;}
     internal const int PublicationBatchSize=256;
     private long _discovered;
     /// <summary>只在发现事务提交后发布新占位；网络枚举和数据库事务均不跨此回调。</summary>
@@ -208,6 +209,6 @@ internal sealed partial class RemoteSyncEngine(Guid mount,string scope,IFileSour
             changed.Add(new(observed,observation));
             if(old is null&&(entry.IsDirectory||changes.HasReliableVersion(entry))&&index.Local.TryGetValue(entry.Path,out var local)&&local.SourcePath==entry.Path&&local.IsDirectory==entry.IsDirectory&&local.Materialized&&local.RemotePresence!=RemotePresence.Deleted&&source.IsSameVersion(local.Version,entry.Version))silent.Add(entry.Path);
         }
-        var pending=repository.CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint,repeated);index.Committed(checkpoint,changed,deleted);return pending;
+        var pending=repository.CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint,repeated,Detection);index.Committed(checkpoint,changed,deleted);return pending;
     }
 }

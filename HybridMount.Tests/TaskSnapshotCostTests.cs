@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Xunit.Abstractions;
 namespace HybridMount.Tests;
 
@@ -18,7 +18,7 @@ public sealed class TaskSnapshotCostTests(ITestOutputHelper output)
         var parent=new RemotePendingChange("parent",mount,"scope","dir",new("dir","dir",true,0,DateTimeOffset.UnixEpoch,"v1"),State:"Canceled");repo.SaveRemotePending(parent);
         var samples=new List<double>();TaskStateSnapshot? snapshot=null;
         for(var i=0;i<103;i++){var started=Stopwatch.GetTimestamp();snapshot=repo.ReadTaskState();var elapsed=Stopwatch.GetElapsedTime(started).TotalMilliseconds;if(i>=3)samples.Add(elapsed);}
-        Assert.NotNull(snapshot);Assert.Equal(count+1,snapshot.Remote.Count);Assert.Equal(count,snapshot.History.Count);Assert.Equal(5,repo.LastTaskRead.Queries);
+        Assert.NotNull(snapshot);Assert.Equal(count+1,snapshot.Remote.Count);Assert.Equal(count,snapshot.History.Count);Assert.Equal(7,repo.LastTaskRead.Queries);
         Assert.Equal("parent",snapshot.Blocker(mount,"dir/file-0","event-0")!.Id);Assert.Equal("Canceled",repo.FindRemotePending("parent")!.State);
         var sorted=samples.Order().ToArray();var p95=sorted[94];var p99=sorted[98];output.WriteLine($"rows={count};samples=100;queries={repo.LastTaskRead.Queries};P95={p95:F3}ms;P99={p99:F3}ms");
 #if !DEBUG

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 namespace HybridMount.Models.Runtime;
 
 /// <summary>原生监听意图；路径相对挂载根，代次及序号仅在本次认证连接有效，不携带正文。</summary>
@@ -34,3 +34,6 @@ internal sealed record TaskVerification(string State,string? Stage=null,int? HRe
 {
     internal bool Verified=>State=="Completed";
 }
+
+/// <summary>单次CFAPI读取的实际收尾；字节为本回调交付量，不把文件总长冒称已传输。</summary>
+internal sealed record NativeReadOutcome(string State,long Bytes,long Total,string? Reason=null,int? HResult=null);

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -78,7 +78,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {var args=NativeRuntimeArguments.Entry(_mount,entry,extra);args["sessionId"]=_sessionId;return args;}
     internal string SessionId=>_sessionId;
     /// <summary>仅管理器装配文件任务执行器；FETCH仍拥有独立取消和原生资源。</summary>
-    internal Func<string,string,string,Func<CancellationToken,Task>,CancellationToken,Task>? DispatchFileTask {get;set;}
+    internal Func<string,string,string,Func<CancellationToken,Task<NativeReadOutcome>>,CancellationToken,Task>? DispatchFileTask {get;set;}
     internal NativeRuntimeClient Runtime=>_runtime??throw new IOException("原生挂载尚未连接。");
     public void Connect()
     {
@@ -136,9 +136,17 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                 if(_clearing||_stop.IsCancellationRequested)return; // 原生clearRoot负责结束驱动请求，停止后不登记迟到工作。
                 if(_metadataUpdating.Contains(fetch.EntryId)){var rejected=Task.Run(async()=>{try{await FinishFetchAsync(fetch,unchecked((int)0xc000cf16)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}});_notifications.Add(rejected);_ = rejected.ContinueWith(done=>{lock(_fetchGate)_notifications.Remove(done);},CancellationToken.None,TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);return;}
                 var cancel=CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);var start=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{using var cancelOwner=_queueBinding?.Queue.RegisterCancellation("read:"+fetch.FetchId,()=>{if(!cancel.IsCancellationRequested)_=cancel.CancelAsync();return true;});if(DispatchFileTask is {} dispatch)
+                var work=Task.Run(async()=>{await start.Task.ConfigureAwait(false);try{using var cancelOwner=_queueBinding?.Queue.RegisterCancellation("read:"+fetch.FetchId,()=>{if(!cancel.IsCancellationRequested)_=cancel.CancelAsync();return true;});if(!_remoteSnapshots.ContainsKey(fetch.EntryId)&&!((fetch.ProcessId==(uint)Runtime.ProcessId||fetch.ProcessId==(uint)Environment.ProcessId)&&_downloadTasks.ContainsKey(fetch.EntryId))&&DispatchFileTask is {} dispatch)
                     await dispatch("read:"+fetch.FetchId,fetch.EntryId,"download",token=>FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),token),cancel.Token).ConfigureAwait(false);
-                else await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
+                else await FetchAsync(fetch,new(fetch.ProcessId,fetch.Image),fetch.Explicit||_explicitDownloads.GetValueOrDefault(fetch.EntryId)>0,Stopwatch.GetTimestamp(),cancel.Token).ConfigureAwait(false);}
+                catch(Exception dispatchError)
+                {
+                    // 展示或业务索引失败仍须结束驱动请求，不能把CFAPI读取永久留在等待状态。
+                    try{await FinishFetchAsync(fetch,cancel.IsCancellationRequested?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00)).ConfigureAwait(false);}
+                    catch(Exception completion){if(Runtime.IsAvailable&&!IsCanceledCompletion(completion.HResult)&&completion.HResult!=unchecked((int)0x80070490))_logger.QueueException("CFAPI","Warning","调度失败后的读取结束未确认",completion);}
+                    if(!cancel.IsCancellationRequested)_logger.QueueException("CFAPI","Warning","读取调度未完成",dispatchError);
+                }
+                finally{_fetches.TryRemove(fetch.FetchId,out _);cancel.Dispose();}});
                 _fetches[fetch.FetchId]=new(fetch.EntryId,cancel,work,(fetch.ProcessId==(uint)Runtime.ProcessId||fetch.ProcessId==(uint)Environment.ProcessId)&&_downloadTasks.TryGetValue(fetch.EntryId,out var owner)&&owner.Operation=="keepOnDevice");if(_clearing||_cancelingPins.ContainsKey(fetch.EntryId)&&_fetches[fetch.FetchId].Owned)cancel.Cancel();start.SetResult();
             }return;
         }
@@ -218,15 +226,17 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             {await Task.Delay(attempt==0?100:500).ConfigureAwait(false);if(!available())throw;}
     }
     internal static bool IsCanceledCompletion(int result)=>result is unchecked((int)0x8007017c) or unchecked((int)0x80070189) or unchecked((int)0x800703e3) or unchecked((int)0x8007018e);
-    private async Task FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
+    private async Task<NativeReadOutcome> FetchAsync(NativeFetch info,HydrationProcess process,bool explicitHydration,long queued,CancellationToken token)
     {
         var id=info.EntryId;var offset=info.Offset;var length=info.Length;IDisposable? lease=null;long bytesTransferred=0;double queueMs=0,firstBlockMs=-1;var outcome="ok";_reading.AddOrUpdate(id,1,(_,value)=>value+1);_lastRead[id]=DateTimeOffset.UtcNow;
+        NativeReadOutcome result=new("OutcomeUnknown",0,info.Length);
         try
         {
             if(_queueBinding is null)lease=await _reads.EnterAsync(info.Priority,explicitHydration,token).ConfigureAwait(false);queueMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;
             var entry=_repository.EntryById(_mount.Id,id);if(entry is null||entry.Deleted||entry.RemotePresence==RemotePresence.Deleted)throw new FileNotFoundException("占位身份不存在。");
             var ownedHydration=info.ProcessId==(uint)Runtime.ProcessId||info.ProcessId==(uint)Environment.ProcessId;
             var parent=ownedHydration?_downloadTasks.GetValueOrDefault(id):null; // 外部普通打开保持P0，不因同文件正在固定而降级。
+            if(_queueBinding is not null&&_remoteSnapshots.TryGetValue(id,out var stagedOwner))parent=new(stagedOwner.TaskId,_mount.Id,_queueBinding.Generation,MountingPriority.Transaction,DateTimeOffset.UtcNow,"download",entry.SourcePath,entry.Id,entry.Version);
             using var queueTask=_queueBinding?.Queue.Enter(_queueBinding,parent??new("read:"+info.FetchId,_mount.Id,_queueBinding.Generation,MountingPriority.Demand,DateTimeOffset.UtcNow,"download",entry.SourcePath,entry.Id,entry.Version));
             using var parentCancellation=parent is not null&&_queueBinding is not null?_queueBinding.Queue.RegisterCancellation(parent.Id,()=>
             {if(_fetches.TryGetValue(info.FetchId,out var active)&&!active.Cancel.IsCancellationRequested){_=active.Cancel.CancelAsync();return true;}return false;}):null;
@@ -242,7 +252,7 @@ public sealed partial class CloudMountSession : IAsyncDisposable
             if(staged is null)entry=BindColdMetadata(entry,metadata,source);
             if(!source.IsSameVersion(metadata.Version,entry.Version))throw new SourceConflictException("源版本已变化，拒绝混入旧缓存。");
             if(offset<0||length<=0||offset>metadata.Size||length>metadata.Size-offset)throw new IOException("系统请求范围越界。");
-            var start=offset/4096*4096;var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));var localStamp=HydrationStamp(entry,metadata);var fetchId=Guid.Parse(info.FetchId);
+            var start=offset/4096*4096;var end=Math.Min(metadata.Size,checked((offset+length+4095)/4096*4096));result=result with{Total=end-start};var localStamp=HydrationStamp(entry,metadata);var fetchId=Guid.Parse(info.FetchId);
             using var taskProgress=_queueBinding?.Queue.BeginDownloadProgress(parent?.Id??"read:"+info.FetchId,entry.LocalPath,metadata.Size);
             async ValueTask Transfer(ReadOnlyMemory<byte> block,CancellationToken cancel)
             {cancel.ThrowIfCancellationRequested();await Runtime.TransferAsync(fetchId,start,block,cancel).ConfigureAwait(false);start+=block.Length;bytesTransferred+=block.Length;taskProgress?.Advance(block.Length);if(firstBlockMs<0)firstBlockMs=Stopwatch.GetElapsedTime(queued).TotalMilliseconds;}
@@ -273,18 +283,20 @@ public sealed partial class CloudMountSession : IAsyncDisposable
                     finally{System.Buffers.ArrayPool<byte>.Shared.Return(bytes,clearArray:true);}
                 }
             }
-            await FinishFetchAsync(info,0).ConfigureAwait(false);token.ThrowIfCancellationRequested();if(_queueBinding is not null&&!_queueBinding.Queue.IsCurrent(_queueBinding))throw new OperationCanceledException(token);if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);RecordHydrationWrite(entry,metadata,localStamp);_localContentReady?.Invoke(entry);
+            await FinishFetchAsync(info,0).ConfigureAwait(false);token.ThrowIfCancellationRequested();if(_queueBinding is not null&&!_queueBinding.Queue.IsCurrent(_queueBinding))throw new OperationCanceledException(token);if(_networkFailures.Recovered(out var recovered))_logger.Queue("按需读取","Information",recovered);RecordHydrationWrite(entry,metadata,localStamp);_localContentReady?.Invoke(entry);result=result with{State="Completed"};
         }
         catch(Exception error)
         {
             var canceled=(error is OperationCanceledException||error is System.Runtime.InteropServices.COMException native&&IsCanceledCompletion(native.HResult))&&token.IsCancellationRequested;outcome=canceled?"canceled":"failed";
-            try{await FinishFetchAsync(info,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00)).ConfigureAwait(false);}catch(Exception completion){if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}
+            result=result with{State=canceled?"Canceled":"Failed",Reason=error.Message,HResult=error.HResult};
+            try{await FinishFetchAsync(info,canceled?unchecked((int)0xc000cf16):unchecked((int)0xc000cf00)).ConfigureAwait(false);}catch(Exception completion){result=result with{State="OutcomeUnknown",Reason=completion.Message,HResult=completion.HResult};if(Runtime.IsAvailable)_logger.QueueException("CFAPI","Warning","读取请求结束未确认",completion);}
             if(!canceled){if(error is not SourceConnectionException connection)_logger.QueueException("按需读取","Error","操作未完成",error);else if(_networkFailures.ShouldWrite(connection.Diagnostic,out var suffix))_logger.QueueException("按需读取","Error","按需读取失败"+suffix,connection);}
         }
         finally
         {
             lease?.Dispose();_reading.AddOrUpdate(id,0,(_,value)=>Math.Max(0,value-1));NotifyPinWorkCompleted(id);if(_diagnostics)_logger.Queue("水合诊断","Information",$"entry={id}; pid={process.Id}; image={process.Image}; offset={offset}; length={length}; priority={info.Priority}; explicit={explicitHydration}; queueMs={queueMs:F0}; firstBlockMs={firstBlockMs:F0}; transferred={bytesTransferred}; elapsedMs={Stopwatch.GetElapsedTime(queued).TotalMilliseconds:F0}; result={outcome}");
         }
+        return result with{Bytes=bytesTransferred};
     }
     /// <summary>阻止新增水合和重命名，取消并等候在途读取；保留删除确认回调。</summary>
     public async Task BeginClearAsync()
@@ -302,6 +314,18 @@ public sealed partial class CloudMountSession : IAsyncDisposable
     {
         if(!BeginMetadataUpdate(entry.Id))return false;
         try{var result=Runtime.Invoke("refreshPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc()}));RecordLocalWrite(entry,NativeRuntimeArguments.Stamp(result));return true;}
+        finally{EndMetadataUpdate(entry.Id);}
+    }
+    /// <summary>只更新仍无本地正文的冷占位；保护句柄下已变热时返回false，调用方转独立下载。</summary>
+    internal bool RefreshColdPlaceholder(MountEntry entry,SourceEntry metadata)
+    {
+        if(!BeginMetadataUpdate(entry.Id))throw new IOException("文件正在读取，冷占位更新暂缓。");
+        try
+        {
+            var result=Runtime.Invoke("refreshPlaceholder",EntryArgs(entry,new{size=metadata.Size,time=metadata.ModifiedUtc.UtcDateTime.ToFileTimeUtc(),coldOnly=true}));
+            if(result.TryGetProperty("becameHot",out var hot)&&hot.GetBoolean())return false;
+            RecordLocalWrite(entry,NativeRuntimeArguments.Stamp(result));return true;
+        }
         finally{EndMetadataUpdate(entry.Id);}
     }
     /// <summary>仅把未含摘要、零本地范围且干净的群晖占位绑定至本次已验证元数据；不重解释已有正文版本。</summary>

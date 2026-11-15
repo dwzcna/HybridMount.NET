@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using HybridMount.Models.Mounting;
 using HybridMount.Commons;
 
@@ -112,7 +112,7 @@ public sealed partial class MountManager : IAsyncDisposable
         var definitions=repository.LoadDefinitions();
         try { _ = CapabilityProbeSession.Read(Path.Combine(repository.DataDirectory,"CapabilityProbes")); }
         catch(Exception error) when(error is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { logger.Queue("能力检测","Warning","检测清理记录读取失败，未授予清理权限："+error.GetType().Name); }
-        repository.RecoverFileTaskAttempts();repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
+        repository.RecoverOperationRuns();repository.RecoverRemoteDetections();repository.RecoverFileTaskAttempts();repository.RecoverUploadAttention();repository.RecoverRemovedRemoteOperations(definitions.Select(x=>x.Id).ToHashSet());
         _uploadCommitter=uploadCommitter??new CloudUploadCommitter();
         _previews=new ExePreviewCache(PreviewDirectory(repository),EnterPreviewAsync,value=>logger.Queue("缩略图","Warning",value),RenderPreviewAsync,()=>CustomPreviewsAvailable,id=>_roots.TryGetValue(id,out var root)?root.Definition with{RemovalPending=root.Definition.RemovalPending||root.RemovalRequested}:null,renderOwnsMutex:true);_repository=repository; _logger=logger; _factory=factory??new FileSourceFactory();_remoteEvents=CreateRemoteEvents();
         foreach(var definition in definitions)
@@ -156,7 +156,7 @@ public sealed partial class MountManager : IAsyncDisposable
     public IReadOnlyList<MountOperationSnapshot> Operations=>ReadTaskPresentation().Operations;
     /// <summary>任务、问题、冲突及调度共用一次持久读取；构造与解析在数据库锁外进行。</summary>
     private long _lastTaskReadDiagnostic;
-    internal (IReadOnlyList<MountOperationSnapshot> Operations,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> Schedule) ReadTaskPresentation(bool includeIssues=false)
+    internal (IReadOnlyList<MountOperationSnapshot> Operations,IReadOnlyDictionary<string,(MountingPriority Priority,DateTimeOffset? Retry)> Schedule,IReadOnlySet<string> Suppressed) ReadTaskPresentation(bool includeIssues=false)
     {
         var state=_repository.ReadTaskState();var renames=RenameIntents().ToArray();
         var measured=_repository.LastTaskRead;var now=Environment.TickCount64;
@@ -169,9 +169,12 @@ public sealed partial class MountManager : IAsyncDisposable
             if(!TaskHistoryRules.IsHistory(upload.State)||history.ContainsKey(upload.Id)||includeIssues&&UploadAttentionRules.NeedsAttention(upload))
                 history[upload.Id]=DescribeOperationWait(upload.ToSnapshot(),upload.SourcePath,state,renames) with{SubmissionOrder=history.GetValueOrDefault(upload.Id)?.SubmissionOrder??0};
         }
+        foreach(var id in state.BatchedRemoteIds)history.Remove(id);
+        foreach(var batch in state.RemoteBatches)history[batch.Id]=batch;
         foreach(var pending in state.Remote.Where(x=>_roots.ContainsKey(x.MountId)))
         {
             schedule[pending.Id]=(MountingPriority.Transaction,_roots[pending.MountId].RemoteSync?.StagingRetries.NextRetryUtc(pending.Id));
+            if(state.BatchedRemoteIds.Contains(pending.Id)&&!(includeIssues&&pending.State is "Failed" or "Conflict" or "Waiting" or "Interrupted"))continue;
             if(pending.State is not("Completed" or "Superseded")&&!(pending.State=="Canceled"&&pending.MetadataOnly)||history.ContainsKey(pending.Id))
                 history[pending.Id]=DescribeOperationWait(RemoteTask(pending),pending.Path,state,renames);
         }
@@ -185,7 +188,7 @@ public sealed partial class MountManager : IAsyncDisposable
             if(job.Snapshot.State is "Queued" or "Running"||history.ContainsKey(job.Snapshot.Id))history[job.Snapshot.Id]=job.Snapshot with{SubmissionOrder=history.GetValueOrDefault(job.Snapshot.Id)?.SubmissionOrder??0};
         foreach(var task in _fileOperations.Values)
             if(task.Snapshot.State is "Running" or "Canceling" or "Deferred"||history.ContainsKey(task.Snapshot.Id))history[task.Snapshot.Id]=task.Snapshot with{SubmissionOrder=history.GetValueOrDefault(task.Snapshot.Id)?.SubmissionOrder??0};
-        return (history.Values.ToArray(),schedule);
+        return (history.Values.ToArray(),schedule,state.BatchedRemoteIds);
     }
     /// <summary>保留旧成功历史入口；生命周期和清理规则由统一方法拥有。</summary>
     public Task<int> ClearCompletedOperationsAsync(CancellationToken token=default)=>ClearOperationHistoryAsync(TaskHistoryClearMode.Completed,token);
@@ -363,6 +366,9 @@ public sealed partial class MountManager : IAsyncDisposable
             token.ThrowIfCancellationRequested();root.ConnectionStopReason=null;root.ConnectionSignal=Task.CompletedTask;root.Connecting=connection;root.ConnectionFinished=finished.Task;
         }
         token=connection.Token;
+        var connectionId=TasksQueueService.CurrentTask is {Operation:"connect"} parentConnection&&parentConnection.MountId==root.Definition.Id?parentConnection.Id:Guid.NewGuid().ToString("N");
+        var connectionTask=new MountOperationSnapshot(connectionId,"connect","Running",0,1,[],null,root.Definition.Id);
+        _repository.SaveOperation(connectionTask);BeginTrace(connectionId,"connect",connectionId);Stage(connectionId,"OperationStageAuthenticate");
         root.ChangeSession=new();root.Detection=root.Detection with{Mode="尚未检测",Error=null};
         Status(root,"ConnectionInProgress");
         try
@@ -370,7 +376,7 @@ public sealed partial class MountManager : IAsyncDisposable
             // 连接所有权和取消状态已经登记；即使后台已预热，也先离开UI线程再做同步本机查询。
             await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             root.QueueBinding=TasksQueue.StartMount(root.Definition.Id);
-            using var queueContext=TasksQueue.Enter(root.QueueBinding,new(Guid.NewGuid().ToString("N"),root.Definition.Id,root.QueueBinding.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"connect"));
+            using var queueContext=TasksQueue.Enter(root.QueueBinding,new(connectionId,root.Definition.Id,root.QueueBinding.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"connect"));
             await NativeRuntimeClient.PrepareConnectionAsync().ConfigureAwait(false);token.ThrowIfCancellationRequested();
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.HasMaterializedEntries(root.Definition.Id))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
@@ -379,6 +385,7 @@ public sealed partial class MountManager : IAsyncDisposable
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);ObserveUploadSource(root);
             if(root.Source is IMountSourceRuntime preparing)await OutsideRootAsync(root,()=>preparing.BeforeRegistrationAsync(token)).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
+            Stage(connectionId,"OperationStageInitialize");
             registered=InspectRegistration(root);
             if(!registered)SetRegistration(root,MountRegistrationStage.Registering);
             await CloudRootRegistration.EnsureAsync(root.Definition,token).ConfigureAwait(false);
@@ -389,6 +396,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 ThrowIfStopping();token.ThrowIfCancellationRequested();
                 root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>{InvalidateCacheUsage(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));QueueLocalPreview(root,entry);},localChanged:()=>root.Uploads?.RequestCloseScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
             }
+            Stage(connectionId,"OperationStageReadChanges");
             Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
             if(root.Source is IRemoteChangeSource)
@@ -417,10 +425,13 @@ public sealed partial class MountManager : IAsyncDisposable
                 {Status(root,"Connected",recovery.RecoveryWarning);_logger.QueueException(recovery.RecoveryLogArea,"Warning","操作未完成",recoveryError);}
             }
             Interlocked.Exchange(ref root.CapacityForce,1);StartCapacity(root);StartUploads(root);StartPinIntents(root);StartRemoteSync(root);
-            lock(root.ConnectionSync){token.ThrowIfCancellationRequested();root.RuntimeFailed=false;}Notify();
+            lock(root.ConnectionSync){token.ThrowIfCancellationRequested();root.RuntimeFailed=false;}
+            Stage(connectionId,"OperationStageSummarize");EndTrace(connectionId,"Completed");_repository.SaveOperation(connectionTask with{State="Completed",Completed=1});Notify();
         }
         catch(Exception error)
         {
+            var connectionState=error is OperationCanceledException&&token.IsCancellationRequested?"Canceled":"Failed";
+            EndTrace(connectionId,connectionState,error.Message);_repository.SaveOperation(connectionTask with{State=connectionState,Error=error.Message});
             try
             {
                 RequestRemoteStop(root);root.Gate.Release();
@@ -625,6 +636,7 @@ public sealed partial class MountManager : IAsyncDisposable
         if(removing)foreach(var current in _jobs.Values.Where(job=>job.Root==id && job.Snapshot.State is "Queued" or "Running"))current.Cancel.Cancel();
         var job=new Job(Guid.NewGuid().ToString("N"),id,operation,_stop.Token);
         job.Snapshot=job.Snapshot with{ItemPath=paths is {Length:1}?Path.GetRelativePath(root.Definition.LocalPath,paths[0]):"\\"};
+        BeginTrace(job.Snapshot.Id,operation,job.Snapshot.Id);
         _jobs[job.Snapshot.Id]=job;Save(job);
         job.Work=Task.Run(async()=>
         {
@@ -632,6 +644,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var held=false;var changedPaths=new List<string>();
             try
             {
+                Stage(job.Snapshot.Id,operation=="refresh"?"OperationStageReadChanges":"OperationStageVerifyLocal");
                 await EnsureInspectionAsync(root).ConfigureAwait(false);
                 if(removing)
                 {
@@ -656,6 +669,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 if(!_roots.ContainsKey(id))throw new IOException("挂载已被移除。");
                 if(root.Definition.RemovalPending && (!removing || root.Definition.RemovalMode!=mode))throw new IOException("移除模式已固定，请继续原来的移除任务。");
                 Update(job,"Running");
+                if(removing)Stage(job.Snapshot.Id,"OperationStageProcessFiles");
                 if(operation=="clearAndRemove") { Update(job,await ClearAndRemoveAsync(root,job).ConfigureAwait(false)?"Completed":"PartialFailure");return; }
                 if(operation=="removeCached") { Update(job,await PreserveCachedAndRemoveAsync(root,job).ConfigureAwait(false)?"Completed":"PartialFailure");return; }
                 if(operation=="remove") { await RemoveAsync(root,job).ConfigureAwait(false);Update(job,"Completed");return; }
@@ -773,8 +787,10 @@ public sealed partial class MountManager : IAsyncDisposable
     }
     private async Task CompleteRemovalAsync(Runtime root,MountRemovalJournal journal,CancellationToken token)
     {
+        if(TasksQueueService.CurrentTask is {} removing)Stage(removing.Id,"OperationStageUnregister");
         MarkUnregistering(root);await DisconnectCoreAsync(root).ConfigureAwait(false);
         RemovalCompletion().Finish(journal,token);await _previews.RemoveMountAsync(root.Definition).ConfigureAwait(false);Forget(root);
+        if(TasksQueueService.CurrentTask is {} completedRemoval)Stage(completedRemoval.Id,"OperationStageVerifyResult");
     }
     /// <summary>清空本地目录，不读取或删除远端；失败／取消保留已删结果，内容完成以后不重复清空。</summary>
     private async Task<bool> ClearAndRemoveAsync(Runtime root,Job job)
@@ -863,6 +879,8 @@ public sealed partial class MountManager : IAsyncDisposable
     private void Update(Job job,string state,string? error=null)
     {
         var next=job.Snapshot with{State=state,Error=error,Results=job.Results.ToArray()};
+        if(state is "Completed" or "PartialFailure")Stage(next.Id,next.Operation=="refresh"?"OperationStageSummarize":"OperationStageVerifyResult");
+        if(state!="Running")EndTrace(next.Id,state,error);
         OperationSavingForTests?.Invoke(next);_repository.SaveOperation(next);job.Snapshot=next;Notify();
     }
     private void Save(Job job)
@@ -870,10 +888,11 @@ public sealed partial class MountManager : IAsyncDisposable
         job.Snapshot=job.Snapshot with{Results=job.Results.ToArray()};job.LastPublished=Environment.TickCount64;job.PublishedCount=job.Results.Count;
         _repository.SaveOperation(job.Snapshot);Notify();
     }
-    public MountOperationSnapshot? GetOperation(string id)=>_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_repository.FindRemotePending(id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.FindOperation(id));
+    public MountOperationSnapshot? GetOperation(string id)=>_repository.FindRemoteBatch(id)??_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_repository.FindRemotePending(id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.FindOperation(id));
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
     public bool Cancel(string id)
     {
+        if(ChangeDisplayedRemoteBatch(id,false))return true;
         if(CancelFileOperation(id))return true;
         if(CancelExcludedRename(id) is {} renameCancel)return renameCancel;
         if(_repository.Upload(id) is not null)return CancelUpload(id);

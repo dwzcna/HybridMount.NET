@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 namespace HybridMount.Models.Persistence;
 
@@ -10,6 +10,8 @@ internal sealed class TaskStateSnapshot
     internal required IReadOnlyList<RemotePendingChange> Remote {get;init;}
     internal required IReadOnlyList<(Guid Mount,MountEntry Entry)> Deleted {get;init;}
     internal required IReadOnlySet<string> ProtocolBlockedUploads {get;init;}
+    internal IReadOnlyList<MountOperationSnapshot> RemoteBatches {get;init;}=[];
+    internal IReadOnlySet<string> BatchedRemoteIds {get;init;}=new HashSet<string>(StringComparer.Ordinal);
     internal readonly Dictionary<string,LocalUpload> ById=new(StringComparer.Ordinal);
     private readonly Dictionary<Guid,Dictionary<string,List<RemotePendingChange>>> _remote=[];
     private readonly Dictionary<Guid,Dictionary<string,MountEntry>> _deleted=[];
@@ -43,6 +45,7 @@ public sealed partial class MountRepository
     internal TaskStateSnapshot ReadTaskState()
     {
         var started=Stopwatch.GetTimestamp();List<(long Order,string Json)> history=[];List<string> uploads=[],remote=[];
+        IReadOnlyList<MountOperationSnapshot> batches=[];HashSet<string> batchedIds=new(StringComparer.Ordinal);
         List<(Guid Mount,MountEntry Entry)> deleted=[];HashSet<string> hints=new(StringComparer.Ordinal);
         lock(_gate)
         {
@@ -56,15 +59,17 @@ public sealed partial class MountRepository
             using(var rows=query.ExecuteReader())while(rows.Read())deleted.Add((Guid.Parse(rows.GetString(0)),new(rows.GetString(1),rows.GetString(2),rows.GetString(3),rows.GetString(4),rows.GetInt64(5)!=0,rows.GetInt64(6)!=0,rows.GetInt64(7)!=0,rows.GetInt64(8)!=0,RemotePresence.Deleted)));
             var predicates=_protocolStorage.Select(x=>x.PendingPredicate).Where(x=>x is not null).Select(x=>"("+x!.Replace("$m","u.mount").Replace("$p","json_extract(u.json,'$.SourcePath')")+")").ToArray();
             query.CommandText="SELECT u.id FROM uploads u WHERE "+(predicates.Length==0?"0":string.Join(" OR ",predicates));
-            using(var rows=query.ExecuteReader())while(rows.Read())hints.Add(rows.GetString(0));tx.Commit();
+            using(var rows=query.ExecuteReader())while(rows.Read())hints.Add(rows.GetString(0));
+            batches=ReadRemoteBatchesCore(db,tx,limitHistory:true);
+            query.CommandText="SELECT pending FROM remote_task_batch_members WHERE category<>'Download'";using(var rows=query.ExecuteReader())while(rows.Read())batchedIds.Add(rows.GetString(0));tx.Commit();
         }
         var result=new TaskStateSnapshot
         {
             History=history.Select(x=>{var item=JsonSerializer.Deserialize<MountOperationSnapshot>(x.Json)! with{SubmissionOrder=x.Order};return item.State is "Queued" or "Running" or "Canceling"?item with{State="Interrupted",Error="上次进程已结束；修改操作未被自动重放。"}:item;}).ToArray(),
             Uploads=uploads.Select(x=>JsonSerializer.Deserialize<LocalUpload>(x)??throw new IOException("上传记录损坏。")).ToArray(),
-            Remote=remote.Select(x=>JsonSerializer.Deserialize<RemotePendingChange>(x)??throw new IOException("远端记录损坏。")).ToArray(),Deleted=deleted,ProtocolBlockedUploads=hints
+            Remote=remote.Select(x=>JsonSerializer.Deserialize<RemotePendingChange>(x)??throw new IOException("远端记录损坏。")).ToArray(),Deleted=deleted,ProtocolBlockedUploads=hints,RemoteBatches=batches,BatchedRemoteIds=batchedIds
         };
-        result.Index();LastTaskRead=(history.Count+uploads.Count+remote.Count+deleted.Count,Stopwatch.GetElapsedTime(started).TotalMilliseconds,5);return result;
+        result.Index();LastTaskRead=(history.Count+uploads.Count+remote.Count+deleted.Count,Stopwatch.GetElapsedTime(started).TotalMilliseconds,7);return result;
     }
     /// <summary>交互或执行点查相关祖先；不加载整挂载的JSON。</summary>
     internal IReadOnlyList<RemotePendingChange> RemoteAncestors(Guid mount,string path)

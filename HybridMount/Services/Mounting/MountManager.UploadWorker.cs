@@ -67,15 +67,17 @@ public sealed partial class MountManager
         LocalUpload? Fail(Func<LocalUpload,LocalUpload> update)=>ChangeUpload(selected.Id,current=>current.State=="Excluded"?current:(preparing||prepared?.State=="RemoteCommitted")&&current!=prepared?current:update(current),failure);
         try
         {
+            BeginTrace(selected.Id,"upload",selected.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture));
             using var workflow=await TasksQueue.AcquireCurrentWorkflowAsync(token,subtree:selected.IsDirectory).ConfigureAwait(false);
             prepared=_repository.Upload(selected.Id);if(prepared is null)return;
-            if(prepared.State=="OutcomeUnknown"){await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
-            if(prepared.State=="RemoteCommitted"){await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
+            if(prepared.State=="OutcomeUnknown"){Stage(selected.Id,"OperationStageVerifyContent");await ReconcileUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
+            if(prepared.State=="RemoteCommitted"){Stage(selected.Id,"OperationStageCommitLocal");await CommitUploadAsync(root,prepared,token).ConfigureAwait(false);return;}
             if(prepared.State=="PermissionPending")prepared=ChangeUpload(prepared.Id,current=>current with{State=current.SnapshotPath is null?"Queued":"Prepared"});
             if(prepared is null)return;
             if(prepared.CancelRequested||(!root.SchedulingEnabled&&!prepared.ExplicitRequest)||!UploadDependenciesReady(_repository.Uploads(root.Definition.Id),prepared))return;
             await EnsureUploadIncludedAsync(root,prepared,token).ConfigureAwait(false);
             await UploadCheckpointAsync("BeforePrepare",prepared).ConfigureAwait(false);
+            Stage(selected.Id,"OperationStagePrepareSnapshot");
             var snapshotStep=Workflow(root,selected.Id+":snapshot:"+Guid.NewGuid().ToString("N"),selected.LocalPath,"snapshot",selected.Generation) with{ParentId=selected.Id};
             prepared=await _fileDispatcher.ExecuteAsync(snapshotStep,async cancel=>
                 {prepared=await PrepareUploadAsync(root,prepared!,cancel).ConfigureAwait(false);return prepared;},
@@ -88,6 +90,7 @@ public sealed partial class MountManager
             if(!prepared.IsDirectory)await root.Source!.PrepareUploadAsync(prepared.SourcePath,new(prepared.ExpectedVersion,prepared.BaselineSha256),prepared.Total,token).ConfigureAwait(false);
             SourceEntry? sentReceipt=null;
             var cloudStep=Workflow(root,selected.Id+":cloud:"+Guid.NewGuid().ToString("N"),selected.LocalPath,prepared.IsDirectory?"createDirectory":"upload",prepared.Generation) with{ParentId=selected.Id,Dependencies=[snapshotStep.Id]};
+            Stage(selected.Id,"OperationStageTransfer");
             var receipt=await _fileDispatcher.ExecuteAsync(cloudStep,async phaseToken=>
             {
             SourceEntry receipt;
@@ -114,6 +117,7 @@ public sealed partial class MountManager
                 sentReceipt=receipt;return receipt;
             },cancel=>VerifyUploadReceiptAsync(root,prepared!,sentReceipt,cancel),token).ConfigureAwait(false);
             if(_repository.ReadFileTask(cloudStep.Id)?.State!="Completed")throw new SourceOutcomeUnknownException("上传核验",new IOException("远端回执尚未通过核验，保留快照等待只读核对。"));
+            Stage(selected.Id,"OperationStageVerifyContent");
             prepared=ChangeUpload(prepared.Id,x=>x with{State="RemoteCommitted",Receipt=receipt,Error=x.Error==UploadRules.TypeConflictMessage?x.Error:null,Bytes=prepared.Total,TransientFailureCount=0,NextAttemptUtc=null,TransferDurationSeconds=System.Diagnostics.Stopwatch.GetElapsedTime(attemptStarted).TotalSeconds})!;
             capacity.Committed(receipt);receiptSaved=true;PublishCapacity(root,capacity.Definition,capacity.Snapshot);
             await UploadCheckpointAsync("RemoteCommitted",prepared).ConfigureAwait(false);

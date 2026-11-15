@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -103,13 +103,14 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
                     var name = Path.GetFileName(file);
                     var carrier = name == "ResourceMessage.cs" && argument.Trim() == "Key";
                     var mapped = name == "ProtocolCapabilitiesView.cs" && Regex.IsMatch(argument.Trim(), @"\A(?:item\.DescriptionKey|StatusKey\(.+\)|ReasonKey\(.+\)|ProbeStageKey\(.+\))\z");
+                    var operationStage = name == "OperationDetails.cs" && argument.Trim() == "Name";
                     var resourceTest = name == "LocalizationTests.cs" && argument.Trim() == "key";
                     var catalogTest = name == "ProtocolCapabilityTests.cs" && argument.Trim() == "row.DescriptionKey";
-                    if (!carrier && !mapped && !resourceTest && !catalogTest) throw new InvalidDataException("Unmapped dynamic resource key: " + file + "/" + argument);
+                    if (!carrier && !mapped && !operationStage && !resourceTest && !catalogTest) throw new InvalidDataException("Unmapped dynamic resource key: " + file + "/" + argument);
                 }
                 foreach (var key in keys) if (key != "NoSuchSemanticResource" && !values.ContainsKey(key)) throw new InvalidDataException("C# resource missing: " + file + "/" + key);
             }
-            foreach (Match key in Regex.Matches(source, "\"((?:ProtocolPurpose|ProtocolStatus|ProtocolReason|CapabilityProbeStage)[A-Za-z0-9]+)\""))
+            foreach (Match key in Regex.Matches(source, "\"((?:ProtocolPurpose|ProtocolStatus|ProtocolReason|CapabilityProbeStage|OperationStage)[A-Za-z0-9]+)\""))
                 if (!values.ContainsKey(key.Groups[1].Value)) throw new InvalidDataException("Mapped resource missing: " + file + "/" + key.Groups[1].Value);
         }
     }

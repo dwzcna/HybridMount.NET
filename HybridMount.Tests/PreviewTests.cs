@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using HybridMount.Models.Mounting;
@@ -100,7 +100,11 @@ public sealed class PreviewTests(ITestOutputHelper output)
                     await using var lease=await OpenNativeResourceAsync(manager.Mounts.Single().Definition,current);var budget=new PreviewRangeBudget(lease.Stamp.Length,lease.ReadAsync);Assert.NotNull(await new PreviewWorkerClient().DecodeAsync(".exe",lease.Stamp.Length,budget.ReadAsync));
                 }
                 finally{File.SetAttributes(path,attributes);}
-                await WebDavTests.Finished(manager,manager.Queue(mount.Id,"freeSpace",[path]));
+                var secondRelease=manager.Queue(mount.Id,"freeSpace",[path]);var secondResult=await WebDavTests.Finished(manager,secondRelease);
+                var secondDeadline=DateTime.UtcNow.AddSeconds(10);
+                while(secondResult.State=="Waiting"&&DateTime.UtcNow<secondDeadline){await Task.Delay(50);await manager.EnforceCacheLimitAsync();secondResult=manager.GetOperation(secondRelease)!;}
+                Assert.True(secondResult.State=="Completed",secondResult.Error+" "+string.Join(";",secondResult.Results.Select(item=>item.Message)));
+                Assert.False(CloudFilesNative.HasFullContent(path,new FileInfo(path).Length));
                 var oldEntry=repository.Entries(mount.Id).Single(entry=>entry.LocalPath=="large.exe");
                 fixture.Put("large.exe",LargeExecutable());var refresh=await WebDavTests.Finished(manager,manager.Queue(mount.Id,"refresh"));Assert.Equal("Completed",refresh.State);
                 var newEntry=repository.Entries(mount.Id).Single(entry=>entry.LocalPath=="large.exe");Assert.NotEqual(oldEntry.Version,newEntry.Version);

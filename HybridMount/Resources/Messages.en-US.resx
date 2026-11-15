@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2782,4 +2782,35 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="SettingsMountServiceUnavailable" xml:space="preserve">
     <value>The mount service is not ready.</value>
   </data>
+  <data name="OperationStageAuthenticate" xml:space="preserve"><value>Authenticate</value></data>
+  <data name="OperationStageInitialize" xml:space="preserve"><value>Initialize mount</value></data>
+  <data name="OperationStageReadChanges" xml:space="preserve"><value>Read changes</value></data>
+  <data name="OperationStageSummarize" xml:space="preserve"><value>Summarize results</value></data>
+  <data name="OperationStagePrepareSnapshot" xml:space="preserve"><value>Prepare snapshot</value></data>
+  <data name="OperationStageTransfer" xml:space="preserve"><value>Transfer content</value></data>
+  <data name="OperationStageVerifyContent" xml:space="preserve"><value>Verify content</value></data>
+  <data name="OperationStageCommitLocal" xml:space="preserve"><value>Commit local state</value></data>
+  <data name="OperationStageCommitIndex" xml:space="preserve"><value>Commit index</value></data>
+  <data name="OperationStageVerifyLocal" xml:space="preserve"><value>Check local state</value></data>
+  <data name="OperationStageApplyPlaceholder" xml:space="preserve"><value>Create or update placeholders</value></data>
+  <data name="OperationStageApplyVersion" xml:space="preserve"><value>Apply new version</value></data>
+  <data name="OperationStageReleaseContent" xml:space="preserve"><value>Release content</value></data>
+  <data name="OperationStageVerifyResult" xml:space="preserve"><value>Verify result</value></data>
+  <data name="OperationStageProcessFiles" xml:space="preserve"><value>Process local files</value></data>
+  <data name="OperationStageUnregister" xml:space="preserve"><value>Remove registration</value></data>
+  <data name="OperationStageDetectCapabilities" xml:space="preserve"><value>Test protocol capabilities</value></data>
+  <data name="OperationStageCleanup" xml:space="preserve"><value>Clean up test resources</value></data>
+  <data name="OperationStageExecute" xml:space="preserve"><value>Execute operation</value></data>
+  <data name="OperationStepPending" xml:space="preserve"><value>Not processed</value></data>
+  <data name="OperationDetailsNoEvidence" xml:space="preserve"><value>No detailed step evidence is available for this history.</value></data>
+  <data name="OperationDetailsAttempts" xml:space="preserve"><value>Attempt {0} · {1}</value></data>
+  <data name="OperationDetailsLoadMore" xml:space="preserve"><value>Show more results</value></data>
+  <data name="OperationConnect" xml:space="preserve"><value>Connect mount</value></data>
+  <data name="OperationDetailsPrevious" xml:space="preserve"><value>Previous results</value></data>
+  <data name="OperationMemberCreated" xml:space="preserve"><value>Created</value></data>
+  <data name="OperationMemberUpdated" xml:space="preserve"><value>Updated</value></data>
+  <data name="OperationMemberDeleted" xml:space="preserve"><value>Deleted</value></data>
+  <data name="OperationDetailsOlder" xml:space="preserve"><value>Older attempts</value></data>
+  <data name="OperationDetailsNewer" xml:space="preserve"><value>Newer attempts</value></data>
+  <data name="OperationStepTiming" xml:space="preserve"><value>{0} · Recorded duration {1} s</value></data>
 </root>

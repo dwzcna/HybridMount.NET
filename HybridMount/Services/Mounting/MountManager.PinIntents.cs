@@ -1,4 +1,4 @@
-using HybridMount.Models.Mounting;
+﻿using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -111,6 +111,7 @@ public sealed partial class MountManager
     private async Task DownloadPinIntentCoreAsync(Runtime root,PinIntentRuntime runtime,MountEntry entry,FileOperation fileTask,CancellationToken token)
     {
         var downloadStop=runtime.DownloadStop;fileTask.StopDownload=()=>{if(downloadStop is not null)try{_=downloadStop.CancelAsync();}catch(ObjectDisposedException){}};
+        Stage(fileTask.Snapshot.Id,"OperationStageTransfer");
         PublishFileTask(fileTask,"Running");
         using var queueTask=TasksQueue.EnterTask(root.Definition.Id,"pin:"+root.Definition.Id+":"+entry.Id,MountingPriority.User,"keepOnDevice",entry.SourcePath,entry.Id,entry.Version);
         using var cancelOwner=TasksQueue.RegisterCancellation(fileTask.Snapshot.Id,()=>CancelFileOperation(fileTask.Snapshot.Id));

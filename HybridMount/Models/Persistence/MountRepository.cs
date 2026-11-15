@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using HybridMount.Models.Mounting;
 using Microsoft.Data.Sqlite;
 using HybridMount.Models.Persistence;
@@ -29,7 +29,7 @@ public sealed partial class MountRepository
         lock(_gate)
         {
             using var db=Open();using var transaction=db.BeginTransaction();using var command=db.CreateCommand();command.Transaction=transaction;
-            command.CommandText="DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;"+string.Concat(_protocolStorage.Select(module=>module.DeleteEntriesSql));command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
+            command.CommandText="UPDATE remote_task_batch_members SET state=CASE WHEN (SELECT json_extract(json,'$.State') FROM remote_pending p WHERE p.id=remote_task_batch_members.pending) IN ('Completed','Canceled','Superseded') THEN (SELECT json_extract(json,'$.State') FROM remote_pending p WHERE p.id=remote_task_batch_members.pending) ELSE 'Canceled' END,reason=(SELECT json_extract(json,'$.Error') FROM remote_pending p WHERE p.id=remote_task_batch_members.pending) WHERE pending IN (SELECT id FROM remote_pending WHERE mount=$m);DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;"+string.Concat(_protocolStorage.Select(module=>module.DeleteEntriesSql));command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
             RetireRemovedRemoteOperationsCore(db,transaction,item=>item.MountId==mount);transaction.Commit();
         }
     }
@@ -95,7 +95,13 @@ public sealed partial class MountRepository
             command.Parameters.AddWithValue("$all",mode==TaskHistoryClearMode.All);
             command.Parameters.AddWithValue("$completed",mode==TaskHistoryClearMode.Completed);
             command.Parameters.AddWithValue("$interrupted",JsonSerializer.Serialize(interruptedIds??Array.Empty<string>()));
-            return command.ExecuteNonQuery();
+            // 内部占位历史同样删除，但计数只报告可见父任务及独立任务。
+            var internalIds=new HashSet<string>(StringComparer.Ordinal);
+            using(var members=db.CreateCommand()){members.CommandText="SELECT pending FROM remote_task_batch_members WHERE category<>'Download'";using var rows=members.ExecuteReader();while(rows.Read())internalIds.Add(rows.GetString(0));}
+            command.CommandText+=" RETURNING id";
+            var count=0;using(var rows=command.ExecuteReader())while(rows.Read())if(!internalIds.Contains(rows.GetString(0)))count++;
+            count+=ClearRemoteBatchHistoryCore(db,mode);
+            command.CommandText="DELETE FROM operation_steps WHERE run IN (SELECT id FROM operation_runs WHERE task NOT IN (SELECT id FROM operations) AND task NOT IN (SELECT id FROM remote_pending) AND task NOT IN (SELECT id FROM uploads) AND task NOT IN (SELECT id FROM remote_task_batches));DELETE FROM operation_runs WHERE task NOT IN (SELECT id FROM operations) AND task NOT IN (SELECT id FROM remote_pending) AND task NOT IN (SELECT id FROM uploads) AND task NOT IN (SELECT id FROM remote_task_batches)";command.Parameters.Clear();command.ExecuteNonQuery();return count;
         }
     }
     /// <summary>内部文件任务恢复读取完整相关历史，不受页面一百条终态限制；只读既有JSON字段，不改变表结构。</summary>

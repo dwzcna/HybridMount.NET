@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services;
 
@@ -11,12 +11,12 @@ public sealed partial class TasksQueueService
         internal string Id {get;}=id;internal string Path {get;}=path;internal long Total {get;}=total;
         internal long Bytes,Updated;private long _notified;private bool _closed;
         /// <summary>显示通知最多每250毫秒一次；状态与移除由任务服务的内存锁保护。</summary>
-        internal void Advance(int count)
+        internal void Advance(long count)
         {
             bool notify;
             lock(owner._sync)
             {
-                if(_closed||owner._disposed||count<=0)return;Bytes=Math.Min(Total,Bytes+count);Updated=Stopwatch.GetTimestamp();
+                if(_closed||owner._disposed||count<=0)return;Bytes+=Math.Min(count,Total-Bytes);Updated=Stopwatch.GetTimestamp();
                 notify=Stopwatch.GetElapsedTime(_notified,Updated).TotalMilliseconds>=250;if(notify)_notified=Updated;
             }
             if(notify)owner.RaiseChanged();

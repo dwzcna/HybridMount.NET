@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using HybridMount.Models.Mounting;
 using Microsoft.Data.Sqlite;
 namespace HybridMount.Models.Persistence;
@@ -34,7 +34,7 @@ public sealed partial class MountRepository
     public void CommitRemoteBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null)
         =>CommitDiscoveredBatch(mount,scope,checkpoint,changed,deleted,silent,scan,hint);
     /// <summary>返回本次事务实际创建的事件，供有界发布使用；调用方不能重放未提交的发现。</summary>
-    internal IReadOnlyList<RemotePendingChange> CommitDiscoveredBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null,IReadOnlyDictionary<string,RemoteShadowEntry>? repeated=null)
+    internal IReadOnlyList<RemotePendingChange> CommitDiscoveredBatch(Guid mount,string scope,RemoteCollectionCheckpoint checkpoint,IReadOnlyList<RemoteShadowEntry> changed,IReadOnlyList<string> deleted,IReadOnlySet<string>? silent=null,string? scan=null,string? hint=null,IReadOnlyDictionary<string,RemoteShadowEntry>? repeated=null,RemoteDetection? detection=null)
     {
         lock(_gate)
         {
@@ -88,6 +88,7 @@ public sealed partial class MountRepository
             if(hint is not null)foreach(var module in _protocolStorage)module.CompleteHint(this,db,transaction,mount,scope,hint);
             if(scan is not null)
             {using var done=db.CreateCommand();done.Transaction=transaction;done.CommandText="UPDATE remote_scans SET state='Completed' WHERE id=$id AND mount=$m AND scope=$s";done.Parameters.AddWithValue("$id",scan);done.Parameters.AddWithValue("$m",mount.ToString("N"));done.Parameters.AddWithValue("$s",scope);if(done.ExecuteNonQuery()!=1)throw new IOException("远端扫描身份丢失，未提交快照。");}
+            if(detection is not null)AttachRemoteBatchCore(db,transaction,detection,created);
             transaction.Commit();return created;
         }
     }
@@ -99,7 +100,10 @@ public sealed partial class MountRepository
         query.Parameters.AddWithValue("$m",mount.ToString("N"));query.Parameters.AddWithValue("$p",entry.Path);query.Parameters.AddWithValue("$v",entry.Version);query.Parameters.AddWithValue("$d",entry.IsDirectory);query.Parameters.AddWithValue("$gone",(int)RemotePresence.Deleted);return query.ExecuteScalar() is not null;
     }
     private static void SavePendingCore(SqliteConnection db,SqliteTransaction transaction,RemotePendingChange pending)
-        =>RemoteCommand(db,transaction,"INSERT INTO remote_pending VALUES($id,$m,$s,$p,$j) ON CONFLICT(id) DO UPDATE SET json=$j",pending.MountId,pending.Scope,pending.Path,JsonSerializer.Serialize(pending),pending.Id);
+    {
+        RemoteCommand(db,transaction,"INSERT INTO remote_pending VALUES($id,$m,$s,$p,$j) ON CONFLICT(id) DO UPDATE SET json=$j",pending.MountId,pending.Scope,pending.Path,JsonSerializer.Serialize(pending),pending.Id);
+        UpdateRemoteMemberCore(db,transaction,pending);
+    }
     /// <summary>提交阶段先持久化，重启仍可使用原快照和本地身份核对，不依赖任务历史重放。</summary>
     public void SaveRemotePending(RemotePendingChange pending)
     {
@@ -114,6 +118,7 @@ public sealed partial class MountRepository
             if(current is not null)
             {
                 ValidatePendingIdentity(current,pending);
+                if(!retry&&current.AttemptId is not null&&current.AttemptId!=pending.AttemptId)return current;
                 if(current.State is "Superseded" or "Completed"&&current.State!=pending.State)return current;
                 if(!retry&&current.State=="Canceled"&&pending.State is not("Completed" or "Superseded" or "Canceled"))return current;
                 // 仅刚进入不可逆阶段时重建依赖；已经提交的阶段仍须安全收尾。
@@ -152,6 +157,7 @@ public sealed partial class MountRepository
         {
             using var db=Open();using var tx=db.BeginTransaction();
             var current=ReadPendingCore(db,tx,pending.Id)??throw new IOException("远端提交事件已丢失。");ValidatePendingIdentity(current,pending,content:true);
+            if(current.AttemptId is not null&&current.AttemptId!=pending.AttemptId)throw new SourceConflictException("提交回执属于旧尝试，未覆盖新的任务。");
             if(current.State=="Superseded"||current.State=="Completed"&&pending.State!="Completed"||current.State=="Canceled"&&pending.State=="Committing")
                 throw new SourceConflictException("远端事件已结束或被新扫描取代，未提交旧版本。");
             if(entry is not null)

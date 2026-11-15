@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
 
@@ -25,6 +25,7 @@ public sealed partial class MountManager
             var previous=renew?null:_repository.FindRecoverableFileOperation(id,root.Definition.Id,entry,operation);
             var snapshot=previous??new MountOperationSnapshot(id,operation,"Running",0,1,[],null,root.Definition.Id,entry.LocalPath,TotalBytes:entry.IsDirectory?0:file.Length,IsDirectory:entry.IsDirectory)
             {OperationEntryId=entry.Id,OperationVersion=entry.Version,OperationFileId=file.Identity,AttemptId=Guid.NewGuid().ToString("N")};
+            BeginTrace(id,operation,snapshot.AttemptId??entry.Version);Stage(id,"OperationStageVerifyLocal");
             var task=new FileOperation(root,session,entry,snapshot);_fileOperations[id]=task;_repository.SaveOperation(snapshot);_fileDispatcher.Observe(Workflow(root,id,entry.LocalPath,operation,task.Generation,snapshot.State));return task;
         }
     }
@@ -46,6 +47,8 @@ public sealed partial class MountManager
                 if(task.LastLogged!=signature){_logger.QueueException("文件任务",state=="Failed"?"Error":"Warning",message!,error,previous.Id);task.LastLogged=signature;}
             }
         }
+        if(state=="Completed"){Stage(task.Snapshot.Id,"OperationStageVerifyResult");EndTrace(task.Snapshot.Id,state);}
+        else if(state is "Canceled" or "Superseded" or "Failed" or "Deferred" or "Interrupted")EndTrace(task.Snapshot.Id,state,reason??error?.Message);
         if(state is "Completed" or "Canceled" or "Superseded" or "Failed")_fileOperations.TryRemove(new KeyValuePair<string,FileOperation>(task.Snapshot.Id,task));
         _fileDispatcher.Observe(Workflow(task.Root,task.Snapshot.Id,task.Entry.LocalPath,task.Snapshot.Operation,task.Generation,state));Notify();
     }

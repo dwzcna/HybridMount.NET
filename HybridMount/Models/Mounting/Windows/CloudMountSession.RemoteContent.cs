@@ -1,10 +1,10 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Models.Mounting.Windows;
 
 public sealed partial class CloudMountSession
 {
-    private sealed record StagedContent(string Path,SourceEntry Metadata);
+    private sealed record StagedContent(string Path,SourceEntry Metadata,string TaskId);
     private readonly ConcurrentDictionary<string,StagedContent> _remoteSnapshots=new();
     private readonly HashSet<string> _metadataUpdating=[];
     /// <summary>原生版本切换前原子拒绝迟到的旧版回调；已有读取继续使本轮延后，不取消其他调用者。</summary>
@@ -21,8 +21,10 @@ public sealed partial class CloudMountSession
         lock(_fetchGate)
         {
             if(_clearing||_stop.IsCancellationRequested||change.State!="Hydrating"&&(IsActive(entry.Id)||_fetches.Values.Any(x=>x.EntryId==entry.Id)))throw new IOException("文件仍在使用，远端更新延后。");
-            _remoteSnapshots[entry.Id]=new(change.SnapshotPath!,change.Entry!);
+            _remoteSnapshots[entry.Id]=new(change.SnapshotPath!,change.Entry!,change.Id);
         }
     }
+    internal void ReportPinRestoration(string task,System.Text.Json.JsonElement data)
+        =>_logger.Queue("远端更新","Warning",$"任务={task}；原固定意图恢复：{data.GetRawText()}");
     internal void RemoveRemoteSnapshot(string id)=>_remoteSnapshots.TryRemove(id,out _);
 }

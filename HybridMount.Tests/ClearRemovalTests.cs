@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -116,9 +116,10 @@ public sealed class ClearRemovalTests
         {
             foreach(var job in test.Manager.Operations.Where(item=>item.Operation=="clearAndRemove"&&item.State=="Running"&&item.Total>0&&item.Completed==item.Total))test.Manager.Cancel(job.Id);
         }
-        test.Manager.Changed+=CancelAfterAllItems;
+        // 展示通知按250ms合并，不是业务提交屏障；使用真实逐项完成检查点，确定在注销前发出取消。
+        test.Manager.RemovalItemForTests=(_,_)=>CancelAfterAllItems();
         try { Assert.Equal("Canceled",(await Terminal(test.Manager,test.Manager.Queue(test.Mount.Id,"clearAndRemove"))).State); }
-        finally { test.Manager.Changed-=CancelAfterAllItems; }
+        finally { test.Manager.RemovalItemForTests=null; }
         Assert.Empty(Directory.EnumerateFileSystemEntries(test.Local));await test.Manager.DisconnectAsync(test.Mount.Id);
         // 模拟内容已清空、注销成功之后退出，注册表状态仍需在下次显式操作时收尾。
         var pending=Assert.Single(test.Repository.LoadDefinitions()) with{RemovalStage=MountRemovalStage.Unregistering};

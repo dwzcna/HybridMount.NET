@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
@@ -59,7 +59,8 @@ public sealed partial class MountManager
     /// <summary>只快速发布新建的冷占位，已有内容仍走原保护路径；同一层最多256项，父目录先发布。</summary>
     private async Task<IReadOnlyList<MountEntry>> PublishDiscoveryBatchAsync(Runtime root,RemoteSyncRuntime runtime,IReadOnlyList<RemotePendingChange> changes,CancellationToken token)
     {
-        var published=new List<MountEntry>();if(changes.Count==0)return published;if(changes.Count>256)throw new ArgumentOutOfRangeException(nameof(changes));
+        var published=new List<MountEntry>();if(changes.Count==0)return published;
+        if(runtime.Engine.Detection is {} detection){BeginTrace(detection.Id,"remoteBatch",detection.Connection);Stage(detection.Id,"OperationStageReadChanges");Stage(detection.Id,"OperationStageVerifyLocal");}if(changes.Count>256)throw new ArgumentOutOfRangeException(nameof(changes));
         await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -85,6 +86,9 @@ public sealed partial class MountManager
                 if(prepared.Count==0)continue;
                 // 先持久准备身份；CFAPI在事务外执行。崩溃后按已保存ID重新核验，不用新ID覆盖现有占位。
                 _repository.CommitDiscoveryBatch(root.Definition.Id,prepared.Select(item=>item.Entry).ToArray(),[],[]);
+                if(runtime.Engine.Detection is {} applying)Stage(applying.Id,"OperationStageApplyPlaceholder");
+                var accepted=_repository.BeginColdCreationBatch(prepared.Select(item=>pendingByEntry[item.Entry.Id].Id).ToArray());
+                prepared=prepared.Where(item=>accepted.Contains(pendingByEntry[item.Entry.Id].Id)).ToList();if(prepared.Count==0)continue;
                 var receipts=root.Session!.CreatePlaceholders(prepared);var completed=new List<RemotePendingChange>();var materialized=new List<MountEntry>();
                 foreach(var receipt in receipts)
                 {
@@ -92,6 +96,7 @@ public sealed partial class MountManager
                     if(receipt.HResult>=0){var entry=receipt.Entry with{Materialized=true,RemotePresence=RemotePresence.Present};materialized.Add(entry);published.Add(entry);index[entry.SourcePath]=entry;completed.Add(prior with{State="Completed",Error=null});runtime.Created++;}
                     else completed.Add(prior with{State="Waiting",Error=$"占位创建失败，HRESULT=0x{receipt.HResult:X8}；保留准备身份等待重试。"});
                 }
+                if(runtime.Engine.Detection is {} committing)Stage(committing.Id,"OperationStageCommitIndex");
                 _repository.CommitDiscoveryBatch(root.Definition.Id,materialized,completed,completed.Select(item=>RemoteTask(item)).ToArray());runtime.Published+=materialized.Count;PublishDiscoveryProgress(root,runtime);
             }
             return published;

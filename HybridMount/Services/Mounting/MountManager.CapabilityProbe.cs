@@ -1,4 +1,4 @@
-using HybridMount.Models.Mounting.Synology;
+﻿using HybridMount.Models.Mounting.Synology;
 
 namespace HybridMount.Services.Mounting;
 
@@ -110,6 +110,9 @@ public sealed partial class MountManager
         var results = run.Cases.Select(item => new MountItemResult(item.Id, item.Skipped ? "Skipped" : item.Status.ToString(), item.Reason))
             .Concat(unfinished.Select(item => new MountItemResult(item.RemotePath, item.Stage, CapabilityProbePresentation.ResourceDetails(item)))).ToArray();
         var state = run.Stage switch { "Completed" => "Completed", "Canceled" => "Canceled", "CleanupPending" or "CanceledCleanupPending" => "PartialFailure", _ => "Running" };
+        var taskId="probe:"+run.RunId.ToString("N");BeginTrace(taskId,"capabilityProbe",run.RunId.ToString("N"));
+        Stage(taskId,run.Stage=="Cleaning"?"OperationStageCleanup":run.Stage is "Completed" or "Canceled" or "CleanupPending" or "CanceledCleanupPending"?"OperationStageVerifyResult":"OperationStageDetectCapabilities");
+        if(state!="Running")EndTrace(taskId,state);
         _repository.SaveOperation(new("probe:" + run.RunId.ToString("N"), "capabilityProbe", state, run.Cases.Length,
             ProtocolCapabilityCatalog.For(run.Kind).Count, results, run.Stage is "CleanupPending" or "CanceledCleanupPending" ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CapabilityProbePendingHistory", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : null,
             RemotePath: run.Target));
