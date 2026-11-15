@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='utf-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -540,40 +540,40 @@
   <data name="S3ConfigurationContentDialogThumbnailToggle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Thumbnails (experimental)</value>
   </data>
-  <data name="SettingsPageAppBarButtonCheckEvictionNow.Label" xml:space="preserve">
+  <data name="SettingsCacheTrimText.Text" xml:space="preserve">
     <value>Check eviction now</value>
   </data>
-  <data name="SettingsPageAppBarButtonCheckEvictionNow.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+  <data name="SettingsCacheTrim.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Check eviction now</value>
   </data>
-  <data name="SettingsPageAppBarButtonCheckEvictionNow.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+  <data name="SettingsCacheTrim.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Check eviction now</value>
   </data>
-  <data name="SettingsPageAppBarButtonClearAllAppSettings.Label" xml:space="preserve">
+  <data name="SettingsResetText.Text" xml:space="preserve">
     <value>Clear all app settings</value>
   </data>
-  <data name="SettingsPageAppBarButtonClearAllAppSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+  <data name="SettingsReset.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Clear all app settings</value>
   </data>
-  <data name="SettingsPageAppBarButtonClearAllAppSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+  <data name="SettingsReset.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Clear all app settings</value>
   </data>
-  <data name="SettingsPageAppBarButtonOpenWindowsStartupSettings.Label" xml:space="preserve">
+  <data name="SettingsStartupSettingsText.Text" xml:space="preserve">
     <value>Open Windows startup settings</value>
   </data>
-  <data name="SettingsPageAppBarButtonOpenWindowsStartupSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+  <data name="SettingsStartupSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Open Windows startup settings</value>
   </data>
-  <data name="SettingsPageAppBarButtonOpenWindowsStartupSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+  <data name="SettingsStartupSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Open Windows startup settings</value>
   </data>
-  <data name="SettingsPageAppBarButtonSaveLimit.Label" xml:space="preserve">
+  <data name="SettingsCacheSaveText.Text" xml:space="preserve">
     <value>Save limit</value>
   </data>
-  <data name="SettingsPageAppBarButtonSaveLimit.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+  <data name="SettingsCacheSave.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Save limit</value>
   </data>
-  <data name="SettingsPageAppBarButtonSaveLimit.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+  <data name="SettingsCacheSave.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Save limit</value>
   </data>
   <data name="SettingsPageComboBoxInterfaceDensity.Header" xml:space="preserve">
@@ -623,12 +623,6 @@
   </data>
   <data name="SettingsPageComboBoxWindowTheme.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Window theme</value>
-  </data>
-  <data name="SettingsPageCommandBarOfflineCache.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Offline cache</value>
-  </data>
-  <data name="SettingsPageCommandBarOpenWindowsStartupSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Open Windows startup settings</value>
   </data>
   <data name="SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic.Header" xml:space="preserve">
     <value>Cache soft limit (GiB; 0 disables automatic eviction)</value>
@@ -1131,7 +1125,7 @@
   <data name="TasksClearAll.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Clear all ended tasks</value>
   </data>
-  <data name="SettingsRemoveAll.Label" xml:space="preserve">
+  <data name="SettingsRemoveAllText.Text" xml:space="preserve">
     <value>Remove all mounts</value>
   </data>
   <data name="SettingsRemoveAll.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">

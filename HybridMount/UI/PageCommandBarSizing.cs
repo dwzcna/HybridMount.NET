@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.WinUI.Controls;
+using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -33,10 +33,14 @@ public static class PageCommandBarSizing
         private bool _pending, _loaded, _disposed;
         private long _generation;
         private double _height;
+        private readonly double _iconSize;
+        private readonly Brush _mainBackground;
 
         internal Scope(CommandBar bar)
         {
             _bar = bar;
+            _iconSize = (double)Application.Current.Resources["PageToolbarIconSize"];
+            _mainBackground = (Brush)Application.Current.Resources["PageCommandBarMainBackgroundBrush"];
             // 当前Toolkit实测自然外框33DIP；无参照页面共用同一资源，有参照时直接校准。
             _height = (double)Application.Current.Resources["PageToolbarDefaultHeight"];
             SetResources();
@@ -83,6 +87,12 @@ public static class PageCommandBarSizing
         /// <summary>主区和更多按钮使用同一最小高度；不设置Height／MaxHeight，不裁剪或缩放内容。</summary>
         private void SetResources()
         {
+            // WinUI展开和过渡状态只用此键给主条ContentRoot着色；Popup使用独立资源，保持原菜单。
+            _bar.Resources["CommandBarBackgroundOpen"] = _mainBackground;
+            // 仅移除主条展开时额外叠加的OpenBorder；Popup边框、焦点及高对比度专用边缘保持原生。
+            _bar.Resources["CommandBarBorderThicknessOpen"] = new Thickness(0);
+            // 主区Viewbox使用20DIP；原生OverflowWithMenuIcons仍显式设为16DIP，不覆盖菜单图标。
+            _bar.Resources["AppBarButtonContentHeight"] = _iconSize;
             _bar.Resources["AppBarThemeCompactHeight"] = _height;
             _bar.Resources["AppBarThemeMinHeight"] = _height;
             _bar.Resources["CommandBarMoreButtonMargin"] = new Thickness(14, 0, 14, 0);
@@ -100,6 +110,21 @@ public static class PageCommandBarSizing
                     more.MinHeight = _height;
                     more.Padding = new Thickness(14, 0, 14, 0);
                     more.VerticalContentAlignment = VerticalAlignment.Center;
+                }
+            }
+            // 原生分隔符的Compact状态也有固定高度；只校准主区状态，保留Overflow水平分隔线。
+            foreach (var separator in _bar.PrimaryCommands.Concat(_bar.SecondaryCommands).OfType<AppBarSeparator>())
+            {
+                if (VisualTreeHelper.GetChildrenCount(separator) == 0 || VisualTreeHelper.GetChild(separator, 0) is not FrameworkElement root) continue;
+                foreach (var group in VisualStateManager.GetVisualStateGroups(root).Where(group => group.Name == "ApplicationViewStates"))
+                {
+                    foreach (var setter in group.States.Where(state => state.Name == "Compact").SelectMany(state => state.Setters).OfType<Setter>())
+                        if (setter.Target?.Path.Path == "Height") setter.Value = _height;
+                    if (group.CurrentState?.Name == "Compact")
+                    {
+                        VisualStateManager.GoToState(separator, "FullSize", false);
+                        VisualStateManager.GoToState(separator, "Compact", false);
+                    }
                 }
             }
             foreach (var button in _bar.PrimaryCommands.Concat(_bar.SecondaryCommands).OfType<AppBarButton>())

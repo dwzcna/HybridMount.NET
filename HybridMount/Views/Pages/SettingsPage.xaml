@@ -1,4 +1,4 @@
-﻿<Page xmlns:loc="using:HybridMount.UI" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.SettingsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views.Windows">
+<Page xmlns:loc="using:HybridMount.UI" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.SettingsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views.Windows">
   <Grid Style="{StaticResource SharedPageGridStyle}" RowSpacing="16">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <TextBlock Style="{StaticResource PageTitleStyle}" x:Uid="/Strings/SettingsPageTextBlockSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockSettings"/>
@@ -34,7 +34,11 @@
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockStartupAndTray" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockStartupAndTray"/>
               <controls:SettingRow IsCompact="True" x:Uid="/Strings/SettingsPageSettingRowHideToTheTrayWhenClosing" loc:UserInterface.ResourceId="/Strings/SettingsPageSettingRowHideToTheTrayWhenClosing"><ToggleSwitch IsOn="{x:Bind ViewModel.CloseToTraySelection, Mode=TwoWay}" x:Uid="/Strings/SettingsPageToggleSwitchHideToTheTrayWhenClosing" loc:UserInterface.ResourceId="/Strings/SettingsPageToggleSwitchHideToTheTrayWhenClosing"/></controls:SettingRow>
               <controls:SettingRow IsCompact="True" Description="{x:Bind ViewModel.StartupDetail,Mode=OneWay}" x:Uid="/Strings/SettingsPageSettingRowStartAfterSigningInToWindows" loc:UserInterface.ResourceId="/Strings/SettingsPageSettingRowStartAfterSigningInToWindows"><ToggleSwitch IsOn="{x:Bind ViewModel.StartupSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditStartup, Mode=OneWay}" x:Uid="/Strings/SettingsPageToggleSwitchStartAfterSigningInToWindows" loc:UserInterface.ResourceId="/Strings/SettingsPageToggleSwitchStartAfterSigningInToWindows"/></controls:SettingRow>
-              <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings"><AppBarButton Icon="Setting" Click="OpenStartupSettings" x:Uid="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings"/></CommandBar></Border>
+              <helpers:SettingsActionPanel x:Name="StartupActions" Style="{StaticResource SettingsActionPanelStyle}">
+                <Button x:Name="StartupSettingsButton" Style="{StaticResource SettingsActionButtonStyle}" Click="OpenStartupSettings" x:Uid="/Strings/SettingsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsStartupSettings">
+                  <Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE713;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/SettingsStartupSettingsText" loc:UserInterface.ResourceId="/Strings/SettingsStartupSettingsText"/></Grid>
+                </Button>
+              </helpers:SettingsActionPanel>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.CloudMessage}">
@@ -42,9 +46,11 @@
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsCloudHeading" loc:UserInterface.ResourceId="/Strings/SettingsCloudHeading"/>
               <TextBlock Text="{x:Bind ViewModel.CloudRecommendation,Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
               <NumberBox Value="{x:Bind ViewModel.CloudConcurrencyValue,Mode=TwoWay}" Minimum="1" Maximum="128" SmallChange="1" SpinButtonPlacementMode="Inline" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" HorizontalAlignment="Left" Width="280" x:Uid="/Strings/SettingsCloudInput" loc:UserInterface.ResourceId="/Strings/SettingsCloudInput"/>
-              <Button Style="{StaticResource SubtleButtonStyle}" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" Click="SaveCloudConcurrency" HorizontalAlignment="Right" x:Uid="/Strings/SettingsCloudSave" loc:UserInterface.ResourceId="/Strings/SettingsCloudSave">
-                <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74E;"/><TextBlock x:Uid="/Strings/SettingsCloudSaveText" loc:UserInterface.ResourceId="/Strings/SettingsCloudSaveText"/></StackPanel>
-              </Button>
+              <helpers:SettingsActionPanel x:Name="CloudActions" Style="{StaticResource SettingsActionPanelStyle}">
+                <Button x:Name="CloudSaveButton" Style="{StaticResource SettingsActionButtonStyle}" Click="SaveCloudConcurrency" IsEnabled="{x:Bind ViewModel.CanSaveCloud,Mode=OneWay}" x:Uid="/Strings/SettingsCloudSave" loc:UserInterface.ResourceId="/Strings/SettingsCloudSave">
+                  <Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE74E;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/SettingsCloudSaveText" loc:UserInterface.ResourceId="/Strings/SettingsCloudSaveText"/></Grid>
+                </Button>
+              </helpers:SettingsActionPanel>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.CacheMessage}">
@@ -54,20 +60,28 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="320"/></Grid.ColumnDefinitions>
                 <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" x:Uid="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic" loc:UserInterface.ResourceId="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic"/>
               </Grid>
-              <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOfflineCache" loc:UserInterface.ResourceId="/Strings/SettingsPageCommandBarOfflineCache">
-                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Icon="Save" Click="SaveCache" x:Uid="/Strings/SettingsPageAppBarButtonSaveLimit" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonSaveLimit"/>
-                <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Icon="Delete" Click="TrimCache" x:Uid="/Strings/SettingsPageAppBarButtonCheckEvictionNow" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonCheckEvictionNow"/>
-              </CommandBar></Border>
+              <helpers:SettingsActionPanel x:Name="CacheActions" Style="{StaticResource SettingsActionPanelStyle}">
+                <Button x:Name="CacheSaveButton" Style="{StaticResource SettingsActionButtonStyle}" Click="SaveCache" IsEnabled="{x:Bind ViewModel.CanEditCache,Mode=OneWay}" x:Uid="/Strings/SettingsCacheSave" loc:UserInterface.ResourceId="/Strings/SettingsCacheSave">
+                  <Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE74E;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/SettingsCacheSaveText" loc:UserInterface.ResourceId="/Strings/SettingsCacheSaveText"/></Grid>
+                </Button>
+                <Button x:Name="CacheTrimButton" Style="{StaticResource SettingsActionButtonStyle}" Click="TrimCache" IsEnabled="{x:Bind ViewModel.CanEditCache,Mode=OneWay}" x:Uid="/Strings/SettingsCacheTrim" loc:UserInterface.ResourceId="/Strings/SettingsCacheTrim">
+                  <Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE74D;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/SettingsCacheTrimText" loc:UserInterface.ResourceId="/Strings/SettingsCacheTrimText"/></Grid>
+                </Button>
+              </helpers:SettingsActionPanel>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.ResetMessage}">
             <StackPanel Spacing="12">
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockReset" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockReset"/>
               <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor"/>
-              <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}">
-                <AppBarButton Click="RemoveAllMounts" IsEnabled="{x:Bind ViewModel.CanRemoveAll,Mode=OneWay}" x:Uid="/Strings/SettingsRemoveAll" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAll"><AppBarButton.Icon><FontIcon Glyph="&#xE8CD;"/></AppBarButton.Icon></AppBarButton>
-                <AppBarButton IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" Icon="Undo" Click="ResetSettings" x:Uid="/Strings/SettingsPageAppBarButtonClearAllAppSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonClearAllAppSettings"/>
-              </CommandBar></Border>
+              <helpers:SettingsActionPanel x:Name="ResetActions" Style="{StaticResource SettingsActionPanelStyle}">
+                <Button x:Name="RemoveAllButton" Style="{StaticResource SettingsActionButtonStyle}" Click="RemoveAllMounts" IsEnabled="{x:Bind ViewModel.CanRemoveAll,Mode=OneWay}" x:Uid="/Strings/SettingsRemoveAll" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAll">
+                  <Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8CD;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/SettingsRemoveAllText" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAllText"/></Grid>
+                </Button>
+                <Button x:Name="ResetSettingsButton" Style="{StaticResource SettingsActionButtonStyle}" Click="ResetSettings" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/SettingsReset" loc:UserInterface.ResourceId="/Strings/SettingsReset">
+                  <Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE7A7;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/SettingsResetText" loc:UserInterface.ResourceId="/Strings/SettingsResetText"/></Grid>
+                </Button>
+              </helpers:SettingsActionPanel>
               <Button Style="{StaticResource SubtleButtonStyle}" Visibility="Collapsed" Click="ShowRemovalTasks" IsEnabled="{x:Bind ViewModel.CanViewRemovalTasks,Mode=OneWay}" x:Uid="/Strings/RemoveAllTasks" loc:UserInterface.ResourceId="/Strings/RemoveAllTasks"/>
               <Button Style="{StaticResource SubtleButtonStyle}" Visibility="Collapsed" Click="SearchExplorerEntries" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/ExplorerEntrySearchButton" loc:UserInterface.ResourceId="/Strings/ExplorerEntrySearchButton"/>
             </StackPanel>

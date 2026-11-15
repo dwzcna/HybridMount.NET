@@ -23,9 +23,10 @@ public sealed class TaskHistoryButton : AppBarButton
     private void UpdateIcon()
     {
         if (GetTemplateChild("Content") is not ContentPresenter presenter) return;
-        var grid = new Grid { Width = 20, Height = 20, IsHitTestVisible = false };
-        var baseIcon = new FontIcon { Glyph = "\uE74D", FontSize = 20 };
-        var badge = new FontIcon { Glyph = BadgeGlyph, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+        var size = (double)Application.Current.Resources["PageToolbarIconSize"];
+        var grid = new Grid { Width = size, Height = size, IsHitTestVisible = false };
+        var baseIcon = new FontIcon { Glyph = "\uE74D", FontSize = size };
+        var badge = new FontIcon { Glyph = BadgeGlyph, FontSize = size * .55, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
         // 颜色由原生按钮状态更新；高对比度、禁用和指针悬停不使用固定色或位图。
         foreach (var icon in new[] { baseIcon, badge })
         {
