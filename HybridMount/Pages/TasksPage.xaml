@@ -53,7 +53,7 @@
         </DataTemplate>
         </ResourceDictionary>
     </Page.Resources>
-    <Grid helpers:PageMessagePresentation.Message="{x:Bind ViewModel.StatusMessage}" Style="{StaticResource SharedPageGridStyle}">
+    <Grid helpers:PageLayout.FullWidth="True" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.StatusMessage}" Style="{StaticResource SharedPageGridStyle}">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <StackPanel Spacing="8">
             <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/TasksPageTextBlockTasks" loc:UserInterface.ResourceId="/Strings/TasksPageTextBlockTasks"/>

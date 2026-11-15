@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons;
+using HybridMount.Commons;
 using HybridMount.Models.Mounting;
 using HybridMount.Services.Mounting;
 namespace HybridMount.Services;
@@ -47,7 +47,7 @@ public sealed partial class TasksQueueService
         if(path==".")path="\\";
         snapshot=WithDownloadProgress(snapshot);
         var progress=Backend.TaskProgress(snapshot.Id);
-        return snapshot with{MountName=definition?.Name!,RelativeItemPath=progress??snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
+        return snapshot with{MountName=definition?.Name??snapshot.MountName!,RelativeItemPath=progress??snapshot.RelativeItemPath??path,Priority=priority,NextRetryUtc=taskSchedule.Retry,QueuePhase=current?.Phase,SubmittedUtc=current?.Task.SubmitTime,WaitingReason=current?.WaitingReason??snapshot.WaitingReason,WaitingTaskId=current?.BlockingTaskId??snapshot.WaitingTaskId};
     }
     /// <summary>固定任务身份的只读详情；由页面后台快照执行，不触发业务或源读取。</summary>
     internal OperationDetailsSnapshot? ReadOperationDetails(string id,int offset=0,int runOffset=0)

@@ -86,12 +86,17 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return; _dispatcher.TryEnqueue(() => { if (!_disposed) ApplyFocus(); });
     }
+    private string? _pendingTaskFocus;
+    public long FocusRevision=>_focusRevision;
+    public string? RequestedTaskId=>_focus?.Current?.TaskId;
     private void ApplyFocus()
     {
         if (_focus?.Current is not { } focus || focus.Revision == _focusRevision) return;
-        _focusRevision = focus.Revision; _filterMount = focus.MountId; _filterPaths = focus.Paths; _issuesOnly = focus.IssuesOnly; _conflictsOnly = false; OnPropertyChanged(nameof(ConflictsOnly));
-        OnPropertyChanged(nameof(IssuesOnly)); OnPropertyChanged(nameof(SelectedTaskFilter)); Refresh(); SelectedJobId = Operations.FirstOrDefault()?.Id; Refreshed?.Invoke();
+        _pendingTaskFocus=focus.TaskId;_focusRevision = focus.Revision; _filterMount = focus.MountId; _filterPaths = focus.Paths; _issuesOnly = focus.IssuesOnly; _conflictsOnly = false; OnPropertyChanged(nameof(ConflictsOnly));
+        OnPropertyChanged(nameof(IssuesOnly)); OnPropertyChanged(nameof(SelectedTaskFilter)); Refresh(); SelectedJobId = focus.TaskId??Operations.FirstOrDefault()?.Id; Refreshed?.Invoke();
     }
+    /// <summary>详情返回入口只面向当前仍有配置的连接任务；页面不直接查询业务执行器。</summary>
+    public bool CanReturnToConfiguration(MountOperationSnapshot task)=>task.Operation=="connect"&&task.MountId is {} mount&&_knownMounts.Any(item=>item.Definition.Id==mount);
     public string? SelectedJobId { get => _selectedJob; set { if (!_disposed && SetProperty(ref _selectedJob, value)) OnPropertyChanged(nameof(CanCancelSelected)); } }
     public bool CanCancelSelected => !_disposed && !_queue.IsStopping && Selected is { State: not ("Completed" or "Canceled" or "Failed" or "Superseded" or "Interrupted" or "Canceling") } selected && selected.Operation != "freeSpace" && (selected.Operation != "capabilityProbe" || selected.State is "Running" or "Queued");
     public TaskListItem? SelectedRow => Operations.FirstOrDefault(x => x.Id == _selectedJob);
@@ -211,6 +216,7 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         var structure = !Operations.Select(row => row.Id).SequenceEqual(snapshot.Visible.Select(value => value.Id), StringComparer.Ordinal);
         if (structure) Refreshing?.Invoke(); TaskListItem.Reconcile(Operations, snapshot.Visible);
         if (_selectedJob is null && HasIssueFilter) SelectedJobId = Operations.FirstOrDefault()?.Id;
+        if(_pendingTaskFocus is {} target&&Operations.Any(row=>row.Id==target)){SelectedJobId=target;_pendingTaskFocus=null;Refreshed?.Invoke();}
         NotifyClearState(); OnPropertyChanged(nameof(Selected)); OnPropertyChanged(nameof(CanCancelSelected)); if (structure) Refreshed?.Invoke();
     }
     private void SnapshotFailed(Exception error)

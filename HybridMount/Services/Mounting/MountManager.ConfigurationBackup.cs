@@ -173,14 +173,14 @@ public sealed partial class MountManager
     }
 
     /// <summary>配置锁保护根冲突检查；停止锁保护凭据、定义和运行列表提交，失败清除本项凭据。</summary>
-    private MountDefinition SaveNewMountCore(string name, string directory, bool autoConnect, FileSourceConfiguration? source, SourceCredentials? credentials, bool thumbnails, CancellationToken token, bool importing = false, bool remoteAuto = true, int incremental = 60, int full = 300, SqsConfiguration? sqs=null, SourceCredentials? sqsCredentials=null,bool capacityAuto=false,long? maximumCapacity=null,IReadOnlyList<FileExclusionRule>? exclusions=null)
+    private MountDefinition SaveNewMountCore(string name, string directory, bool autoConnect, FileSourceConfiguration? source, SourceCredentials? credentials, bool thumbnails, CancellationToken token, bool importing = false, bool remoteAuto = true, int incremental = 60, int full = 300, SqsConfiguration? sqs=null, SourceCredentials? sqsCredentials=null,bool capacityAuto=false,long? maximumCapacity=null,IReadOnlyList<FileExclusionRule>? exclusions=null,Guid? id=null)
     {
         if (_factory is FileSourceFactory || importing) ValidateNewConnection(source, credentials ?? new SourceCredentials());
         CapacityRules.Validate(source?.Kind,capacityAuto,maximumCapacity);
         ValidateSqsSettings(source!,sqs,sqsCredentials);
         var rules=FileExclusionRules.Validate(exclusions??(importing?[]:FileExclusionRules.Defaults()));
         var root = ValidateNewMountRoot(name, directory);
-        var definition = new MountDefinition(Guid.NewGuid(), name.Trim(), root, autoConnect, RootIdentity: MountPathGuard.FileIdentity(root), Source: source,
+        var definition = new MountDefinition(id??Guid.NewGuid(), name.Trim(), root, autoConnect, RootIdentity: MountPathGuard.FileIdentity(root), Source: source,
             RegistrationStage: MountRegistrationStage.NotRegistered, AutoUploadEnabled: true, UploadInitialReviewCompleted: true, ContinuousUploadMigrated: true, ThumbnailsEnabled: thumbnails, RemoteAutoDetectEnabled: remoteAuto, RemoteIncrementalSeconds: incremental, RemoteFullSeconds: full,Sqs:sqs,CapacityAutoDetectEnabled:capacityAuto,MaximumCapacityBytes:maximumCapacity,ExclusionRules:Array.AsReadOnly(rules));
         var store = new CredentialStore(_repository.DataDirectory);
         lock (_lifetime)

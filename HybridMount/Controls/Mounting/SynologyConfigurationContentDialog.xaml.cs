@@ -21,6 +21,8 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private SynologyProbeResult? _probe;
     public MountsViewModel ViewModel=>_model;
     public MountDefinition? CreatedMount {get;private set;}
+    public string? AcceptedTaskId {get;private set;}
+    private CancellationTokenSource? _submission;
     public string ResultMessage {get;private set;}="";
     public PageMessageSeverity ResultSeverity {get;private set;}=PageMessageSeverity.Information;
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
@@ -162,25 +164,37 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         if(saving)_fieldFeedback.Check(Prefix.Length>0,ShareField,global::HybridMount.Services.Localization.ResourceMessage.Create("TestTheConnectionAndSelectASharedFolderFirst"));
         return _fieldFeedback.Complete(this);
     }
+    private ConnectionSubmissionDraft CaptureSubmission()=>new(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(true),ReadCredentials(),
+        _model.ReadExclusionRules(_existing?.Id,FileSourceKind.Synology),new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,Seconds(IncrementalField.Value,10,86400),Seconds(FullField.Value,30,604800),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,"GB")));
+    /// <summary>本次只读认证完成且应用持久接纳后关闭；配置、连接和同步继续由应用拥有。</summary>
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
-        args.Cancel=true;if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null)return;if(!ValidateFields(true))return;var deferral=args.GetDeferral();_submitting=true;Refresh();
+        args.Cancel=true;if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null)return;
+        if(!ValidateFields(true))return;var deferral=args.GetDeferral();using var cancel=new CancellationTokenSource();_submission=cancel;_submitting=true;Refresh();ErrorBar.IsOpen=false;
         try
         {
-            if(Stopped)return;ErrorBar.IsOpen=false;
-            var incremental=_existing?.RemoteIncrementalSeconds??Seconds(IncrementalField.Value,10,86400);var full=_existing?.RemoteFullSeconds??Seconds(FullField.Value,30,604800);
-            if(_verified!=Identity(ReadSettings(false))&&!await ProbeAsync())return;
-            if(Stopped)return;var settings=ReadSettings(true);
-            if(_verified!=Identity(settings)){if(!await ProbeAsync()||Stopped||_verified!=Identity(ReadSettings(true)))return;settings=ReadSettings(true);}
-            using var authenticated=SynologySessionTicket.Use(_probe?.Session);
-            var result=await _model.SaveConnectionAsync(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,settings,ReadCredentials(),initial:_existing is null?new MountCreationOptions(ThumbnailToggle.IsOn,RemoteAuto.IsOn,incremental,full,CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,"GB")):null);
-            if(Stopped)return;CreatedMount=result.Mount;ResultMessage=result.Message;ResultSeverity=result.Severity;
-            args.Cancel=false;
+            var draft=CaptureSubmission();var otp=OtpField.Password;
+            using var guard=new global::HybridMount.Helpers.UI.SubmissionInputGuard(this,()=>cancel.Cancel());
+            await using var proof=await _model.AuthenticateSubmissionAsync(draft,otp,cancel.Token);
+            if(Stopped||!draft.SameInput(CaptureSubmission())){cancel.Cancel();return;}
+            cancel.Token.ThrowIfCancellationRequested();var accepted=await _model.AcceptSubmissionAsync(proof,cancel.Token);
+            AcceptedTaskId=accepted.TaskId;ResultMessage=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ConfigurationAcceptedAsTask",global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+            ResultSeverity=PageMessageSeverity.Information;args.Cancel=false;
         }
-        catch(OperationCanceledException)when(_model.IsStopping){args.Cancel=false;}
-        catch(Exception error){if(!Stopped)ShowError(error.Message);}
-        finally{_submitting=false;if(!Stopped)Refresh();deferral.Complete();}
+        catch(ConnectionSubmissionException error)
+        {
+            if(Stopped)return;if(error.Fingerprint is {} fingerprint){_certificateCandidate=fingerprint;global::HybridMount.Helpers.UI.UserInterface.Set(CertificateBar,"Message",global::HybridMount.Services.Localization.ResourceMessage.Create("VerifyTheFollowingSHA256ThroughATrustedNASAdministrationChannelSystem",fingerprint));CertificateBar.IsOpen=true;}
+            if(error.AuthenticationCode is 403 or 404 or 406){OtpField.Visibility=Visibility.Visible;OtpField.Focus(FocusState.Programmatic);}
+            global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar,"Message",error.Message);ErrorBar.IsOpen=true;
+        }
+        catch(OperationCanceledException)
+        {
+            if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar,"Message",global::HybridMount.Services.Localization.ResourceMessage.Create("ConfigurationSubmissionCanceled"));ErrorBar.IsOpen=true;}
+        }
+        catch(Exception error){if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar,"Message",error.Message);ErrorBar.IsOpen=true;}}
+        finally{_submission=null;_submitting=false;OtpField.Password="";if(!Stopped)Refresh();deferral.Complete();}
     }
+
     private async void SaveIntervals(object sender,RoutedEventArgs args)
     {if(Stopped||_existing is null)return;try{_model.UpdateDraft(_existing.Id,RemoteAuto.IsOn,Seconds(IncrementalField.Value,10,86400),Seconds(FullField.Value,30,604800));await _model.SaveDetectionAsync(_existing.Id);}catch(Exception error){if(!Stopped)ShowError(error.Message);}}
     private async void SaveCapacity(object sender,RoutedEventArgs args)
@@ -199,12 +213,12 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         catch(Exception error){if(!Stopped)ShowError(error.Message);}finally{_picking=false;if(!Stopped)Refresh();}
     }
     private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args)
-    {_testing?.Cancel();if(!_stopping&&(_submitting||_picking||_existing is {} mount&&_model.IsBusy(mount.Id)))args.Cancel=true;}
+    {_submission?.Cancel();_testing?.Cancel();if(!_stopping&&(_submitting||_picking||_existing is {} mount&&_model.IsBusy(mount.Id)))args.Cancel=true;}
     private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
-    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();Hide();Dispose();}
+    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
+        if(_disposed)return;_disposed=true;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }
 }

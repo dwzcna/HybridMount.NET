@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='utf-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2813,4 +2813,13 @@ SHA-256：{5}</value>
   <data name="OperationDetailsOlder" xml:space="preserve"><value>更早的嘗試</value></data>
   <data name="OperationDetailsNewer" xml:space="preserve"><value>較新的嘗試</value></data>
   <data name="OperationStepTiming" xml:space="preserve"><value>{0} · 已記錄耗時 {1} 秒</value></data>
+  <data name="ConfigurationAlreadySubmitting" xml:space="preserve"><value>此設定已有驗證或連線工作，請稍後再試。</value></data>
+  <data name="ConfigurationAuthenticationExpired" xml:space="preserve"><value>驗證結果已失效，請重新提交。</value></data>
+  <data name="ConfigurationAcceptedAsTask" xml:space="preserve"><value>設定工作已接納，請在工作頁查看進度。</value></data>
+  <data name="ConfigurationSubmissionCanceled" xml:space="preserve"><value>提交已取消或輸入已變更；尚未移交的設定沒有儲存。</value></data>
+  <data name="OperationStageSaveConfiguration" xml:space="preserve"><value>儲存設定</value></data>
+  <data name="OperationStageStopPreviousConnection" xml:space="preserve"><value>停止原連線</value></data>
+  <data name="OperationStageConnectSource" xml:space="preserve"><value>建立新連線</value></data>
+  <data name="ConfigurationReturnToForm" xml:space="preserve"><value>返回設定</value></data>
+  <data name="DensityApplyFailed" xml:space="preserve"><value>密度資源套用未完成，請切回原密度後重試。</value></data>
 </root>

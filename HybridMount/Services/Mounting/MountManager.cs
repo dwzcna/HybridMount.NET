@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using HybridMount.Models.Mounting;
 using HybridMount.Commons;
 
@@ -259,12 +259,13 @@ public sealed partial class MountManager : IAsyncDisposable
     /// <summary>只更换凭据，不能将已有占位悄悄重绑定到另一数据源。</summary>
     public Task UpdateCredentialsAsync(Guid id,SourceCredentials credentials,CancellationToken token=default,FileSourceConfiguration? settings=null)
         =>OwnAsync(cancel=>UpdateCredentialsCoreAsync(id,credentials,cancel,settings),token);
-    private async Task UpdateCredentialsCoreAsync(Guid id,SourceCredentials credentials,CancellationToken token,FileSourceConfiguration? settings)
+    private async Task UpdateCredentialsCoreAsync(Guid id,SourceCredentials credentials,CancellationToken token,FileSourceConfiguration? settings,string? acceptedTask=null)
     {
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false);lock(root.ConnectionSync)root.ConnectionStops++;
         try
         {
+            if(acceptedTask is not null)Stage(acceptedTask,"OperationStageStopPreviousConnection");
             await _fileDispatcher.StopCaptureAsync(root.Definition.Id).ConfigureAwait(false);
             CancelConnection(root);RequestRemoteStop(root);RequestUploadStop(root);RequestCapacityStop(root);RequestPinStop(root);
             await Task.WhenAll(StopRemoteAsync(root),StopUploadsAsync(root),StopCapacityAsync(root),StopPinIntentsAsync(root),root.ConnectionFinished).ConfigureAwait(false);
@@ -275,6 +276,7 @@ public sealed partial class MountManager : IAsyncDisposable
             var effective=settings??root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
             FileSourceFactory.Endpoint(effective);
             FileSourceFactory.ValidateProtocolOptions(effective);FileSourceFactory.ValidateProtocolCredentials(effective,credentials);
+            if(acceptedTask is not null)Stage(acceptedTask,"OperationStageSaveConfiguration");
             if(settings is not null)
             {
                 var previous=root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
@@ -286,7 +288,7 @@ public sealed partial class MountManager : IAsyncDisposable
             }
             new CredentialStore(_repository.DataDirectory).Save(id,credentials);
             root.Definition=root.Definition with{CredentialRevision=root.Definition.CredentialRevision+1};_repository.SaveDefinition(root.Definition);
-            await DisconnectCoreAsync(root).ConfigureAwait(false);await ConnectCoreAsync(root,token,ownStops:1).ConfigureAwait(false);
+            await DisconnectCoreAsync(root).ConfigureAwait(false);await ConnectCoreAsync(root,token,ownStops:1,acceptedTask:acceptedTask).ConfigureAwait(false);
         }
             finally{root.Gate.Release();}
         }
@@ -339,18 +341,18 @@ public sealed partial class MountManager : IAsyncDisposable
     /// <summary>连接任务登记到应用所有者；退出等待手动连接与启动恢复，不让迟到结果创建新会话。</summary>
     public Task ConnectAsync(Guid id,CancellationToken token=default)=>ConnectAsync(id,token,runtimeFailedOnly:false);
     private Task ConnectAsync(Guid id,CancellationToken token,bool runtimeFailedOnly)=>OwnAsync(cancel=>ConnectOwnedAsync(id,cancel,runtimeFailedOnly),token);
-    private async Task ConnectOwnedAsync(Guid id,CancellationToken token,bool runtimeFailedOnly=false)
+    private async Task ConnectOwnedAsync(Guid id,CancellationToken token,bool runtimeFailedOnly=false,string? acceptedTask=null)
     {
         var root=Root(id);await EnsureInspectionAsync(root).ConfigureAwait(false); await root.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             if(runtimeFailedOnly)lock(root.ConnectionSync)
                 if(!root.RuntimeFailed||root.RemovalRequested||root.Definition.RemovalPending||root.Connecting is not null||root.ConnectionStops>0||root.Session is not null)return;
-            await ConnectCoreAsync(root,token).ConfigureAwait(false);
+            await ConnectCoreAsync(root,token,acceptedTask:acceptedTask).ConfigureAwait(false);
         }
         finally { root.Gate.Release(); }
     }
-    private async Task ConnectCoreAsync(Runtime root,CancellationToken token,int ownStops=0)
+    private async Task ConnectCoreAsync(Runtime root,CancellationToken token,int ownStops=0,string? acceptedTask=null)
     {
         token.ThrowIfCancellationRequested();
         if(root.RemovalRequested || !_roots.TryGetValue(root.Definition.Id,out var current) || !ReferenceEquals(current,root))throw new IOException("挂载正在移除或已经移除。");
@@ -366,9 +368,10 @@ public sealed partial class MountManager : IAsyncDisposable
             token.ThrowIfCancellationRequested();root.ConnectionStopReason=null;root.ConnectionSignal=Task.CompletedTask;root.Connecting=connection;root.ConnectionFinished=finished.Task;
         }
         token=connection.Token;
-        var connectionId=TasksQueueService.CurrentTask is {Operation:"connect"} parentConnection&&parentConnection.MountId==root.Definition.Id?parentConnection.Id:Guid.NewGuid().ToString("N");
+        var connectionId=acceptedTask??(TasksQueueService.CurrentTask is {Operation:"connect"} parentConnection&&parentConnection.MountId==root.Definition.Id?parentConnection.Id:Guid.NewGuid().ToString("N"));
         var connectionTask=new MountOperationSnapshot(connectionId,"connect","Running",0,1,[],null,root.Definition.Id);
-        _repository.SaveOperation(connectionTask);BeginTrace(connectionId,"connect",connectionId);Stage(connectionId,"OperationStageAuthenticate");
+        if(acceptedTask is null){_repository.SaveOperation(connectionTask);BeginTrace(connectionId,"connect",connectionId);Stage(connectionId,"OperationStageAuthenticate");}
+        else Stage(connectionId,"OperationStageConnectSource");
         root.ChangeSession=new();root.Detection=root.Detection with{Mode="尚未检测",Error=null};
         Status(root,"ConnectionInProgress");
         try

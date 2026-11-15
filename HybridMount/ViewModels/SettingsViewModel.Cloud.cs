@@ -9,7 +9,13 @@ public sealed partial class SettingsViewModel
     private bool _savingCloud;
     private Task _cloudWork = Task.CompletedTask;
     public PageStatusMessage CloudMessage { get; } = new();
-    public string CloudConcurrency { get => _cloudConcurrency; set { if (!_disposed && !_savingCloud) SetProperty(ref _cloudConcurrency, value ?? ""); } }
+    public string CloudConcurrency { get => _cloudConcurrency; set { if (!_disposed && !_savingCloud) if(SetProperty(ref _cloudConcurrency, value ?? ""))OnPropertyChanged(nameof(CloudConcurrencyValue)); } }
+    /// <summary>NumberBox以数值绑定，区域格式由控件处理；空值、非整数仍由保存入口拒绝。</summary>
+    public double CloudConcurrencyValue
+    {
+        get=>double.TryParse(_cloudConcurrency,NumberStyles.Float,CultureInfo.InvariantCulture,out var value)?value:double.NaN;
+        set=>CloudConcurrency=double.IsFinite(value)?value.ToString("R",CultureInfo.InvariantCulture):"";
+    }
     public bool CanSaveCloud => CanEditSettings && !_savingCloud && _cloud is not null;
     public string CloudRecommendation => string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CloudRecommendation", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, CloudOperationSettings.Recommendation);
     /// <summary>UI只验证草稿与发布结果，注册表保存在线程池完成；页面释放后的迟到结果不再展示。</summary>

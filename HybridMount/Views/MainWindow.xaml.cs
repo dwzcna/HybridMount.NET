@@ -17,7 +17,7 @@ public sealed partial class MainWindow : Window
     private readonly NavigationService _navigation;
     public MainWindowViewModel ViewModel {get;}
     private AppearanceBackdrop? _appliedBackdrop;
-    private ResourceDictionary? _compactResources;private bool _released;
+    private DensityResources? _densityResources;private bool _released;
     private Microsoft.UI.System.ThemeSettings? _themeSettings;
     private readonly List<PageNotificationRegistration> _pageMessages=[];
     /// <summary>原生窗口句柄，用于系统文件选择器。</summary>
@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
                 DispatcherQueue.TryEnqueue(()=>{if(ViewModel.CurrentPage is {} current)SynchronizeSelection(current);});
         };
         RootGrid.ActualThemeChanged += (_, _) => UpdateCaptionTheme();
+        _densityResources=new(RootGrid,()=>App.Current.Preferences.CompactLayout,error=>{App.Current.Logger.QueueException("外观","Error","密度资源更新失败",error);ViewModel.ShowNotification("外观",global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("DensityApplyFailed",global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);});
         App.Current.Preferences.LayoutChanged+=ApplyDensity;ObserveThemeSettings();ApplyDensity();
         ApplyAppearance();
         if(!App.Current.RuntimeAvailable)
@@ -127,12 +128,7 @@ public sealed partial class MainWindow : Window
     /// <summary>系统回调只调度UI更新，退出后拒绝迟到事件。</summary>
     private void ThemeSettingsChanged(Microsoft.UI.System.ThemeSettings sender,object args)=>DispatcherQueue.TryEnqueue(()=>{if(!_released)UpdateCaptionTheme();});
     /// <summary>切换系统提供的紧凑资源，无控件重建；页面自身仍通过Loaded订阅刷新边距。</summary>
-    private void ApplyDensity()
-    {
-        if(_released)return;if(!DispatcherQueue.HasThreadAccess){DispatcherQueue.TryEnqueue(ApplyDensity);return;}
-        if(App.Current.Preferences.CompactLayout&&_compactResources is null){_compactResources=new ResourceDictionary{Source=new Uri("ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml")};RootGrid.Resources.MergedDictionaries.Add(_compactResources);}
-        else if(!App.Current.Preferences.CompactLayout&&_compactResources is {} previous){RootGrid.Resources.MergedDictionaries.Remove(previous);_compactResources=null;}
-    }
+    private void ApplyDensity(){if(!_released)_densityResources?.Request();}
     /// <summary>无打开消息时折叠整个提醒容器，避免空白区域遮挡页面或拦截滚轮。</summary>
     private void RefreshNotificationHost()=>NotificationHost.Visibility=IndexWarning.IsOpen||NotificationBar.IsOpen||PageNotifications.Children.OfType<InfoBar>().Any(bar=>bar.IsOpen)||IssueNotifications.Children.OfType<InfoBar>().Any(bar=>bar.IsOpen)?Visibility.Visible:Visibility.Collapsed;
     private void MainNotificationClosed(InfoBar sender,InfoBarClosedEventArgs args)=>RefreshNotificationHost();
@@ -199,7 +195,7 @@ public sealed partial class MainWindow : Window
     public void StopPages()=>_navigation.StopPages();
     public async Task ReleaseResourcesAsync()
     {
-        if(_released)return;foreach(var registration in _pageMessages.ToArray())registration.Dispose();_released=true;NotificationBar.Closed-=MainNotificationClosed;_localization?.Dispose();_localization=null;_languageWindow?.Dispose();_languageWindow=null;_minimumSize?.Dispose();_minimumSize=null;App.Current.Preferences.LayoutChanged-=ApplyDensity;
+        if(_released)return;foreach(var registration in _pageMessages.ToArray())registration.Dispose();_released=true;_densityResources?.Dispose();_densityResources=null;NotificationBar.Closed-=MainNotificationClosed;_localization?.Dispose();_localization=null;_languageWindow?.Dispose();_languageWindow=null;_minimumSize?.Dispose();_minimumSize=null;App.Current.Preferences.LayoutChanged-=ApplyDensity;
         if(_themeSettings is {} settings)
         {
             _themeSettings=null;

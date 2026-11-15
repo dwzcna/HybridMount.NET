@@ -131,6 +131,15 @@ public sealed partial class MountsViewModel : ObservableObject, IDisposable
     internal Task<Models.Mounting.Synology.SynologyProbeResult> TestSynologyConnectionAsync(FileSourceConfiguration settings, SourceCredentials credentials, string? oneTimePassword, CancellationToken token,
         Models.Mounting.Synology.SynologySessionTicket? previous = null)
         => _manager.TestSynologyConnectionAsync(settings, credentials, oneTimePassword, token, previous);
+    /// <summary>表单认证和任务接纳分开；UI可在移交前拒绝已改变的草稿，后台不引用页面。</summary>
+    internal Task<ConnectionSubmissionProof> AuthenticateSubmissionAsync(ConnectionSubmissionDraft draft,string? otp,CancellationToken token)
+        =>_manager.AuthenticateSubmissionAsync(draft,otp,token);
+    internal async Task<AcceptedApplicationTask> AcceptSubmissionAsync(ConnectionSubmissionProof proof,CancellationToken token)
+    {
+        var draft=proof.Draft;var accepted=await _manager.AcceptSubmissionAsync(proof,token);
+        if(draft.ExistingId is null)_exclusionDrafts.Remove((Guid.Empty,draft.Source.Kind));
+        return accepted;
+    }
     /// <summary>新建或保存连接，应用拥有网络工作；持久化成功但连接失败时返回可重试的配置，校验失败仍抛出。</summary>
     public async Task<MountConnectionSaveResult> SaveConnectionAsync(Guid? id, string name, string path, bool autoConnect, FileSourceConfiguration settings, SourceCredentials credentials, IReadOnlyList<FileExclusionRule>? exclusions = null, MountCreationOptions? initial = null)
     {

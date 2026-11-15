@@ -59,6 +59,34 @@ public sealed class UploadIssueIntegrationTests
         focus.RequestStop();Assert.False(focus.ShowAll());
     }
     [Fact]
+    public async Task AcceptedTaskFocusWaitsForSnapshotAndClearsPreviousFilters()
+    {
+        await using var area = new Area();
+        var ui = new Dispatcher();
+        var focus = new TaskFocusService(new Navigation());
+        using var vm = new TasksViewModel(area.Manager, ui, focus);
+        focus.ShowIssues(area.Id, ["missing.txt"]);
+        ui.Drain(); await vm.SnapshotIdle; ui.Drain();
+        Assert.True(vm.HasIssueFilter);
+        var id = Guid.NewGuid().ToString("N");
+        Assert.True(focus.ShowTask(id));
+        ui.Drain(); await vm.SnapshotIdle; ui.Drain();
+        Assert.False(vm.HasIssueFilter);
+        Assert.Equal(0, vm.SelectedTaskFilter);
+        Assert.Equal(id, vm.RequestedTaskId);
+        Assert.Null(vm.SelectedRow);
+        area.Repository.SaveOperation(new(id, "connect", "Running", 0, 1, [], null, area.Id));
+        await area.Notify(); ui.Drain(); await vm.SnapshotIdle; ui.Drain();
+        Assert.Equal(id, vm.SelectedRow?.Id);
+        Assert.Equal(id, vm.SelectedJobId);
+        Assert.True(focus.ShowConfiguration(area.Id));
+        Assert.Equal(area.Id, focus.TakeConfiguration());
+        Assert.Null(focus.TakeConfiguration());
+        focus.RequestStop();
+        Assert.False(focus.ShowTask(id));
+        Assert.False(focus.ShowConfiguration(area.Id));
+    }
+    [Fact]
     public async Task SegmentedSelectionIsExclusiveAndPreservesIssueFocusAcrossAll()
     {
         await using var area=new Area();var row=area.Put("one");var ui=new Dispatcher();var focus=new TaskFocusService(new Navigation());using var vm=new TasksViewModel(area.Manager,ui,focus);

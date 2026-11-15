@@ -5,6 +5,8 @@ namespace HybridMount.Commons;
 public interface IMountConfigurationDialog : IDisposable
 {
     MountDefinition? CreatedMount {get;}
+    /// <summary>应用持久接纳后提供，页面只在弹窗完全关闭后定位该任务。</summary>
+    string? AcceptedTaskId {get;}
     string ResultMessage {get;}
     /// <summary>由业务结果明确提供，不按文字猜测成功或失败。</summary>
     HybridMount.ViewModels.PageMessageSeverity ResultSeverity {get;}

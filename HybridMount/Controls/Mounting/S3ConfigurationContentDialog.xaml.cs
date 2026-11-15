@@ -21,6 +21,8 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     private string? _httpWarningContext;
     public MountsViewModel ViewModel=>_model;
     public MountDefinition? CreatedMount {get;private set;}
+    public string? AcceptedTaskId {get;private set;}
+    private CancellationTokenSource? _submission;
     public string ResultMessage {get;private set;}="";
     public PageMessageSeverity ResultSeverity {get;private set;}=PageMessageSeverity.Information;
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
@@ -171,27 +173,43 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         if(DefaultCredentialsField.IsChecked!=true){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(AccessKeyField.Text),AccessKeyField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAnAccessKeyIDOrSelectTheDefaultSDKCredentialChain"));_fieldFeedback.Check(SecretKeyField.Password.Length>0,SecretKeyField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterTheAccessKey"));}
         return _fieldFeedback.Complete(this);
     }
+    private ConnectionSubmissionDraft CaptureSubmission()=>new(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),_model.ReadExclusionRules(_existing?.Id,_kind),CreationOptions());
+    /// <summary>本次只读认证完成且应用持久接纳后关闭；配置、连接和同步继续由应用拥有。</summary>
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
         args.Cancel=true;if(Stopped||_probeBinding?.IsRunning==true||_submitting||_picking||_testing is not null||_sqsProbe is not null||_sqsSaving)return;
-        if(!ValidateFields(true))return;var deferral=args.GetDeferral();_submitting=true;Refresh();ErrorBar.IsOpen=false;
+        if(!ValidateFields(true))return;var deferral=args.GetDeferral();using var cancel=new CancellationTokenSource();_submission=cancel;_submitting=true;Refresh();ErrorBar.IsOpen=false;
         try
         {
-            var result=await _model.SaveConnectionAsync(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),exclusions:_existing is null?_model.ReadExclusionRules(null,_kind):null,initial:_existing is null?CreationOptions():null);
-            if(!Stopped){CreatedMount=result.Mount;ResultMessage=result.Message;ResultSeverity=result.Severity;args.Cancel=false;}
+            var draft=CaptureSubmission();string? otp=null;
+            using var guard=new global::HybridMount.Helpers.UI.SubmissionInputGuard(this,()=>cancel.Cancel());
+            await using var proof=await _model.AuthenticateSubmissionAsync(draft,otp,cancel.Token);
+            if(Stopped||!draft.SameInput(CaptureSubmission())){cancel.Cancel();return;}
+            cancel.Token.ThrowIfCancellationRequested();var accepted=await _model.AcceptSubmissionAsync(proof,cancel.Token);
+            AcceptedTaskId=accepted.TaskId;ResultMessage=global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ConfigurationAcceptedAsTask",global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+            ResultSeverity=PageMessageSeverity.Information;args.Cancel=false;
         }
-        catch(OperationCanceledException)when(_model.IsStopping){args.Cancel=false;}
-        catch(Exception error){if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar, "Message", error.Message);ErrorBar.IsOpen=true;}}
-        finally{_submitting=false;if(!Stopped)Refresh();deferral.Complete();}
+        catch(ConnectionSubmissionException error)
+        {
+            if(Stopped)return;
+            global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar,"Message",error.Message);ErrorBar.IsOpen=true;
+        }
+        catch(OperationCanceledException)
+        {
+            if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar,"Message",global::HybridMount.Services.Localization.ResourceMessage.Create("ConfigurationSubmissionCanceled"));ErrorBar.IsOpen=true;}
+        }
+        catch(Exception error){if(!Stopped){global::HybridMount.Helpers.UI.UserInterface.Set(ErrorBar,"Message",error.Message);ErrorBar.IsOpen=true;}}
+        finally{_submission=null;_submitting=false;if(!Stopped)Refresh();deferral.Complete();}
     }
+
     private void OnClosing(ContentDialog sender,ContentDialogClosingEventArgs args)
-    {_testing?.Cancel();_sqsProbe?.Cancel();if(!_stopping&&(_submitting||_picking||_sqsSaving||(_existing is {} mount&&_model.IsBusy(mount.Id))))args.Cancel=true;}
+    {_submission?.Cancel();_testing?.Cancel();_sqsProbe?.Cancel();if(!_stopping&&(_submitting||_picking||_sqsSaving||(_existing is {} mount&&_model.IsBusy(mount.Id))))args.Cancel=true;}
     private void OnClosed(ContentDialog sender,ContentDialogClosedEventArgs args)=>Dispose();
     /// <summary>退出强制关闭视图，应用继续等待网络任务；迟到结果不更新已释放控件。</summary>
-    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_testing?.Cancel();_sqsProbe?.Cancel();Hide();Dispose();}
+    public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();_sqsProbe?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
+        if(_disposed)return;_disposed=true;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         EndpointField.TextChanged-=EndpointChanged;
         PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;

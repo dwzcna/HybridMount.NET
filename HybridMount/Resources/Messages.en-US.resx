@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='utf-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2813,4 +2813,13 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="OperationDetailsOlder" xml:space="preserve"><value>Older attempts</value></data>
   <data name="OperationDetailsNewer" xml:space="preserve"><value>Newer attempts</value></data>
   <data name="OperationStepTiming" xml:space="preserve"><value>{0} · Recorded duration {1} s</value></data>
+  <data name="ConfigurationAlreadySubmitting" xml:space="preserve"><value>This configuration already has an authentication or connection task.</value></data>
+  <data name="ConfigurationAuthenticationExpired" xml:space="preserve"><value>Authentication has expired. Submit again.</value></data>
+  <data name="ConfigurationAcceptedAsTask" xml:space="preserve"><value>Configuration accepted. Follow its progress on Tasks.</value></data>
+  <data name="ConfigurationSubmissionCanceled" xml:space="preserve"><value>Submission was canceled or its input changed. The unaccepted configuration was not saved.</value></data>
+  <data name="OperationStageSaveConfiguration" xml:space="preserve"><value>Save configuration</value></data>
+  <data name="OperationStageStopPreviousConnection" xml:space="preserve"><value>Stop previous connection</value></data>
+  <data name="OperationStageConnectSource" xml:space="preserve"><value>Establish new connection</value></data>
+  <data name="ConfigurationReturnToForm" xml:space="preserve"><value>Return to configuration</value></data>
+  <data name="DensityApplyFailed" xml:space="preserve"><value>Density resources could not be applied. Restore the previous density and retry.</value></data>
 </root>

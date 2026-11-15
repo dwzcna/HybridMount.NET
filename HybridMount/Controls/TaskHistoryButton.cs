@@ -13,6 +13,9 @@ public sealed class TaskHistoryButton : AppBarButton
     public TaskHistoryButton()
     {
         DefaultStyleKey = typeof(AppBarButton);
+        // 原生溢出区的隐式AppBarButton样式不覆盖派生类；解除默认68DIP固定宽，保留原生文本和图标共同测量。
+        Width = double.NaN;
+        HorizontalAlignment = HorizontalAlignment.Stretch;
         Icon = new FontIcon { Glyph = "\uE74D" };
     }
     /// <summary>溢出区和主区使用同一原生模板；重新应用时重新取得展示器，不缓存已离开的视觉节点。</summary>

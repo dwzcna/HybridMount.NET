@@ -5,6 +5,10 @@ namespace HybridMount.Helpers.UI;
 public static class PageLayout
 {
     public static readonly DependencyProperty EnabledProperty=DependencyProperty.RegisterAttached("Enabled",typeof(bool),typeof(PageLayout),new PropertyMetadata(false,Changed));
+    /// <summary>任务页使用完整可用列，避免内容宽度上限使右侧命令栏停在窗口中间。</summary>
+    public static readonly DependencyProperty FullWidthProperty=DependencyProperty.RegisterAttached("FullWidth",typeof(bool),typeof(PageLayout),new PropertyMetadata(false));
+    public static bool GetFullWidth(DependencyObject value)=>(bool)value.GetValue(FullWidthProperty);
+    public static void SetFullWidth(DependencyObject value,bool enabled)=>value.SetValue(FullWidthProperty,enabled);
     private static readonly DependencyProperty ScopeProperty=DependencyProperty.RegisterAttached("Scope",typeof(object),typeof(PageLayout),new PropertyMetadata(null));
     public static bool GetEnabled(DependencyObject value)=>(bool)value.GetValue(EnabledProperty);
     public static void SetEnabled(DependencyObject value,bool enabled)=>value.SetValue(EnabledProperty,enabled);
@@ -18,7 +22,7 @@ public static class PageLayout
         private void Unloaded(object sender,RoutedEventArgs args)=>Unsubscribe();
         private void Unsubscribe(){++_generation;if(_preferences is {} previous)previous.LayoutChanged-=Apply;_preferences=null;}
         private void Apply(){var generation=_generation;if(_grid.DispatcherQueue.HasThreadAccess)Update();else _grid.DispatcherQueue.TryEnqueue(()=>{if(generation==_generation)Update();});}
-        private void Update(){if(_preferences is null)return;_grid.Padding=new Thickness(_preferences.CompactLayout?16:24);if(_grid.ColumnDefinitions.Count==0)_grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star),MaxWidth=1200});}
+        private void Update(){if(_preferences is null)return;_grid.Padding=new Thickness(_preferences.CompactLayout?16:24);if(_grid.ColumnDefinitions.Count==0)_grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star),MaxWidth=GetFullWidth(_grid)?double.PositiveInfinity:1200});}
         public void Dispose(){Unsubscribe();_grid.Loaded-=Loaded;_grid.Unloaded-=Unloaded;}
     }
 }

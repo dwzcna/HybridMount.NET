@@ -22,7 +22,8 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
     private CancellationTokenSource? _resetCancel;private ContentDialog? _resetDialog;private bool _disposed;
     public SettingsViewModel ViewModel {get;}=new(App.Current.Appearance,App.Current.Startup,App.Current.Preferences,App.Current.RuntimeAvailable?App.Current.Mounts:null,App.Current.Logger,cloud:App.Current.CloudOperations);
     private readonly PageScrollBookmark _viewport=new();
-    public SettingsPage(){try{InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
+    private readonly global::HybridMount.Helpers.UI.DeferredComboBoxSelection _densitySelection;
+    public SettingsPage(){try{InitializeComponent();_densitySelection=new(DensityPicker,value=>ViewModel.DensitySelection=value);_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());NavigationCacheMode=NavigationCacheMode.Required;}catch{ViewModel.Dispose();throw;}Loaded+=PageLoaded;}
     protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(SettingsScroll);}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_explorerRecovery?.Dispose();_resetCancel?.Cancel();_resetDialog?.Hide();_viewport.Leave(SettingsScroll);base.OnNavigatedFrom(args);}
     private async void SaveCloudConcurrency(object sender,RoutedEventArgs args)=>await ViewModel.SaveCloudConcurrencyAsync();
@@ -100,6 +101,6 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
         try{await global::Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"));}
         catch(Exception error){App.Current.Logger.Log("启动","打开系统设置失败；"+HybridMount.Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error),InfoBarSeverity.Error);}
     }
-    public void Dispose(){if(_disposed)return;_disposed=true;_explorerRecovery?.Dispose();_resetCancel?.Cancel();_resetDialog?.Hide();_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
+    public void Dispose(){if(_disposed)return;_disposed=true;_densitySelection.Dispose();_explorerRecovery?.Dispose();_resetCancel?.Cancel();_resetDialog?.Hide();_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.Dispose();}
     public async ValueTask DisposeAsync(){Dispose();await ViewModel.DisposeAsync();}
 }

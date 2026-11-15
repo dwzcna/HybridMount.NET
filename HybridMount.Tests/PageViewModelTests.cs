@@ -41,6 +41,14 @@ public sealed class PageViewModelTests
     }
 
     [Fact]
+    public async Task CloudNumberInputKeepsIntegerValidationAndSaveFailure()
+    {
+        var saved=4;var fail=false;var settings=new CloudOperationSettings(()=>4,value=>{if(fail)throw new IOException("isolated save");saved=value;});
+        using var vm=new SettingsViewModel(new(new AppearanceStore()),cloud:settings);
+        foreach(var invalid in new[]{double.NaN,0,129,1.5}){vm.CloudConcurrencyValue=invalid;await vm.SaveCloudConcurrencyAsync();Assert.Equal(4,saved);Assert.Equal(PageMessageSeverity.Error,vm.CloudMessage.Severity);}
+        vm.CloudConcurrencyValue=128;await vm.SaveCloudConcurrencyAsync();Assert.Equal(128,saved);fail=true;vm.CloudConcurrencyValue=1;await vm.SaveCloudConcurrencyAsync();Assert.Equal(128,saved);Assert.Equal(1,vm.CloudConcurrencyValue);Assert.Equal(PageMessageSeverity.Error,vm.CloudMessage.Severity);
+    }
+    [Fact]
     public void DensitySaveFailureKeepsPublishedLayoutAndIndependentMessageCloseState()
     {
         var saved=false;var fail=false;var writes=0;var notifications=0;

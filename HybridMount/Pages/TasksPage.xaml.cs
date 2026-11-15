@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.UI;
+using HybridMount.Helpers.UI;
 using HybridMount.Views;
 using Microsoft.UI.Xaml.Navigation;
 using HybridMount.Models.Mounting;
@@ -15,6 +15,7 @@ public sealed partial class TasksPage : Page, IDisposable
     /// <summary>UI 线程上的任务快照集合。</summary>
     public TasksViewModel ViewModel { get; }=new(App.Current.TasksQueue,App.Current.UIDispatcher,App.Current.TaskFocus);
     private bool _restoring,_disposed;
+    private long _scrolledFocus;
     private HeaderLayoutCoordinator? _header;
     private readonly PageScrollBookmark _viewport=new();
     /// <summary>初始化页面并按任务 ID 恢复刷新后的选择。</summary>
@@ -42,6 +43,7 @@ public sealed partial class TasksPage : Page, IDisposable
         if(_disposed)return;_restoring=true;
         try{if(!ReferenceEquals(JobList.SelectedItem,ViewModel.SelectedRow))JobList.SelectedItem=ViewModel.SelectedRow;}finally{_restoring=false;}
         _viewport.Restore(JobList);
+        if(_scrolledFocus!=ViewModel.FocusRevision&&ViewModel.RequestedTaskId==ViewModel.SelectedJobId&&ViewModel.SelectedRow is {} focused){_scrolledFocus=ViewModel.FocusRevision;JobList.ScrollIntoView(focused);}
     }
     private void ClearIssueFilter(object sender,RoutedEventArgs args)=>ViewModel.ClearIssueFilter();
     /// <summary>只读核对改名事务，界面不直接发送远端改名。</summary>
@@ -97,7 +99,11 @@ public sealed partial class TasksPage : Page, IDisposable
         try
         {
             using var details=new OperationDetailsView(App.Current.TasksQueue,App.Current.UIDispatcher,job.Id);
-            await UserInterface.ShowAsync(UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=details},("Title",global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation)),("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close"))));
+            var dialog=UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=details},("Title",global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation)),("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close")));
+            var canReturn=ViewModel.CanReturnToConfiguration(job);
+            if(canReturn)UserInterface.Set(dialog,"SecondaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("ConfigurationReturnToForm"));
+            var result=await UserInterface.ShowAsync(dialog);
+            if(result==ContentDialogResult.Secondary&&canReturn&&job.MountId is {} target)App.Current.TaskFocus.ShowConfiguration(target);
         }
         catch(Exception error) { ViewModel.ReportError(error.Message); }
         finally { ViewModel.EndDialog(); }

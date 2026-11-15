@@ -30,7 +30,18 @@ public sealed class TaskFocusService(INavigationService navigation)
         }
         Changed?.Invoke();return navigation.Navigate(ApplicationPage.Tasks);
     }
+    /// <summary>弹窗实际关闭后由UI请求；清空旧筛选，目标暂未出现在快照时保留定位意图。</summary>
+    public bool ShowTask(string taskId)
+    {
+        if(string.IsNullOrWhiteSpace(taskId))return false;
+        lock(_gate){if(_stopping)return false;_focus=new(null,Array.Empty<string>(),++_revision,IssuesOnly:false,TaskId:taskId);}
+        Changed?.Invoke();return navigation.Navigate(ApplicationPage.Tasks);
+    }
+    private Guid? _configurationMount;
+    /// <summary>详情关闭后返回已有配置；导航页读取一次，不借用关闭的详情控件。</summary>
+    public bool ShowConfiguration(Guid mount){lock(_gate){if(_stopping)return false;_configurationMount=mount;}return navigation.Navigate(ApplicationPage.Mounts);}
+    public Guid? TakeConfiguration(){lock(_gate){var mount=_configurationMount;_configurationMount=null;return mount;}}
     public void RequestStop(){lock(_gate)_stopping=true;}
 }
 /// <summary>只包含挂载和相对路径的只读定位快照；空路径列表表示挂载全部问题，空字符串表示根及其后代。</summary>
-public sealed record TaskIssueFocus(Guid? MountId,IReadOnlyList<string> Paths,long Revision,bool IssuesOnly=true);
+public sealed record TaskIssueFocus(Guid? MountId,IReadOnlyList<string> Paths,long Revision,bool IssuesOnly=true,string? TaskId=null);

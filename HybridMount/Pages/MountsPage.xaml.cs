@@ -31,7 +31,7 @@ public sealed partial class MountsPage : Page,IDisposable
         ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.StateChanged+=UpdatePageState;Loaded+=PageLoaded;UpdatePageState();
     }
     private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(MountList);
-    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(MountList);RestoreSelection();}
+    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(MountList);RestoreSelection();if(App.Current.TaskFocus.TakeConfiguration() is {} mount)DispatcherQueue.TryEnqueue(async()=>{if(!_disposed)await EditSettingsAsync(mount);});}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(MountList);base.OnNavigatedFrom(args);}
     private void CaptureScroll(){_restoringSelection=true;_viewport.Capture(MountList);}
     private void RestoreSelection()
@@ -93,6 +93,7 @@ public sealed partial class MountsPage : Page,IDisposable
             _configurationDialog=(IMountConfigurationDialog)dialog;dialog.XamlRoot=XamlRoot;await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(dialog);
             if(!ViewModel.IsStopping)
             {
+                if(_configurationDialog.AcceptedTaskId is {} taskId)App.Current.TaskFocus.ShowTask(taskId);
                 if(existing is null&&_configurationDialog.CreatedMount is {} created){ViewModel.SelectedMountId=created.Id;RestoreSelection();}
                 if(_configurationDialog.ResultMessage.Length>0)ViewModel.PublishStatus(_configurationDialog.ResultMessage,_configurationDialog.ResultSeverity);
             }
