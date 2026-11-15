@@ -26,8 +26,8 @@ internal sealed class DeferredComboBoxSelection : IDisposable
     {
         if (_disposed || _picker.SelectedValue is not string value) return;
         _pending = value;
-        // 不在原生 SelectionChanged 栈上同步改变所有控件的尺寸和状态。
-        _picker.IsDropDownOpen = false;
+        // SelectionChanged 仍在 ComboBox 的原生选择栈中；关闭弹层也必须离开此栈。
+        // 否则弹层的焦点恢复与后续全局主题刷新可能重入同一批控件。
         Queue();
     }
 
@@ -42,7 +42,14 @@ internal sealed class DeferredComboBoxSelection : IDisposable
         {
             if (_disposed || generation != _generation) return;
             _queued = false;
-            if (!_picker.IsLoaded || _picker.IsDropDownOpen || _pending is not { } value) return;
+            if (!_picker.IsLoaded || _pending is not { } value) return;
+            if (_picker.IsDropDownOpen)
+            {
+                _picker.IsDropDownOpen = false;
+                // DropDownClosed 可能同步触发，也可能稍后到达；独立调度保证关闭栈先收尾。
+                Queue();
+                return;
+            }
             _pending = null;
             _apply(value);
         })) _queued = false;

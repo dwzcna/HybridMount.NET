@@ -1149,4 +1149,5 @@
   <data name="ExplorerEntrySearchButton.Content" xml:space="preserve">
     <value>从资源管理器检索</value>
   </data>
+  <data name="BackupImportChoice.PlaceholderText" xml:space="preserve"><value>请选择你要导入的配置</value></data>
 </root>

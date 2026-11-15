@@ -17,6 +17,14 @@ public sealed class FileExclusionRuleDraft : ObservableObject
 public sealed partial class MountsViewModel
 {
     private readonly Dictionary<(Guid Id, FileSourceKind Kind), ObservableCollection<FileExclusionRuleDraft>> _exclusionDrafts = [];
+    /// <summary>为导入表单创建独立规则集合；取消后可直接释放，不读写业务配置。</summary>
+    internal Guid CreateImportExclusions(FileSourceKind kind, IReadOnlyList<FileExclusionRule>? rules)
+    {
+        var scope = Guid.NewGuid();
+        _exclusionDrafts[(scope, kind)] = new((rules ?? []).Select(rule => new FileExclusionRuleDraft(rule)));
+        return scope;
+    }
+    internal void ReleaseImportExclusions(Guid scope, FileSourceKind kind) => _exclusionDrafts.Remove((scope, kind));
     /// <summary>旧挂载缺失字段为空；新增草稿按协议独立保留，默认规则在第一次连接前即可编辑。</summary>
     public ObservableCollection<FileExclusionRuleDraft> ExclusionDraft(Guid? id, FileSourceKind kind)
     {

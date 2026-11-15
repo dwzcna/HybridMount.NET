@@ -38,8 +38,12 @@ public sealed class TaskFocusService(INavigationService navigation)
         Changed?.Invoke();return navigation.Navigate(ApplicationPage.Tasks);
     }
     private Guid? _configurationMount;
+    private bool? _exportProtection;
+    /// <summary>失败后的明确导出入口，只转交保护模式，绝不转交或恢复密码。</summary>
+    public bool ShowExport(bool protection){lock(_gate){if(_stopping)return false;_configurationMount=null;_exportProtection=protection;}return navigation.Navigate(ApplicationPage.Mounts);}
+    public bool? TakeExportProtection(){lock(_gate){var value=_exportProtection;_exportProtection=null;return value;}}
     /// <summary>详情关闭后返回已有配置；导航页读取一次，不借用关闭的详情控件。</summary>
-    public bool ShowConfiguration(Guid mount){lock(_gate){if(_stopping)return false;_configurationMount=mount;}return navigation.Navigate(ApplicationPage.Mounts);}
+    public bool ShowConfiguration(Guid mount){lock(_gate){if(_stopping)return false;_configurationMount=mount;_exportProtection=null;}return navigation.Navigate(ApplicationPage.Mounts);}
     public Guid? TakeConfiguration(){lock(_gate){var mount=_configurationMount;_configurationMount=null;return mount;}}
     public void RequestStop(){lock(_gate)_stopping=true;}
 }

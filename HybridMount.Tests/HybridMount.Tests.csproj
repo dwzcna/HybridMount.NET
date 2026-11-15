@@ -10,6 +10,7 @@
     <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
   </PropertyGroup>
   <!-- 各集合共享本机CFAPI／物理缓存资源；限制集合级并行，单个用例内的1／4／128并发保持真实执行。 -->
+  <ItemGroup><Compile Include="..\HybridMount\Services\Mounting\MountManager.ConfigurationExport.cs" Link="Production\MountManager.ConfigurationExport.cs"/></ItemGroup>
   <ItemGroup><Compile Include="..\HybridMount\Models\Mounting\ConnectionSubmission.cs" Link="Production\ConnectionSubmission.cs"/><Compile Include="..\HybridMount\Models\Persistence\MountRepository.ApplicationTasks.cs" Link="Production\MountRepository.ApplicationTasks.cs"/><Compile Include="..\HybridMount\Services\Mounting\MountManager.ConnectionSubmission.cs" Link="Production\MountManager.ConnectionSubmission.cs"/></ItemGroup>
   <ItemGroup><Compile Include="..\HybridMount\Models\Mounting\OperationDetails.cs" Link="Production\OperationDetails.cs"/><Compile Include="..\HybridMount\Models\Persistence\MountRepository.OperationDetails.cs" Link="Production\MountRepository.OperationDetails.cs"/><Compile Include="..\HybridMount\Models\Persistence\MountRepository.RemoteBatches.cs" Link="Production\MountRepository.RemoteBatches.cs"/><Compile Include="..\HybridMount\Services\Mounting\MountManager.OperationDetails.cs" Link="Production\MountManager.OperationDetails.cs"/></ItemGroup>
   <ItemGroup>

@@ -100,10 +100,12 @@ public sealed partial class TasksPage : Page, IDisposable
         {
             using var details=new OperationDetailsView(App.Current.TasksQueue,App.Current.UIDispatcher,job.Id);
             var dialog=UserInterface.Configure(new ContentDialog{XamlRoot=XamlRoot,Content=details},("Title",global::HybridMount.Services.Localization.ResourceMessage.Raw(job.DisplayOperation)),("CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close")));
-            var canReturn=ViewModel.CanReturnToConfiguration(job);
+            var canReturn=ViewModel.CanReturnToConfiguration(job);var canExport=TasksViewModel.CanReexport(job);
             if(canReturn)UserInterface.Set(dialog,"SecondaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("ConfigurationReturnToForm"));
+            if(canExport)UserInterface.Set(dialog,"SecondaryButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("BackupReexport"));
             var result=await UserInterface.ShowAsync(dialog);
-            if(result==ContentDialogResult.Secondary&&canReturn&&job.MountId is {} target)App.Current.TaskFocus.ShowConfiguration(target);
+            if(result==ContentDialogResult.Secondary&&canExport)App.Current.TaskFocus.ShowExport(job.BackupProtected==true);
+            else if(result==ContentDialogResult.Secondary&&canReturn&&job.MountId is {} target)App.Current.TaskFocus.ShowConfiguration(target);
         }
         catch(Exception error) { ViewModel.ReportError(error.Message); }
         finally { ViewModel.EndDialog(); }

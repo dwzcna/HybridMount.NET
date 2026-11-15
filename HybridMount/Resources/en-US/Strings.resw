@@ -1149,4 +1149,5 @@
   <data name="ExplorerEntrySearchButton.Content" xml:space="preserve">
     <value>Search File Explorer</value>
   </data>
+  <data name="BackupImportChoice.PlaceholderText" xml:space="preserve"><value>Choose a configuration to import</value></data>
 </root>

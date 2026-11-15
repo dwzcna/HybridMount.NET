@@ -2822,4 +2822,16 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="OperationStageConnectSource" xml:space="preserve"><value>Establish new connection</value></data>
   <data name="ConfigurationReturnToForm" xml:space="preserve"><value>Return to configuration</value></data>
   <data name="DensityApplyFailed" xml:space="preserve"><value>Density resources could not be applied. Restore the previous density and retry.</value></data>
+  <data name="OperationStageReadConfiguration" xml:space="preserve"><value>Read configuration and credentials</value></data>
+  <data name="OperationStageEncodeBackup" xml:space="preserve"><value>Encode backup and encrypt if selected</value></data>
+  <data name="OperationStageWriteBackup" xml:space="preserve"><value>Write temporary backup</value></data>
+  <data name="OperationStageCommitBackup" xml:space="preserve"><value>Commit backup atomically</value></data>
+  <data name="BackupContinueConfiguration" xml:space="preserve"><value>Continue to configuration</value></data>
+  <data name="BackupExportAccepted" xml:space="preserve"><value>Export accepted. View progress on the Tasks page.</value></data>
+  <data name="BackupReexport" xml:space="preserve"><value>Choose again and export</value></data>
+  <data name="BackupPasswordReentryRequired" xml:space="preserve"><value>Choose configurations and re-enter the protection password. The previous backup password is not retained.</value></data>
+  <data name="BackupExportTargetBusy" xml:space="preserve"><value>A configuration export to this location is already running. Wait for it to finish.</value></data>
+  <data name="BackupExportCommitIncomplete" xml:space="preserve"><value>The backup has not completed its atomic commit.</value></data>
+  <data name="BackupSupportedProtocolsOnly" xml:space="preserve"><value>Only WebDAV, S3, and Synology mounts can be backed up.</value></data>
+  <data name="BackupExportInterrupted" xml:space="preserve"><value>Export was interrupted. Select configurations and export again; protected backups require the password again.</value></data>
 </root>

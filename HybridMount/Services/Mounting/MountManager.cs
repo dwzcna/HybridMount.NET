@@ -891,7 +891,7 @@ public sealed partial class MountManager : IAsyncDisposable
         job.Snapshot=job.Snapshot with{Results=job.Results.ToArray()};job.LastPublished=Environment.TickCount64;job.PublishedCount=job.Results.Count;
         _repository.SaveOperation(job.Snapshot);Notify();
     }
-    public MountOperationSnapshot? GetOperation(string id)=>_repository.FindRemoteBatch(id)??_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_repository.FindRemotePending(id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:_repository.FindOperation(id));
+    public MountOperationSnapshot? GetOperation(string id)=>_repository.FindRemoteBatch(id)??_fileOperations.GetValueOrDefault(id)?.Snapshot??RenameIntent(id)?.Snapshot()??(_repository.Upload(id) is {} upload?UploadSnapshot(upload):_repository.FindRemotePending(id) is {} remote?DescribeOperationWait(RemoteTask(remote),remote.Path):_jobs.TryGetValue(id,out var job)?job.Snapshot:RestoredOperation(id));
     /// <summary>仅接受仍在排队或执行的取消请求；完成的任务不能再次取消。</summary>
     public bool Cancel(string id)
     {

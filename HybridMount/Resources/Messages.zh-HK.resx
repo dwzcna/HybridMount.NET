@@ -2822,4 +2822,16 @@ SHA-256：{5}</value>
   <data name="OperationStageConnectSource" xml:space="preserve"><value>建立新連線</value></data>
   <data name="ConfigurationReturnToForm" xml:space="preserve"><value>返回設定</value></data>
   <data name="DensityApplyFailed" xml:space="preserve"><value>密度資源套用未完成，請切回原密度後重試。</value></data>
+  <data name="OperationStageReadConfiguration" xml:space="preserve"><value>讀取設定及認證資料</value></data>
+  <data name="OperationStageEncodeBackup" xml:space="preserve"><value>產生備份並按需加密</value></data>
+  <data name="OperationStageWriteBackup" xml:space="preserve"><value>寫入暫存備份</value></data>
+  <data name="OperationStageCommitBackup" xml:space="preserve"><value>以原子方式提交備份檔案</value></data>
+  <data name="BackupContinueConfiguration" xml:space="preserve"><value>繼續設定</value></data>
+  <data name="BackupExportAccepted" xml:space="preserve"><value>已接納匯出工作，可在工作頁查看進度。</value></data>
+  <data name="BackupReexport" xml:space="preserve"><value>重新選擇並匯出</value></data>
+  <data name="BackupPasswordReentryRequired" xml:space="preserve"><value>請重新選擇設定並輸入保護密碼；程式不會保存上一次的備份密碼。</value></data>
+  <data name="BackupExportTargetBusy" xml:space="preserve"><value>此位置已有設定匯出工作，請等待完成。</value></data>
+  <data name="BackupExportCommitIncomplete" xml:space="preserve"><value>備份尚未完成不可分割提交。</value></data>
+  <data name="BackupSupportedProtocolsOnly" xml:space="preserve"><value>僅支援備份 WebDAV、S3 和 Synology 掛接。</value></data>
+  <data name="BackupExportInterrupted" xml:space="preserve"><value>匯出已中斷；請重新選取並匯出，受保護備份需要重新輸入密碼。</value></data>
 </root>

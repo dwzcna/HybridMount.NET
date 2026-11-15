@@ -1149,4 +1149,5 @@
   <data name="ExplorerEntrySearchButton.Content" xml:space="preserve">
     <value>從檔案總管檢索</value>
   </data>
+  <data name="BackupImportChoice.PlaceholderText" xml:space="preserve"><value>請選擇要匯入的設定</value></data>
 </root>

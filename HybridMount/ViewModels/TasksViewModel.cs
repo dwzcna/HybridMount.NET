@@ -79,8 +79,8 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
     public void ClearIssueFilter() { _filterMount = null; _filterPaths = []; Refresh(); }
     public async Task<string?> SelectedLocationAsync()
     {
-        if (_disposed || _queue.IsStopping || Selected is not { Operation: "upload" or "remoteUpdate" or "excludedRename" } selected) { Status = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectASyncIssueFirst", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; return null; }
-        try { return await _queue.RunClientActionAsync(() => _queue.SyncIssueLocalPath(selected.Id)); } catch (Exception error) { PublishStatus(error.Message, PageMessageSeverity.Error); _queue.ReportDiagnosticException("任务页面", "任务页面操作未完成", error); return null; }
+        if (_disposed || _queue.IsStopping || Selected is not { Operation: "upload" or "remoteUpdate" or "excludedRename" or "exportConfiguration" } selected) { Status = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectASyncIssueFirst", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; return null; }
+        try { return await _queue.RunClientActionAsync(() => _queue.TaskLocalPath(selected.Id)); } catch (Exception error) { PublishStatus(error.Message, PageMessageSeverity.Error); _queue.ReportDiagnosticException("任务页面", "任务页面操作未完成", error); return null; }
     }
     private void FocusChanged()
     {
@@ -109,9 +109,11 @@ public sealed class TasksViewModel : ObservableObject, IDisposable
         if (Selected is not { } selected) { Status = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectATaskFirst", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; return; }
         try { var result = await _queue.RunClientActionAsync(() => _queue.CancelSelected(selected)); if (!_disposed) Status = result ? selected.Operation == "excludedRename" ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CleanupCancellationRequestedCompletedCloudRenamesOrDestinationCopiesWillBeKept", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("CancellationRequestedCompletedStepsAreKeptAndDeletedContentWillNotBe", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : _queue.GetOperation(selected.Id)?.State == "Completed" ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskAlreadyCompleted", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TaskChangedSelectAgain", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; } catch (Exception error) { PublishStatus(error.Message, PageMessageSeverity.Error); _queue.ReportDiagnosticException("任务页面", "任务页面操作未完成", error); }
     }
+    public static bool CanReexport(MountOperationSnapshot task)=>task.Operation=="exportConfiguration"&&task.State is "Failed" or "Interrupted" or "Canceled";
     public async Task RetrySelectedAsync()
     {
         if (_disposed || _queue.IsStopping) return;
+        if(Selected is {} export&&CanReexport(export)){_focus?.ShowExport(export.BackupProtected==true);return;}
         if (Selected is not { Operation: "upload" or "remoteUpdate" or "excludedRename" or "freeSpace" } selected) { Status = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("FirstSelectAnUploadRemoteUpdateOrExcludedRenameCleanupTask", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; return; }
         try { var result = await _queue.RunClientActionAsync(() => _queue.RetryUpload(selected.Id)); if (!_disposed) Status = result ? global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("RetrySubmittedIfTheMountIsDisconnectedConnectItOnTheMounts", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)! : global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ThisTaskCannotBeRetried", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; } catch (Exception error) { PublishStatus(error.Message, PageMessageSeverity.Error); _queue.ReportDiagnosticException("任务页面", "任务页面操作未完成", error); }
     }

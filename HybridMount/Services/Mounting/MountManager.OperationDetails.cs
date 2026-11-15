@@ -1,10 +1,11 @@
-﻿using HybridMount.Services.Localization;
+using HybridMount.Services.Localization;
 namespace HybridMount.Services.Mounting;
 
 public sealed partial class MountManager
 {
     private static string[] OperationStages(string operation)=>operation switch
     {
+        "exportConfiguration"=>["OperationStageReadConfiguration","OperationStageEncodeBackup","OperationStageWriteBackup","OperationStageCommitBackup"],
         "connect"=>["OperationStageAuthenticate","OperationStageInitialize","OperationStageReadChanges","OperationStageSummarize"],
         "upload"=>["OperationStagePrepareSnapshot","OperationStageTransfer","OperationStageVerifyContent","OperationStageCommitLocal","OperationStageCommitIndex"],
         "remoteBatch"=>["OperationStageReadChanges","OperationStageVerifyLocal","OperationStageApplyPlaceholder","OperationStageCommitIndex","OperationStageSummarize"],

@@ -86,6 +86,7 @@ public sealed partial class TasksQueueService
         using var scope=EnterTask(mount,id,MountingPriority.User,"recheck",item.ItemPath);return Backend.RecheckOperation(id);
     }
     public string UploadAsCopy(string id,string path)=>Backend.UploadAsCopy(id,path);
+    internal string? TaskLocalPath(string id)=>Backend.GetOperation(id)?.Operation=="exportConfiguration"?Backend.ConfigurationExportLocation(id):Backend.SyncIssueLocalPath(id);
     public string SyncIssueLocalPath(string id)=>Backend.SyncIssueLocalPath(id);
     public Task<int> ClearOperationHistoryAsync(TaskHistoryClearMode mode,CancellationToken token=default)=>Backend.ClearOperationHistoryAsync(mode,token);
     public void ReportDiagnosticException(string area,string message,Exception error)=>Backend.ReportDiagnosticException(area,message,error);

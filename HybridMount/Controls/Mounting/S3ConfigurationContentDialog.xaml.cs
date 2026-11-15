@@ -15,6 +15,8 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     private MountsViewModel _model=null!;
     private MountDefinition? _existing;
     private FileSourceKind _kind;
+    private Guid? _importExclusionScope;
+    private Guid? ExclusionOwner=>_importExclusionScope??_existing?.Id;
     private CancellationTokenSource? _testing,_sqsProbe;
     private bool _sqsSaving;
     private bool _loading=true,_submitting,_picking,_disposed,_stopping,_savingSwitch;
@@ -27,7 +29,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     public PageMessageSeverity ResultSeverity {get;private set;}=PageMessageSeverity.Information;
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
     /// <summary>只加载一次连接草稿；后续刷新仅更新已保存设置，不覆盖正在编辑的账号或地址。</summary>
-    public S3ConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null)
+    public S3ConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,MountBackupItem? imported=null)
     {
         InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());_model=model;_kind=FileSourceKind.S3;_existing=existing;
         try
@@ -47,7 +49,13 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
             if(existing is null){RemoteAuto.IsOn=true;IncrementalField.Value=60;FullField.Value=300;CapacityUnit.SelectedIndex=0;}
             CapacityAuto.Visibility=Visibility.Collapsed;if(existing is null){SqsMode.SelectedIndex=0;SqsTestButton.Visibility=SqsSaveButton.Visibility=Visibility.Collapsed;}
             EndpointField.TextChanged+=EndpointChanged;
-            ExclusionList.ItemsSource=model.ExclusionDraft(existing?.Id,_kind);
+            if(imported is not null)
+            {
+                if(existing is not null||imported.Source.Kind!=_kind)throw new ArgumentException("导入协议与新建表单不匹配。");
+                _importExclusionScope=model.CreateImportExclusions(_kind,imported.ExclusionRules);
+                LoadImported(imported);
+            }
+            ExclusionList.ItemsSource=model.ExclusionDraft(ExclusionOwner,_kind);
             SaveExclusionsButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
             global::HybridMount.Helpers.UI.UserInterface.Set(this,"Title",global::HybridMount.Services.Localization.ResourceMessage.Create("JoinedText", existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("Add") : global::HybridMount.Services.Localization.ResourceMessage.Create("SettingsDetails"), (existing?.Name??(_kind==FileSourceKind.S3?global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("S3Mount", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!:global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("WebDAVMount", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!))));
             global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("CreateAndConnect") : global::HybridMount.Services.Localization.ResourceMessage.Create("SaveConnectionAndReconnect"));global::HybridMount.Helpers.UI.UserInterface.Set(this, "SecondaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("TestConnection"));global::HybridMount.Helpers.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Close"));
@@ -100,9 +108,9 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         }
         finally{_loading=false;}
     }
-    private void AddExclusionRule(object sender,RoutedEventArgs args){if(!Stopped)_model.AddExclusionRule(_existing?.Id,_kind);}
-    private void AddDefaultExclusionRules(object sender,RoutedEventArgs args){if(!Stopped)_model.AddDefaultExclusionRules(_existing?.Id,_kind);}
-    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&sender is FrameworkElement{Tag:FileExclusionRuleDraft row})_model.RemoveExclusionRule(_existing?.Id,_kind,row);}
+    private void AddExclusionRule(object sender,RoutedEventArgs args){if(!Stopped)_model.AddExclusionRule(ExclusionOwner,_kind);}
+    private void AddDefaultExclusionRules(object sender,RoutedEventArgs args){if(!Stopped)_model.AddDefaultExclusionRules(ExclusionOwner,_kind);}
+    private void RemoveExclusionRule(object sender,RoutedEventArgs args){if(!Stopped&&sender is FrameworkElement{Tag:FileExclusionRuleDraft row})_model.RemoveExclusionRule(ExclusionOwner,_kind,row);}
     private async void SaveExclusions(object sender,RoutedEventArgs args){if(!Stopped&&_existing is {} mount)await _model.SaveExclusionsAsync(mount.Id);}
     private void CaptureCapacity(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateCapacityDraft(mount.Id,CapacityAuto.IsOn,MaximumField.Text,CapacityUnit.SelectedIndex==1?"TB":"GB");}
     private void CaptureDetection(){if(!_loading&&!Stopped&&_existing is {} mount)_model.UpdateDraft(mount.Id,RemoteAuto.IsOn,IncrementalField.Value,FullField.Value);}
@@ -173,7 +181,24 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
         if(DefaultCredentialsField.IsChecked!=true){_fieldFeedback.Check(!string.IsNullOrWhiteSpace(AccessKeyField.Text),AccessKeyField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterAnAccessKeyIDOrSelectTheDefaultSDKCredentialChain"));_fieldFeedback.Check(SecretKeyField.Password.Length>0,SecretKeyField,global::HybridMount.Services.Localization.ResourceMessage.Create("EnterTheAccessKey"));}
         return _fieldFeedback.Complete(this);
     }
-    private ConnectionSubmissionDraft CaptureSubmission()=>new(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),_model.ReadExclusionRules(_existing?.Id,_kind),CreationOptions());
+    /// <summary>只预填独立新建草稿；加载期间不发布开关、认证、能力结果或配置写入。</summary>
+    private void LoadImported(MountBackupItem item)
+    {
+        var draft=ConnectionSubmissionDraft.FromBackup(item);
+        NameField.Text=draft.Name;PathField.Text=draft.Path;EndpointField.Text=draft.Source.Endpoint;
+        HttpField.IsChecked=item.Source.AllowHttp;AutoConnectField.IsOn=item.AutoConnect;
+        ThumbnailToggle.IsOn=item.ThumbnailsEnabled;RemoteAuto.IsOn=item.RemoteAutoDetectEnabled;
+        IncrementalField.Value=item.RemoteIncrementalSeconds;FullField.Value=item.RemoteFullSeconds;
+        CapacityAuto.IsOn=item.CapacityAutoDetectEnabled;CapacityUnit.SelectedIndex=0;
+        MaximumField.Text=item.MaximumCapacityBytes is {} maximum?((decimal)maximum/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"";
+        BucketField.Text=item.Source.Bucket;PrefixField.Text=item.Source.Prefix;RegionField.Text=item.Source.Region;
+        PathStyleField.IsChecked=item.Source.PathStyle;DefaultCredentialsField.IsChecked=item.Source.UseDefaultCredentials;
+        AccessKeyField.Text=item.Credentials.AccessKey;SecretKeyField.Password=item.Credentials.SecretKey;SessionTokenField.Password=item.Credentials.SessionToken;
+        var sqs=item.Sqs??new();var keys=item.SqsCredentials??new();
+        SqsEnabled.IsOn=sqs.Enabled;SqsUrl.Text=sqs.QueueUrl;SqsRegion.Text=sqs.Region;SqsMode.SelectedIndex=(int)sqs.CredentialMode;
+        SqsAccessField.Text=keys.AccessKey;SqsSecretField.Password=keys.SecretKey;SqsSessionField.Password=keys.SessionToken;
+    }
+    private ConnectionSubmissionDraft CaptureSubmission()=>new(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(EndpointField.Text.Trim(),HttpField.IsChecked==true),ReadCredentials(),_model.ReadExclusionRules(ExclusionOwner,_kind),CreationOptions());
     /// <summary>本次只读认证完成且应用持久接纳后关闭；配置、连接和同步继续由应用拥有。</summary>
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
@@ -209,7 +234,7 @@ public sealed partial class S3ConfigurationContentDialog : ContentDialog,IMountC
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();_sqsProbe?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
+        if(_disposed)return;_disposed=true;if(_importExclusionScope is {} scope)_model.ReleaseImportExclusions(scope,_kind);_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();_sqsProbe?.Cancel();ClearSecrets();
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;
         EndpointField.TextChanged-=EndpointChanged;
         PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;

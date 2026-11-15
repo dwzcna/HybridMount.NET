@@ -31,7 +31,7 @@ public sealed partial class MountsPage : Page,IDisposable
         ViewModel.Refreshing+=CaptureScroll;ViewModel.Refreshed+=RestoreSelection;ViewModel.StateChanged+=UpdatePageState;Loaded+=PageLoaded;UpdatePageState();
     }
     private void PageLoaded(object sender,RoutedEventArgs args)=>_viewport.Restore(MountList);
-    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(MountList);RestoreSelection();if(App.Current.TaskFocus.TakeConfiguration() is {} mount)DispatcherQueue.TryEnqueue(async()=>{if(!_disposed)await EditSettingsAsync(mount);});}
+    protected override void OnNavigatedTo(NavigationEventArgs args){base.OnNavigatedTo(args);_viewport.Enter(MountList);RestoreSelection();if(App.Current.TaskFocus.TakeExportProtection() is {} protection)DispatcherQueue.TryEnqueue(async()=>{if(!_disposed)await ShowExportConfigurationsAsync(protection);});if(App.Current.TaskFocus.TakeConfiguration() is {} mount)DispatcherQueue.TryEnqueue(async()=>{if(!_disposed)await EditSettingsAsync(mount);});}
     protected override void OnNavigatedFrom(NavigationEventArgs args){_viewport.Leave(MountList);base.OnNavigatedFrom(args);}
     private void CaptureScroll(){_restoringSelection=true;_viewport.Capture(MountList);}
     private void RestoreSelection()
@@ -79,15 +79,16 @@ public sealed partial class MountsPage : Page,IDisposable
     });
     private Task EditSettingsAsync(Guid id)=>ViewModel.FindMount(id) is {} mount?ShowConfigurationAsync(mount.Definition.Source!.Kind,mount.Definition):Task.CompletedTask;
     /// <summary>新增和编辑都使用协议专属 XAML；SQS 选项在 S3 配置内部折叠，不再弹出其他配置窗口。</summary>
-    private Task ShowConfigurationAsync(FileSourceKind kind,MountDefinition? existing=null,bool httpsOnly=false)=>ViewModel.RunDialogAsync(async()=>
+    private Task ShowConfigurationAsync(FileSourceKind kind,MountDefinition? existing=null,bool httpsOnly=false)=>ViewModel.RunDialogAsync(()=>ShowConfigurationCoreAsync(kind,existing,httpsOnly));
+    private async Task ShowConfigurationCoreAsync(FileSourceKind kind,MountDefinition? existing=null,bool httpsOnly=false,MountBackupItem? imported=null)
     {
         try
         {
             ContentDialog dialog=kind switch
             {
-                FileSourceKind.WebDav=>new WebDAVConfigurationContentDialog(ViewModel,existing,httpsOnly),
-                FileSourceKind.S3=>new S3ConfigurationContentDialog(ViewModel,existing),
-                FileSourceKind.Synology=>new SynologyConfigurationContentDialog(ViewModel,existing),
+                FileSourceKind.WebDav=>new WebDAVConfigurationContentDialog(ViewModel,existing,httpsOnly,imported),
+                FileSourceKind.S3=>new S3ConfigurationContentDialog(ViewModel,existing,imported),
+                FileSourceKind.Synology=>new SynologyConfigurationContentDialog(ViewModel,existing,imported),
                 _=>throw new NotSupportedException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("NoConfigurationDialogIsAvailableForThisProtocolYet", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!)
             };
             _configurationDialog=(IMountConfigurationDialog)dialog;dialog.XamlRoot=XamlRoot;await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(dialog);
@@ -99,15 +100,16 @@ public sealed partial class MountsPage : Page,IDisposable
             }
         }
         finally{_configurationDialog?.Dispose();_configurationDialog=null;}
-    });
+    }
     private async void CreateWebDavMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav);
     private async void CreateWebDavHttpsMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.WebDav,httpsOnly:true);
     private async void CreateS3Mount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.S3);
     private async void CreateSynologyMount(object sender,RoutedEventArgs args)=>await ShowConfigurationAsync(FileSourceKind.Synology);
     /// <summary>导出对话框默认选择全部网络挂载；真正的凭据读取与可选加密写入由应用服务执行。</summary>
-    private async void ExportConfigurations(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
+    private async void ExportConfigurations(object sender,RoutedEventArgs args)=>await ShowExportConfigurationsAsync();
+    private Task ShowExportConfigurationsAsync(bool protection=false)=>ViewModel.RunDialogAsync(async()=>
     {
-        try { _backupDialog=new MountBackupDialog{XamlRoot=XamlRoot};await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(_backupDialog);if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage; }
+        try { _backupDialog=new MountBackupDialog(protectionInitially:protection){XamlRoot=XamlRoot};await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(_backupDialog);if(!ViewModel.IsStopping&&_backupDialog.AcceptedTaskId is {} taskId)App.Current.TaskFocus.ShowTask(taskId);if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage; }
         finally { _backupDialog=null; }
     });
     /// <summary>文件选择只接受 .hmxbk；自动识别保护模式后预览，保存不会自动连接。</summary>
@@ -116,13 +118,15 @@ public sealed partial class MountsPage : Page,IDisposable
         var picker=new global::Windows.Storage.Pickers.FileOpenPicker();picker.FileTypeFilter.Add(".hmxbk");
         WinRT.Interop.InitializeWithWindow.Initialize(picker,App.Current.MainWindow!.Handle);
         var file=await picker.PickSingleFileAsync();if(file is null||App.Current.IsExiting)return;
+        MountBackupItem? imported=null;
         try
         {
             _backupDialog=new MountBackupDialog(file.Path){XamlRoot=XamlRoot};await global::HybridMount.Helpers.UI.UserInterface.ShowAsync(_backupDialog);
-            if(_backupDialog.ImportedIds.Count>0){ViewModel.SelectedMountId=_backupDialog.ImportedIds[^1];RestoreSelection();}
+            imported=_backupDialog.TakeSelectedConfiguration();
             if(_backupDialog.ResultMessage.Length>0)ViewModel.Status=_backupDialog.ResultMessage;
         }
         finally { _backupDialog=null; }
+        if(imported is not null&&!ViewModel.IsStopping)await ShowConfigurationCoreAsync(imported.Source.Kind,imported:imported);
     });
     /// <summary>多选只捕获快照；确认后应用串行处理，取消时对话框等待当前项及临时连接收尾。</summary>
     private async void RecoverOrphanedMounts(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>

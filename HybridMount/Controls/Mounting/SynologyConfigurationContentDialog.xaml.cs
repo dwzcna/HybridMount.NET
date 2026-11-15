@@ -18,6 +18,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     private bool _loading=true,_submitting,_picking,_disposed,_stopping,_rootEditable,_savingSwitch;
     private string? _pin,_certificateCandidate,_verified,_httpWarningContext;
     private string _deviceToken="";
+    private IReadOnlyList<FileExclusionRule>? _importExclusions;
     private SynologyProbeResult? _probe;
     public MountsViewModel ViewModel=>_model;
     public MountDefinition? CreatedMount {get;private set;}
@@ -26,7 +27,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     public string ResultMessage {get;private set;}="";
     public PageMessageSeverity ResultSeverity {get;private set;}=PageMessageSeverity.Information;
     private bool Stopped=>_disposed||_stopping||_model.IsStopping;
-    public SynologyConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null)
+    public SynologyConfigurationContentDialog(MountsViewModel model,MountDefinition? existing=null,MountBackupItem? imported=null)
     {
         InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update());_model=model;_existing=existing;_rootEditable=existing is null;
         try
@@ -43,6 +44,20 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
                 CapacityAuto.IsOn=existing.CapacityAutoDetectEnabled;MaximumField.Text=existing.MaximumCapacityBytes is {} maximum?((decimal)maximum/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"";
                 ThumbnailToggle.IsOn=model.ThumbnailDraft(existing);ThumbnailToggle.IsEnabled=model.CanConfigureThumbnails;
                 ExistingSettings.Visibility=SaveIntervalsButton.Visibility=Visibility.Visible;
+            }
+            if(imported is not null)
+            {
+                if(existing is not null||imported.Source.Kind!=FileSourceKind.Synology)throw new ArgumentException("导入协议与新建表单不匹配。");
+                NameField.Text=imported.Name;PathField.Text=imported.LocalPath;EndpointField.Text=imported.Source.Endpoint;
+                UserField.Text=imported.Credentials.UserName;PasswordField.Password=imported.Credentials.Password;_deviceToken="";
+                _pin=imported.Source.PinnedCertificateSha256;HttpField.IsChecked=imported.Source.AllowHttp;
+                var importedParts=imported.Source.Prefix.TrimStart('/').Split('/',2);
+                if(importedParts[0].Length>0){ShareField.ItemsSource=new[]{new SynologySharedFolder(importedParts[0],"/"+importedParts[0])};ShareField.SelectedIndex=0;}
+                SubfolderField.Text=importedParts.Length>1?importedParts[1]:"";
+                AutoConnectField.IsOn=imported.AutoConnect;ThumbnailToggle.IsOn=imported.ThumbnailsEnabled;
+                RemoteAuto.IsOn=imported.RemoteAutoDetectEnabled;IncrementalField.Value=imported.RemoteIncrementalSeconds;FullField.Value=imported.RemoteFullSeconds;
+                CapacityAuto.IsOn=imported.CapacityAutoDetectEnabled;MaximumField.Text=imported.MaximumCapacityBytes is {} maximum?((decimal)maximum/1_000_000_000m).ToString(System.Globalization.CultureInfo.CurrentCulture):"";
+                _importExclusions=ConnectionSubmissionDraft.FromBackup(imported).Exclusions;
             }
             ExistingSettings.Visibility=Visibility.Visible;ThumbnailToggle.IsEnabled=model.CanConfigureThumbnails;ThumbnailToggle.Visibility=model.CanConfigureThumbnails?Visibility.Visible:Visibility.Collapsed;SaveCapacityButton.Visibility=RecheckButton.Visibility=existing is null?Visibility.Collapsed:Visibility.Visible;
             global::HybridMount.Helpers.UI.UserInterface.Set(this,"Title",existing is null ? global::HybridMount.Services.Localization.ResourceMessage.Create("NewSynologyNAS") : global::HybridMount.Services.Localization.ResourceMessage.Create("Settings", existing.Name));
@@ -165,7 +180,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
         return _fieldFeedback.Complete(this);
     }
     private ConnectionSubmissionDraft CaptureSubmission()=>new(_existing?.Id,NameField.Text,PathField.Text,AutoConnectField.IsOn,ReadSettings(true),ReadCredentials(),
-        _model.ReadExclusionRules(_existing?.Id,FileSourceKind.Synology),new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,Seconds(IncrementalField.Value,10,86400),Seconds(FullField.Value,30,604800),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,"GB")));
+        _importExclusions??_model.ReadExclusionRules(_existing?.Id,FileSourceKind.Synology),new(ThumbnailToggle.IsOn,RemoteAuto.IsOn,Seconds(IncrementalField.Value,10,86400),Seconds(FullField.Value,30,604800),CapacityAuto.IsOn,CapacityAuto.IsOn?null:CapacityRules.ParseMaximum(MaximumField.Text,"GB")));
     /// <summary>本次只读认证完成且应用持久接纳后关闭；配置、连接和同步继续由应用拥有。</summary>
     private async void SaveConnection(ContentDialog sender,ContentDialogButtonClickEventArgs args)
     {
@@ -218,7 +233,7 @@ public sealed partial class SynologyConfigurationContentDialog : ContentDialog,I
     public void CancelForShutdown(){if(_disposed)return;_stopping=true;_submission?.Cancel();_testing?.Cancel();Hide();Dispose();}
     public void Dispose()
     {_probeBinding?.Dispose();_capabilityBinding?.Dispose();_localization?.Dispose();_localization=null;
-        if(_disposed)return;_disposed=true;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
+        if(_disposed)return;_disposed=true;_importExclusions=null;_submission?.Cancel();_fieldFeedback.Dispose();_testing?.Cancel();PasswordField.Password=OtpField.Password="";_deviceToken="";_probe?.Session?.Discard();_probe=null;
         _model.Refreshed-=Refresh;_model.StateChanged-=Refresh;PrimaryButtonClick-=SaveConnection;SecondaryButtonClick-=TestConnection;Closing-=OnClosing;Closed-=OnClosed;
     }
 }

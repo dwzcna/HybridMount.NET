@@ -2822,4 +2822,16 @@ SHA-256：{5}</value>
   <data name="OperationStageConnectSource" xml:space="preserve"><value>建立新连接</value></data>
   <data name="ConfigurationReturnToForm" xml:space="preserve"><value>返回配置</value></data>
   <data name="DensityApplyFailed" xml:space="preserve"><value>密度资源应用未完成，请切回原密度后重试。</value></data>
+  <data name="OperationStageReadConfiguration" xml:space="preserve"><value>读取配置与凭据</value></data>
+  <data name="OperationStageEncodeBackup" xml:space="preserve"><value>生成备份并按需加密</value></data>
+  <data name="OperationStageWriteBackup" xml:space="preserve"><value>写入临时备份</value></data>
+  <data name="OperationStageCommitBackup" xml:space="preserve"><value>原子提交备份文件</value></data>
+  <data name="BackupContinueConfiguration" xml:space="preserve"><value>继续配置</value></data>
+  <data name="BackupExportAccepted" xml:space="preserve"><value>已接纳导出任务，可在任务页查看进度。</value></data>
+  <data name="BackupReexport" xml:space="preserve"><value>重新选择并导出</value></data>
+  <data name="BackupPasswordReentryRequired" xml:space="preserve"><value>请重新选择配置并输入保护密码；程序不会保存上一次的备份密码。</value></data>
+  <data name="BackupExportTargetBusy" xml:space="preserve"><value>该位置已有配置导出任务，请等待完成。</value></data>
+  <data name="BackupExportCommitIncomplete" xml:space="preserve"><value>备份尚未完成原子提交。</value></data>
+  <data name="BackupSupportedProtocolsOnly" xml:space="preserve"><value>仅支持备份 WebDAV、S3 和群晖挂载。</value></data>
+  <data name="BackupExportInterrupted" xml:space="preserve"><value>导出已中断；请重新选择并导出，受保护备份需要重新输入密码。</value></data>
 </root>

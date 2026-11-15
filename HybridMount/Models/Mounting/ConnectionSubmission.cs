@@ -5,6 +5,11 @@ namespace HybridMount.Models.Mounting;
 internal sealed record ConnectionSubmissionDraft(Guid? ExistingId,string Name,string Path,bool AutoConnect,
     FileSourceConfiguration Source,SourceCredentials Credentials,IReadOnlyList<FileExclusionRule> Exclusions,MountCreationOptions Options)
 {
+    /// <summary>备份只成为独立新建草稿，不保存、不核验目录、不带认证或原运行身份。</summary>
+    internal static ConnectionSubmissionDraft FromBackup(MountBackupItem item) => new(null, item.Name, item.LocalPath, item.AutoConnect, item.Source,
+        item.Credentials, Array.AsReadOnly((item.ExclusionRules ?? []).ToArray()),
+        new(item.ThumbnailsEnabled, item.RemoteAutoDetectEnabled, item.RemoteIncrementalSeconds, item.RemoteFullSeconds, item.CapacityAutoDetectEnabled,
+            item.MaximumCapacityBytes, item.Sqs, item.SqsCredentials));
     internal ConnectionSubmissionDraft Freeze()=>this with{Exclusions=Array.AsReadOnly(Exclusions.ToArray())};
     internal bool SameInput(ConnectionSubmissionDraft other)=>ExistingId==other.ExistingId&&Name==other.Name&&Path==other.Path&&AutoConnect==other.AutoConnect&&Source==other.Source&&Credentials==other.Credentials&&Options==other.Options&&Exclusions.SequenceEqual(other.Exclusions);
     public override string ToString()=>"内存连接草稿";

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
 using HybridMount.Models.Mounting;
 using HybridMount.Models.Persistence;
 using Microsoft.UI.Xaml;
@@ -8,7 +7,7 @@ using global::Windows.Storage.Pickers;
 
 namespace HybridMount.Controls;
 
-/// <summary>可选凭据加密导出与自动识别导入；文件和密码处理在后台，UI 只展示状态，取消不回滚已保存条目。</summary>
+/// <summary>导入只转交单个新建草稿，导出只转交应用任务；文件识别、解密、写入继续在后台。</summary>
 public sealed partial class MountBackupDialog : ContentDialog
 {
     private IDisposable? _localization;
@@ -17,37 +16,46 @@ public sealed partial class MountBackupDialog : ContentDialog
     private readonly ObservableCollection<MountBackupRow> _rows = [];
     private readonly CancellationTokenSource _dialogStop = new();
     private CancellationTokenSource? _active;
-    private bool _working, _decoded, _finished, _applyingPreview, _cancelRequested, _closed;
-    private int _previewVersion;
     private MountBackupReadSession? _readSession;
-    private bool _initialized, _loadStarted;
+    private MountBackupItem? _selectedConfiguration;
+    private bool _working, _decoded, _cancelRequested, _closed, _initialized, _loadStarted;
     public string ResultMessage { get; private set; } = "";
-    public IReadOnlyList<Guid> ImportedIds { get; private set; } = [];
+    public string? AcceptedTaskId { get; private set; }
 
-    /// <summary>inputPath 为空时导出；导入先识别保护模式，明文直接预览，导入不立即连接。</summary>
-    public MountBackupDialog(string? inputPath = null)
+    /// <summary>关闭后单次取走独立条目；清理对话框不会清除下一表单仍持有的不可变数据。</summary>
+    internal MountBackupItem? TakeSelectedConfiguration()
+    {
+        var item = _selectedConfiguration; _selectedConfiguration = null; return item;
+    }
+    public MountBackupDialog(string? inputPath = null, bool protectionInitially = false)
     {
         _inputPath = inputPath; _importing = inputPath is not null;
-        InitializeComponent();_localization=global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this,()=>Bindings.Update()); RowsList.ItemsSource = _rows;
+        InitializeComponent();
+        _localization = global::HybridMount.Helpers.UI.UserInterface.ObserveLanguage(this, () => { Bindings.Update(); RefreshImportDetails(); });
+        RowsList.ItemsSource = ImportChoice.ItemsSource = _rows;
         ProtectionToggle.Visibility = UnprotectedNotice.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
-        global::HybridMount.Helpers.UI.UserInterface.Set(this,"Title",_importing ? global::HybridMount.Services.Localization.ResourceMessage.Create("ImportConfiguration") : global::HybridMount.Services.Localization.ResourceMessage.Create("ExportConfiguration")); global::HybridMount.Helpers.UI.UserInterface.Set(this,"PrimaryButtonText",_importing ? global::HybridMount.Services.Localization.ResourceMessage.Create("DecryptAndPreview") : global::HybridMount.Services.Localization.ResourceMessage.Create("Export"));
+        global::HybridMount.Helpers.UI.UserInterface.Set(this, "Title", _importing ? global::HybridMount.Services.Localization.ResourceMessage.Create("ImportConfiguration") : global::HybridMount.Services.Localization.ResourceMessage.Create("ExportConfiguration"));
+        global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", _importing ? global::HybridMount.Services.Localization.ResourceMessage.Create("DecryptAndPreview") : global::HybridMount.Services.Localization.ResourceMessage.Create("Export"));
         ConfirmPasswordField.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
-        IsPrimaryButtonEnabled = false;
         RowsList.Visibility = _importing ? Visibility.Collapsed : Visibility.Visible;
         if (!_importing)
         {
-            foreach (var mount in App.Current.Mounts.Mounts.Where(item => item.Definition.Source?.Kind is FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology))
+            foreach (var mount in App.Current.Mounts.DisplayMounts.Where(item => item.Definition.Source?.Kind is FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology))
             {
                 var definition = mount.Definition;
                 var row = new MountBackupRow(new(definition.Name, definition.LocalPath, definition.Source!, new(), definition.AutoConnect, definition.ThumbnailsEnabled), false, definition.Id);
                 if (definition.RemovalPending) { row.Selected = false; row.CanSelect = false; row.SetStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("MountsBeingRemovedCannotBeExportedYet")); }
                 _rows.Add(row);
             }
-            IsPrimaryButtonEnabled = _rows.Any(row => row.Selected);
             if (_rows.Count == 0) ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("ThereAreNoWebDAVS3OrSynologyMountsToExport"), InfoBarSeverity.Informational);
         }
+        if (!_importing && protectionInitially)
+        {
+            ProtectionToggle.IsChecked = true; PasswordPanel.Visibility = Visibility.Visible; UnprotectedNotice.Visibility = Visibility.Collapsed;
+            ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("BackupPasswordReentryRequired"), InfoBarSeverity.Informational);
+        }
+        IsPrimaryButtonEnabled = false;
     }
-    /// <summary>页面显示后后台读取一次；普通 JSON 不经过密码阶段，迟到结果必须释放而不能更新关闭的窗口。</summary>
     private async void OnLoaded(object sender, RoutedEventArgs args)
     {
         _initialized = true; UpdatePrimaryButton();
@@ -64,168 +72,116 @@ public sealed partial class MountBackupDialog : ContentDialog
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (!_closed && !App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
-        finally
-        {
-            _active = null; SetWorking(false);
-            if (!_closed && !App.Current.IsExiting)
-            { if (_cancelRequested) Hide(); else if (_decoded) await ValidateRowsAsync(); }
-        }
+        finally { _active = null; SetWorking(false); if (_cancelRequested && !_closed) Hide(); }
     }
-    /// <summary>只改变导出选项；关闭保护立即清除密码，不能将隐藏输入意外用于明文导出。</summary>
     private void ProtectionChanged(object sender, RoutedEventArgs args)
     {
         if (!_initialized || _importing || _closed) return;
         var enabled = ProtectionToggle.IsChecked == true;
         PasswordPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         UnprotectedNotice.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
-        if (!enabled) { PasswordField.Password = ""; ConfirmPasswordField.Password = ""; }
+        if (!enabled) PasswordField.Password = ConfirmPasswordField.Password = "";
         UpdatePrimaryButton();
     }
-    private void PasswordChanged(object sender, RoutedEventArgs args)
-    { if (_initialized && !_closed) UpdatePrimaryButton(); }
+    private void PasswordChanged(object sender, RoutedEventArgs args) { if (_initialized && !_closed) UpdatePrimaryButton(); }
     private void UpdatePrimaryButton()
     {
         if (_closed || App.Current.IsExiting) return;
-        var valid = _importing && !_decoded ? _readSession?.RequiresPassword == true && PasswordField.Password.Length >= 8 : _rows.Any(row => row.Selected && row.CanSelect);
-        if (!_importing && ProtectionToggle.IsChecked == true)
-            valid &= PasswordField.Password.Length >= 8 && string.Equals(PasswordField.Password, ConfirmPasswordField.Password, StringComparison.Ordinal);
-        IsPrimaryButtonEnabled = !_working && !_finished && valid;
+        var valid = _importing ? _decoded ? ImportChoice.SelectedItem is MountBackupRow : _readSession?.RequiresPassword == true && PasswordField.Password.Length >= 8 : _rows.Any(row => row.Selected && row.CanSelect);
+        if (!_importing && ProtectionToggle.IsChecked == true) valid &= PasswordField.Password.Length >= 8 && PasswordField.Password == ConfirmPasswordField.Password;
+        IsPrimaryButtonEnabled = !_working && valid;
     }
-    /// <summary>仅在 UI 线程接纳完整解码结果；关闭后丢弃，成功后立即归还文件快照并清空密码框。</summary>
+    /// <summary>解码不校验或禁用本机目录；任何条目都可进入草稿，只有最终提交才校验真实路径。</summary>
     private void AcceptDecoded(MountConfigurationBackup document)
     {
         if (_closed || App.Current.IsExiting || _dialogStop.IsCancellationRequested) return;
-        _applyingPreview = true;
-        try { foreach (var item in document.Mounts) _rows.Add(new MountBackupRow(item, true)); }
-        finally { _applyingPreview = false; }
+        foreach (var item in document.Mounts) _rows.Add(new MountBackupRow(item, true) { Selected = false });
         _decoded = true; _readSession?.Dispose(); _readSession = null;
-        PasswordField.Password = ""; ConfirmPasswordField.Password = ""; PasswordPanel.Visibility = Visibility.Collapsed; RowsList.Visibility = Visibility.Visible;
-        global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("ImportSelectedItems"));
-    }
-    private MountImportItem[] Requests() => _rows.Select(row => new MountImportItem(row.Configuration, row.LocalPath, row.Selected)).ToArray();
-    private void ShowStatus(string message, InfoBarSeverity severity)
-        => ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Raw(message), severity);
-    private void ShowStatus(global::HybridMount.Services.Localization.ResourceMessage message, InfoBarSeverity severity)
-    { if (_closed || App.Current.IsExiting) return; global::HybridMount.Helpers.UI.UserInterface.Set(StatusBar,"Message",message); StatusBar.Severity = severity; StatusBar.IsOpen = true; }
-    private void SetWorking(bool working)
-    {
-        _working = working; if (_closed || App.Current.IsExiting) return; Form.IsEnabled = !working && !_finished;
+        PasswordField.Password = ConfirmPasswordField.Password = ""; PasswordPanel.Visibility = Visibility.Collapsed;
+        RowsList.Visibility = Visibility.Collapsed; ImportSelectionPanel.Visibility = Visibility.Visible; ImportChoice.SelectedIndex = -1;
+        global::HybridMount.Helpers.UI.UserInterface.Set(this, "PrimaryButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("BackupContinueConfiguration"));
         UpdatePrimaryButton();
     }
-    private async void SelectionChanged(object sender, RoutedEventArgs args)
+    private void ImportChoiceChanged(object sender, SelectionChangedEventArgs args) { if (!_closed) { RefreshImportDetails(); UpdatePrimaryButton(); } }
+    private void RefreshImportDetails()
     {
-        if (_working || _applyingPreview || _finished) return;
-        if (_importing) await ValidateRowsAsync(); else UpdatePrimaryButton();
+        if (_closed) return;
+        ImportDetails.Text = ImportChoice.SelectedItem is MountBackupRow row ? row.SourceDisplay + "\n" + row.LocalPath + "\n" + row.OptionsDisplay : "";
     }
-    /// <summary>版本号丢弃旧预览结果；修改选择不会写配置，重复刷新不会将无效行重新勾选。</summary>
-    private async Task ValidateRowsAsync()
+    private void SelectionChanged(object sender, RoutedEventArgs args) { if (!_working && !_closed) UpdatePrimaryButton(); }
+    private void ShowStatus(string text, InfoBarSeverity severity) => ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Raw(text), severity);
+    private void ShowStatus(global::HybridMount.Services.Localization.ResourceMessage text, InfoBarSeverity severity)
     {
-        if (!_decoded || _working || _finished || _dialogStop.IsCancellationRequested) return;
-        var version = ++_previewVersion; IsPrimaryButtonEnabled = false;
-        try
-        {
-            var results = await App.Current.Mounts.PreviewImportConfigurationsAsync(Requests(), _dialogStop.Token);
-            if (version != _previewVersion || _working || App.Current.IsExiting || _dialogStop.IsCancellationRequested) return;
-            _applyingPreview = true;
-            try
-            {
-                foreach (var result in results)
-                {
-                    var row = _rows[result.Index]; if(result.State=="Ready")row.SetStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("BackupImportReady"));else row.Status = result.Message; row.CanSelect = result.State == "Ready";
-                    if (!row.CanSelect) row.Selected = false;
-                }
-            }
-            finally { _applyingPreview = false; }
-            IsPrimaryButtonEnabled = _rows.Any(row => row.Selected && row.CanSelect);
-            StatusBar.IsOpen = false;
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { if (!App.Current.IsExiting && !_dialogStop.IsCancellationRequested) ShowStatus(error.Message, InfoBarSeverity.Error); }
+        if (_closed || App.Current.IsExiting) return;
+        global::HybridMount.Helpers.UI.UserInterface.Set(StatusBar, "Message", text); StatusBar.Severity = severity; StatusBar.IsOpen = true;
     }
-    private async void ChooseFolder(object sender, RoutedEventArgs args)
+    private void SetWorking(bool value) { _working = value; if (_closed || App.Current.IsExiting) return; Form.IsEnabled = !value; UpdatePrimaryButton(); }
+    /// <summary>转交仅复制已选条目；无选择时不生成草稿，不读写配置或远端。</summary>
+    private bool CaptureImportSelection()
     {
-        if (_working || _finished || sender is not Button { Tag: MountBackupRow row }) return;
-        ++_previewVersion; SetWorking(true);
-        try
-        {
-            var picker = new FolderPicker(); picker.FileTypeFilter.Add("*"); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
-            var folder = await picker.PickSingleFolderAsync();
-            if (folder is not null && !_closed && !_dialogStop.IsCancellationRequested && !App.Current.IsExiting) { row.LocalPath = folder.Path; row.Selected = true; }
-        }
-        catch (Exception error) { if (!App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
-        finally { SetWorking(false); if (!_closed && !App.Current.IsExiting) { if (_cancelRequested) Hide(); else await ValidateRowsAsync(); } }
+        if (!_decoded || ImportChoice.SelectedItem is not MountBackupRow row) return false;
+        _selectedConfiguration = row.Configuration with { ExclusionRules = Array.AsReadOnly((row.Configuration.ExclusionRules ?? []).ToArray()) };
+        return true;
+    }
+    private async Task DecodeImportAsync(string password, CancellationToken token)
+    {
+        if (_readSession is not null) AcceptDecoded(await App.Current.Mounts.DecodeConfigurationBackupAsync(_readSession, password, token));
     }
     private async void Submit(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        args.Cancel = true; if (_working || _finished) return;
-        var deferral = args.GetDeferral(); ++_previewVersion;
-        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(_dialogStop.Token); _active = cancel; SetWorking(true);
-        var exported = false;
+        args.Cancel = true; if (_working || _closed) return;
+        var deferral = args.GetDeferral(); using var cancel = CancellationTokenSource.CreateLinkedTokenSource(_dialogStop.Token); _active = cancel; SetWorking(true);
         try
         {
-            if (!_importing)
+            if (_importing && _decoded)
             {
-                var password = ProtectionToggle.IsChecked == true ? PasswordField.Password : "";
-                if (ProtectionToggle.IsChecked == true && password.Length < 8) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupPasswordMinimum", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-                if (ProtectionToggle.IsChecked == true && !string.Equals(password, ConfirmPasswordField.Password, StringComparison.Ordinal)) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheTwoBackupPasswordsDoNotMatch", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-                var ids = _rows.Where(row => row.Selected && row.CanSelect).Select(row => row.ExistingId!.Value).ToArray();
-                if (ids.Length == 0) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectTheMountsToExport", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
-                var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-config-{DateTime.Now:yyyyMMdd-HHmmss}" };
-                picker.FileTypeChoices.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("HybridMountJSONConfigurationBackup", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, new List<string> { ".hmxbk" }); WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
-                var file = await picker.PickSaveFileAsync();
-                if (_closed || App.Current.IsExiting) return;
-                if (file is null) { ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("FileSelectionCanceled"), InfoBarSeverity.Informational); return; }
-                await App.Current.Mounts.ExportConfigurationsAsync(ids, password, file.Path, cancel.Token);
-                ResultMessage = string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ExportedMountConfigurationsWithEncryption", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, ids.Length); exported = true;
+                args.Cancel = !CaptureImportSelection();
             }
-            else if (!_decoded)
+            else if (_importing)
             {
-                if (_readSession is null) return;
-                AcceptDecoded(await App.Current.Mounts.DecodeConfigurationBackupAsync(_readSession, PasswordField.Password, cancel.Token));
+                await DecodeImportAsync(PasswordField.Password, cancel.Token);
             }
             else
             {
-                var progress = new Progress<MountImportResult>(result => { if (!App.Current.IsExiting && !_dialogStop.IsCancellationRequested) _rows[result.Index].Status = result.Message; });
-                var result = await App.Current.Mounts.ImportConfigurationsAsync(Requests(), cancel.Token, progress);
-                ImportedIds = result.Results.Where(item => item.State == "Saved").Select(item => item.MountId!.Value).ToArray();
+                var password = ProtectionToggle.IsChecked == true ? PasswordField.Password : "";
+                if (ProtectionToggle.IsChecked == true && password.Length < 8) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupPasswordMinimum", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                if (ProtectionToggle.IsChecked == true && password != ConfirmPasswordField.Password) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("TheTwoBackupPasswordsDoNotMatch", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                var ids = _rows.Where(row => row.Selected && row.CanSelect).Select(row => row.ExistingId!.Value).ToArray();
+                if (ids.Length == 0) throw new ArgumentException(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("SelectTheMountsToExport", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!);
+                var picker = new FileSavePicker { SuggestedFileName = $"HybridMount-config-{DateTime.Now:yyyyMMdd-HHmmss}" };
+                picker.FileTypeChoices.Add(global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("HybridMountJSONConfigurationBackup", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, new List<string> { ".hmxbk" });
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, App.Current.MainWindow!.Handle);
+                var file = await picker.PickSaveFileAsync().AsTask(cancel.Token);
                 if (_closed || App.Current.IsExiting) return;
-                _applyingPreview = true;
-                try { foreach (var item in result.Results) { _rows[item.Index].Status = item.Message; _rows[item.Index].CanSelect = false; } }
-                finally { _applyingPreview = false; }
-                var failed = result.Results.Count(item => item.State == "Failed"); var skipped = result.Results.Count(item => item.State == "Skipped");
-                var canceled = result.Results.Count(item => item.State == "Canceled");
-                ResultMessage = string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ImportResultsSavedSkippedFailedCanceledSavedMountsAreNotConnectedYet", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, ImportedIds.Count, skipped, failed, canceled);
-                _finished = true; global::HybridMount.Helpers.UI.UserInterface.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Close"));
-                ShowStatus(ResultMessage, failed > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+                if (file is null) { ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("FileSelectionCanceled"), InfoBarSeverity.Informational); return; }
+                cancel.Token.ThrowIfCancellationRequested();
+                var accepted = await App.Current.Mounts.AcceptConfigurationExportAsync(ids, password, file.Path, cancel.Token);
+                AcceptedTaskId = accepted.TaskId;
+                ResultMessage = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("BackupExportAccepted", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+                args.Cancel = false;
             }
         }
-        catch (OperationCanceledException)
-        { if (!App.Current.IsExiting) { ResultMessage = global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ConfigurationWasCanceledSavedEntriesAreKeptAndCanBeViewedIn", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!; ShowStatus(ResultMessage, InfoBarSeverity.Informational); } }
-        catch (Exception error) { if (!App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
-        finally
-        {
-            _active = null; SetWorking(false); deferral.Complete();
-            if (!App.Current.IsExiting)
-            {
-                if (exported || _cancelRequested) Hide();
-                else if (_decoded && !_finished) await ValidateRowsAsync();
-            }
-        }
+        catch (OperationCanceledException) { if (!_closed && !App.Current.IsExiting) ShowStatus(global::HybridMount.Services.Localization.ResourceMessage.Create("ConfigurationSubmissionCanceled"), InfoBarSeverity.Informational); }
+        catch (Exception error) { if (!_closed && !App.Current.IsExiting) ShowStatus(error.Message, InfoBarSeverity.Error); }
+        finally { _active = null; SetWorking(false); deferral.Complete(); if (_cancelRequested && !_closed && !App.Current.IsExiting) Hide(); }
     }
     private void OnClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
     {
-        if (!_working) return; args.Cancel = true; _cancelRequested = true; global::HybridMount.Helpers.UI.UserInterface.Set(this,"CloseButtonText",global::HybridMount.Services.Localization.ResourceMessage.Create("Canceling")); _active?.Cancel();
+        if (!_working) return;
+        args.Cancel = true; _cancelRequested = true;
+        global::HybridMount.Helpers.UI.UserInterface.Set(this, "CloseButtonText", global::HybridMount.Services.Localization.ResourceMessage.Create("Canceling")); _active?.Cancel();
     }
     private void OnClosed(ContentDialog sender, ContentDialogClosedEventArgs args)
-    { _closed = true; _finished = true; _dialogStop.Cancel(); _active?.Cancel(); ++_previewVersion; PasswordField.Password = ""; ConfirmPasswordField.Password = ""; _rows.Clear(); _readSession?.Dispose(); _readSession = null; _localization?.Dispose(); _localization = null; _dialogStop.Dispose(); }
-    /// <summary>UI线程退出时立即清除输入并释放快照租用；在途后台工作仍由应用等候，不越过停止状态提交。</summary>
+    {
+        _closed = true; _dialogStop.Cancel(); _active?.Cancel();
+        PasswordField.Password = ConfirmPasswordField.Password = ""; _rows.Clear();
+        _readSession?.Dispose(); _readSession = null; _localization?.Dispose(); _localization = null; _dialogStop.Dispose();
+    }
     public void CancelForShutdown()
     {
         if (_closed) return;
-        _cancelRequested = true;
-        if (!_dialogStop.IsCancellationRequested) _dialogStop.Cancel();
-        _active?.Cancel(); _readSession?.Dispose(); _readSession = null;
-        PasswordField.Password = ""; ConfirmPasswordField.Password = "";
+        _cancelRequested = true; _dialogStop.Cancel(); _active?.Cancel(); _selectedConfiguration = null;
+        _readSession?.Dispose(); _readSession = null; PasswordField.Password = ConfirmPasswordField.Password = "";
         if (!_working) Hide();
     }
 }

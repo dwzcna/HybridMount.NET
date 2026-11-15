@@ -9,36 +9,12 @@ public sealed partial class MountManager
     /// <summary>按根锁捕获一致配置与 DPAPI 凭据，后台可选加密并原子写入 JSON；不探测远端。</summary>
     public Task ExportConfigurationsAsync(IReadOnlyList<Guid> ids, string password, string path, CancellationToken token = default)
     {
-        ids = ids.ToArray();
-        return OwnAsync(cancel => Task.Run(async () =>
+        var request = new ConfigurationExportRequest(ids.ToArray(), password, path);
+        return OwnAsync(async cancel =>
         {
-            MountBackupCodec.ValidatePath(path);
-            if (ids.Count is < 1 or > MountBackupCodec.MaximumItems || ids.Distinct().Count() != ids.Count) throw new ArgumentException("请选择要导出的挂载。");
-            var items = new List<MountBackupItem>();
-            foreach (var id in ids)
-            {
-                var root = Root(id); await root.Gate.WaitAsync(cancel).ConfigureAwait(false);
-                try
-                {
-                    cancel.ThrowIfCancellationRequested();
-                    if (!_roots.ContainsKey(id) || root.RemovalRequested || root.Definition.RemovalPending) throw new IOException("选中的挂载正在移除，请重新选择。");
-                    var definition = root.Definition;
-                    if (definition.Source is not { Kind: FileSourceKind.WebDav or FileSourceKind.S3 or FileSourceKind.Synology } source) throw new NotSupportedException("仅支持备份 WebDAV、S3 和群晖挂载。");
-                    var credentials = FileSourceFactory.BackupCredentials(definition,_repository.DataDirectory);
-                    items.Add(new(definition.Name, definition.LocalPath, source, credentials, definition.AutoConnect, definition.ThumbnailsEnabled, definition.RemoteAutoDetectEnabled, definition.RemoteIncrementalSeconds, definition.RemoteFullSeconds,definition.Sqs,FileSourceFactory.BackupAdditionalCredentials(definition,_repository.DataDirectory),definition.CapacityAutoDetectEnabled,definition.MaximumCapacityBytes,definition.ExclusionRules));
-                }
-                finally { root.Gate.Release(); }
-            }
-            var bytes = MountBackupCodec.Encode(new(MountBackupCodec.CurrentVersion, DateTimeOffset.UtcNow, items), password, cancel);
-            try
-            {
-                await MountBackupCodec.WriteAtomicAsync(path, bytes, cancel, (temporary, destination) =>
-                {
-                    lock (_lifetime) { ThrowIfStopping(); cancel.ThrowIfCancellationRequested(); File.Move(temporary, destination, true); }
-                }).ConfigureAwait(false);
-            }
-            finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes); }
-        }, cancel), token);
+            try { await Task.Run(() => ExportConfigurationsCoreAsync(request, cancel), cancel).ConfigureAwait(false); }
+            finally { request.Clear(); }
+        }, token);
     }
 
     /// <summary>只读识别并按需解密；宿主退出会等待有界读取与密码派生结束，错误不输出秘密内容。</summary>

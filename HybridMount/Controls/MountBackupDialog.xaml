@@ -15,6 +15,19 @@
                     <TextBlock TextWrapping="Wrap" MaxWidth="480" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/BackupProtectedNotice" loc:UserInterface.ResourceId="/Strings/BackupProtectedNotice"/>
                 </StackPanel>
             </StackPanel>
+            <StackPanel x:Name="ImportSelectionPanel" Grid.Row="1" Spacing="12" Visibility="Collapsed">
+                <ComboBox x:Name="ImportChoice" SelectedIndex="-1" HorizontalAlignment="Stretch" SelectionChanged="ImportChoiceChanged" x:Uid="/Strings/BackupImportChoice" loc:UserInterface.ResourceId="/Strings/BackupImportChoice">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="views:MountBackupRow">
+                            <StackPanel>
+                                <TextBlock Text="{x:Bind Name}" TextWrapping="Wrap"/>
+                                <TextBlock loc:UserInterface.Source="{x:Bind}" loc:UserInterface.Path="SourceDisplay" FontSize="12" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock x:Name="ImportDetails" TextWrapping="Wrap"/>
+            </StackPanel>
             <ListView x:Name="RowsList" Grid.Row="1" SelectionMode="None" MaxHeight="440" HorizontalContentAlignment="Stretch" x:Uid="/Strings/MountBackupDialogRowsList" loc:UserInterface.ResourceId="/Strings/MountBackupDialogRowsList">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="views:MountBackupRow">
@@ -25,7 +38,7 @@
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBox Text="{x:Bind LocalPath,Mode=OneWay}" IsReadOnly="True" x:Uid="/Strings/MountBackupDialogTextBoxLocalFolder" loc:UserInterface.ResourceId="/Strings/MountBackupDialogTextBoxLocalFolder"/>
-                                <Button Grid.Column="1" VerticalAlignment="Bottom" Visibility="{x:Bind helpers:TextVisibility.ForFlag(IsImporting)}" Tag="{x:Bind}" Click="ChooseFolder" x:Uid="/Strings/MountBackupDialogButtonSelectFolder" loc:UserInterface.ResourceId="/Strings/MountBackupDialogButtonSelectFolder"/>
+
                             </Grid>
                             <TextBlock loc:UserInterface.Source="{x:Bind}" loc:UserInterface.Path="StatusDisplay" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForText(Status),Mode=OneWay}"/>
                         </StackPanel>
