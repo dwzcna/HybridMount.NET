@@ -1,6 +1,6 @@
-# HybridMount.NET 开发规范
+﻿# HybridMount.NET 开发规范
 
-适用于四个现有工程，最低 Windows 11 21H2，支持 x64／ARM64。用户本次明确要求优先。保留现有改动；默认本地提交，不推送，不操作正式挂载或重启 Explorer。
+本轮目录与分层规整适用于HybridMount主程序和HybridMount.Tests，最低 Windows 11 21H2，支持 x64／ARM64。Ext／Stock保留已提交0.0.21.0（52cda0f）的源码和项目布局。用户本次明确要求优先。保留现有改动；默认本地提交，不推送，不操作正式挂载或重启 Explorer。
 
 ## 修改与版本
 
@@ -15,7 +15,7 @@
 - Infrastructure：协议、SQLite、文件、凭据、Windows／CFAPI、IPC和原生进程的具体实现；不得反向引用具体Services、UI或Composition。基础设施内部的存储／协议实现接口可同目录保留。
 - Composition：显式装配与生命周期接线，不引入DI框架。App／Program作为应用入口保留，Composition/Presentation仅装配无UI对象的纯展示器。
 - Helpers：只依赖基础库的通用路径、流及线程工具；依赖业务优先级或Dispatcher的适配器移到实际职责层。
-- NativeShared：两原生工程共用的身份、语言、IPC基础及缩略图源码；两工程引用同一份，不复制实现或新建共享工程。第三方源码和版权一起保留。
+- Ext／Stock：保持0.0.21.0的原生布局及已有共享引用，不新增NativeShared、不重排两个原生工程。结构检查只核验实际原有源码登记、路径及版权，不对原生目录提出新布局要求。
 
 命名空间随目录同步。调整目录必须同步Compile／Page／XAML x:Class、资源、RC／include、def和脚本。跨层global using不得恢复。
 
@@ -29,7 +29,7 @@
 
 保留一个测试工程，按Unit、Integration、Native、Architecture、Fixtures、Acceptance、Assets分类。共享协议服务集中Fixtures，每用例仍有独立状态和清理；保留竞态、取消、恢复和数据保护覆盖。删并旧测试逐项记录替代，不按比例删测，不用实现文字断言代替行为。
 
-使用global.json固定SDK和仓库build脚本，复用增量缓存，同输出目录串行。先最小x64及定向验证，再必要Debug／Release完整回归、ARM64交叉构建、签名包检查。结构检查已接入四工程构建，不绕过。真实服务、长时和性能验收显式分组运行；交叉编译不代表实机通过。
+使用global.json固定SDK和仓库build脚本，复用增量缓存，同输出目录串行。先最小x64及定向验证，再必要Debug／Release完整回归、ARM64交叉构建、签名包检查。托管结构检查与原生原有路径核对已接入构建，不绕过。真实服务、长时和性能验收显式分组运行；交叉编译不代表实机通过。
 
 验证证据存artifacts/validation/。README只描述当前功能和入口；变更、失败修正和实际结果写Changlog与验收文档。devplan分别维护代码已完成／未完成、已测试／待测试，不引用旧结果宣称当前通过。
 

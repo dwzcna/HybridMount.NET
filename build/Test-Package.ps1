@@ -37,7 +37,7 @@ try {
     $displayNames=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @name='PackageDisplayName']/*[local-name()='Candidate' and @type='String']")
     if($displayNames.Count -ne 3 -or @($displayNames | Where-Object {$_.SelectSingleNode("./*[local-name()='Value']").InnerText -ne 'HybridMount.NET'}).Count){throw '安装包显示名称未统一为HybridMount.NET。'}
     $resourceRoot='ms-resource://'+$manifest.Package.Identity.Name+'/Files/'
-    foreach($name in @('App.xbf','Views/MainWindow.xbf','Pages/HomePage.xbf','Pages/MountsPage.xbf','Pages/TasksPage.xbf','Pages/LogsPage.xbf','Pages/SettingsPage.xbf','Controls/MountCard.xbf','Controls/SettingRow.xbf','Controls/MountBackupDialog.xbf','Controls/ConflictResolutionContentDialog.xbf','Controls/Mounting/WebDAVConfigurationContentDialog.xbf','Controls/Mounting/S3ConfigurationContentDialog.xbf','Controls/Mounting/SynologyConfigurationContentDialog.xbf','Resources/SharedStyles.xbf')){
+    foreach($name in @('App.xbf','Views/Windows/MainWindow.xbf','Views/Pages/HomePage.xbf','Views/Pages/MountsPage.xbf','Views/Pages/TasksPage.xbf','Views/Pages/LogsPage.xbf','Views/Pages/SettingsPage.xbf','Controls/MountCard.xbf','Controls/SettingRow.xbf','Views/Dialogs/MountBackupDialog.xbf','Views/Dialogs/ConflictResolutionContentDialog.xbf','Views/Dialogs/Mounting/WebDAVConfigurationContentDialog.xbf','Views/Dialogs/Mounting/S3ConfigurationContentDialog.xbf','Views/Dialogs/Mounting/SynologyConfigurationContentDialog.xbf','Resources/SharedStyles.xbf')){
         $resource=$resourceIndex.SelectNodes("//*[local-name()='NamedResource' and @uri='"+$resourceRoot+$name+"']/*[local-name()='Candidate' and @type='EmbeddedData']")
         if($resource.Count -ne 1){throw "包内编译资源缺失或重复：$name"}
     }

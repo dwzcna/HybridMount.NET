@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -61,54 +61,54 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\HybridMount.Stock\CloudFiles;$(ProjectDir)..\HybridMount.Stock\Diagnostics;$(ProjectDir)..\HybridMount.Stock\FileSystem;$(ProjectDir)..\HybridMount.Stock\Previews;$(ProjectDir)..\HybridMount.Stock\Resources;$(ProjectDir)..\HybridMount.Stock\Runtime;$(ProjectDir)..\HybridMount.Stock\Thumbnails;$(ProjectDir)..\NativeShared\Files;$(ProjectDir)..\NativeShared\IPC;$(ProjectDir)..\NativeShared\Identity;$(ProjectDir)..\NativeShared\Localization;$(ProjectDir)..\NativeShared\Previews;$(ProjectDir)..\NativeShared\Thumbnails;$(ProjectDir)..\NativeShared\Windows;$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ResourceCompile Include="Resources\HybridMount.Native.rc" />
-    <ClCompile Include="Runtime\NativeMain.cpp" />
-    <ClCompile Include="..\NativeShared\Localization\NativeLanguage.cpp" />
-    <ClInclude Include="..\NativeShared\Localization\NativeLanguage.h" />
-    <ClCompile Include="..\NativeShared\Thumbnails\ThumbnailCache.cpp" />
-    <ClCompile Include="Thumbnails\LocalThumbnail.cpp" />
-    <ClCompile Include="Thumbnails\LocalThumbnailQueue.cpp" />
-    <ClCompile Include="Thumbnails\RemoteThumbnailHints.cpp" />
-    <ClInclude Include="Thumbnails\RemoteThumbnailHints.h" />
-    <ClInclude Include="Thumbnails\LocalThumbnailQueue.h" />
-    <ClCompile Include="Previews\PreviewObserver.cpp" />
-    <ClCompile Include="Previews\VisiblePreviewItems.cpp" />
-    <ClInclude Include="Previews\VisiblePreviewItems.h" />
-    <ClInclude Include="Previews\PreviewObserver.h" />
-    <ClInclude Include="..\NativeShared\Previews\ForegroundPreviewState.h" />
-    <ClInclude Include="Thumbnails\LocalThumbnail.h" />
-    <ClCompile Include="Previews\PreviewWorker.cpp" />
-    <ClCompile Include="FileSystem\TaskDispatcher.cpp" />
-    <ClInclude Include="FileSystem\TaskDispatcher.h" />
-    <ClCompile Include="Runtime\RuntimeHost.cpp" />
-    <ClCompile Include="Runtime\RuntimeOperations.cpp" />
-    <ClCompile Include="FileSystem\OrphanedDirectoryRecovery.cpp" />
-    <ClInclude Include="FileSystem\OrphanedDirectoryRecovery.h" />
-    <ClCompile Include="CloudFiles\CloudSession.cpp" />
-    <ClCompile Include="CloudFiles\CloudFileOperations.cpp" />
-    <ClCompile Include="CloudFiles\CloudProperties.cpp" />
-    <ClCompile Include="FileSystem\LocalReadLeases.cpp" />
-    <ClCompile Include="FileSystem\LocalReadIo.cpp" />
-    <ClInclude Include="FileSystem\LocalReadIo.h" />
-    <ClInclude Include="FileSystem\LocalReadLeases.h" />
-    <ClInclude Include="CloudFiles\CloudProperties.h" />
-    <ClInclude Include="CloudFiles\RootRegistryGuard.h" />
-    <ClInclude Include="CloudFiles\CloudFileOperations.h" />
-    <ClInclude Include="CloudFiles\CloudSession.h" />
-    <ClInclude Include="Runtime\RuntimeHost.h" />
-    <ClInclude Include="Runtime\CallbackMailbox.h" />
-    <ClInclude Include="Runtime\RuntimeOperations.h" />
-    <ClInclude Include="..\NativeShared\IPC\NativeWire.h" />
-    <ClInclude Include="Previews\PreviewWorker.h" />
-    <ClInclude Include="..\NativeShared\Windows\NativeCommon.h" />
-    <ClInclude Include="..\NativeShared\Files\NativeFile.h" />
-    <ClInclude Include="..\NativeShared\Thumbnails\ThumbnailCache.h" />
-    <ClInclude Include="..\NativeShared\Identity\NativeIdentity.h" />
-    <ClInclude Include="Diagnostics\NativeDiagnostics.h" />
+    <ResourceCompile Include="HybridMount.Native.rc" />
+    <ClCompile Include="NativeMain.cpp" />
+    <ClCompile Include="NativeLanguage.cpp" />
+    <ClInclude Include="NativeLanguage.h" />
+    <ClCompile Include="ThumbnailCache.cpp" />
+    <ClCompile Include="LocalThumbnail.cpp" />
+    <ClCompile Include="LocalThumbnailQueue.cpp" />
+    <ClCompile Include="RemoteThumbnailHints.cpp" />
+    <ClInclude Include="RemoteThumbnailHints.h" />
+    <ClInclude Include="LocalThumbnailQueue.h" />
+    <ClCompile Include="PreviewObserver.cpp" />
+    <ClCompile Include="VisiblePreviewItems.cpp" />
+    <ClInclude Include="VisiblePreviewItems.h" />
+    <ClInclude Include="PreviewObserver.h" />
+    <ClInclude Include="ForegroundPreviewState.h" />
+    <ClInclude Include="LocalThumbnail.h" />
+    <ClCompile Include="PreviewWorker.cpp" />
+    <ClCompile Include="TaskDispatcher.cpp" />
+    <ClInclude Include="TaskDispatcher.h" />
+    <ClCompile Include="RuntimeHost.cpp" />
+    <ClCompile Include="RuntimeOperations.cpp" />
+    <ClCompile Include="OrphanedDirectoryRecovery.cpp" />
+    <ClInclude Include="OrphanedDirectoryRecovery.h" />
+    <ClCompile Include="CloudSession.cpp" />
+    <ClCompile Include="CloudFileOperations.cpp" />
+    <ClCompile Include="CloudProperties.cpp" />
+    <ClCompile Include="LocalReadLeases.cpp" />
+    <ClCompile Include="LocalReadIo.cpp" />
+    <ClInclude Include="LocalReadIo.h" />
+    <ClInclude Include="LocalReadLeases.h" />
+    <ClInclude Include="CloudProperties.h" />
+    <ClInclude Include="RootRegistryGuard.h" />
+    <ClInclude Include="CloudFileOperations.h" />
+    <ClInclude Include="CloudSession.h" />
+    <ClInclude Include="RuntimeHost.h" />
+    <ClInclude Include="CallbackMailbox.h" />
+    <ClInclude Include="RuntimeOperations.h" />
+    <ClInclude Include="NativeWire.h" />
+    <ClInclude Include="PreviewWorker.h" />
+    <ClInclude Include="NativeCommon.h" />
+    <ClInclude Include="NativeFile.h" />
+    <ClInclude Include="ThumbnailCache.h" />
+    <ClInclude Include="NativeIdentity.h" />
+    <ClInclude Include="NativeDiagnostics.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HybridMount.Ext\HybridMount.Ext.vcxproj">

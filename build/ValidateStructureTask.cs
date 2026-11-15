@@ -94,7 +94,7 @@ namespace HybridMount.BuildTools
                 CheckManaged(root);
                 foreach (var name in new[] { "HybridMount.Ext", "HybridMount.Stock" }) CheckNative(root, name);
                 CheckXaml(root);
-                if (!Log.HasLoggedErrors) Log.LogMessage(MessageImportance.High, "Structure checked: {0} C# sources / four projects / NativeShared", sources.Count);
+                if (!Log.HasLoggedErrors) Log.LogMessage(MessageImportance.High, "Structure checked: {0} C# sources / managed structure / baseline native registration", sources.Count);
                 return !Log.HasLoggedErrors;
             }
             catch (Exception error) { Log.LogError("结构检查失败：{0}", error.Message); return false; }
@@ -154,9 +154,9 @@ namespace HybridMount.BuildTools
                 if (item.LocalName == "ClCompile" && !compiled.Add(path)) Log.LogError("原生Compile重复：{0}", path);
             }
             foreach (var source in Files(directory, "*.cpp")) if (!compiled.Contains(source)) Log.LogError("原生源码未登记：{0}", source);
-            foreach (var shared in new[] { "Localization/NativeLanguage.cpp", "Thumbnails/ThumbnailCache.cpp" })
-                if (!compiled.Contains(Path.GetFullPath(Path.Combine(root, "NativeShared", shared)))) Log.LogError("{0}未编译共享源：{1}", name, shared);
-            if (!File.Exists(Path.Combine(root, "NativeShared", "ThirdParty", "LICENSE.txt"))) Log.LogError("共享第三方版权缺失");
+            foreach (var shared in new[] { "NativeLanguage.cpp", "ThumbnailCache.cpp" })
+                if (!compiled.Contains(Path.GetFullPath(Path.Combine(root, "HybridMount.Stock", shared)))) Log.LogError("{0}未编译共享源：{1}", name, shared);
+            if (!File.Exists(Path.Combine(root, "HybridMount.Stock", "ThirdParty", "LICENSE.txt"))) Log.LogError("共享第三方版权缺失");
         }
         private void CheckXaml(string root)
         {
