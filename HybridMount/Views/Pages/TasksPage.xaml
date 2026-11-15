@@ -1,4 +1,4 @@
-﻿<Page xmlns:loc="using:HybridMount.UI" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.TasksPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views.Windows" xmlns:controls="using:HybridMount.Controls" xmlns:mounts="using:HybridMount.Models.Mounting" xmlns:vm="using:HybridMount.ViewModels" xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+<Page xmlns:loc="using:HybridMount.UI" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.TasksPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views.Windows" xmlns:controls="using:HybridMount.Controls" xmlns:mounts="using:HybridMount.Models.Mounting" xmlns:vm="using:HybridMount.ViewModels" xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
     <Page.Resources>
         <ResourceDictionary>
             <!-- 同色底仅8%不透明度；高对比度使用系统选择颜色，不叠加彩色底。 -->
@@ -20,7 +20,7 @@
                     <SolidColorBrush x:Key="TaskConflictIndicator" Color="{ThemeResource SystemColorHighlightTextColor}"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
-            <Style x:Key="TaskItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+            <Style x:Key="TaskContainerStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 <Setter Property="Template">
                     <Setter.Value>
@@ -39,11 +39,12 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Setter Property="BorderBrush" Value="{ThemeResource TaskNormalIndicator}"/>
+                <Setter Property="Background" Value="{ThemeResource TaskNormalFill}"/>
             </Style>
-            <Style x:Key="TaskNormalStyle" TargetType="ListViewItem" BasedOn="{StaticResource TaskItemStyle}"><Setter Property="BorderBrush" Value="{ThemeResource TaskNormalIndicator}"/><Setter Property="Background" Value="{ThemeResource TaskNormalFill}"/></Style>
-            <Style x:Key="TaskErrorStyle" TargetType="ListViewItem" BasedOn="{StaticResource TaskItemStyle}"><Setter Property="BorderBrush" Value="{ThemeResource TaskErrorIndicator}"/><Setter Property="Background" Value="{ThemeResource TaskErrorFill}"/></Style>
-            <Style x:Key="TaskConflictStyle" TargetType="ListViewItem" BasedOn="{StaticResource TaskItemStyle}"><Setter Property="BorderBrush" Value="{ThemeResource TaskConflictIndicator}"/><Setter Property="Background" Value="{ThemeResource TaskConflictFill}"/></Style>
-            <helpers:TaskAppearance x:Key="TaskStyles" Normal="{StaticResource TaskNormalStyle}" Error="{StaticResource TaskErrorStyle}" Conflict="{StaticResource TaskConflictStyle}"/>
+            <Style x:Key="TaskErrorStyle" TargetType="ListViewItem" BasedOn="{StaticResource TaskContainerStyle}"><Setter Property="BorderBrush" Value="{ThemeResource TaskErrorIndicator}"/><Setter Property="Background" Value="{ThemeResource TaskErrorFill}"/></Style>
+            <Style x:Key="TaskConflictStyle" TargetType="ListViewItem" BasedOn="{StaticResource TaskContainerStyle}"><Setter Property="BorderBrush" Value="{ThemeResource TaskConflictIndicator}"/><Setter Property="Background" Value="{ThemeResource TaskConflictFill}"/></Style>
+            <helpers:TaskAppearance x:Key="TaskStyles" Normal="{StaticResource TaskContainerStyle}" Error="{StaticResource TaskErrorStyle}" Conflict="{StaticResource TaskConflictStyle}"/>
         <DataTemplate x:Key="JobResultTemplate" x:DataType="mounts:MountItemResult">
             <StackPanel Padding="8" Spacing="4">
                 <TextBlock Text="{x:Bind Path}" TextWrapping="Wrap"/>

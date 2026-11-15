@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting.Capabilities;
+using HybridMount.Models.Mounting.Capabilities;
 using HybridMount.Infrastructure.Protocols.Capabilities;
 using HybridMount.Models.Localization;
 using HybridMount.Models.Mounting;
@@ -53,8 +53,8 @@ public sealed class ProtocolCapabilitiesView : UserControl
         };
         Loaded += (_, _) =>
         {
-            _probeButton.Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"];
-            _expander.Style = (Style)Application.Current.Resources["ProtocolExpanderStyle"];
+            _probeButton.Style = (Style)Application.Current.Resources["ActionButtonStyle"];
+            _expander.Style = (Style)Application.Current.Resources["StretchExpanderStyle"];
         };
         panel.Children.Add(_probeActions); panel.Children.Add(_probeProgress); panel.Children.Add(_cleanupRows); panel.Children.Add(_rows); Content = _expander;
         UserInterface.ObserveLanguage(this, Render);
@@ -142,7 +142,11 @@ public sealed class ProtocolCapabilitiesView : UserControl
             if (selection.SelectedItem is not ComboBoxItem { Tag: CapabilityProbeRun run }) return;
             foreach (var item in run.Resources.Where(item => item.Stage is not ("Cleaned" or "Planned")))
                 details.Children.Add(new TextBlock { Text = CapabilityProbePresentation.ResourceDetails(item), IsTextSelectionEnabled = true, TextWrapping = TextWrapping.Wrap });
-            var retry = global::HybridMount.UI.UserInterface.Configure(new Button { IsEnabled = !_probeRunning,                Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"] }, ("Content", global::HybridMount.Models.Localization.ResourceMessage.Create("CapabilityProbeRetryCleanup")));
+            var retry = global::HybridMount.UI.UserInterface.Configure(new Button
+            {
+                IsEnabled = !_probeRunning,
+                Style = (Style)Application.Current.Resources["ActionButtonStyle"]
+            }, ("Content", global::HybridMount.Models.Localization.ResourceMessage.Create("CapabilityProbeRetryCleanup")));
             retry.Click += (_, _) => CleanupRequested?.Invoke(this, run.RunId);
             details.Children.Add(retry);
         };

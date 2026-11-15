@@ -1,4 +1,4 @@
-﻿using HybridMount;
+using HybridMount;
 using HybridMount.Models.Localization;
 using HybridMount.Models.Recovery;
 using HybridMount.UI;
@@ -27,13 +27,13 @@ internal sealed class ExplorerEntryDialog(FrameworkElement owner, Func<bool> sto
             ItemsSource = rows, SelectionMode = ListViewSelectionMode.Multiple, IsMultiSelectCheckBoxEnabled = true,
             MaxHeight = 330,
             ItemTemplate = (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
-                "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.Helpers.UI\"><TextBlock loc:UserInterface.Source=\"{Binding}\" loc:UserInterface.Path=\"Display\" TextWrapping=\"Wrap\" IsTextSelectionEnabled=\"True\"/></DataTemplate>")
+                "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.UI\"><TextBlock loc:UserInterface.Source=\"{Binding}\" loc:UserInterface.Path=\"Display\" TextWrapping=\"Wrap\" IsTextSelectionEnabled=\"True\"/></DataTemplate>")
         };
         var feedback = new InfoBar { Style = (Style)Application.Current.Resources["InstantNotificationStyle"], IsClosable = true };
         var count = new TextBlock();
         Button Command(ResourceMessage message) => UserInterface.Configure(new Button { Style = (Style)Application.Current.Resources["SubtleButtonStyle"] }, ("Content", message));
         var selectAll = Command(ResourceMessage.Create("SelectAllEligibleItems")); var clearAll = Command(ResourceMessage.Create("DeselectAll"));
-        var commands = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var commands = new ActionPanel { Style = (Style)Application.Current.Resources["ActionPanelStyle"] };
         commands.Children.Add(selectAll); commands.Children.Add(clearAll);
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(UserInterface.Configure(new TextBlock { TextWrapping = TextWrapping.Wrap }, ("Text", global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntryExplanation"))));

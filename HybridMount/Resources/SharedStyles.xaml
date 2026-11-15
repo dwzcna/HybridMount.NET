@@ -78,19 +78,18 @@
                     <SolidColorBrush x:Key="MountIssueBadgeBackgroundBrush" Color="{ThemeResource SystemColorHighlightColor}"/><SolidColorBrush x:Key="MountIssueBadgeForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
-    <!-- 仅协议表单显式引用，沿用系统Expander模板并把宽度传入内容Presenter。 -->
-    <Style x:Key="ProtocolExpanderStyle" TargetType="Expander">
+    <!-- 展开容器沿用系统模板并把宽度传入正文；UserControl保留类型专用的拉伸样式。 -->
+    <Style x:Key="StretchExpanderStyle" TargetType="Expander">
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         <Setter Property="Padding" Value="16"/>
     </Style>
-    <Style x:Key="ProtocolFieldsStyle" TargetType="UserControl">
+    <Style x:Key="StretchUserControlStyle" TargetType="UserControl">
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     </Style>
-    <!-- 协议弹窗局部操作使用与原生次按钮相同的默认模板，保留主题和全部交互状态。 -->
-    <Style x:Key="ProtocolSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}"/>
+
             <!-- 主窗口与页面即时提醒共用原生可关闭InfoBar；宽度受可用窗口约束，正文由原生模板换行。 -->
             <Style x:Key="InstantNotificationStyle" TargetType="InfoBar">
                 <Setter Property="IsClosable" Value="True"/>
@@ -99,7 +98,6 @@
                 <Setter Property="AutomationProperties.LiveSetting" Value="Polite"/>
             </Style>
             <Style x:Key="FieldErrorTextStyle" TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Foreground" Value="{ThemeResource FieldErrorForegroundBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
-            <Style TargetType="Button" BasedOn="{StaticResource SubtleButtonStyle}"/>
             <!-- 保留原生AppBar模板及溢出行为；外观沿用Subtle按钮的主题色、圆角和边框。 -->
             <Style TargetType="AppBarButton" BasedOn="{StaticResource DefaultAppBarButtonStyle}">
                 <Setter Property="Background" Value="{ThemeResource SubtleButtonBackground}"/>
@@ -109,32 +107,31 @@
                 <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
             </Style>
             <x:Double x:Key="PageToolbarDefaultHeight">33</x:Double>
-            <x:Double x:Key="PageToolbarIconSize">20</x:Double>
-            <x:Double x:Key="PageToolbarIconSpacing">8</x:Double>
-            <x:Double x:Key="SettingsActionSpacing">12</x:Double>
+            <x:Double x:Key="ActionIconSize">20</x:Double>
+            <x:Double x:Key="ActionIconSpacing">8</x:Double>
+            <x:Double x:Key="ActionGroupSpacing">12</x:Double>
             <!-- 主条始终透出外层同色底板；只在当前CommandBar内覆盖展开状态使用的资源。 -->
             <SolidColorBrush x:Key="PageCommandBarMainBackgroundBrush" Color="Transparent"/>
-            <!-- 设置卡片显式采用原生普通按钮；每个操作独立拥有背景、边框和交互状态。 -->
-            <Style x:Key="SettingsActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <!-- 普通操作共用原生模板与20DIP图标规则；对齐留在使用位置，每个按钮独立交互。 -->
+            <Style x:Key="ActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
                 <Setter Property="MinHeight" Value="{StaticResource PageToolbarDefaultHeight}"/>
                 <Setter Property="Padding" Value="12,4"/>
-                <Setter Property="HorizontalAlignment" Value="Right"/>
                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 <Setter Property="VerticalContentAlignment" Value="Center"/>
                 <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
             </Style>
-            <Style x:Key="SettingsActionIconStyle" TargetType="FontIcon">
-                <Setter Property="FontSize" Value="{StaticResource PageToolbarIconSize}"/>
+            <Style x:Key="ActionIconStyle" TargetType="FontIcon">
+                <Setter Property="FontSize" Value="{StaticResource ActionIconSize}"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="HorizontalAlignment" Value="Center"/>
             </Style>
-            <Style x:Key="SettingsActionTextStyle" TargetType="TextBlock">
+            <Style x:Key="ActionTextStyle" TargetType="TextBlock">
                 <Setter Property="TextWrapping" Value="Wrap"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
             </Style>
-            <Style x:Key="SettingsActionPanelStyle" TargetType="helpers:SettingsActionPanel">
+            <Style x:Key="ActionPanelStyle" TargetType="helpers:ActionPanel">
                 <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                <Setter Property="Spacing" Value="{StaticResource SettingsActionSpacing}"/>
+                <Setter Property="Spacing" Value="{StaticResource ActionGroupSpacing}"/>
             </Style>
             <!-- 页面命令统一显示图标和右侧文字，宽度不足时使用系统溢出菜单。 -->
             <Style x:Key="PageCommandBarStyle" TargetType="CommandBar" BasedOn="{StaticResource DefaultCommandBarStyle}">
@@ -171,5 +168,9 @@
                 <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="8" />
+            </Style>
+            <Style x:Key="StretchListItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Padding" Value="0"/>
             </Style>
 </ResourceDictionary>

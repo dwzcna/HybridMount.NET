@@ -1,4 +1,4 @@
-﻿# HybridMount.NET 开发规范
+# HybridMount.NET 开发规范
 
 本轮目录与分层规整适用于HybridMount主程序和HybridMount.Tests，最低 Windows 11 21H2，支持 x64／ARM64。Ext／Stock保留已提交0.0.21.0（52cda0f）的源码和项目布局。用户本次明确要求优先。保留现有改动；默认本地提交，不推送，不操作正式挂载或重启 Explorer。
 
@@ -34,3 +34,9 @@
 验证证据存artifacts/validation/。README只描述当前功能和入口；变更、失败修正和实际结果写Changlog与验收文档。devplan分别维护代码已完成／未完成、已测试／待测试，不引用旧结果宣称当前通过。
 
 暂存只包含本版审阅清单，不撤销原有暂存或用户修改；验证、记录后用“版本号｜中文摘要”本地提交。未执行的WinUI／Explorer、DPI、高对比度、21H2及ARM64设备测试明确列待测。
+
+## 界面资源维护
+
+新增界面先复用Resources/SharedStyles.xaml的现有语义样式。新增Style必须有明确的复用用途；同类外观的尺寸、间距、圆角及图标在同一资源维护，不以页面／协议命名重复定义，不保留空转发别名。布局位置、绑定与事件留在使用处；轻量按钮显式SubtleButtonStyle，普通操作使用ActionButtonStyle，不恢复全局透明Button覆盖。
+
+跨类型只共享颜色与尺寸，必要的类型专用样式及单页状态模板保留并说明例外。C#动态界面引用同一资源，不另造控件工厂或复制外观。密度保持有类型资源及应用寿命，逐键更新；主题使用ThemeResource并核对作用域。命名使用UI／UserInterface。

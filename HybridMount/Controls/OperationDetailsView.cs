@@ -27,9 +27,10 @@ public sealed class OperationDetailsView:UserControl,IDisposable
     public OperationDetailsView(TasksQueueService queue,IUIDispatcher dispatcher,string id)
     {
         _queue=queue;_id=id;
-        HorizontalAlignment=HorizontalAlignment.Stretch;HorizontalContentAlignment=HorizontalAlignment.Stretch;
-        var body=new StackPanel{Spacing=12};body.Children.Add(_summary);body.Children.Add(_empty);body.Children.Add(_runs);var historyPaging=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};historyPaging.Children.Add(_newer);historyPaging.Children.Add(_older);body.Children.Add(historyPaging);body.Children.Add(_members);
-        var paging=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};paging.Children.Add(_previous);paging.Children.Add(_more);body.Children.Add(paging);
+        Style=(Style)Application.Current.Resources["StretchUserControlStyle"];
+        foreach(var button in new[]{_more,_previous,_older,_newer}) button.Style=(Style)Application.Current.Resources["SubtleButtonStyle"];
+        var body=new StackPanel{Spacing=12};body.Children.Add(_summary);body.Children.Add(_empty);body.Children.Add(_runs);var historyPaging=new ActionPanel{Style=(Style)Application.Current.Resources["ActionPanelStyle"]};historyPaging.Children.Add(_newer);historyPaging.Children.Add(_older);body.Children.Add(historyPaging);body.Children.Add(_members);
+        var paging=new ActionPanel{Style=(Style)Application.Current.Resources["ActionPanelStyle"]};paging.Children.Add(_previous);paging.Children.Add(_more);body.Children.Add(paging);
         // 详情内容占满对话框可用宽度；横向受限后文字换行，保留唯一纵向滚动区域。
         Content=new ScrollViewer{Content=body,HorizontalContentAlignment=HorizontalAlignment.Stretch,
             HorizontalScrollMode=ScrollMode.Disabled,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,

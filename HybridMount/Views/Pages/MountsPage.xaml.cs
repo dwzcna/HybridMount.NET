@@ -1,4 +1,4 @@
-﻿using HybridMount;
+using HybridMount;
 using HybridMount.Commons.UI;
 using HybridMount.Controls;
 using HybridMount.Infrastructure.Recovery;
@@ -140,10 +140,10 @@ public sealed partial class MountsPage : Page,IDisposable
     private async void RecoverOrphanedMounts(object sender,RoutedEventArgs args)=>await ViewModel.RunDialogAsync(async()=>
     {
         using var cancel=new CancellationTokenSource();_recoveryCancel=cancel;
-        var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,ItemTemplate=(DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.Helpers.UI\"><TextBlock loc:UserInterface.Source=\"{Binding}\" loc:UserInterface.Path=\"Display\" TextWrapping=\"Wrap\"/></DataTemplate>"),SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MaxHeight=320};
+        var list=new ListView{ItemsSource=ViewModel.RecoveryRoots,ItemTemplate=(DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load("<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:loc=\"using:HybridMount.UI\"><TextBlock loc:UserInterface.Source=\"{Binding}\" loc:UserInterface.Path=\"Display\" TextWrapping=\"Wrap\"/></DataTemplate>"),SelectionMode=ListViewSelectionMode.Multiple,IsMultiSelectCheckBoxEnabled=true,MaxHeight=320};
         var feedback=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],IsClosable=true,Severity=InfoBarSeverity.Informational,IsOpen=false};
-        var count=new TextBlock();var choose=global::HybridMount.UI.UserInterface.Configure(new Button{},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectOldMountFolder")));
-        var selectAll=global::HybridMount.UI.UserInterface.Configure(new Button{},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectAllEligibleItems")));var clearAll=global::HybridMount.UI.UserInterface.Configure(new Button{},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("DeselectAll")));
+        var count=new TextBlock();var choose=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectOldMountFolder")));
+        var selectAll=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("SelectAllEligibleItems")));var clearAll=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["ActionButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("DeselectAll")));
         var choosing=false;var changing=false;var selecting=true;var explorerRequested=false;
         var explorer=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["SubtleButtonStyle"]},
             ("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("ExplorerEntrySearch")));
@@ -188,7 +188,7 @@ public sealed partial class MountsPage : Page,IDisposable
             catch(OperationCanceledException)when(cancel.IsCancellationRequested){return;}
             catch(Exception error){feedback.Severity=InfoBarSeverity.Warning;global::HybridMount.UI.UserInterface.Set(feedback, "Message", error.Message);feedback.IsOpen=true;}
             if(ViewModel.IsStopping)return;
-            var buttons=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};buttons.Children.Add(selectAll);buttons.Children.Add(clearAll);
+            var buttons=new ActionPanel{Style=(Style)Application.Current.Resources["ActionPanelStyle"]};buttons.Children.Add(selectAll);buttons.Children.Add(clearAll);
             var panel=new StackPanel{Spacing=12};panel.Children.Add(buttons);panel.Children.Add(count);panel.Children.Add(list);panel.Children.Add(choose);panel.Children.Add(explorer);panel.Children.Add(feedback);
             if(ViewModel.RecoveryRoots.Count==0&&!feedback.IsOpen){global::HybridMount.UI.UserInterface.Set(feedback, "Message", global::HybridMount.Models.Localization.ResourceMessage.Create("NoVerifiableLegacyMountsWereFoundSelectAnOldMountFolderTo"));feedback.IsOpen=true;}
             _recoveryDialog=new(){XamlRoot=XamlRoot,Title=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("LegacyMounts", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,Content=panel,PrimaryButtonText=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("ProcessSelected", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,CloseButtonText=global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("Close", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!,DefaultButton=ContentDialogButton.Close,IsPrimaryButtonEnabled=false};

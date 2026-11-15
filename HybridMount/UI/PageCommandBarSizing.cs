@@ -40,7 +40,7 @@ public static class PageCommandBarSizing
         internal Scope(CommandBar bar)
         {
             _bar = bar;
-            _iconSize = (double)Application.Current.Resources["PageToolbarIconSize"];
+            _iconSize = (double)Application.Current.Resources["ActionIconSize"];
             _mainBackground = (Brush)Application.Current.Resources["PageCommandBarMainBackgroundBrush"];
             // 当前Toolkit实测自然外框33DIP；无参照页面共用同一资源，有参照时直接校准。
             _height = (double)Application.Current.Resources["PageToolbarDefaultHeight"];

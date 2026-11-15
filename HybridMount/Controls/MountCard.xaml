@@ -1,9 +1,9 @@
-﻿<UserControl xmlns:loc="using:HybridMount.UI" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Controls.MountCard"
+<UserControl xmlns:loc="using:HybridMount.UI" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Controls.MountCard"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="using:HybridMount.Views.Windows"
              SizeChanged="CardSizeChanged">
-    <Border Padding="16,12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+    <Border Style="{StaticResource CardBorderStyle}" Padding="16,12">
         <Grid x:Name="CardGrid" ColumnSpacing="16" RowSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -43,16 +43,16 @@
                                   AutomationProperties.Name="{x:Bind Item.ConnectionText,Mode=OneWay}" Click="PerformAction">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="{x:Bind Item.ConnectionActionGlyph,Mode=OneWay}" FontSize="16"/><TextBlock Text="{x:Bind Item.ConnectionText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </ToggleButton>
-                    <Button x:Name="SettingsButton" Tag="settings" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="SettingsButton" Tag="settings" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanEdit,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardSettingsButton" loc:UserInterface.ResourceId="/Strings/MountCardSettingsButton">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE713;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockEditSettings" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockEditSettings"/></StackPanel>
                     </Button>
                     <Border x:Name="ConnectionSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <Button x:Name="ScanButton" Tag="scan" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="ScanButton" Tag="scan" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardScanButton" loc:UserInterface.ResourceId="/Strings/MountCardScanButton">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE721;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockScanLocalChanges" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockScanLocalChanges"/></StackPanel>
                     </Button>
-                    <Button x:Name="DetectButton" Tag="refresh" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="DetectButton" Tag="refresh" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardDetectButton" loc:UserInterface.ResourceId="/Strings/MountCardDetectButton">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE895;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockManualRemoteDetection" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockManualRemoteDetection"/></StackPanel>
                     </Button>
@@ -68,20 +68,20 @@
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE895;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/><TextBlock Text="{x:Bind Item.DetectionText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
                     </ToggleButton>
                     <Border x:Name="OptionsSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <Button x:Name="KeepButton" Tag="keepOnDevice" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="KeepButton" Tag="keepOnDevice" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardKeepButton" loc:UserInterface.ResourceId="/Strings/MountCardKeepButton">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE718;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockAlwaysKeepOnDevice" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockAlwaysKeepOnDevice"/></StackPanel>
                     </Button>
-                    <Button x:Name="FreeButton" Tag="freeSpace" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="FreeButton" Tag="freeSpace" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRun,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardFreeButton" loc:UserInterface.ResourceId="/Strings/MountCardFreeButton">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE753;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockFreeUpSpace" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockFreeUpSpace"/></StackPanel>
                     </Button>
-                    <Button x:Name="CapacityButton" Tag="capacity" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="CapacityButton" Tag="capacity" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRecheck,Mode=OneWay}" Click="PerformAction" x:Uid="/Strings/MountCardCapacityButton" loc:UserInterface.ResourceId="/Strings/MountCardCapacityButton">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEDA2;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockRecheckCapacity" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockRecheckCapacity"/></StackPanel>
                     </Button>
                     <Border x:Name="StorageSeparator" Width="1" Height="18" Background="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center"/>
-                    <Button x:Name="RemoveButton" Tag="remove" Height="32" Padding="8,4"
+                    <Button Style="{StaticResource SubtleButtonStyle}" x:Name="RemoveButton" Tag="remove" Height="32" Padding="8,4"
                             IsEnabled="{x:Bind Item.CanRemove,Mode=OneWay}" ToolTipService.ToolTip="{x:Bind Item.RemoveText,Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind Item.RemoveText,Mode=OneWay}" Click="PerformAction">
                         <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE74D;" FontSize="16"/><TextBlock Text="{x:Bind Item.RemoveText,Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
@@ -132,9 +132,9 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="12,0,0,0">
                 <Grid RowSpacing="8">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Button Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Height="32" Padding="8,4" x:Uid="/Strings/MountCardButtonOpenFolder" loc:UserInterface.ResourceId="/Strings/MountCardButtonOpenFolder"><StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xED25;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockOpenFolder" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockOpenFolder"/></StackPanel></Button>
+                    <Button Style="{StaticResource SubtleButtonStyle}" Tag="open" Click="PerformAction" IsEnabled="{x:Bind Item.CanOpen,Mode=OneWay}" Height="32" Padding="8,4" x:Uid="/Strings/MountCardButtonOpenFolder" loc:UserInterface.ResourceId="/Strings/MountCardButtonOpenFolder"><StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xED25;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockOpenFolder" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockOpenFolder"/></StackPanel></Button>
                     <Grid Grid.Row="2" Height="32">
-                        <Button Tag="diagnostics" Click="PerformAction" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" Height="32" Padding="8,4" ToolTipService.ToolTip="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}">
+                        <Button Style="{StaticResource SubtleButtonStyle}" Tag="diagnostics" Click="PerformAction" IsEnabled="{x:Bind Item.CanInspect,Mode=OneWay}" Height="32" Padding="8,4" ToolTipService.ToolTip="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}" AutomationProperties.Name="{x:Bind Item.DiagnosticTooltip,Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9D9;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockDiagnostics" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockDiagnostics"/></StackPanel>
                             <Button.ContextFlyout><MenuFlyout Opening="OverflowOpening"><MenuFlyoutItem Tag="fullDiagnostics" Click="PerformAction" x:Uid="/Strings/MountCardMenuFlyoutItemFullDiagnostics" loc:UserInterface.ResourceId="/Strings/MountCardMenuFlyoutItemFullDiagnostics"/></MenuFlyout></Button.ContextFlyout>
                         </Button>

@@ -4,11 +4,17 @@ using Windows.Foundation;
 
 namespace HybridMount.UI;
 
-/// <summary>设置卡片内的操作按原顺序排列；不足时换行，各行靠右，所有测量和排列只在UI线程执行。</summary>
-public sealed class SettingsActionPanel : Panel
+/// <summary>共享操作组按原顺序换行；对齐由使用位置指定，测量及排列只在UI线程执行。</summary>
+public sealed class ActionPanel : Panel
 {
     public static readonly DependencyProperty SpacingProperty = DependencyProperty.Register(
-        nameof(Spacing), typeof(double), typeof(SettingsActionPanel), new PropertyMetadata(12d, (sender, _) => ((SettingsActionPanel)sender).InvalidateMeasure()));
+        nameof(Spacing), typeof(double), typeof(ActionPanel), new PropertyMetadata(12d, (sender, _) => ((ActionPanel)sender).InvalidateMeasure()));
+
+    public static readonly DependencyProperty ContentAlignmentProperty = DependencyProperty.Register(
+        nameof(ContentAlignment), typeof(HorizontalAlignment), typeof(ActionPanel), new PropertyMetadata(HorizontalAlignment.Left,
+            (sender, _) => ((ActionPanel)sender).InvalidateArrange()));
+    /// <summary>每行使用Left、Center或Right对齐；不改变按钮样式或命令。</summary>
+    public HorizontalAlignment ContentAlignment { get => (HorizontalAlignment)GetValue(ContentAlignmentProperty); set => SetValue(ContentAlignmentProperty, value); }
 
     /// <summary>同一行和相邻行的间距；不参与按钮背景、命令或可用状态处理。</summary>
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
@@ -18,21 +24,22 @@ public sealed class SettingsActionPanel : Panel
     {
         foreach (var child in Children)
         {
-            child.Measure(new Size(double.PositiveInfinity, availableSize.Height));
+            child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             if (!double.IsPositiveInfinity(availableSize.Width) && child.DesiredSize.Width > availableSize.Width)
-                child.Measure(availableSize);
+                child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
         }
         var rows = Rows(availableSize.Width);
         return new Size(rows.Count == 0 ? 0 : rows.Max(row => row.Width), rows.Sum(row => row.Height) + Math.Max(0, rows.Count - 1) * Gap);
     }
 
-    /// <summary>每行保持声明顺序并整体靠右；仅排列可见项，不拦截点击、焦点或键盘事件。</summary>
+    /// <summary>每行保持声明顺序并按使用位置对齐；仅排列可见项，不拦截点击、焦点或键盘事件。</summary>
     protected override Size ArrangeOverride(Size finalSize)
     {
         var y = 0d;
         foreach (var row in Rows(finalSize.Width))
         {
-            var x = Math.Max(0, finalSize.Width - row.Width);
+            var remaining = Math.Max(0, finalSize.Width - row.Width);
+            var x = ContentAlignment == HorizontalAlignment.Right ? remaining : ContentAlignment == HorizontalAlignment.Center ? remaining / 2 : 0;
             foreach (var child in row.Items)
             {
                 var width = Math.Min(finalSize.Width, child.DesiredSize.Width);

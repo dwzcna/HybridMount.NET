@@ -177,7 +177,7 @@ public sealed partial class MainWindow : Window
         if(App.Current.IsExiting)return;IssueNotifications.Children.Clear();
         foreach(var notice in ViewModel.IssueNotices)
         {
-            var button=global::HybridMount.UI.UserInterface.Configure(new Button{},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("ViewSyncIssues")));button.Click+=(_,_)=>ViewModel.OpenIssues(notice.MountId);
+            var button=global::HybridMount.UI.UserInterface.Configure(new Button{Style=(Style)Application.Current.Resources["SubtleButtonStyle"]},("Content",global::HybridMount.Models.Localization.ResourceMessage.Create("ViewSyncIssues")));button.Click+=(_,_)=>ViewModel.OpenIssues(notice.MountId);
             var summary=notice.Count>0?string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.UI.Localization.UILanguageService.Messages.GetString("UploadIssuesNeedAttention", global::HybridMount.UI.Localization.UILanguageService.ResourceCulture)!, notice.Count):"";
             var message=notice.Message is {} warning?(summary.Length>0?summary+"\n":"")+warning:summary;
             var bar=new InfoBar{Style=(Style)Application.Current.Resources["InstantNotificationStyle"],Title=notice.MountName,Message=message,Severity=InfoBarSeverity.Warning,IsOpen=true,IsClosable=true,ActionButton=notice.Count>0?button:null};

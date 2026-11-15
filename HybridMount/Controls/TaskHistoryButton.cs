@@ -23,7 +23,7 @@ public sealed class TaskHistoryButton : AppBarButton
     private void UpdateIcon()
     {
         if (GetTemplateChild("Content") is not ContentPresenter presenter) return;
-        var size = (double)Application.Current.Resources["PageToolbarIconSize"];
+        var size = (double)Application.Current.Resources["ActionIconSize"];
         var grid = new Grid { Width = size, Height = size, IsHitTestVisible = false };
         var baseIcon = new FontIcon { Glyph = "\uE74D", FontSize = size };
         var badge = new FontIcon { Glyph = BadgeGlyph, FontSize = size * .55, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };

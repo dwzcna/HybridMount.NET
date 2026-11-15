@@ -1,4 +1,4 @@
-﻿<Page xmlns:loc="using:HybridMount.UI" xmlns:controls="using:HybridMount.Controls" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.MountsPage"
+<Page xmlns:loc="using:HybridMount.UI" xmlns:controls="using:HybridMount.Controls" xmlns:helpers="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.MountsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:viewmodels="using:HybridMount.ViewModels"
@@ -13,7 +13,7 @@
         <TextBlock Style="{StaticResource PageTitleStyle}" x:Uid="/Strings/MountsPageTextBlockMount" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockMount"/>
             <InfoBar Grid.Row="2" Margin="0,12,0,0" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasRuntimeFailedMounts),Mode=OneWay}" IsOpen="{x:Bind ViewModel.HasRuntimeFailedMounts,Mode=OneWay}" IsClosable="False" Severity="Warning" x:Uid="/Strings/MountsPageInfoBarNativeBackendDisconnected" loc:UserInterface.ResourceId="/Strings/MountsPageInfoBarNativeBackendDisconnected">
                 <InfoBar.ActionButton>
-                    <Button Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}" x:Uid="/Strings/MountsPageButtonReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageButtonReconnectAll"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Sync"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountsPageTextBlockReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockReconnectAll"/></StackPanel></Button>
+                    <Button Style="{StaticResource SubtleButtonStyle}" Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}" x:Uid="/Strings/MountsPageButtonReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageButtonReconnectAll"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Sync"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountsPageTextBlockReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockReconnectAll"/></StackPanel></Button>
                 </InfoBar.ActionButton>
             </InfoBar>
             <Grid x:Name="MountToolbar" Grid.Row="1" Style="{StaticResource PageToolbarStyle}"><Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/MountsPageCommandBarMountActions" loc:UserInterface.ResourceId="/Strings/MountsPageCommandBarMountActions">
@@ -34,9 +34,7 @@
                   ScrollViewer.HorizontalScrollMode="Disabled"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled" x:Uid="/Strings/MountsPageMountList" loc:UserInterface.ResourceId="/Strings/MountsPageMountList">
             <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                    <Setter Property="Padding" Value="0"/>
+                <Style TargetType="ListViewItem" BasedOn="{StaticResource StretchListItemStyle}">
                     <Setter Property="Margin" Value="0,0,0,8"/>
                 </Style>
             </ListView.ItemContainerStyle>

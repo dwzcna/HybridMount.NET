@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Window xmlns:loc="using:HybridMount.UI" x:Class="HybridMount.Views.Windows.MainWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:models="using:HybridMount.Models" Title="HybridMount.NET">
     <!-- 全局返回快捷键保留，但根容器不作为自动快捷键提示的悬停目标。 -->

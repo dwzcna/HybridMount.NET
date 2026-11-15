@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="HybridMount.Controls.SettingRow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.UI" SizeChanged="Resized">
+<UserControl x:Class="HybridMount.Controls.SettingRow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.UI" SizeChanged="Resized">
     <Grid x:Name="Row" Padding="0,10" ColumnSpacing="24" RowSpacing="8">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
