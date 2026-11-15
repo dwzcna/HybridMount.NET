@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -1155,9 +1155,6 @@ SHA-256：{5}</value>
   <data name="Home" xml:space="preserve">
     <value>首页</value>
   </data>
-  <data name="HttpsNasExampleCom5006SharedFolder" xml:space="preserve">
-    <value>https://nas.example.com:5006/共享文件夹/</value>
-  </data>
   <data name="HybridMountJSONConfigurationBackup" xml:space="preserve">
     <value>HybridMount JSON 配置备份</value>
   </data>
@@ -2188,9 +2185,6 @@ SHA-256：{5}</value>
   <data name="SynologyNASRemoteRoot" xml:space="preserve">
     <value>群晖 NAS：{0}；远端根 {1}</value>
   </data>
-  <data name="SynologyWebDAVHttpsNasExampleCom5006SharedFolderEnableHTTPSInThe" xml:space="preserve">
-    <value>群晖 WebDAV： https://nas.example.com:5006/共享文件夹/（需在 WebDAV Server 套件启用 HTTPS）。DSM 5001 请使用群晖 NAS 入口。</value>
-  </data>
   <data name="SystemPolicyStillEnablesThisAppAtSignInResetCannotComplete" xml:space="preserve">
     <value>系统策略仍启用当前应用的登录启动，无法完成还原。</value>
   </data>
@@ -2483,12 +2477,6 @@ SHA-256：{5}</value>
   <data name="TheUploadQueueIsNotReadyReconnectTheMount" xml:space="preserve">
     <value>上传队列尚未就绪，请重新连接。</value>
   </data>
-  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddresses" xml:space="preserve">
-    <value>WebDAV(HTTPS) 入口仅接受 HTTPS 地址。</value>
-  </data>
-  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddressesSynologyCommonlyUsesPort" xml:space="preserve">
-    <value>WebDAV(HTTPS) 入口仅接受 HTTPS 地址；群晖通常使用 5006 端口。</value>
-  </data>
   <data name="ThereAreNoWebDAVS3OrSynologyMountsToExport" xml:space="preserve">
     <value>当前没有可导出的 WebDAV、S3 或群晖挂载。</value>
   </data>
@@ -2684,9 +2672,6 @@ SHA-256：{5}</value>
   <data name="Warning" xml:space="preserve">
     <value>警告</value>
   </data>
-  <data name="WebDAVHTTPSMount" xml:space="preserve">
-    <value>WebDAV(HTTPS) 挂载</value>
-  </data>
   <data name="WebDAVMount" xml:space="preserve">
     <value>WebDAV 挂载</value>
   </data>
@@ -2834,4 +2819,19 @@ SHA-256：{5}</value>
   <data name="BackupExportCommitIncomplete" xml:space="preserve"><value>备份尚未完成原子提交。</value></data>
   <data name="BackupSupportedProtocolsOnly" xml:space="preserve"><value>仅支持备份 WebDAV、S3 和群晖挂载。</value></data>
   <data name="BackupExportInterrupted" xml:space="preserve"><value>导出已中断；请重新选择并导出，受保护备份需要重新输入密码。</value></data>
+  <data name="ProtocolPurposeTls" xml:space="preserve">
+    <value>使用当前连接的实际握手结果展示传输协议；TLS 1.2 成功不代表已验证 TLS 1.3。</value>
+  </data>
+  <data name="ProtocolTransportHttp" xml:space="preserve">
+    <value>未使用 TLS（HTTP）；观察于 {0}</value>
+  </data>
+  <data name="ProtocolTransportTls13" xml:space="preserve">
+    <value>实际协商 TLS 1.3；观察于 {0}</value>
+  </data>
+  <data name="ProtocolTransportTls12" xml:space="preserve">
+    <value>实际协商 TLS 1.2；TLS 1.3 尚未验证；观察于 {0}</value>
+  </data>
+  <data name="ProtocolTransportOtherTls" xml:space="preserve">
+    <value>实际协商其他 TLS 版本；TLS 1.3 尚未验证；观察于 {0}</value>
+  </data>
 </root>

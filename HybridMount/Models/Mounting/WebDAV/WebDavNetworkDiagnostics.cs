@@ -1,4 +1,4 @@
-using System.Net.Security;
+﻿using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -85,8 +85,22 @@ public sealed partial class WebDavFileSource
         ConnectTimeout=TimeSpan.FromSeconds(15),
         ConnectCallback=(context,token)=>_tcp.ConnectAsync(context.DnsEndPoint,
             context.InitialRequestMessage.Options.TryGetValue(NetworkAttemptKey,out var attempt)?attempt.Trace:null,token),
+        // 回调发生在目标握手完成后；借用原流，不能包装、关闭或额外发送请求。
+        PlaintextStreamFilter=(context,token)=>
+        {
+            token.ThrowIfCancellationRequested();
+            if (WebDavTlsObservation.Observe(_endpoint, context.PlaintextStream) is {} observed)
+            {
+                _protocolEvidence.Record("dav.tls13", observed.Version == ProtocolTransportVersion.Tls13 ?
+                    ProtocolCapabilityStatus.Supported : ProtocolCapabilityStatus.Unknown, "@server", transport: observed);
+                if (context.InitialRequestMessage.Options.TryGetValue(NetworkAttemptKey, out var attempt))
+                    attempt.Trace.Record("TLS", observed.Version.ToString(), attempt.Trace.TlsStartedAt);
+            }
+            return ValueTask.FromResult(context.PlaintextStream);
+        },
         SslOptions=new SslClientAuthenticationOptions
         {
+            EnabledSslProtocols=SslProtocols.None, // 由系统策略协商TLS1.3／1.2。
             RemoteCertificateValidationCallback=(sender,certificate,chain,errors)=>
             {
                 X509Certificate2? owned=null;

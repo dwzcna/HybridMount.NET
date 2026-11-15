@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -1155,9 +1155,6 @@ Fetching capacity information…</value>
   <data name="Home" xml:space="preserve">
     <value>Home</value>
   </data>
-  <data name="HttpsNasExampleCom5006SharedFolder" xml:space="preserve">
-    <value>https://nas.example.com:5006/SharedFolder/</value>
-  </data>
   <data name="HybridMountJSONConfigurationBackup" xml:space="preserve">
     <value>HybridMount JSON configuration backup</value>
   </data>
@@ -2188,9 +2185,6 @@ Completed deletions are not rolled back. Close this notice to exit. Check again 
   <data name="SynologyNASRemoteRoot" xml:space="preserve">
     <value>Synology NAS: {0}; remote root {1}</value>
   </data>
-  <data name="SynologyWebDAVHttpsNasExampleCom5006SharedFolderEnableHTTPSInThe" xml:space="preserve">
-    <value>Synology WebDAV: https://nas.example.com:5006/SharedFolder/ (enable HTTPS in the WebDAV Server package). For DSM port 5001, use the Synology NAS option.</value>
-  </data>
   <data name="SystemPolicyStillEnablesThisAppAtSignInResetCannotComplete" xml:space="preserve">
     <value>System policy still enables this app at sign-in. Reset cannot complete.</value>
   </data>
@@ -2483,12 +2477,6 @@ Mount: {1}
   <data name="TheUploadQueueIsNotReadyReconnectTheMount" xml:space="preserve">
     <value>The upload queue is not ready. Reconnect the mount.</value>
   </data>
-  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddresses" xml:space="preserve">
-    <value>The WebDAV (HTTPS) preset only accepts HTTPS addresses.</value>
-  </data>
-  <data name="TheWebDAVHTTPSPresetOnlyAcceptsHTTPSAddressesSynologyCommonlyUsesPort" xml:space="preserve">
-    <value>The WebDAV (HTTPS) preset only accepts HTTPS addresses; Synology commonly uses port 5006.</value>
-  </data>
   <data name="ThereAreNoWebDAVS3OrSynologyMountsToExport" xml:space="preserve">
     <value>There are no WebDAV, S3, or Synology mounts to export.</value>
   </data>
@@ -2684,9 +2672,6 @@ Deleted data cannot be recovered.</value>
   <data name="Warning" xml:space="preserve">
     <value>Warning</value>
   </data>
-  <data name="WebDAVHTTPSMount" xml:space="preserve">
-    <value>WebDAV (HTTPS) mount</value>
-  </data>
   <data name="WebDAVMount" xml:space="preserve">
     <value>WebDAV mount</value>
   </data>
@@ -2834,4 +2819,19 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="BackupExportCommitIncomplete" xml:space="preserve"><value>The backup has not completed its atomic commit.</value></data>
   <data name="BackupSupportedProtocolsOnly" xml:space="preserve"><value>Only WebDAV, S3, and Synology mounts can be backed up.</value></data>
   <data name="BackupExportInterrupted" xml:space="preserve"><value>Export was interrupted. Select configurations and export again; protected backups require the password again.</value></data>
+  <data name="ProtocolPurposeTls" xml:space="preserve">
+    <value>Shows the protocol negotiated by this connection. A successful TLS 1.2 handshake does not verify TLS 1.3.</value>
+  </data>
+  <data name="ProtocolTransportHttp" xml:space="preserve">
+    <value>TLS is not used (HTTP); observed {0}</value>
+  </data>
+  <data name="ProtocolTransportTls13" xml:space="preserve">
+    <value>Negotiated TLS 1.3; observed {0}</value>
+  </data>
+  <data name="ProtocolTransportTls12" xml:space="preserve">
+    <value>Negotiated TLS 1.2; TLS 1.3 is unverified; observed {0}</value>
+  </data>
+  <data name="ProtocolTransportOtherTls" xml:space="preserve">
+    <value>Negotiated another TLS version; TLS 1.3 is unverified; observed {0}</value>
+  </data>
 </root>

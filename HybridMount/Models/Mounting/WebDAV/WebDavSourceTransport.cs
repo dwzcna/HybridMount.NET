@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -18,6 +18,9 @@ public sealed partial class WebDavFileSource
     public WebDavFileSource(FileSourceConfiguration options, SourceCredentials credentials, WholeFileCache cache, HttpMessageHandler? handler = null)
     {
         _endpoint = FileSourceFactory.Endpoint(options); _cache = cache;
+        if (_endpoint.Scheme == "http")
+            _protocolEvidence.Record("dav.tls13", ProtocolCapabilityStatus.Unknown, "@server",
+                transport: new(ProtocolTransportVersion.Http, DateTimeOffset.UtcNow));
         _capabilityProbeScope = CapabilityProbeSession.Scope(options, credentials);
         _temporaryScope=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(_endpoint.AbsoluteUri+"\0"+credentials.UserName)));
         if (credentials.UserName.Contains(':')) throw new ArgumentException("WebDAV 用户名不能包含冒号。");

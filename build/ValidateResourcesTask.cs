@@ -102,7 +102,7 @@ public sealed class HybridMountValidateResources : Microsoft.Build.Utilities.Tas
                 {
                     var name = Path.GetFileName(file);
                     var carrier = name == "ResourceMessage.cs" && argument.Trim() == "Key";
-                    var mapped = name == "ProtocolCapabilitiesView.cs" && Regex.IsMatch(argument.Trim(), @"\A(?:item\.DescriptionKey|StatusKey\(.+\)|ReasonKey\(.+\)|ProbeStageKey\(.+\))\z");
+                    var mapped = name == "ProtocolCapabilitiesView.cs" && Regex.IsMatch(argument.Trim(), @"\A(?:item\.DescriptionKey|StatusKey\(.+\)|ReasonKey\(.+\)|TransportKey\(.+\)|ProbeStageKey\(.+\))\z");
                     var operationStage = name == "OperationDetails.cs" && argument.Trim() == "Name";
                     var resourceTest = name == "LocalizationTests.cs" && argument.Trim() == "key";
                     var catalogTest = name == "ProtocolCapabilityTests.cs" && argument.Trim() == "row.DescriptionKey";

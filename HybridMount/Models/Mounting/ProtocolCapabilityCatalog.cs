@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>当前产品实际调用的接口及用途资源键；不按协议名称推定服务器能力。</summary>
 public sealed record ProtocolCapabilityDescriptor(string Id, string Name, string DescriptionKey);
@@ -6,6 +6,7 @@ public static class ProtocolCapabilityCatalog
 {
     private static ProtocolCapabilityDescriptor Row(string id, string name, string purpose) => new(id, name, purpose);
     private static readonly IReadOnlyList<ProtocolCapabilityDescriptor> Dav = Array.AsReadOnly(new[] {
+        Row("dav.tls13", "RFC 8446 (TLS 1.3)", "ProtocolPurposeTls"),
         Row("dav.options", "RFC 9110 (OPTIONS)", "ProtocolPurposeDiscovery"), Row("dav.get", "RFC 9110 (GET)", "ProtocolPurposeDownload"),
         Row("dav.redirect", "RFC 9110 (301 / 308, same-origin)", "ProtocolPurposeRedirect"),
         Row("dav.gzip", "RFC 9110 (PROPFIND / REPORT, gzip)", "ProtocolPurposeMetadataCompression"),

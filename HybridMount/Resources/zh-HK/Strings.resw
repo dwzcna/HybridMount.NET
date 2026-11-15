@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -942,9 +942,6 @@
   <data name="WebDAVConfigurationContentDialogFullField.Header" xml:space="preserve">
     <value>完整核對間隔（秒）</value>
   </data>
-  <data name="WebDAVConfigurationContentDialogHttpField.Content" xml:space="preserve">
-    <value>允許未加密 HTTP（只限可信任的測試環境）</value>
-  </data>
   <data name="WebDAVConfigurationContentDialogHttpWarning.Message" xml:space="preserve">
     <value>此位址會以未加密方式傳送認證及內容，只限在可信任的測試網絡使用。</value>
   </data>
@@ -1010,9 +1007,6 @@
   </data>
   <data name="WebDAVConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve">
     <value>同步及預覽</value>
-  </data>
-  <data name="WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom.Text" xml:space="preserve">
-    <value>群暉 WebDAV：https://nas.example.com:5006/共用資料夾/（須在 WebDAV Server 套件啟用 HTTPS）。DSM 5001 請使用群暉 NAS 入口。</value>
   </data>
   <data name="WebDAVConfigurationContentDialogTextBoxFileNameText.PlaceholderText" xml:space="preserve">
     <value>檔案名稱文字</value>

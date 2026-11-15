@@ -173,6 +173,8 @@ internal sealed class TlsFixture : IAsyncDisposable
     private readonly ConcurrentBag<Task> _clients=[];
     private readonly Task _accept;
     private readonly bool _reset,_stall,_davResponses;
+    private readonly SslProtocols _protocols;
+    public ConcurrentQueue<SslProtocols> Negotiated {get;}=new();
     private readonly X509Certificate2 _certificate;
     private int _connections,_hello;
     public ConcurrentQueue<string> Failures {get;}=new();
@@ -182,9 +184,9 @@ internal sealed class TlsFixture : IAsyncDisposable
     /// <summary>仅供隔离测试显式核验服务器证书，不安装系统信任。</summary>
     public string CertificatePin=>Convert.ToHexString(SHA256.HashData(_certificate.RawData));
     public ConcurrentQueue<string> Methods {get;}=new();
-    public TlsFixture(bool wrongHost=false,bool reset=false,bool stall=false,bool davResponses=false,bool expired=false)
+    public TlsFixture(bool wrongHost=false,bool reset=false,bool stall=false,bool davResponses=false,bool expired=false,SslProtocols protocols=SslProtocols.None)
     {
-        _reset=reset;_stall=stall;_davResponses=davResponses;
+        _reset=reset;_stall=stall;_davResponses=davResponses;_protocols=protocols;
         using var rsa=RSA.Create(2048);var request=new CertificateRequest("CN=hybridmount-test",rsa,HashAlgorithmName.SHA256,RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false,false,0,true));
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection{new("1.3.6.1.5.5.7.3.1")},true));
@@ -215,7 +217,8 @@ internal sealed class TlsFixture : IAsyncDisposable
             }
             if(_stall){await Task.Delay(Timeout.InfiniteTimeSpan,_stop.Token);return;}
             await using var tls=new SslStream(network,false);
-            await tls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions{ServerCertificate=_certificate,EnabledSslProtocols=SslProtocols.None},_stop.Token);
+            await tls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions{ServerCertificate=_certificate,EnabledSslProtocols=_protocols},_stop.Token);
+            Negotiated.Enqueue(tls.SslProtocol);
             if(_davResponses)
             {
                 // 实际消费请求头及正文后返回只读 DAV 集合，避免仅凭握手成功宣称探测通过。

@@ -14,7 +14,6 @@
                     </Grid>
                     <TextBox x:Name="EndpointField" x:Uid="/Strings/WebDAVConfigurationContentDialogEndpointField" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogEndpointField"/>
                     <StackPanel x:Name="HttpsFields" Spacing="12" Visibility="Collapsed">
-                        <TextBlock TextWrapping="Wrap" x:Uid="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom"/>
                         <TextBox x:Name="CertificatePinField" x:Uid="/Strings/WebDAVConfigurationContentDialogCertificatePinField" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogCertificatePinField"/>
                         <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <Button x:Name="FetchCertificateButton" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="FetchCertificate"><TextBlock x:Name="FetchCertificateLabel" TextWrapping="Wrap"/></Button>
@@ -27,7 +26,6 @@
                                     <TextBox x:Name="UserField" x:Uid="/Strings/WebDAVConfigurationContentDialogUserField" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogUserField"/>
                                     <PasswordBox x:Name="PasswordField" x:Uid="/Strings/WebDAVConfigurationContentDialogPasswordField" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogPasswordField"/>
                                 </StackPanel>
-                    <CheckBox x:Name="HttpField" x:Uid="/Strings/WebDAVConfigurationContentDialogHttpField" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogHttpField"/>
                     <InfoBar Style="{StaticResource InstantNotificationStyle}" x:Name="HttpWarning" IsOpen="False" IsClosable="True" Severity="Warning" AutomationProperties.LiveSetting="Polite" Visibility="{x:Bind helpers:TextVisibility.ForFlag(HttpWarning.IsOpen),Mode=OneWay}" x:Uid="/Strings/WebDAVConfigurationContentDialogHttpWarning" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogHttpWarning"/>
                     <controls:SettingRow x:Uid="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogSettingRowConnectWhenTheApplicationStarts"><ToggleSwitch HorizontalAlignment="Left" x:Name="AutoConnectField" IsOn="True" Toggled="AutoConnectChanged" x:Uid="/Strings/WebDAVConfigurationContentDialogAutoConnectField" loc:UserInterface.ResourceId="/Strings/WebDAVConfigurationContentDialogAutoConnectField"/></controls:SettingRow>
                 </StackPanel></UserControl>

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 
 namespace HybridMount.Models.Mounting;
 
@@ -9,7 +9,14 @@ public enum ProtocolCapabilityReason { None, Declared, Permission, Uncertain, Ra
 /// <summary>单个接口在精确相对路径／目录中的证据；空路径表示配置根，不代表整个子树。</summary>
 public sealed record ProtocolCapabilityEvidence(string Id, ProtocolCapabilityStatus Status, string Scope, DateTimeOffset ObservedUtc, ProtocolCapabilityReason Reason = ProtocolCapabilityReason.None);
 /// <summary>连接拥有的不可变有界内存快照；重连更换SessionId，不序列化到配置、IPC或业务数据库。</summary>
-public sealed record ProtocolCapabilitySnapshot(FileSourceKind Kind, Guid SessionId, DateTimeOffset ObservedUtc, IReadOnlyList<ProtocolCapabilityEvidence> Evidence);
+public sealed record ProtocolCapabilitySnapshot(FileSourceKind Kind, Guid SessionId, DateTimeOffset ObservedUtc, IReadOnlyList<ProtocolCapabilityEvidence> Evidence)
+{
+    public ProtocolTransportEvidence? Transport { get; init; }
+}
+/// <summary>仅记录当前目标实际传输协议，不保存服务器地址、证书或认证信息。</summary>
+public enum ProtocolTransportVersion { Http, Tls12, Tls13, OtherTls }
+/// <summary>握手完成后的观察时间；HTTP表示未使用TLS，不表示TLS1.3不受支持。</summary>
+public sealed record ProtocolTransportEvidence(ProtocolTransportVersion Version, DateTimeOffset ObservedUtc);
 /// <summary>一个接口的范围汇总；不同目录实测不一致为未知，同范围实测始终优先于声明。</summary>
 public sealed record ProtocolCapabilitySummary(ProtocolCapabilityStatus Status, ProtocolCapabilityReason Reason, IReadOnlyList<ProtocolCapabilityEvidence> Evidence)
 {
@@ -35,7 +42,7 @@ internal sealed class ProtocolCapabilityTracker(FileSourceKind kind)
     internal ProtocolCapabilitySnapshot Snapshot => Volatile.Read(ref _snapshot);
     internal event Action? Changed;
 
-    internal void Record(string id, ProtocolCapabilityStatus status, string? scope = null, ProtocolCapabilityReason reason = ProtocolCapabilityReason.None)
+    internal void Record(string id, ProtocolCapabilityStatus status, string? scope = null, ProtocolCapabilityReason reason = ProtocolCapabilityReason.None, ProtocolTransportEvidence? transport = null)
     {
         scope ??= "";
         if (scope.Length > 4096 || scope.Any(char.IsControl)) return;
@@ -45,13 +52,13 @@ internal sealed class ProtocolCapabilityTracker(FileSourceKind kind)
             if (_evidence.TryGetValue(key, out var before))
             {
                 if (status == ProtocolCapabilityStatus.Advertised && before.Status != ProtocolCapabilityStatus.Advertised) return;
-                if (before.Status == status && before.Reason == reason) return;
+                if (before.Status == status && before.Reason == reason && transport is null) return;
             }
             if (!_evidence.ContainsKey(key) && _evidence.Count == Capacity)
                 _evidence.Remove(_evidence.MinBy(pair => pair.Value.ObservedUtc).Key);
             var now = DateTimeOffset.UtcNow;
             _evidence[key] = new(id, status, scope, now, reason);
-            Volatile.Write(ref _snapshot, new(kind, _snapshot.SessionId, now, Array.AsReadOnly(_evidence.Values.ToArray())));
+            Volatile.Write(ref _snapshot, _snapshot with { ObservedUtc = now, Evidence = Array.AsReadOnly(_evidence.Values.ToArray()), Transport = transport ?? _snapshot.Transport });
         }
         if (Changed is { } observers) foreach (Action observer in observers.GetInvocationList())
             try { observer(); } catch { /* 展示观察者不改写任何请求的实际结果。 */ }
@@ -63,7 +70,7 @@ internal sealed class ProtocolCapabilityTracker(FileSourceKind kind)
             var keys = _evidence.Keys.Where(key => key.Id.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
             if (keys.Length == 0) return;
             foreach (var key in keys) _evidence.Remove(key);
-            Volatile.Write(ref _snapshot, new(kind, _snapshot.SessionId, DateTimeOffset.UtcNow, Array.AsReadOnly(_evidence.Values.ToArray())));
+            Volatile.Write(ref _snapshot, _snapshot with { ObservedUtc = DateTimeOffset.UtcNow, Evidence = Array.AsReadOnly(_evidence.Values.ToArray()) });
         }
         if (Changed is { } observers) foreach (Action observer in observers.GetInvocationList()) try { observer(); } catch { }
     }

@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -942,9 +942,6 @@
   <data name="WebDAVConfigurationContentDialogFullField.Header" xml:space="preserve">
     <value>Full reconciliation interval (seconds)</value>
   </data>
-  <data name="WebDAVConfigurationContentDialogHttpField.Content" xml:space="preserve">
-    <value>Allow unencrypted HTTP (trusted test environments only)</value>
-  </data>
   <data name="WebDAVConfigurationContentDialogHttpWarning.Message" xml:space="preserve">
     <value>This address sends credentials and content without encryption. Use it only on a trusted test network.</value>
   </data>
@@ -1010,9 +1007,6 @@
   </data>
   <data name="WebDAVConfigurationContentDialogTextBlockSyncAndPreviews.Text" xml:space="preserve">
     <value>Sync and previews</value>
-  </data>
-  <data name="WebDAVConfigurationContentDialogTextBlockSynologyWebDAVHttpsNasExampleCom.Text" xml:space="preserve">
-    <value>Synology WebDAV: https://nas.example.com:5006/SharedFolder/ (enable HTTPS in the WebDAV Server package). For DSM port 5001, use the Synology NAS option.</value>
   </data>
   <data name="WebDAVConfigurationContentDialogTextBoxFileNameText.PlaceholderText" xml:space="preserve">
     <value>File name text</value>

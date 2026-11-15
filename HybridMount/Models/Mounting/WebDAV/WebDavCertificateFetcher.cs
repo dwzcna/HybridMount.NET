@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -20,6 +20,7 @@ internal static class WebDavCertificateFetcher
             ConnectCallback=(context,cancel)=>connector.ConnectAsync(context.DnsEndPoint,trace,cancel),
             SslOptions=new SslClientAuthenticationOptions
             {
+                EnabledSslProtocols=SslProtocols.None,
                 // 只读获取不等待网络补链；此设置不进入正式WebDAV传输。
                 CertificateChainPolicy=new X509ChainPolicy{RevocationMode=X509RevocationMode.NoCheck,DisableCertificateDownloads=true},
                 RemoteCertificateValidationCallback=(sender,certificate,chain,errors)=>

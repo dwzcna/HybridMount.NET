@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
@@ -350,5 +350,9 @@
     <Compile Include="../HybridMount/Models/Mounting/Synology/SynologyProtocolCapabilities.cs" Link="Production/Models/Mounting/Synology/SynologyProtocolCapabilities.cs"/>
     <Compile Include="../HybridMount/Services/Mounting/MountManager.ProtocolCapabilities.cs" Link="Production/Services/Mounting/MountManager.ProtocolCapabilities.cs"/>
     <Compile Include="../HybridMount/Models/Mounting/ProtocolCapabilityDraftSession.cs" Link="Production/Models/Mounting/ProtocolCapabilityDraftSession.cs"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavEndpointDraft.cs" Link="Production/WebDavEndpointDraft.cs"/>
+    <Compile Include="../HybridMount/Models/Mounting/WebDAV/WebDavTlsObservation.cs" Link="Production/WebDavTlsObservation.cs"/>
   </ItemGroup>
 </Project>

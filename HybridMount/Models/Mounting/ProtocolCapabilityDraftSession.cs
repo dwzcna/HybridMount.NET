@@ -1,4 +1,4 @@
-namespace HybridMount.Models.Mounting;
+﻿namespace HybridMount.Models.Mounting;
 
 /// <summary>只保存草稿摘要及展示快照；拒绝迟到测试，不保存密码或重新解释业务权限。</summary>
 public sealed class ProtocolCapabilityDraftSession(FileSourceKind kind, string originalIdentity, long credentialRevision, FileSourceConfiguration? originalSource)
@@ -53,7 +53,8 @@ public sealed class ProtocolCapabilityDraftSession(FileSourceKind kind, string o
             {
                 if (!ReferenceEquals(_mergedLive, live) || !ReferenceEquals(_mergedTest, test))
                 {
-                    var entries = live.Evidence.Concat(test.Evidence)
+                    // TLS只属于当前连接；独立草稿测试不能覆盖活动连接实际协议。
+                    var entries = live.Evidence.Concat(test.Evidence.Where(e => e.Id != "dav.tls13"))
                         .GroupBy(e => (e.Id, e.Scope)).Select(group => group.OrderByDescending(e => e.ObservedUtc).First()).ToArray();
                     _mergedLive = live; _mergedTest = test; _merged = live with { Evidence = Array.AsReadOnly(entries) };
                 }

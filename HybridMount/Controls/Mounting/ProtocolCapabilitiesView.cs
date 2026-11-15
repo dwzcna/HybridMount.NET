@@ -1,4 +1,4 @@
-using HybridMount.Helpers.UI;
+﻿using HybridMount.Helpers.UI;
 using HybridMount.Models.Mounting;
 using HybridMount.Services.Localization;
 using Microsoft.UI.Xaml;
@@ -101,6 +101,12 @@ public sealed class ProtocolCapabilitiesView : UserControl
                 text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture, global::HybridMount.Services.Localization.UILanguageService.Messages.GetString("ProtocolEvidenceDetails", global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!, string.Join("；", paths), value.Evidence.Max(e => e.ObservedUtc).ToLocalTime().ToString("g"));
             }
             if (value is { Reason: not ProtocolCapabilityReason.None }) text += "\n" + global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(ReasonKey(value.Reason), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!;
+            if (item.Id == "dav.tls13" && _snapshot?.Transport is {} transport)
+            {
+                text += "\n" + string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    global::HybridMount.Services.Localization.UILanguageService.Messages.GetString(TransportKey(transport.Version), global::HybridMount.Services.Localization.UILanguageService.ResourceCulture)!,
+                    transport.ObservedUtc.ToLocalTime().ToString("g"));
+            }
             field.Details.Text = text;
             if (_probe?.Cases.LastOrDefault(step => step.Id == item.Id) is {} step)
             {
@@ -146,6 +152,14 @@ public sealed class ProtocolCapabilitiesView : UserControl
         ProtocolCapabilityStatus.Unsupported => "ProtocolStatusUnsupported",
         ProtocolCapabilityStatus.Advertised => "ProtocolStatusAdvertised",
         _ => "ProtocolStatusUnknown"
+    };
+    /// <summary>固定协商版本对应固定资源键，不解析网络或服务器消息。</summary>
+    private static string TransportKey(ProtocolTransportVersion version) => version switch
+    {
+        ProtocolTransportVersion.Http => "ProtocolTransportHttp",
+        ProtocolTransportVersion.Tls13 => "ProtocolTransportTls13",
+        ProtocolTransportVersion.Tls12 => "ProtocolTransportTls12",
+        _ => "ProtocolTransportOtherTls"
     };
     private static string ReasonKey(ProtocolCapabilityReason reason) => reason switch
     {
