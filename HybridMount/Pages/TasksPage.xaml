@@ -63,16 +63,16 @@
         <Grid x:Name="TaskToolbar" Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="12">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <StackPanel x:Name="TaskFilters" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
-                <toolkit:Segmented SelectedIndex="{x:Bind ViewModel.SelectedTaskFilter,Mode=TwoWay}" HorizontalAlignment="Left">
+                <toolkit:Segmented Style="{StaticResource PageSegmentedStyle}" SelectedIndex="{x:Bind ViewModel.SelectedTaskFilter,Mode=TwoWay}" HorizontalAlignment="Left">
                     <toolkit:SegmentedItem x:Name="AllFilter" AccessKey="A" x:Uid="/Strings/TasksPageAllFilter" loc:UserInterface.ResourceId="/Strings/TasksPageAllFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="AllApps"/><TextBlock x:Name="AllFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/TasksPageAllFilterLabel" loc:UserInterface.ResourceId="/Strings/TasksPageAllFilterLabel"/></StackPanel></toolkit:SegmentedItem>
                     <toolkit:SegmentedItem x:Name="IssuesFilter" AccessKey="I" x:Uid="/Strings/TasksPageIssuesFilter" loc:UserInterface.ResourceId="/Strings/TasksPageIssuesFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Important"/><TextBlock x:Name="IssuesFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/TasksPageIssuesFilterLabel" loc:UserInterface.ResourceId="/Strings/TasksPageIssuesFilterLabel"/></StackPanel></toolkit:SegmentedItem>
                     <toolkit:SegmentedItem x:Name="ConflictsFilter" AccessKey="F" x:Uid="/Strings/TasksPageConflictsFilter" loc:UserInterface.ResourceId="/Strings/TasksPageConflictsFilter"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Switch"/><TextBlock x:Name="ConflictsFilterLabel" VerticalAlignment="Center" x:Uid="/Strings/TasksPageConflictsFilterLabel" loc:UserInterface.ResourceId="/Strings/TasksPageConflictsFilterLabel"/></StackPanel></toolkit:SegmentedItem>
                 </toolkit:Segmented>
-                <CommandBar x:Name="ClearFilterCommands" Style="{StaticResource PageCommandBarStyle}" IsDynamicOverflowEnabled="False" OverflowButtonVisibility="Collapsed" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}">
+                <Border Style="{StaticResource PageCommandGroupStyle}" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"><CommandBar x:Name="ClearFilterCommands" Style="{StaticResource PageCommandBarStyle}" IsDynamicOverflowEnabled="False" OverflowButtonVisibility="Collapsed" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}">
                     <AppBarButton Icon="Clear" Click="ClearIssueFilter" x:Uid="/Strings/TasksPageAppBarButtonAllMounts" loc:UserInterface.ResourceId="/Strings/TasksPageAppBarButtonAllMounts"/>
-                </CommandBar>
+                </CommandBar></Border>
             </StackPanel>
-            <CommandBar x:Name="TaskActions" Grid.Column="1" HorizontalContentAlignment="Right" Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/TasksPageTaskActions" loc:UserInterface.ResourceId="/Strings/TasksPageTaskActions">
+            <Border Style="{StaticResource PageCommandGroupStyle}" Grid.Column="1"><CommandBar x:Name="TaskActions" HorizontalContentAlignment="Right" Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/TasksPageTaskActions" loc:UserInterface.ResourceId="/Strings/TasksPageTaskActions">
                 <AppBarButton Icon="Cancel" AccessKey="C" Click="CancelJob" IsEnabled="{x:Bind ViewModel.CanCancelSelected,Mode=OneWay}" x:Uid="/Strings/TasksPageAppBarButtonCancelSelectedTask" loc:UserInterface.ResourceId="/Strings/TasksPageAppBarButtonCancelSelectedTask"/>
                 <AppBarButton Icon="Help" AccessKey="X" Click="ResolveConflict" x:Uid="/Strings/TasksPageAppBarButtonResolveConflict" loc:UserInterface.ResourceId="/Strings/TasksPageAppBarButtonResolveConflict"/>
                 <AppBarButton Icon="View" AccessKey="V" Click="ShowResults" x:Uid="/Strings/TasksPageAppBarButtonViewResults" loc:UserInterface.ResourceId="/Strings/TasksPageAppBarButtonViewResults"/>
@@ -84,7 +84,7 @@
                 <controls:TaskHistoryButton BadgeGlyph="&#xF0B7;" AccessKey="H" Click="ClearCompleted" IsEnabled="{x:Bind ViewModel.CanClearCompleted,Mode=OneWay}" x:Uid="/Strings/TasksClearCompleted" loc:UserInterface.ResourceId="/Strings/TasksClearCompleted"/>
                 <controls:TaskHistoryButton BadgeGlyph="&#xEA83;" Click="ClearFailed" IsEnabled="{x:Bind ViewModel.CanClearFailed,Mode=OneWay}" x:Uid="/Strings/TasksClearFailed" loc:UserInterface.ResourceId="/Strings/TasksClearFailed"/>
                 <controls:TaskHistoryButton BadgeGlyph="&#xEA81;" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" x:Uid="/Strings/TasksClearAll" loc:UserInterface.ResourceId="/Strings/TasksClearAll"/>
-            </CommandBar>
+            </CommandBar></Border>
         </Grid>
         <ListView x:Name="JobList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" x:Uid="/Strings/TasksPageJobList" loc:UserInterface.ResourceId="/Strings/TasksPageJobList">
             <ListView.ItemTemplate>

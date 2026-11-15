@@ -34,7 +34,7 @@
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockStartupAndTray" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockStartupAndTray"/>
               <controls:SettingRow IsCompact="True" x:Uid="/Strings/SettingsPageSettingRowHideToTheTrayWhenClosing" loc:UserInterface.ResourceId="/Strings/SettingsPageSettingRowHideToTheTrayWhenClosing"><ToggleSwitch IsOn="{x:Bind ViewModel.CloseToTraySelection, Mode=TwoWay}" x:Uid="/Strings/SettingsPageToggleSwitchHideToTheTrayWhenClosing" loc:UserInterface.ResourceId="/Strings/SettingsPageToggleSwitchHideToTheTrayWhenClosing"/></controls:SettingRow>
               <controls:SettingRow IsCompact="True" Description="{x:Bind ViewModel.StartupDetail,Mode=OneWay}" x:Uid="/Strings/SettingsPageSettingRowStartAfterSigningInToWindows" loc:UserInterface.ResourceId="/Strings/SettingsPageSettingRowStartAfterSigningInToWindows"><ToggleSwitch IsOn="{x:Bind ViewModel.StartupSelection, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.CanEditStartup, Mode=OneWay}" x:Uid="/Strings/SettingsPageToggleSwitchStartAfterSigningInToWindows" loc:UserInterface.ResourceId="/Strings/SettingsPageToggleSwitchStartAfterSigningInToWindows"/></controls:SettingRow>
-              <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings"><AppBarButton Icon="Setting" Click="OpenStartupSettings" x:Uid="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings"/></CommandBar>
+              <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageCommandBarOpenWindowsStartupSettings"><AppBarButton Icon="Setting" Click="OpenStartupSettings" x:Uid="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonOpenWindowsStartupSettings"/></CommandBar></Border>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.CloudMessage}">
@@ -54,20 +54,20 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="320"/></Grid.ColumnDefinitions>
                 <NumberBox Value="{x:Bind ViewModel.CacheLimitGiB, Mode=TwoWay}" Minimum="0" Maximum="1048576" SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" x:Uid="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic" loc:UserInterface.ResourceId="/Strings/SettingsPageNumberBoxCacheSoftLimitGiBDisablesAutomatic"/>
               </Grid>
-              <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOfflineCache" loc:UserInterface.ResourceId="/Strings/SettingsPageCommandBarOfflineCache">
+              <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/SettingsPageCommandBarOfflineCache" loc:UserInterface.ResourceId="/Strings/SettingsPageCommandBarOfflineCache">
                 <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Icon="Save" Click="SaveCache" x:Uid="/Strings/SettingsPageAppBarButtonSaveLimit" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonSaveLimit"/>
                 <AppBarButton IsEnabled="{x:Bind ViewModel.CanEditCache, Mode=OneWay}" Icon="Delete" Click="TrimCache" x:Uid="/Strings/SettingsPageAppBarButtonCheckEvictionNow" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonCheckEvictionNow"/>
-              </CommandBar>
+              </CommandBar></Border>
             </StackPanel>
           </Border>
           <Border Style="{StaticResource CardBorderStyle}" Padding="24" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.ResetMessage}">
             <StackPanel Spacing="12">
               <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/SettingsPageTextBlockReset" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockReset"/>
               <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" x:Uid="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockClearSettingsLogsAndCachesFor"/>
-              <CommandBar Style="{StaticResource PageCommandBarStyle}">
+              <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}">
                 <AppBarButton Click="RemoveAllMounts" IsEnabled="{x:Bind ViewModel.CanRemoveAll,Mode=OneWay}" x:Uid="/Strings/SettingsRemoveAll" loc:UserInterface.ResourceId="/Strings/SettingsRemoveAll"><AppBarButton.Icon><FontIcon Glyph="&#xE8CD;"/></AppBarButton.Icon></AppBarButton>
                 <AppBarButton IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" Icon="Undo" Click="ResetSettings" x:Uid="/Strings/SettingsPageAppBarButtonClearAllAppSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageAppBarButtonClearAllAppSettings"/>
-              </CommandBar>
+              </CommandBar></Border>
               <Button Style="{StaticResource SubtleButtonStyle}" Visibility="Collapsed" Click="ShowRemovalTasks" IsEnabled="{x:Bind ViewModel.CanViewRemovalTasks,Mode=OneWay}" x:Uid="/Strings/RemoveAllTasks" loc:UserInterface.ResourceId="/Strings/RemoveAllTasks"/>
               <Button Style="{StaticResource SubtleButtonStyle}" Visibility="Collapsed" Click="SearchExplorerEntries" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/ExplorerEntrySearchButton" loc:UserInterface.ResourceId="/Strings/ExplorerEntrySearchButton"/>
             </StackPanel>

@@ -1,9 +1,10 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.Helpers.UI">
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:helpers="using:HybridMount.Helpers.UI" xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
 
 
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#FFF3F3F3"/>
+                    <StaticResource x:Key="PageCommandGroupBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush"/>
                     <SolidColorBrush x:Key="InfoBarErrorSeverityBackgroundBrush" Color="#FFFDE7E9"/>
                     <SolidColorBrush x:Key="InfoBarWarningSeverityBackgroundBrush" Color="#FFFFF4CE"/>
                     <SolidColorBrush x:Key="InfoBarSuccessSeverityBackgroundBrush" Color="#FFDFF6DD"/>
@@ -28,6 +29,7 @@
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="#FF202020"/>
+                    <StaticResource x:Key="PageCommandGroupBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush"/>
                     <SolidColorBrush x:Key="InfoBarErrorSeverityBackgroundBrush" Color="#FF442726"/>
                     <SolidColorBrush x:Key="InfoBarWarningSeverityBackgroundBrush" Color="#FF433519"/>
                     <SolidColorBrush x:Key="InfoBarSuccessSeverityBackgroundBrush" Color="#FF393D1B"/>
@@ -52,6 +54,7 @@
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="InfoBarInformationalSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="PageCommandGroupBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
                     <SolidColorBrush x:Key="InfoBarErrorSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
                     <SolidColorBrush x:Key="InfoBarWarningSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
                     <SolidColorBrush x:Key="InfoBarSuccessSeverityBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
@@ -107,12 +110,23 @@
             </Style>
             <!-- 页面命令统一显示图标和右侧文字，宽度不足时使用系统溢出菜单。 -->
             <Style x:Key="PageCommandBarStyle" TargetType="CommandBar" BasedOn="{StaticResource DefaultCommandBarStyle}">
-                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="HorizontalContentAlignment" Value="Right"/>
                 <Setter Property="DefaultLabelPosition" Value="Right"/>
                 <Setter Property="IsDynamicOverflowEnabled" Value="True"/>
                 <Setter Property="Background" Value="Transparent"/>
             </Style>
-            <Style x:Key="SharedPageGridStyle" TargetType="Grid"><Setter Property="Padding" Value="24"/><Setter Property="helpers:PageLayout.Enabled" Value="True"/></Style>
+            <!-- 外层圆角底板不替换CommandBar模板，弹出菜单继续使用独立原生Popup。 -->
+            <Style x:Key="PageCommandGroupStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource PageCommandGroupBackgroundBrush}"/>
+                <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+            </Style>
+            <Style x:Key="PageSegmentedStyle" TargetType="toolkit:Segmented">
+                <Setter Property="Background" Value="{ThemeResource PageCommandGroupBackgroundBrush}"/>
+                <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
+            </Style>
+            <Style x:Key="SharedPageGridStyle" TargetType="Grid"><Setter Property="Padding" Value="24"/><Setter Property="helpers:PageLayout.FullWidth" Value="True"/><Setter Property="helpers:PageLayout.Enabled" Value="True"/></Style>
             <Style x:Key="CardBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
                 <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />

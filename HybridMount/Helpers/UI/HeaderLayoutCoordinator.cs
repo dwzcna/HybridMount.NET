@@ -25,7 +25,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
         _elements=actions.PrimaryCommands.ToArray();
         _commands=_elements.OfType<AppBarButton>().ToArray();
         actions.IsDynamicOverflowEnabled=false;
-        root.Loaded+=Loaded;root.Unloaded+=Unloaded;root.SizeChanged+=Resized;
+        root.Loaded+=Loaded;root.Unloaded+=Unloaded;root.SizeChanged+=Resized;root.ActualThemeChanged+=ThemeChanged;
         foreach(var button in _commands)foreach(var property in new[]{UIElement.VisibilityProperty,AppBarButton.LabelProperty})
             _tokens.Add((button,property,button.RegisterPropertyChangedCallback(property,(_,_)=>Invalidate())));
         Invalidate();
@@ -33,6 +33,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     private void Loaded(object sender,RoutedEventArgs args)=>Invalidate();
     private void Unloaded(object sender,RoutedEventArgs args){_actions.IsOpen=false;++_generation;_pending=false;}
     private void Resized(object sender,SizeChangedEventArgs args)=>Queue();
+    private void ThemeChanged(FrameworkElement sender,object args)=>Invalidate();
     /// <summary>语言、文字或可见项变化后重测实际宽度；合并低优先级更新并屏蔽卸载后的迟到调用。</summary>
     internal void Invalidate(){_dirty=true;Queue();}
     private void Queue()
@@ -48,7 +49,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     private void Arrange()
     {
         // 弹出层先关闭再移动命令，避免旧测量和阴影层引用已转移的按钮。
-        _actions.IsOpen=false;
+        if (_actions.IsOpen) { _actions.IsOpen = false; Queue(); return; }
         if(_dirty)
         {
             _dirty=false;
@@ -93,7 +94,7 @@ internal sealed class HeaderLayoutCoordinator:IDisposable
     public void Dispose()
     {
         if(_disposed)return;_actions.IsOpen=false;_disposed=true;++_generation;
-        _root.Loaded-=Loaded;_root.Unloaded-=Unloaded;_root.SizeChanged-=Resized;
+        _root.Loaded-=Loaded;_root.Unloaded-=Unloaded;_root.SizeChanged-=Resized;_root.ActualThemeChanged-=ThemeChanged;
         foreach(var item in _tokens)item.Button.UnregisterPropertyChangedCallback(item.Property,item.Token);
         _tokens.Clear();
     }

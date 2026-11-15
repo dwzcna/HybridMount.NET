@@ -30,10 +30,11 @@ public sealed class ProtocolCapabilitiesView : UserControl
 
     public ProtocolCapabilitiesView()
     {
-        var panel = new StackPanel { Spacing = 8 };
-        _expander.Content = _rows;
+        // 固定控件与能力行分开拥有；Show重建_rows不会移除操作、进度或清理证据。
+        var panel = new StackPanel { Spacing = 12 };
+        _expander.Content = panel;
         _expander.Expanding += (_, _) => HistoryRequested?.Invoke(this, EventArgs.Empty);
-        panel.Children.Add(_expander); panel.Children.Add(_hint);
+        panel.Children.Add(_hint);
         _probeActions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _probeActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _probeActions.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -51,7 +52,7 @@ public sealed class ProtocolCapabilitiesView : UserControl
             _probeButton.Style = (Style)Application.Current.Resources["ProtocolSecondaryButtonStyle"];
             _expander.Style = (Style)Application.Current.Resources["ProtocolExpanderStyle"];
         };
-        panel.Children.Add(_probeActions); panel.Children.Add(_probeProgress); panel.Children.Add(_cleanupRows); Content = panel;
+        panel.Children.Add(_probeActions); panel.Children.Add(_probeProgress); panel.Children.Add(_cleanupRows); panel.Children.Add(_rows); Content = _expander;
         UserInterface.ObserveLanguage(this, Render);
         Render();
     }

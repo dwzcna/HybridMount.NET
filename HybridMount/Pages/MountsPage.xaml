@@ -17,7 +17,7 @@
                     <Button Command="{x:Bind ViewModel.ReconnectRuntimeFailedCommand}" x:Uid="/Strings/MountsPageButtonReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageButtonReconnectAll"><StackPanel Orientation="Horizontal" Spacing="8"><SymbolIcon Symbol="Sync"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountsPageTextBlockReconnectAll" loc:UserInterface.ResourceId="/Strings/MountsPageTextBlockReconnectAll"/></StackPanel></Button>
                 </InfoBar.ActionButton>
             </InfoBar>
-            <CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/MountsPageCommandBarMountActions" loc:UserInterface.ResourceId="/Strings/MountsPageCommandBarMountActions">
+            <Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/MountsPageCommandBarMountActions" loc:UserInterface.ResourceId="/Strings/MountsPageCommandBarMountActions">
                 <AppBarButton x:Name="AddButton" Icon="Add" AccessKey="N" x:Uid="/Strings/MountsPageAddButton" loc:UserInterface.ResourceId="/Strings/MountsPageAddButton">
                     <AppBarButton.Flyout><MenuFlyout>
                         <MenuFlyoutItem Text="WebDAV" Click="CreateWebDavMount"/>
@@ -29,7 +29,7 @@
                 <AppBarButton x:Name="ExportButton" Icon="Save" AccessKey="E" Click="ExportConfigurations" x:Uid="/Strings/MountsPageExportButton" loc:UserInterface.ResourceId="/Strings/MountsPageExportButton"/>
                 <AppBarButton x:Name="ImportButton" Icon="OpenFile" AccessKey="I" Click="ImportConfigurations" x:Uid="/Strings/MountsPageImportButton" loc:UserInterface.ResourceId="/Strings/MountsPageImportButton"/>
                 <AppBarButton x:Name="RecoveryButton" Icon="Repair" AccessKey="R" Click="RecoverOrphanedMounts" x:Uid="/Strings/MountsPageRecoveryButton" loc:UserInterface.ResourceId="/Strings/MountsPageRecoveryButton"/>
-            </CommandBar>
+            </CommandBar></Border>
         </StackPanel>
         <ListView x:Name="MountList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Items}"
                   SelectionMode="Single"

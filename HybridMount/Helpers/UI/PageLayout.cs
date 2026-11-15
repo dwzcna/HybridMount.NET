@@ -5,7 +5,7 @@ namespace HybridMount.Helpers.UI;
 public static class PageLayout
 {
     public static readonly DependencyProperty EnabledProperty=DependencyProperty.RegisterAttached("Enabled",typeof(bool),typeof(PageLayout),new PropertyMetadata(false,Changed));
-    /// <summary>任务页使用完整可用列，避免内容宽度上限使右侧命令栏停在窗口中间。</summary>
+    /// <summary>页面工具栏使用完整可用列；正文如需限宽应在自己的内容容器设置。</summary>
     public static readonly DependencyProperty FullWidthProperty=DependencyProperty.RegisterAttached("FullWidth",typeof(bool),typeof(PageLayout),new PropertyMetadata(false));
     public static bool GetFullWidth(DependencyObject value)=>(bool)value.GetValue(FullWidthProperty);
     public static void SetFullWidth(DependencyObject value,bool enabled)=>value.SetValue(FullWidthProperty,enabled);
