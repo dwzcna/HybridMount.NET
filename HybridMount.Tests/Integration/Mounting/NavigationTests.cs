@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.UI;
+using HybridMount.Commons.UI;
 using HybridMount.Models;
 using HybridMount.Services.Navigation;
 using HybridMount.ViewModels;
@@ -150,7 +150,7 @@ public sealed class NavigationTests
     [Fact]
     public async Task Home_commands_use_single_application_service_before_binding_and_after_stop()
     {
-        await using var service=new NavigationService();var home=new HomeViewModel("0.0.9.25",service);Assert.False(home.OpenMounts());Assert.False(service.CanGoBack);Assert.False(service.TryGoBack());
+        await using var service=new NavigationService();var home=new HomeViewModel("0.0.9.25",service,new EmptyOverview(),new TaskFocusService(service),new ImmediateDispatcher());Assert.False(home.OpenMounts());Assert.False(service.CanGoBack);Assert.False(service.TryGoBack());
         var frame=new Frame();service.RegisterFrame(frame,Pages());Assert.Throws<InvalidOperationException>(()=>service.RegisterFrame(frame,Pages()));
         Assert.True(home.OpenMounts());Assert.True(home.OpenSettings());Assert.True(home.OpenLogs());Assert.Equal(ApplicationPage.Logs,service.Current);Assert.Equal("版本 0.0.9.25",home.VersionText);
         service.RequestStop();Assert.False(home.OpenMounts());Assert.False(service.TryGoBack());Assert.False(service.CanGoBack);Assert.Throws<InvalidOperationException>(()=>service.RegisterFrame(frame,Pages()));
@@ -186,4 +186,11 @@ public sealed class NavigationTests
         var markup=File.ReadAllText(Path.Combine(folder,"Views", "Windows", "MainWindow.xaml"));Assert.Contains("IsBackButtonVisible=\"True\"",markup);Assert.Contains("Key=\"Left\" Modifiers=\"Menu\"",markup);
         Assert.DoesNotContain("hybridmount://",markup);Assert.False(File.Exists(Path.Combine(folder,"Models","ApplicationRoutes.cs")));Assert.False(File.Exists(Path.Combine(folder,"Services","NavigationGateway.cs")));
     }
+    private sealed class EmptyOverview : HybridMount.Commons.Tasks.ITaskOverview
+    {
+        public HybridMount.Models.Tasks.TaskOverviewSnapshot Current => HybridMount.Models.Tasks.TaskOverviewSnapshot.Empty;
+        public event Action? Changed { add { } remove { } }
+    }
+    private sealed class ImmediateDispatcher : HybridMount.Commons.UI.IUIDispatcher
+    { public bool TryEnqueue(Action action) { action(); return true; } }
 }

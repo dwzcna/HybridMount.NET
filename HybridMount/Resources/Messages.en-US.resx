@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='utf-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -2834,4 +2834,16 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="ProtocolTransportOtherTls" xml:space="preserve">
     <value>Negotiated another TLS version; TLS 1.3 is unverified; observed {0}</value>
   </data>
+  <data name="HomeOverviewLoading" xml:space="preserve"><value>Reading tasks…</value></data>
+  <data name="HomeOverviewEmpty" xml:space="preserve"><value>No tasks</value></data>
+  <data name="HomeOverviewUnavailable" xml:space="preserve"><value>Task overview unavailable</value></data>
+  <data name="HomeOverviewWaiting" xml:space="preserve"><value>Waiting for action</value></data>
+  <data name="HomeOverviewRunning" xml:space="preserve"><value>{0} tasks running</value></data>
+  <data name="HomeOverviewEnded" xml:space="preserve"><value>This round has ended</value></data>
+  <data name="HomeOverviewAllSucceeded" xml:space="preserve"><value>This round has ended; all tasks succeeded</value></data>
+  <data name="HomeOverviewProgress" xml:space="preserve"><value>Ended {0} / total {1}</value></data>
+  <data name="HomeOverviewResults" xml:space="preserve"><value>Succeeded {0} · Failed {1} · Canceled {2} · Skipped {3}</value></data>
+  <data name="HomeOverviewMoreRunning" xml:space="preserve"><value>{0} more tasks running</value></data>
+  <data name="HomeOverviewUpdateFailed" xml:space="preserve"><value>Task overview update failed; previous results kept: {0}</value></data>
+  <data name="HomeApplicationTasks" xml:space="preserve"><value>Application tasks</value></data>
 </root>

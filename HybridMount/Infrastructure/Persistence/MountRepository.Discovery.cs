@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.Paths;
+using HybridMount.Helpers.Paths;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Models.Mounting;
 using System.Text.Json;
@@ -40,6 +40,7 @@ public sealed partial class MountRepository
             foreach(var item in pending)SavePendingCore(db,transaction,item);
             foreach(var item in operations){using var operation=db.CreateCommand();operation.Transaction=transaction;operation.CommandText="INSERT INTO operations VALUES($id,$j) ON CONFLICT(id) DO UPDATE SET json=$j";operation.Parameters.AddWithValue("$id",item.Id);operation.Parameters.AddWithValue("$j",JsonSerializer.Serialize(item));operation.ExecuteNonQuery();}
             transaction.Commit();
+            PublishTaskCommit(db, operations.Select(item => item.Id).Concat(pending.Select(item => item.Id)));
         }
     }
     /// <summary>冷占位没有任何本地范围的证明由会话提供；锁内重新核对旧版本及待应用屏障后才绑定已验证版本。</summary>

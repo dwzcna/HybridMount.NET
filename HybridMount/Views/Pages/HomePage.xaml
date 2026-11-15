@@ -1,19 +1,52 @@
-﻿<Page xmlns:loc="using:HybridMount.UI" x:Class="HybridMount.Views.Pages.HomePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Page xmlns:loc="using:HybridMount.UI" xmlns:vm="using:HybridMount.ViewModels" x:Class="HybridMount.Views.Pages.HomePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Grid Style="{StaticResource SharedPageGridStyle}">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <StackPanel Orientation="Horizontal" Spacing="16"><Image Source="ms-appx:///Assets/HybridMount.png" Width="40" Height="40"/><TextBlock Text="HybridMount.NET" Style="{StaticResource PageTitleStyle}"/></StackPanel>
-    <Grid x:Name="HomeToolbar" Grid.Row="1" Style="{StaticResource PageToolbarStyle}"><Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/HomePageCommandBarManageMounts" loc:UserInterface.ResourceId="/Strings/HomePageCommandBarManageMounts"><AppBarButton Icon="Folder" Click="OpenMounts" x:Uid="/Strings/HomePageAppBarButtonManageMounts" loc:UserInterface.ResourceId="/Strings/HomePageAppBarButtonManageMounts"/></CommandBar></Border></Grid>
-    <ScrollViewer x:Name="HomeScroll" Grid.Row="2" Margin="0,16,0,0">
-    <StackPanel Spacing="24" HorizontalAlignment="Stretch">
-      <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
-        <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/HomePageTextBlockOnDemandMountsAreReady" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockOnDemandMountsAreReady"/>
-
-        <TextBlock Text="{x:Bind ViewModel.VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-      </StackPanel></Border>
-      <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-        <Border Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12"><FontIcon Glyph="&#xE713;" FontSize="28" HorizontalAlignment="Left"/><TextBlock FontSize="18" FontWeight="SemiBold" x:Uid="/Strings/HomePageTextBlockCustomizeTheAppearance" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockCustomizeTheAppearance"/><Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/HomePageCommandBarOpenSettings" loc:UserInterface.ResourceId="/Strings/HomePageCommandBarOpenSettings"><AppBarButton Icon="Setting" Click="OpenSettings" x:Uid="/Strings/HomePageAppBarButtonOpenSettings" loc:UserInterface.ResourceId="/Strings/HomePageAppBarButtonOpenSettings"/></CommandBar></Border></StackPanel></Border>
-        <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12"><FontIcon Glyph="&#xE8A5;" FontSize="28" HorizontalAlignment="Left"/><TextBlock FontSize="18" FontWeight="SemiBold" x:Uid="/Strings/HomePageTextBlockViewRuntimeRecords" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockViewRuntimeRecords"/><Border Style="{StaticResource PageCommandGroupStyle}"><CommandBar Style="{StaticResource PageCommandBarStyle}" x:Uid="/Strings/HomePageCommandBarViewLogs" loc:UserInterface.ResourceId="/Strings/HomePageCommandBarViewLogs"><AppBarButton Icon="Document" Click="OpenLogs" x:Uid="/Strings/HomePageAppBarButtonViewLogs" loc:UserInterface.ResourceId="/Strings/HomePageAppBarButtonViewLogs"/></CommandBar></Border></StackPanel></Border>
-      </Grid>
-    </StackPanel>
-  </ScrollViewer></Grid>
+    <ScrollViewer x:Name="HomeScroll" Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch">
+      <StackPanel x:Name="HomeContent" Spacing="24" HorizontalAlignment="Stretch" Padding="0,0,8,8">
+        <Border x:Name="ReadyCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+          <TextBlock FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockOnDemandMountsAreReady" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockOnDemandMountsAreReady"/>
+          <TextBlock Text="{x:Bind ViewModel.VersionText,Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel></Border>
+        <Grid x:Name="EntryCards" ColumnSpacing="16" RowSpacing="16" SizeChanged="EntryCardsSizeChanged">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Border x:Name="SettingsCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+            <FontIcon Glyph="&#xE713;" FontSize="28" HorizontalAlignment="Left"/>
+            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockCustomizeTheAppearance" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockCustomizeTheAppearance"/>
+            <Button Style="{StaticResource SettingsActionButtonStyle}" Click="OpenSettings" x:Uid="/Strings/HomeOpenSettings" loc:UserInterface.ResourceId="/Strings/HomeOpenSettings"><Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE713;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/HomeOpenSettingsText" loc:UserInterface.ResourceId="/Strings/HomeOpenSettingsText"/></Grid></Button>
+          </StackPanel></Border>
+          <Border x:Name="LogsCard" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+            <FontIcon Glyph="&#xE8A5;" FontSize="28" HorizontalAlignment="Left"/>
+            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockViewRuntimeRecords" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockViewRuntimeRecords"/>
+            <Button Style="{StaticResource SettingsActionButtonStyle}" Click="OpenLogs" x:Uid="/Strings/HomeOpenLogs" loc:UserInterface.ResourceId="/Strings/HomeOpenLogs"><Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8A5;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/HomeOpenLogsText" loc:UserInterface.ResourceId="/Strings/HomeOpenLogsText"/></Grid></Button>
+          </StackPanel></Border>
+          <Border x:Name="MountCard" Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+            <FontIcon Glyph="&#xE8B7;" FontSize="28" HorizontalAlignment="Left"/>
+            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomeManageHeading" loc:UserInterface.ResourceId="/Strings/HomeManageHeading"/>
+            <Button x:Name="ManageMountsButton" Style="{StaticResource SettingsActionButtonStyle}" Click="OpenMounts" x:Uid="/Strings/HomeManage" loc:UserInterface.ResourceId="/Strings/HomeManage"><Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8B7;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/HomeManageText" loc:UserInterface.ResourceId="/Strings/HomeManageText"/></Grid></Button>
+          </StackPanel></Border>
+        </Grid>
+        <Border x:Name="TaskOverviewCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+          <TextBlock FontSize="20" FontWeight="SemiBold" x:Uid="/Strings/HomeOverviewHeading" loc:UserInterface.ResourceId="/Strings/HomeOverviewHeading"/>
+          <TextBlock Text="{x:Bind ViewModel.StateText,Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+          <TextBlock Text="{x:Bind ViewModel.UpdateError,Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind loc:TextVisibility.ForText(ViewModel.UpdateError),Mode=OneWay}"/>
+          <ItemsControl x:Name="RunningTasks" ItemsSource="{x:Bind ViewModel.RunningTasks}">
+            <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:TaskListItemViewModel"><StackPanel Spacing="4" Margin="0,4,0,8">
+              <TextBlock FontWeight="SemiBold" TextWrapping="Wrap"><Run loc:UserInterface.Source="{x:Bind}" loc:UserInterface.Path="MountName"/><Run Text="  "/><Run loc:UserInterface.Source="{x:Bind}" loc:UserInterface.Path="CardOperation"/></TextBlock>
+              <TextBlock Text="{x:Bind CardPath,Mode=OneWay}" TextWrapping="Wrap"/>
+              <TextBlock loc:UserInterface.Source="{x:Bind}" loc:UserInterface.Path="CardState" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+            </StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{x:Bind ViewModel.MoreRunningText,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind loc:TextVisibility.ForText(ViewModel.MoreRunningText),Mode=OneWay}"/>
+          <StackPanel Spacing="8" Visibility="{x:Bind loc:TextVisibility.ForFlag(ViewModel.HasRound),Mode=OneWay}">
+            <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ViewModel.ProgressPercent,Mode=OneWay}"/>
+            <TextBlock Text="{x:Bind ViewModel.ProgressText,Mode=OneWay}" TextWrapping="Wrap"/>
+            <TextBlock Text="{x:Bind ViewModel.ResultsText,Mode=OneWay}" TextWrapping="Wrap"/>
+          </StackPanel>
+          <Button x:Name="AllTasksButton" Style="{StaticResource SettingsActionButtonStyle}" Click="OpenTasks" x:Uid="/Strings/HomeAllTasks" loc:UserInterface.ResourceId="/Strings/HomeAllTasks"><Grid ColumnSpacing="{StaticResource PageToolbarIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE81C;" Style="{StaticResource SettingsActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource SettingsActionTextStyle}" x:Uid="/Strings/HomeAllTasksText" loc:UserInterface.ResourceId="/Strings/HomeAllTasksText"/></Grid></Button>
+        </StackPanel></Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
 </Page>

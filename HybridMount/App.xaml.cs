@@ -1,4 +1,4 @@
-﻿using HybridMount.UI.Windows;
+using HybridMount.UI.Windows;
 using HybridMount.Commons.Settings;
 using HybridMount.Commons.UI;
 using HybridMount.Infrastructure.Diagnostics;
@@ -15,6 +15,7 @@ using HybridMount.Models.Diagnostics;
 using HybridMount.Models.Recovery;
 using HybridMount.Models.Settings;
 using HybridMount.Services.Lifecycle;
+using HybridMount.Services.Tasks;
 using HybridMount.Services.Mounting;
 using HybridMount.Services.Navigation;
 using HybridMount.Services.Notifications;
@@ -57,6 +58,7 @@ public partial class App:Application
     public IUIDispatcher UIDispatcher{get;private set;}=null!;
     public TaskFocusService TaskFocus{get;private set;}=null!;
     public UploadIssueNotificationService IssueNotifications{get;private set;}=null!;
+    public TaskOverviewService TaskOverview{get;private set;}=null!;
     public TasksQueueService TasksQueue{get;private set;}=null!;
     public MountManager Mounts{get;private set;}=null!;
     internal MountIndexFormat IndexFormat {get;private set;}=new("New");
@@ -111,6 +113,8 @@ public partial class App:Application
             {
                 TasksQueue=new(CloudOperations.Current);CloudOperations.Bind(TasksQueue);
                 Mounts=await Task.Run(()=>new MountManager(new MountRepository(Path.Combine(ApplicationPaths.DataDirectory,"Mounting")),Logger,tasksQueue:TasksQueue){StopObserver=RecordMountStop});
+                TaskOverview = new(Mounts.TaskLifecycle, () => Mounts.TaskDefinitions);
+                await TaskOverview.WhenInitialized;
                 IssueNotifications=new(Mounts);
             }
             else
@@ -254,6 +258,7 @@ public partial class App:Application
         await stages.RunAsync("IssueNotificationsStop",async()=>{if(IssueNotifications is not null){await IssueNotifications.DisposeAsync();}});
         await stages.RunAsync("ExplorerMaintenanceStop",()=>_explorerMaintenance.DisposeAsync().AsTask());
         await stages.RunAsync("MountsStop",()=>Mounts?.DisposeAsync().AsTask()??Task.CompletedTask);
+        await stages.RunAsync("TaskOverviewStop",()=>TaskOverview?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("TaskQueueStop",()=>TasksQueue?.DisposeAsync().AsTask()??Task.CompletedTask);
         await stages.RunAsync("NativeRuntimeStop",()=>NativeRuntimeClient.StopSharedAsync());
         stages.Run("UISubscriptions",()=>{if(Appearance is not null)Appearance.Changed-=OnAppearanceChanged;if(Logger is not null)Logger.NotificationRequested-=OnNotification;});

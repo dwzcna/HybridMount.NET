@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Persistence.Protocols;
+using HybridMount.Infrastructure.Persistence.Protocols;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Settings;
 using HybridMount.Models.Mounting;
@@ -29,9 +29,19 @@ public sealed partial class MountRepository : IMountRepository
     {
         lock(_gate)
         {
-            using var db=Open();using var transaction=db.BeginTransaction();using var command=db.CreateCommand();command.Transaction=transaction;
+            using var db=Open();
+            var lifecycleIds = new List<string>();
+            if (TaskCommitted is not null)
+            {
+                using var affected = db.CreateCommand();
+                affected.CommandText = "SELECT id FROM operations WHERE json_extract(json,'$.MountId')=$mount UNION SELECT id FROM remote_pending WHERE mount=$native";
+                affected.Parameters.AddWithValue("$mount", mount.ToString()); affected.Parameters.AddWithValue("$native", mount.ToString("N"));
+                using var rows = affected.ExecuteReader(); while (rows.Read()) lifecycleIds.Add(rows.GetString(0));
+            }
+            using var transaction=db.BeginTransaction();using var command=db.CreateCommand();command.Transaction=transaction;
             command.CommandText="UPDATE remote_task_batch_members SET state=CASE WHEN (SELECT json_extract(json,'$.State') FROM remote_pending p WHERE p.id=remote_task_batch_members.pending) IN ('Completed','Canceled','Superseded') THEN (SELECT json_extract(json,'$.State') FROM remote_pending p WHERE p.id=remote_task_batch_members.pending) ELSE 'Canceled' END,reason=(SELECT json_extract(json,'$.Error') FROM remote_pending p WHERE p.id=remote_task_batch_members.pending) WHERE pending IN (SELECT id FROM remote_pending WHERE mount=$m);DELETE FROM entries WHERE mount=$m;DELETE FROM uploads WHERE mount=$m;DELETE FROM content_baselines WHERE mount=$m;DELETE FROM remote_presence WHERE mount=$m;DELETE FROM remote_collections WHERE mount=$m;DELETE FROM remote_shadow WHERE mount=$m;DELETE FROM remote_pending WHERE mount=$m;DELETE FROM remote_scans WHERE mount=$m;"+string.Concat(_protocolStorage.Select(module=>module.DeleteEntriesSql));command.Parameters.AddWithValue("$m",mount.ToString("N"));command.ExecuteNonQuery();
             RetireRemovedRemoteOperationsCore(db,transaction,item=>item.MountId==mount);transaction.Commit();
+            if (TaskCommitted is not null) PublishTaskCommit(db, lifecycleIds, ReadRemoteBatchesCore(db, mount: mount).Select(task => task.Id));
         }
     }
     /// <summary>完整映射快照按本地路径和插入顺序稳定返回；重复映射的首项选择不随新增索引改变。</summary>
@@ -67,6 +77,7 @@ public sealed partial class MountRepository : IMountRepository
         lock (_gate)
         {
             using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "INSERT INTO operations VALUES($id,$j) ON CONFLICT(id) DO UPDATE SET json=$j"; cmd.Parameters.AddWithValue("$id", snapshot.Id); cmd.Parameters.AddWithValue("$j", JsonSerializer.Serialize(snapshot)); cmd.ExecuteNonQuery();
+            PublishTaskCommit(db, [snapshot.Id], historyHint: snapshot);
         }
     }
     /// <summary>兼容原入口；仅清理成功历史，不删除索引、上传证据或远端恢复数据。</summary>

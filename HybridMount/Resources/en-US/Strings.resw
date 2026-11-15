@@ -33,40 +33,22 @@
   <data name="ConflictResolutionContentDialogTextBlockUseLocalFreezeTheCurrentLocal.Text" xml:space="preserve">
     <value>Use local: freeze the current local content and upload against the confirmed remote version. Use remote: first save a recoverable local backup outside the sync root, then replace local content with verified remote content. Processing stops if either side changes after confirmation.</value>
   </data>
-  <data name="HomePageAppBarButtonManageMounts.Label" xml:space="preserve">
+<data name="HomePageAppBarButtonManageMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Manage mounts</value>
   </data>
-  <data name="HomePageAppBarButtonManageMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Manage mounts</value>
-  </data>
-  <data name="HomePageAppBarButtonManageMounts.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Manage mounts</value>
-  </data>
-  <data name="HomePageAppBarButtonOpenSettings.Label" xml:space="preserve">
+<data name="HomePageAppBarButtonOpenSettings.Label" xml:space="preserve">
     <value>Open settings</value>
   </data>
-  <data name="HomePageAppBarButtonOpenSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+<data name="HomePageAppBarButtonOpenSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Open settings</value>
   </data>
-  <data name="HomePageAppBarButtonOpenSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
-  <data name="HomePageAppBarButtonViewLogs.Label" xml:space="preserve">
+<data name="HomePageAppBarButtonViewLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>View logs</value>
   </data>
-  <data name="HomePageAppBarButtonViewLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>View logs</value>
-  </data>
-  <data name="HomePageAppBarButtonViewLogs.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
-    <value>View logs</value>
-  </data>
-  <data name="HomePageCommandBarManageMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+<data name="HomePageCommandBarManageMounts.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Manage mounts</value>
   </data>
-  <data name="HomePageCommandBarOpenSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
-    <value>Open settings</value>
-  </data>
-  <data name="HomePageCommandBarViewLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+<data name="HomePageCommandBarViewLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>View logs</value>
   </data>
   <data name="HomePageTextBlockCustomizeTheAppearance.Text" xml:space="preserve">
@@ -1138,4 +1120,14 @@
     <value>Search File Explorer</value>
   </data>
   <data name="BackupImportChoice.PlaceholderText" xml:space="preserve"><value>Choose a configuration to import</value></data>
+  <data name="HomeManageHeading.Text" xml:space="preserve"><value>View and manage mount points</value></data>
+  <data name="HomeOverviewHeading.Text" xml:space="preserve"><value>Task overview</value></data>
+  <data name="HomeOpenSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Open settings</value></data>
+  <data name="HomeOpenSettingsText.Text" xml:space="preserve"><value>Open settings</value></data>
+  <data name="HomeOpenLogs.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>View logs</value></data>
+  <data name="HomeOpenLogsText.Text" xml:space="preserve"><value>View logs</value></data>
+  <data name="HomeManage.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Manage mounts</value></data>
+  <data name="HomeManageText.Text" xml:space="preserve"><value>Manage mounts</value></data>
+  <data name="HomeAllTasks.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>View all tasks</value></data>
+  <data name="HomeAllTasksText.Text" xml:space="preserve"><value>View all tasks</value></data>
 </root>

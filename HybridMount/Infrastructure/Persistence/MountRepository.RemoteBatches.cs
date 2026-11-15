@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting;
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 namespace HybridMount.Infrastructure.Persistence;
@@ -33,6 +33,7 @@ public sealed partial class MountRepository
         {
             using var db=Open();using var query=db.CreateCommand();query.CommandText="UPDATE remote_task_batches SET discovery=$state,finished=$now,error=$error WHERE id=$id AND discovery IN ('Running','CancelRequested')";
             query.Parameters.AddWithValue("$id",id);query.Parameters.AddWithValue("$state",state);query.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToString("O"));query.Parameters.AddWithValue("$error",(object?)error??DBNull.Value);query.ExecuteNonQuery();
+            PublishTaskCommit(db, [], [id]);
         }
     }
     /// <summary>分类和状态与业务事件同事务更新，展示取消不能绕过不可逆阶段。</summary>
@@ -87,7 +88,7 @@ public sealed partial class MountRepository
             var changes=new List<RemotePendingChange>();using(var rows=query.ExecuteReader())while(rows.Read())changes.Add(System.Text.Json.JsonSerializer.Deserialize<RemotePendingChange>(rows.GetString(0))!);
             if(retry){query.CommandText="UPDATE remote_task_batches SET cancel_requested=0,discovery=CASE WHEN discovery='Running' THEN 'Running' ELSE 'Completed' END,error=NULL WHERE id=$id";query.ExecuteNonQuery();}
             foreach(var item in changes)SavePendingCore(db,tx,item with{State=retry?"Pending":"Canceled",AttemptId=retry?Guid.NewGuid().ToString("N"):item.AttemptId,AttemptGeneration=retry?item.AttemptGeneration+1:item.AttemptGeneration,Error=retry?null:"已取消本轮占位更新；保留已完成项，请显式重试。"});
-            tx.Commit();return changes.Select(item=>item.Id).ToArray();
+            tx.Commit();PublishTaskCommit(db, changes.Select(item => item.Id), [id]);return changes.Select(item=>item.Id).ToArray();
         }
     }
     /// <summary>实际CFAPI分类与展示归属原子提交；先前批次取消只作用于确认的冷占位。</summary>
@@ -100,7 +101,7 @@ public sealed partial class MountRepository
             using var query=db.CreateCommand();query.Transaction=tx;query.CommandText="SELECT b.cancel_requested FROM remote_task_batch_members m JOIN remote_task_batches b ON b.id=m.batch WHERE m.pending=$id";query.Parameters.AddWithValue("$id",current.Id);var canceled=Convert.ToInt32(query.ExecuteScalar()??0)!=0;
             var next=proposed with{DownloadTask=download,ClassificationKnown=true,AttemptId=download?proposed.AttemptId??Guid.NewGuid().ToString("N"):proposed.AttemptId,AttemptGeneration=download?Math.Max(1,proposed.AttemptGeneration):proposed.AttemptGeneration};
             if(!download&&canceled&&current.State is not("Committing" or "Hydrating"))next=next with{State="Canceled",Error="已取消本轮冷占位更新。"};
-            SavePendingCore(db,tx,next);tx.Commit();return next;
+            SavePendingCore(db,tx,next);tx.Commit();PublishTaskCommit(db, [next.Id]);return next;
         }
     }
     /// <summary>快速创建发送前接纳不可逆阶段，取消后尚未接纳的项不会进入CFAPI。</summary>
@@ -114,7 +115,7 @@ public sealed partial class MountRepository
                 var current=ReadPendingCore(db,tx,id);if(current?.State!="Pending")continue;
                 SavePendingCore(db,tx,current with{State="Committing",ClassificationKnown=true});accepted.Add(id);
             }
-            tx.Commit();return accepted;
+            tx.Commit();PublishTaskCommit(db, accepted);return accepted;
         }
     }
     /// <summary>仅隐藏已结束且无恢复依赖的父历史，成员归属继续抑制内部卡片；不删除pending或快照。</summary>

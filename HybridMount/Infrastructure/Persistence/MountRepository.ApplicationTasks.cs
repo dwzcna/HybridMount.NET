@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting;
 using System.Text.Json;
 namespace HybridMount.Infrastructure.Persistence;
 
@@ -22,6 +22,7 @@ public sealed partial class MountRepository
                 command.Parameters.AddWithValue("$started",authenticated?(object)authenticatedFrom!.Value.ToString("O"):DBNull.Value);command.Parameters.AddWithValue("$finished",authenticated?(object)authenticatedUntil!.Value.ToString("O"):DBNull.Value);command.ExecuteNonQuery();
             }
             tx.Commit();
+            PublishTaskCommit(db, [task.Id], historyHint: task);
         }
     }
 }

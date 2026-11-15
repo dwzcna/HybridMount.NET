@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting.Tasks;
+using HybridMount.Models.Mounting.Tasks;
 using HybridMount.Models.Mounting;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -41,6 +41,7 @@ public sealed partial class MountRepository
         {
             using var db=Open();using var transaction=db.BeginTransaction();
             var created=new List<RemotePendingChange>();
+            var lifecycleIds = new HashSet<string>(StringComparer.Ordinal);
             // 当前事务内按批次捕获证据；不能只凭扫描开始时的内存影子吞掉本地变化或恢复任务。
             if(repeated is {Count:>0})
             {
@@ -71,7 +72,8 @@ public sealed partial class MountRepository
                 using var retire=db.CreateCommand();retire.Transaction=transaction;
                 retire.CommandText="UPDATE remote_pending SET json=json_set(json,'$.State','Superseded','$.Error',NULL) WHERE mount=$m AND scope=$s AND "+
                     (deletedPaths.Contains(path)?"path >= $p AND path < $end AND (path=$p OR path >= $start)":"path=$p")+" AND json_extract(json,'$.State') NOT IN ('Completed','Superseded','Committing','Hydrating')";
-                retire.Parameters.AddWithValue("$m",mount.ToString("N"));retire.Parameters.AddWithValue("$s",scope);retire.Parameters.AddWithValue("$p",path);retire.Parameters.AddWithValue("$start",path+"/");retire.Parameters.AddWithValue("$end",path+"0");retire.ExecuteNonQuery();
+                retire.Parameters.AddWithValue("$m",mount.ToString("N"));retire.Parameters.AddWithValue("$s",scope);retire.Parameters.AddWithValue("$p",path);retire.Parameters.AddWithValue("$start",path+"/");retire.Parameters.AddWithValue("$end",path+"0");retire.CommandText += " RETURNING id";
+                using (var retired = retire.ExecuteReader()) while (retired.Read()) lifecycleIds.Add(retired.GetString(0));
             }
             foreach(var shadow in changed)
             {
@@ -90,7 +92,9 @@ public sealed partial class MountRepository
             if(scan is not null)
             {using var done=db.CreateCommand();done.Transaction=transaction;done.CommandText="UPDATE remote_scans SET state='Completed' WHERE id=$id AND mount=$m AND scope=$s";done.Parameters.AddWithValue("$id",scan);done.Parameters.AddWithValue("$m",mount.ToString("N"));done.Parameters.AddWithValue("$s",scope);if(done.ExecuteNonQuery()!=1)throw new IOException("远端扫描身份丢失，未提交快照。");}
             if(detection is not null)AttachRemoteBatchCore(db,transaction,detection,created);
-            transaction.Commit();return created;
+            transaction.Commit();
+            PublishTaskCommit(db, lifecycleIds.Concat(created.Select(item => item.Id)), detection is null ? null : [detection.Id]);
+            return created;
         }
     }
     /// <summary>在同一提交事务内重验内存候选，避免扫描期间的本地上传／改名使旧索引错误吞掉远端事件。</summary>
@@ -108,7 +112,7 @@ public sealed partial class MountRepository
     /// <summary>提交阶段先持久化，重启仍可使用原快照和本地身份核对，不依赖任务历史重放。</summary>
     public void SaveRemotePending(RemotePendingChange pending)
     {
-        lock(_gate){using var db=Open();using var tx=db.BeginTransaction();SavePendingCore(db,tx,pending);tx.Commit();}
+        lock(_gate){using var db=Open();using var tx=db.BeginTransaction();SavePendingCore(db,tx,pending);tx.Commit();PublishTaskCommit(db, [pending.Id]);}
     }
     /// <summary>扫描与应用并行时，在同一事务内检查终态再保存；迟到准备不得复活被取代的事件。</summary>
     internal RemotePendingChange SaveRemotePendingCurrent(RemotePendingChange pending,bool retry=false,Func<RemotePendingChange,MountOperationSnapshot>? snapshot=null,MountEntry? present=null)
@@ -141,7 +145,7 @@ public sealed partial class MountRepository
                 using var history=db.CreateCommand();history.Transaction=tx;history.CommandText="INSERT INTO operations VALUES($id,$j) ON CONFLICT(id) DO UPDATE SET json=$j";
                 history.Parameters.AddWithValue("$id",pending.Id);history.Parameters.AddWithValue("$j",JsonSerializer.Serialize(snapshot(pending)));history.ExecuteNonQuery();
             }
-            tx.Commit();return pending;
+            tx.Commit();PublishTaskCommit(db, [pending.Id]);return pending;
         }
     }
     private static RemotePendingChange? ReadPendingCore(SqliteConnection db,SqliteTransaction transaction,string id)
@@ -167,7 +171,7 @@ public sealed partial class MountRepository
                 cmd.Parameters.AddWithValue("$v",entry.Version);cmd.Parameters.AddWithValue("$m",pending.MountId.ToString("N"));cmd.Parameters.AddWithValue("$id",entry.Id);
                 if(cmd.ExecuteNonQuery()!=1)throw new IOException("原生版本切换的索引身份丢失，保留恢复状态。");
             }
-            SavePendingCore(db,tx,pending);tx.Commit();
+            SavePendingCore(db,tx,pending);tx.Commit();PublishTaskCommit(db, [pending.Id]);
         }
     }
     // 本地映射采用OrdinalIgnoreCase；S3原始提示仍使用协议模块的精确对象键，不能把大小写变体误当同一个对象。

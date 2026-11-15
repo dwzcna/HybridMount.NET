@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Diagnostics;
+using HybridMount.Commons.Diagnostics;
 using HybridMount.Commons.Windows;
 using HybridMount.Helpers.Paths;
 using HybridMount.Models.Mounting.Tasks;
@@ -157,6 +157,7 @@ public sealed partial class MountManager : IAsyncDisposable
         return new PreviewLease(root.Gate);
     }
     /// <summary>任务名称及相对路径只用内存定义；不为每行重新查询SQLite。</summary>
+    internal HybridMount.Commons.Tasks.ITaskLifecycleSource TaskLifecycle => _repository;
     internal IReadOnlyDictionary<Guid,MountDefinition> TaskDefinitions=>_roots.ToDictionary(pair=>pair.Key,pair=>pair.Value.Definition);
     public IReadOnlyList<MountSnapshot> Mounts => _roots.Values.Select(Snapshot).OrderBy(item=>item.Definition.Name).ThenBy(item=>item.Definition.Id).ToArray();
     /// <summary>实际连接状态供页面启用操作；不把后台上传视为全页忙碌。</summary>

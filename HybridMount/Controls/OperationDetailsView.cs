@@ -1,4 +1,4 @@
-﻿using HybridMount.UI.Binding;
+using HybridMount.UI.Binding;
 using HybridMount.Commons.UI;
 using HybridMount.Helpers.Threading;
 using HybridMount.Models.Mounting;
@@ -27,9 +27,13 @@ public sealed class OperationDetailsView:UserControl,IDisposable
     public OperationDetailsView(TasksQueueService queue,IUIDispatcher dispatcher,string id)
     {
         _queue=queue;_id=id;
+        HorizontalAlignment=HorizontalAlignment.Stretch;HorizontalContentAlignment=HorizontalAlignment.Stretch;
         var body=new StackPanel{Spacing=12};body.Children.Add(_summary);body.Children.Add(_empty);body.Children.Add(_runs);var historyPaging=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};historyPaging.Children.Add(_newer);historyPaging.Children.Add(_older);body.Children.Add(historyPaging);body.Children.Add(_members);
         var paging=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};paging.Children.Add(_previous);paging.Children.Add(_more);body.Children.Add(paging);
-        Content=new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+        // 详情内容占满对话框可用宽度；横向受限后文字换行，保留唯一纵向滚动区域。
+        Content=new ScrollViewer{Content=body,HorizontalContentAlignment=HorizontalAlignment.Stretch,
+            HorizontalScrollMode=ScrollMode.Disabled,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         _pump=new(dispatcher,page=>queue.ReadOperationDetails(id,page.Members,page.Runs),Apply,error=>_summary.Text=error.Message);
         _more.Click+=(_,_)=>{_offset+=256;_pump.Request((_offset,_runOffset));};_previous.Click+=(_,_)=>{_offset=Math.Max(0,_offset-256);_pump.Request((_offset,_runOffset));};
         _older.Click+=(_,_)=>{_runOffset+=64;_pump.Request((_offset,_runOffset));};_newer.Click+=(_,_)=>{_runOffset=Math.Max(0,_runOffset-64);_pump.Request((_offset,_runOffset));};
@@ -52,12 +56,14 @@ public sealed class OperationDetailsView:UserControl,IDisposable
         {
             if(!_groups.TryGetValue(run.Id,out var group))
             {
-                var panel=new StackPanel{Spacing=10};var expander=new Expander{Content=panel,IsExpanded=run.Id==value.Runs[0].Id,HorizontalContentAlignment=HorizontalAlignment.Stretch};
+                var panel=new StackPanel{Spacing=10};var expander=new Expander{Content=panel,IsExpanded=run.Id==value.Runs[0].Id,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Stretch};
                 group=(expander,panel);_groups.Add(run.Id,group);
             }
             var desired=value.Runs.ToList().FindIndex(item=>item.Id==run.Id);var current=_runs.Children.IndexOf(group.Expander);
             if(current!=desired){if(current>=0)_runs.Children.RemoveAt(current);_runs.Children.Insert(desired,group.Expander);}
-            group.Expander.Header=string.Format(System.Globalization.CultureInfo.CurrentCulture,UILanguageService.Messages.GetString("OperationDetailsAttempts",UILanguageService.ResourceCulture)!,run.Attempt,run.StartedUtc.ToLocalTime().ToString("g"));
+            if(group.Expander.Header is not TextBlock header)
+            {header=new TextBlock{TextWrapping=TextWrapping.Wrap};group.Expander.Header=header;}
+            header.Text=string.Format(System.Globalization.CultureInfo.CurrentCulture,UILanguageService.Messages.GetString("OperationDetailsAttempts",UILanguageService.ResourceCulture)!,run.Attempt,run.StartedUtc.ToLocalTime().ToString("g"));
             foreach(var step in run.Steps)
             {
                 if(!_steps.TryGetValue((run.Id,step.Ordinal),out var row))

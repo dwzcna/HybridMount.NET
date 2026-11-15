@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Protocols;
+using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Files.Content;
@@ -168,8 +168,7 @@ public sealed partial class MountManager
         }
     }
     private IReadOnlyList<RemotePendingChange> RemotePendingFor(Runtime root)=>_repository.AllRemotePending(root.Definition.Id);
-    private static MountOperationSnapshot RemoteTask(RemotePendingChange change,long bytes=0)=>new(change.Id,change.DownloadTask?"download":"remoteUpdate",change.State=="Pending"?"Queued":change.State,
-        change.State=="Completed"?1:0,1,change.Error is null?[]:[new(change.Path,change.State,change.Error)],change.Error,change.MountId,change.Path,bytes,change.Entry?.Size??0,change.Entry?.IsDirectory,change.Path){AttemptId=change.AttemptId};
+    private static MountOperationSnapshot RemoteTask(RemotePendingChange change,long bytes=0)=>RemoteTaskSnapshot.Create(change,bytes);
     private RemotePendingChange RequireRemotePending(string id)=>_repository.FindRemotePending(id)??throw new IOException("远端事件身份已丢失，保留当前阶段等待核对。");
     private RemotePendingChange SaveRemote(RemotePendingChange pending,bool retry=false,Exception? failure=null,MountEntry? present=null)
     {
