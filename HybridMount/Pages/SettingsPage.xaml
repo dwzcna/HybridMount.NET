@@ -1,7 +1,7 @@
 <Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.SettingsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="using:HybridMount.Controls" xmlns:views="using:HybridMount.Views">
   <Grid Style="{StaticResource SharedPageGridStyle}" RowSpacing="16">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-    <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/SettingsPageTextBlockSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockSettings"/>
+    <TextBlock Style="{StaticResource PageTitleStyle}" x:Uid="/Strings/SettingsPageTextBlockSettings" loc:UserInterface.ResourceId="/Strings/SettingsPageTextBlockSettings"/>
     <ScrollViewer IsEnabled="{x:Bind ViewModel.CanEditSettings,Mode=OneWay}" x:Name="SettingsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
       <!-- 视口始终拉伸，单列将宽屏余量留在右侧；避免受限宽度内容被默认居中后偏移。 -->
       <Grid Padding="0,0,8,8" HorizontalAlignment="Stretch" VerticalAlignment="Top">

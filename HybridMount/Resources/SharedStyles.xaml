@@ -113,18 +113,30 @@
                 <Setter Property="HorizontalAlignment" Value="Right"/>
                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
                 <Setter Property="DefaultLabelPosition" Value="Right"/>
+                <Setter Property="helpers:PageCommandBarSizing.Enabled" Value="True"/>
                 <Setter Property="IsDynamicOverflowEnabled" Value="True"/>
                 <Setter Property="Background" Value="Transparent"/>
             </Style>
+            <x:Double x:Key="PageToolbarDefaultHeight">33</x:Double>
             <!-- 外层圆角底板不替换CommandBar模板，弹出菜单继续使用独立原生Popup。 -->
             <Style x:Key="PageCommandGroupStyle" TargetType="Border">
+                <Setter Property="VerticalAlignment" Value="Top"/>
                 <Setter Property="Background" Value="{ThemeResource PageCommandGroupBackgroundBrush}"/>
                 <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
                 <Setter Property="HorizontalAlignment" Value="Right"/>
             </Style>
             <Style x:Key="PageSegmentedStyle" TargetType="toolkit:Segmented">
+                <Setter Property="VerticalAlignment" Value="Top"/>
                 <Setter Property="Background" Value="{ThemeResource PageCommandGroupBackgroundBrush}"/>
                 <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}"/>
+            </Style>
+            <Style x:Key="PageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+                <Setter Property="MinHeight" Value="40"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="PageToolbarStyle" TargetType="Grid">
+                <Setter Property="Margin" Value="0,16,0,0"/>
+                <Setter Property="VerticalAlignment" Value="Top"/>
             </Style>
             <Style x:Key="SharedPageGridStyle" TargetType="Grid"><Setter Property="Padding" Value="24"/><Setter Property="helpers:PageLayout.FullWidth" Value="True"/><Setter Property="helpers:PageLayout.Enabled" Value="True"/></Style>
             <Style x:Key="CardBorderStyle" TargetType="Border">

@@ -1,4 +1,4 @@
-<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.TasksPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:controls="using:HybridMount.Controls" xmlns:mounts="using:HybridMount.Models.Mounting" xmlns:vm="using:HybridMount.ViewModels" xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+﻿<Page xmlns:loc="using:HybridMount.Helpers.UI" xmlns:helpers="using:HybridMount.Helpers.UI" x:Class="HybridMount.Pages.TasksPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="using:HybridMount.Views" xmlns:controls="using:HybridMount.Controls" xmlns:mounts="using:HybridMount.Models.Mounting" xmlns:vm="using:HybridMount.ViewModels" xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
     <Page.Resources>
         <ResourceDictionary>
             <!-- 同色底仅8%不透明度；高对比度使用系统选择颜色，不叠加彩色底。 -->
@@ -54,13 +54,11 @@
         </ResourceDictionary>
     </Page.Resources>
     <Grid helpers:PageLayout.FullWidth="True" helpers:PageMessagePresentation.Message="{x:Bind ViewModel.StatusMessage}" Style="{StaticResource SharedPageGridStyle}">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <StackPanel Spacing="8">
-            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" x:Uid="/Strings/TasksPageTextBlockTasks" loc:UserInterface.ResourceId="/Strings/TasksPageTextBlockTasks"/>
-            <TextBlock Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
-        </StackPanel>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <TextBlock Style="{StaticResource PageTitleStyle}" x:Uid="/Strings/TasksPageTextBlockTasks" loc:UserInterface.ResourceId="/Strings/TasksPageTextBlockTasks"/>
+            <TextBlock Grid.Row="2" Margin="0,12,0,0" Text="{x:Bind ViewModel.IssueViewTitle,Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind helpers:TextVisibility.ForFlag(ViewModel.HasIssueFilter),Mode=OneWay}"/>
         <!-- 筛选始终靠左，动作靠右；筛选仅收起标签，动作使用系统溢出菜单。 -->
-        <Grid x:Name="TaskToolbar" Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="12">
+        <Grid x:Name="TaskToolbar" Grid.Row="1" Style="{StaticResource PageToolbarStyle}" ColumnSpacing="12">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <StackPanel x:Name="TaskFilters" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                 <toolkit:Segmented Style="{StaticResource PageSegmentedStyle}" SelectedIndex="{x:Bind ViewModel.SelectedTaskFilter,Mode=TwoWay}" HorizontalAlignment="Left">
@@ -86,7 +84,7 @@
                 <controls:TaskHistoryButton BadgeGlyph="&#xEA81;" Click="ClearAll" IsEnabled="{x:Bind ViewModel.CanClearAll,Mode=OneWay}" x:Uid="/Strings/TasksClearAll" loc:UserInterface.ResourceId="/Strings/TasksClearAll"/>
             </CommandBar></Border>
         </Grid>
-        <ListView x:Name="JobList" Grid.Row="2" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" x:Uid="/Strings/TasksPageJobList" loc:UserInterface.ResourceId="/Strings/TasksPageJobList">
+        <ListView x:Name="JobList" Grid.Row="3" Margin="0,16,0,0" ItemsSource="{x:Bind ViewModel.Operations}" SelectionMode="Single" ItemContainerStyleSelector="{StaticResource TaskStyles}" x:Uid="/Strings/TasksPageJobList" loc:UserInterface.ResourceId="/Strings/TasksPageJobList">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="vm:TaskListItem">
                     <Grid helpers:TaskAppearance.Kind="{x:Bind IssueKind,Mode=OneWay}" Padding="8" RowSpacing="4" ColumnSpacing="16" loc:UserInterface.Source="{x:Bind}" loc:UserInterface.ToolTipPath="IssueDetails">
@@ -104,6 +102,6 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
-        <TextBlock Grid.Row="2" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Operations.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" x:Uid="/Strings/TasksPageTextBlockNoTasksMatchTheCurrentFilters" loc:UserInterface.ResourceId="/Strings/TasksPageTextBlockNoTasksMatchTheCurrentFilters"/>
+        <TextBlock Grid.Row="3" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind helpers:TextVisibility.ForEmptyCount(ViewModel.Operations.Count),Mode=OneWay}" AutomationProperties.LiveSetting="Polite" x:Uid="/Strings/TasksPageTextBlockNoTasksMatchTheCurrentFilters" loc:UserInterface.ResourceId="/Strings/TasksPageTextBlockNoTasksMatchTheCurrentFilters"/>
     </Grid>
 </Page>
