@@ -51,7 +51,7 @@ public sealed partial class HomePage : Page, IDisposable
         EntryCards.ColumnSpacing = narrow ? 0 : 16;
         EntryCards.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetColumn(LogsCard, narrow ? 0 : 1); Grid.SetRow(LogsCard, narrow ? 1 : 0);
-        Grid.SetRow(MountCard, narrow ? 2 : 1);
+        Grid.SetRow(SettingsCard, narrow ? 2 : 1);
         if (narrow && EntryCards.RowDefinitions.Count == 2) EntryCards.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         else if (!narrow && EntryCards.RowDefinitions.Count == 3) EntryCards.RowDefinitions.RemoveAt(2);
     }

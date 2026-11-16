@@ -110,6 +110,7 @@
             <x:Double x:Key="ActionIconSize">20</x:Double>
             <x:Double x:Key="ActionIconSpacing">8</x:Double>
             <x:Double x:Key="ActionGroupSpacing">12</x:Double>
+            <x:Double x:Key="CardGroupSpacing">16</x:Double>
             <!-- 主条始终透出外层同色底板；只在当前CommandBar内覆盖展开状态使用的资源。 -->
             <SolidColorBrush x:Key="PageCommandBarMainBackgroundBrush" Color="Transparent"/>
             <!-- 普通操作共用原生模板与20DIP图标规则；对齐留在使用位置，每个按钮独立交互。 -->

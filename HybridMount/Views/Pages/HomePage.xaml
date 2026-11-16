@@ -3,28 +3,28 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <StackPanel Orientation="Horizontal" Spacing="16"><Image Source="ms-appx:///Assets/HybridMount.png" Width="40" Height="40"/><TextBlock Text="HybridMount.NET" Style="{StaticResource PageTitleStyle}"/></StackPanel>
     <ScrollViewer x:Name="HomeScroll" Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" HorizontalContentAlignment="Stretch">
-      <StackPanel x:Name="HomeContent" Spacing="24" HorizontalAlignment="Stretch" Padding="0,0,8,8">
+      <StackPanel x:Name="HomeContent" Spacing="{StaticResource CardGroupSpacing}" HorizontalAlignment="Stretch" Padding="0,0,8,8">
         <Border x:Name="ReadyCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
           <TextBlock FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockOnDemandMountsAreReady" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockOnDemandMountsAreReady"/>
           <TextBlock Text="{x:Bind ViewModel.VersionText,Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel></Border>
-        <Grid x:Name="EntryCards" ColumnSpacing="16" RowSpacing="16" SizeChanged="EntryCardsSizeChanged">
+        <Grid x:Name="EntryCards" ColumnSpacing="16" RowSpacing="{StaticResource CardGroupSpacing}" SizeChanged="EntryCardsSizeChanged">
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <Border x:Name="SettingsCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
-            <FontIcon Glyph="&#xE713;" FontSize="28" HorizontalAlignment="Left"/>
-            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockCustomizeTheAppearance" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockCustomizeTheAppearance"/>
-            <Button Style="{StaticResource ActionButtonStyle}" Click="OpenSettings" x:Uid="/Strings/HomeOpenSettings" loc:UserInterface.ResourceId="/Strings/HomeOpenSettings" HorizontalAlignment="Right"><Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE713;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/HomeOpenSettingsText" loc:UserInterface.ResourceId="/Strings/HomeOpenSettingsText"/></Grid></Button>
+          <Border x:Name="MountCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+            <FontIcon Glyph="&#xE8B7;" FontSize="28" HorizontalAlignment="Left"/>
+            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomeManageHeading" loc:UserInterface.ResourceId="/Strings/HomeManageHeading"/>
+            <Button x:Name="ManageMountsButton" Style="{StaticResource ActionButtonStyle}" Click="OpenMounts" x:Uid="/Strings/HomeManage" loc:UserInterface.ResourceId="/Strings/HomeManage" HorizontalAlignment="Right"><Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8B7;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/HomeManageText" loc:UserInterface.ResourceId="/Strings/HomeManageText"/></Grid></Button>
           </StackPanel></Border>
           <Border x:Name="LogsCard" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
             <FontIcon Glyph="&#xE8A5;" FontSize="28" HorizontalAlignment="Left"/>
             <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockViewRuntimeRecords" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockViewRuntimeRecords"/>
             <Button Style="{StaticResource ActionButtonStyle}" Click="OpenLogs" x:Uid="/Strings/HomeOpenLogs" loc:UserInterface.ResourceId="/Strings/HomeOpenLogs" HorizontalAlignment="Right"><Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8A5;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/HomeOpenLogsText" loc:UserInterface.ResourceId="/Strings/HomeOpenLogsText"/></Grid></Button>
           </StackPanel></Border>
-          <Border x:Name="MountCard" Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
-            <FontIcon Glyph="&#xE8B7;" FontSize="28" HorizontalAlignment="Left"/>
-            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomeManageHeading" loc:UserInterface.ResourceId="/Strings/HomeManageHeading"/>
-            <Button x:Name="ManageMountsButton" Style="{StaticResource ActionButtonStyle}" Click="OpenMounts" x:Uid="/Strings/HomeManage" loc:UserInterface.ResourceId="/Strings/HomeManage" HorizontalAlignment="Right"><Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE8B7;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/HomeManageText" loc:UserInterface.ResourceId="/Strings/HomeManageText"/></Grid></Button>
+          <Border x:Name="SettingsCard" Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
+            <FontIcon Glyph="&#xE713;" FontSize="28" HorizontalAlignment="Left"/>
+            <TextBlock FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" x:Uid="/Strings/HomePageTextBlockCustomizeTheAppearance" loc:UserInterface.ResourceId="/Strings/HomePageTextBlockCustomizeTheAppearance"/>
+            <Button Style="{StaticResource ActionButtonStyle}" Click="OpenSettings" x:Uid="/Strings/HomeOpenSettings" loc:UserInterface.ResourceId="/Strings/HomeOpenSettings" HorizontalAlignment="Right"><Grid ColumnSpacing="{StaticResource ActionIconSpacing}"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><FontIcon Glyph="&#xE713;" Style="{StaticResource ActionIconStyle}"/><TextBlock Grid.Column="1" Style="{StaticResource ActionTextStyle}" x:Uid="/Strings/HomeOpenSettingsText" loc:UserInterface.ResourceId="/Strings/HomeOpenSettingsText"/></Grid></Button>
           </StackPanel></Border>
         </Grid>
         <Border x:Name="TaskOverviewCard" Style="{StaticResource CardBorderStyle}" Padding="24"><StackPanel Spacing="12">
