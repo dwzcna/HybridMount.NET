@@ -25,6 +25,8 @@ try {
         $stream = $entries[$entryName].Open(); $buffer = [IO.MemoryStream]::new()
         try { $stream.CopyTo($buffer); return ,$buffer.ToArray() } finally { $stream.Dispose(); $buffer.Dispose() }
     }
+    . (Join-Path $PSScriptRoot 'LicensePayload.ps1')
+    Assert-LicensePayload -ReadBytes {param($name) if(-not $entries.ContainsKey($name)){return $null};Read-Bytes $name}
     [xml]$manifest = [Text.Encoding]::UTF8.GetString((Read-Bytes 'AppxManifest.xml')).TrimStart([char]0xfeff)
     [xml]$props = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\Directory.Build.props') -Raw
     $version = [string]$props.Project.PropertyGroup[0].Version

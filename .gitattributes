@@ -1,0 +1,7 @@
+# 本项目许可使用LF；第三方原文保留来源字节，不改写上游的空格或换行。
+/LICENSE text eol=lf
+/HybridMount/ThirdParty/Resolved/** -text -whitespace
+/HybridMount/ThirdParty/AWSSDK/*.txt -text -whitespace
+/HybridMount/ThirdParty/WebDAVClient/*.txt -text -whitespace
+/HybridMount/ThirdParty/nlohmann/*.txt -text -whitespace
+/HybridMount.Stock/ThirdParty/LICENSE.txt -text -whitespace

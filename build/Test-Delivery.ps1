@@ -17,6 +17,8 @@ $required=@('Privacy/ChineseSimplified.md','Privacy/ChineseTraditional.md','Priv
 foreach($language in @('zh-CN','en-US','zh-HK')){$required+="$language/HybridMount.Ext.resources.dll.mui"}
 $required+=@('en-US/HybridMount.resources.dll','zh-HK/HybridMount.resources.dll')
 foreach($file in $required){if(-not(Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf)){throw "交付物缺少：$file"}}
+. (Join-Path $PSScriptRoot 'LicensePayload.ps1')
+Assert-LicensePayload -ReadBytes {param($name) $file=Join-Path $root $name;if(-not(Test-Path -LiteralPath $file -PathType Leaf)){return $null};[IO.File]::ReadAllBytes($file)}
 foreach($obsolete in @('HybridMount.NET.exe','HybridMount.NET.dll')){if(Test-Path -LiteralPath (Join-Path $root $obsolete)){throw '交付物夹带旧主程序。'}}
 $runtime=Get-Content (Join-Path $root 'HybridMount.runtimeconfig.json') -Raw|ConvertFrom-Json
 $frameworks=@($runtime.runtimeOptions.framework)+@($runtime.runtimeOptions.frameworks)

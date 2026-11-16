@@ -1,37 +1,62 @@
-HybridMount.NET resolved dependency notices (0.0.25.0)
-Source: NuGet restore assets, nuspec copyright/license metadata, and package-provided license / NOTICE texts.
-Build-only dependencies are explicitly identified. This list does not imply every API is used.
-Full redistributes .NET and Windows App Runtime; Small requires them separately.
+HybridMount.NET resolved dependency notices (0.0.25.2)
+Source: actual restore assets and nuspec metadata; original texts in Resolved/ and existing component directories.
+MIT for original project code only. See LICENSE and ThirdParty/Provenance.txt.
+Full redistributes .NET 10.0.12 and Windows App Runtime; Small externalizes shared runtimes.
 
-AWSSDK.Core/4.0.102.14 | Apache-2.0 | 
-AWSSDK.S3/4.0.104.7 | Apache-2.0 | 
-AWSSDK.SQS/4.0.100.21 | Apache-2.0 | 
-CommunityToolkit.Common/8.2.1 | MIT | (c) .NET Foundation and Contributors. All rights reserved.
-CommunityToolkit.Mvvm/8.4.0 | MIT | (c) .NET Foundation and Contributors. All rights reserved.
-CommunityToolkit.WinUI.Controls.Segmented/8.2.251219 | MIT | (c) .NET Foundation and Contributors.  All rights reserved.
-CommunityToolkit.WinUI.Extensions/8.2.251219 | MIT | (c) .NET Foundation and Contributors.  All rights reserved.
-Microsoft.Data.Sqlite.Core/10.0.12 | MIT | © Microsoft Corporation. All rights reserved.
-Microsoft.Data.Sqlite/10.0.12 | MIT | © Microsoft Corporation. All rights reserved.
-Microsoft.Web.WebView2/1.0.3719.77 | LICENSE.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.Windows.AI.MachineLearning/2.1.74 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.Windows.SDK.BuildTools.MSIX/1.7.251221100 | sdk_license.txt | © Microsoft Corporation. All rights reserved. | build tools only, not redistributed as runtime payload
-Microsoft.Windows.SDK.BuildTools/10.0.28000.2705 | https://aka.ms/WinSDKLicenseURL | © Microsoft Corporation. All rights reserved. | build tools only, not redistributed as runtime payload
-Microsoft.WindowsAppSDK.AI/2.5.5 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.Base/2.0.4 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.DWrite/2.1.0 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.Foundation/2.3.12 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.InteractiveExperiences/2.1.9 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.ML/2.1.94 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.Runtime/2.5.1 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.Search/2.5.5 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.Widgets/2.0.5 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK.WinUI/2.3.9 | license.txt | © Microsoft Corporation. All rights reserved.
-Microsoft.WindowsAppSDK/2.5.1 | license.txt | © Microsoft Corporation. All rights reserved.
-SQLitePCLRaw.bundle_e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
-SQLitePCLRaw.core/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
-SQLitePCLRaw.lib.e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
-SQLitePCLRaw.provider.e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
-System.Numerics.Tensors/9.0.0 | MIT | © Microsoft Corporation. All rights reserved.
-WebDAVClient/3.3.0 | MIT | Copyright © 2026 Sagui Itay
-Microsoft.NETCore.App.Runtime.win-arm64/10.0.12 | package-provided .NET runtime license and notices
-Microsoft.NETCore.App.Runtime.win-x64/10.0.12 | package-provided .NET runtime license and notices
+Application and build dependency graph:
+AWSSDK.Core/4.0.102.14 | Apache-2.0 |  | application dependency; actual Full/Small payload follows SDK publish rules
+AWSSDK.S3/4.0.104.7 | Apache-2.0 |  | application dependency; actual Full/Small payload follows SDK publish rules
+AWSSDK.SQS/4.0.100.21 | Apache-2.0 |  | application dependency; actual Full/Small payload follows SDK publish rules
+CommunityToolkit.Common/8.2.1 | MIT | (c) .NET Foundation and Contributors. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+CommunityToolkit.Mvvm/8.4.0 | MIT | (c) .NET Foundation and Contributors. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+CommunityToolkit.WinUI.Controls.Segmented/8.2.251219 | MIT | (c) .NET Foundation and Contributors.  All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+CommunityToolkit.WinUI.Extensions/8.2.251219 | MIT | (c) .NET Foundation and Contributors.  All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.Data.Sqlite/10.0.12 | MIT | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.Data.Sqlite.Core/10.0.12 | MIT | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.Web.WebView2/1.0.3719.77 | LICENSE.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.Windows.AI.MachineLearning/2.1.74 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.Windows.SDK.BuildTools/10.0.28000.2705 | https://aka.ms/WinSDKLicenseURL | © Microsoft Corporation. All rights reserved. | build-only; no tool binary redistributed
+Microsoft.Windows.SDK.BuildTools.MSIX/1.7.251221100 | sdk_license.txt | © Microsoft Corporation. All rights reserved. | build-only; no tool binary redistributed
+Microsoft.WindowsAppSDK/2.5.1 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.AI/2.5.5 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.Base/2.0.4 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.DWrite/2.1.0 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.Foundation/2.3.12 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.InteractiveExperiences/2.1.9 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.ML/2.1.94 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.Runtime/2.5.1 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.Search/2.5.5 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.Widgets/2.0.5 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+Microsoft.WindowsAppSDK.WinUI/2.3.9 | license.txt | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+SQLitePCLRaw.bundle_e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC | application dependency; actual Full/Small payload follows SDK publish rules
+SQLitePCLRaw.core/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC | application dependency; actual Full/Small payload follows SDK publish rules
+SQLitePCLRaw.lib.e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC | application dependency; actual Full/Small payload follows SDK publish rules
+SQLitePCLRaw.provider.e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC | application dependency; actual Full/Small payload follows SDK publish rules
+System.Numerics.Tensors/9.0.0 | MIT | © Microsoft Corporation. All rights reserved. | application dependency; actual Full/Small payload follows SDK publish rules
+WebDAVClient/3.3.0 | MIT | Copyright © 2026 Sagui Itay | application dependency; actual Full/Small payload follows SDK publish rules
+
+Development/test graph only (no test binaries in application deliveries):
+Microsoft.CodeCoverage/18.0.1 | MIT | © Microsoft Corporation. All rights reserved. | development/test only
+Microsoft.NET.Test.Sdk/18.0.1 | MIT | © Microsoft Corporation. All rights reserved. | development/test only
+Microsoft.TestPlatform.ObjectModel/18.0.1 | MIT | © Microsoft Corporation. All rights reserved. | development/test only
+Microsoft.TestPlatform.TestHost/18.0.1 | MIT | © Microsoft Corporation. All rights reserved. | development/test only
+Newtonsoft.Json/13.0.3 | MIT | Copyright © James Newton-King 2008 | development/test only
+xunit/2.9.3 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+xunit.abstractions/2.0.3 | Apache-2.0 (original nuspec license URL; xUnit official upstream license) |  | development/test only
+xunit.analyzers/1.18.0 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+xunit.assert/2.9.3 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+xunit.core/2.9.3 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+xunit.extensibility.core/2.9.3 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+xunit.extensibility.execution/2.9.3 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+xunit.runner.visualstudio/3.1.5 | Apache-2.0 | Copyright (C) .NET Foundation | development/test only
+
+Runtime, native source, and toolchain:
+Microsoft.NETCore.App.Runtime.win-x64/10.0.12 | original runtime LICENSE.TXT and THIRD-PARTY-NOTICES.TXT
+Microsoft.NETCore.App.Runtime.win-arm64/10.0.12 | original runtime LICENSE.TXT and THIRD-PARTY-NOTICES.TXT
+Microsoft.NETCore.App.Host/10.0.12 | .NET apphost in Full and Small; .NET terms/notices retained
+nlohmann/json/3.12.0 | MIT | Stock/ThirdParty and packaged ThirdParty/nlohmann
+SQLite core/3.53.3 | public domain | actual e_sqlite3 build; wrapper package version is 2.1.12
+MSVC/14.51.36231 | licensed Visual Studio static runtime object redistribution | native /MT
+Windows SDK/10.0.26100.0 | development headers/import libraries/tools; system DLLs not copied
+dotnet SDK/10.0.401 | development/build only; SDK not redistributed
+Windows 11 / CFAPI / Win32 / Segoe fonts | OS prerequisite; no system font files redistributed

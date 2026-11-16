@@ -1,0 +1,48 @@
+HybridMount.NET third-party source and redistribution notes (0.0.25.2)
+
+The MIT LICENSE applies to original HybridMount.NET code and documentation.
+It does not relicense dependencies, Microsoft binaries, system fonts, or third-party assets.
+Exact resolved versions and development-only scope are in Dependencies.txt.
+
+Resolved/<id>/<version> retains original NuGet license and NOTICE documents.
+For packages declaring MIT or Apache-2.0 without a license file, License.txt
+retains the declared terms and available nuspec copyright. Supplied original
+texts are not rewritten or translated.
+
+AWS SDK Core 4.0.102.14, S3 4.0.104.7, SQS 4.0.100.21: Apache-2.0.
+Existing AWSSDK/License.txt and Notice.txt remain. Additional unmodified official
+upstream texts are in Resolved/AWSSDK.Core/4.0.102.14/UPSTREAM-*.txt, from:
+https://github.com/aws/aws-sdk-net/tree/80697dc1074776fd534d331cfa817f6741b32556
+This is a recorded upstream snapshot, not a claim that these files were in those nupkg archives.
+Apache patent grants, patent-litigation termination, NOTICE, and trademark limits apply.
+
+SQLitePCLRaw wrapper/build packages 2.1.12: Apache-2.0. Original NOTICE source:
+https://github.com/ericsink/SQLitePCL.raw/blob/v2.1.12/NOTICE.TXT
+SQLite core: public domain, https://www.sqlite.org/copyright.html
+Actual e_sqlite3.dll payload reports SQLite 3.53.3, source ID:
+2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62
+Both architecture DLLs match the nupkg entries and contain that source ID.
+Optional components in aggregate notices are not proof that they are linked.
+
+WebDAVClient 3.3.0 is MIT: keep its exact LICENSE and provenance NOTICE.
+Historical CC0 and the archived combined MIT/Apache file are not a current dual-license offer.
+nlohmann/json 3.12.0 is MIT: the vendored header and complete license remain.
+
+.NET runtime 10.0.12 original license and notices are retained for both architectures.
+Full includes .NET and Windows App Runtime; Small requires shared runtimes separately
+but still contains the .NET apphost and SDK-selected managed/bootstrap files.
+Windows App SDK and WinUI binary redistribution follows the supplied Microsoft terms.
+Source project MIT declarations do not replace these binary terms, which require
+significant application functionality, protection of Microsoft and notices, and
+preserve trademark restrictions and third-party exceptions.
+SDK notices include Eigen/MPL-2.0 and a source-code access route. References to GPL
+as an MPL secondary-license definition do not make this application GPL-licensed.
+
+WebView2 SDK license/NOTICE are retained. A separately installed WebView2 Runtime
+has its own terms; no MIT grant is made for that runtime.
+MSVC static runtime object code (/MT) follows Visual Studio redistribution terms:
+https://learn.microsoft.com/en-us/visualstudio/releases/2026/redistribution
+https://visualstudio.microsoft.com/license-terms/vs2026-ga-visualcpp-v14-redist-runtime/
+Build/test tools are not redistributed as application binaries. Windows system APIs
+and installed Segoe icon fonts are prerequisites; no system font files are shipped.
+No third-party rights are replaced by the repository MIT license or this inventory.

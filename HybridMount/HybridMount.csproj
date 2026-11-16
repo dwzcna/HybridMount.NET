@@ -41,6 +41,7 @@
 		<PackageReference Include="WebDAVClient" />
 	</ItemGroup>
 	<ItemGroup>
+		<Content Include="..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="..\docs\store\Privacy.zh-CN.md" Link="Privacy\ChineseSimplified.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\docs\store\Privacy.zh-HK.md" Link="Privacy\ChineseTraditional.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\docs\store\Privacy.en-US.md" Link="Privacy\English.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

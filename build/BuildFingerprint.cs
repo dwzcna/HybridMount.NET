@@ -43,6 +43,8 @@ namespace HybridMount.BuildTools
                 if (Directory.Exists(Path.Combine(root, folder))) Walk(Path.Combine(root, folder), paths, true);
             foreach (var path in Directory.EnumerateFiles(root))
                 if (new[] { ".props", ".targets", ".slnx", ".json", ".config" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)) paths.Add(path);
+            var license = Path.Combine(root, "LICENSE");
+            if (File.Exists(license)) paths.Add(license);
             return paths.ToArray();
         }
         private static void Walk(string folder, List<string> result, bool source)

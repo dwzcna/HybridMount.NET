@@ -1,6 +1,8 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.25.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.25.2**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+
+本项目原创代码与文档采用 [MIT 许可证](LICENSE)，作者 dwzcn（2026）。第三方组件、运行时和系统资源继续使用各自许可；准确版本及分发条件见[第三方清单](HybridMount/ThirdParty/Dependencies.txt)和[许可核对矩阵](docs/ThirdParty-Licenses.md)。Full／Small 的 MSIX、目录和 ZIP 均保留本项目 LICENSE 与第三方原始声明。
 
 MSIX 当前使用 `RyleD.HybridMount.NET` 包身份，发布者为 RyleD。配置、实例、管道和同步根按产品及运行模式隔离；应用不扫描已安装旧包，也不因旧包存在而弹窗拦截。请先保护文件正文、处理未决任务并导出 `.hmxbk` 后再切换产品；配置备份不包含文件正文。
 
