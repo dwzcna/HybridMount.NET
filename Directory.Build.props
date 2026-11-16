@@ -1,6 +1,10 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.24.0</Version>
+    <Version>0.0.25.0</Version>
+    <HybridMountPackageName>RyleD.HybridMount.NET</HybridMountPackageName>
+    <HybridMountPublisher>CN=B14891C7-3483-4FD8-AC49-EA066227CC77</HybridMountPublisher>
+    <HybridMountPublisherDisplayName>RyleD</HybridMountPublisherDisplayName>
+    <HybridMountDistributionChannel Condition="'$(HybridMountDistributionChannel)' == ''">Sideload</HybridMountDistributionChannel>
     <Configurations>Debug;Release</Configurations>
     <InformationalVersion>$(Version)</InformationalVersion>
     <BinaryVersion>$(Version)</BinaryVersion>
@@ -27,7 +31,7 @@
     <HybridMountShellProfile Condition="'$(HybridMountShellProfile)' == ''">MenusAndThumbnails</HybridMountShellProfile>
     <HybridMountDeployment Condition="'$(HybridMountDeployment)' == '' and ('$(_HybridMountKnownProfile)' == 'true' or '$(WindowsPackageType)' == 'None')">Unpackaged</HybridMountDeployment>
     <HybridMountDeployment Condition="'$(HybridMountDeployment)' == ''">Packaged</HybridMountDeployment>
-    <BaseIntermediateOutputPath>obj\$(Platform)\$(Configuration)\$(HybridMountDeployment)\$(HybridMountRuntimeMode)\$(HybridMountShellProfile)\$(HybridMountBuildPurpose)\</BaseIntermediateOutputPath>
+    <BaseIntermediateOutputPath>obj\$(Platform)\$(Configuration)\$(HybridMountDeployment)\$(HybridMountRuntimeMode)\$(HybridMountShellProfile)\$(HybridMountDistributionChannel)\$(HybridMountPackageName)\$(HybridMountBuildPurpose)\</BaseIntermediateOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'HybridMount.Tests' and '$(HybridMountTestFixtures)' != '' and '$(HybridMountTestFixtures)' != 'Full'">
     <BaseIntermediateOutputPath>obj\$(Platform)\$(Configuration)\Fixtures\$(HybridMountTestFixtures)\</BaseIntermediateOutputPath>

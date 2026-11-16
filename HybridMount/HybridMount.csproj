@@ -41,7 +41,10 @@
 		<PackageReference Include="WebDAVClient" />
 	</ItemGroup>
 	<ItemGroup>
-		<Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+		<Content Include="..\docs\store\Privacy.zh-CN.md" Link="Privacy\ChineseSimplified.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\docs\store\Privacy.zh-HK.md" Link="Privacy\ChineseTraditional.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\docs\store\Privacy.en-US.md" Link="Privacy\English.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="Assets\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="ThirdParty\**\*.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
 		<Content Include="..\HybridMount.Stock\bin\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Condition="'$(DesignTimeBuild)' != 'true'" Link="HybridMount.Stock.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

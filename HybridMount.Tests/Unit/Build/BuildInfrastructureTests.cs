@@ -44,6 +44,21 @@ public sealed class BuildInfrastructureTests
         });
     }
     [Fact]
+    public void Generated_app_packages_do_not_become_source_inputs()
+    {
+        WithArea(area =>
+        {
+            var source = Path.Combine(area, "HybridMount"); Directory.CreateDirectory(source);
+            var file = Path.Combine(source, "App.cs"); File.WriteAllText(file, "source");
+            var before = BuildFingerprint.Files(BuildFingerprint.Sources(area), "inputs");
+            var packages = Path.Combine(source, "AppPackages"); Directory.CreateDirectory(packages);
+            File.WriteAllText(Path.Combine(packages, "previous.msix"), "generated");
+            Assert.Equal(before, BuildFingerprint.Files(BuildFingerprint.Sources(area), "inputs"));
+            File.WriteAllText(file, "changed");
+            Assert.NotEqual(before, BuildFingerprint.Files(BuildFingerprint.Sources(area), "inputs"));
+        });
+    }
+    [Fact]
     public void Missing_input_and_output_set_changes_are_detected()
     {
         WithArea(area =>
@@ -71,6 +86,26 @@ public sealed class BuildInfrastructureTests
             using var report=JsonDocument.Parse(text);Assert.True(report.RootElement.GetProperty("Passed").GetInt32()>=14);
         }
         finally{area.Delete(true);}
+    }
+    [Fact]
+    public async Task Store_submission_requires_legal_version_and_real_materials()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "build", "Test-StorePolicy.ps1"))) root = root.Parent;
+        Assert.NotNull(root);
+        var area = Directory.CreateTempSubdirectory("HybridMount.StorePolicy.");
+        try
+        {
+            var start = new ProcessStartInfo("pwsh") { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (var value in new[] { "-NoProfile", "-File", Path.Combine(root.FullName, "build", "Test-StorePolicy.ps1"), "-WorkDirectory", area.FullName }) start.ArgumentList.Add(value);
+            using var process = Process.Start(start)!;
+            var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45)); await process.WaitForExitAsync(timeout.Token);
+            var text = await output; Assert.True(process.ExitCode == 0, text + await error);
+            using var report = JsonDocument.Parse(text); Assert.True(report.RootElement.GetProperty("Passed").GetInt32() >= 25);
+        }
+        finally { area.Delete(true); }
     }
     private static void WithArea(Action<string> action)
     {

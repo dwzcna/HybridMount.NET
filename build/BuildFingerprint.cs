@@ -51,7 +51,7 @@ namespace HybridMount.BuildTools
             foreach (var child in Directory.EnumerateDirectories(folder))
             {
                 var name = Path.GetFileName(child);
-                if (source && new[] { "bin", "obj", ".git", ".vs", "artifacts", "TestResults" }.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
+                if (source && new[] { "bin", "obj", ".git", ".vs", "artifacts", "AppPackages", "TestResults" }.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
                 // 输入目录不能经重解析点把缓存范围扩展到工作区外；发现后让完整构建负责处理。
                 if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) throw new IOException("构建摘要不跟随重解析目录：" + child);
                 Walk(child, result, source);

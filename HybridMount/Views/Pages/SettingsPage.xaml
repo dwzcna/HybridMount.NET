@@ -86,6 +86,9 @@
               <Button Style="{StaticResource SubtleButtonStyle}" Visibility="Collapsed" Click="SearchExplorerEntries" IsEnabled="{x:Bind ViewModel.CanReset,Mode=OneWay}" x:Uid="/Strings/ExplorerEntrySearchButton" loc:UserInterface.ResourceId="/Strings/ExplorerEntrySearchButton"/>
             </StackPanel>
           </Border>
+          <helpers:ActionPanel ContentAlignment="Right" Style="{StaticResource ActionPanelStyle}">
+            <Button Style="{StaticResource ActionButtonStyle}" Click="ShowPrivacyPolicy" x:Uid="/Strings/SettingsPrivacyPolicy" loc:UserInterface.ResourceId="/Strings/SettingsPrivacyPolicy"/>
+          </helpers:ActionPanel>
           <TextBlock Text="{x:Bind ViewModel.VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
       </Grid>

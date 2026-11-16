@@ -9,11 +9,12 @@
 		<AppxPackage Condition="'$(HybridMountDeployment)' == 'Unpackaged'">false</AppxPackage>
 		<AppxPackage Condition="'$(HybridMountDeployment)' == 'Packaged'">true</AppxPackage>
 		<GenerateAppxPackageOnBuild Condition="'$(HybridMountDeployment)' == 'Unpackaged'">false</GenerateAppxPackageOnBuild>
-		<OutputPath>bin\$(Platform)\$(Configuration)\$(HybridMountDeployment)\$(HybridMountRuntimeMode)\$(HybridMountShellProfile)\$(HybridMountBuildPurpose)\</OutputPath>
+		<OutputPath>bin\$(Platform)\$(Configuration)\$(HybridMountDeployment)\$(HybridMountRuntimeMode)\$(HybridMountShellProfile)\$(HybridMountDistributionChannel)\$(HybridMountPackageName)\$(HybridMountBuildPurpose)\</OutputPath>
 		<IntermediateOutputPath>$(BaseIntermediateOutputPath)</IntermediateOutputPath>
-		<AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+		<AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)' == '' and '$(PackageCertificateThumbprint)' != '' and '$(HybridMountDistributionChannel)' != 'Store'">true</AppxPackageSigningEnabled>
+        <AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)' == ''">false</AppxPackageSigningEnabled>
 		<AppxBundle>Never</AppxBundle>
-        <!-- 安装包文件名与可见产品名一致，Windows安装身份继续兼容已有根。 -->
+        <!-- 渠道与身份也隔离中间产物；新包不得接管旧包根。 -->
         <AppxPackageName>HybridMount.NET_$(BinaryVersion)_$(Platform)_$(HybridMountRuntimeMode)</AppxPackageName>
 		<AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
 		<GenerateAppInstallerFile>false</GenerateAppInstallerFile>
@@ -21,7 +22,6 @@
 	</PropertyGroup>
 	<PropertyGroup>
 		<HybridMountShellProfile Condition="'$(HybridMountShellProfile)'==''">MenusAndThumbnails</HybridMountShellProfile>
-		<PackageCertificateThumbprint>3FB1D78271BA8F6EDD3CE163F57D93D13FEB83C0</PackageCertificateThumbprint>
 		<AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
 		<GenerateTestArtifacts>False</GenerateTestArtifacts>
 		<HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
@@ -31,6 +31,15 @@
 		<ProjectCapability Include="Msix" />
 	</ItemGroup>
 
+  <Target Name="ValidateDistributionChannel" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <_StoreVersionMajor>$([System.Version]::Parse('$(BinaryVersion)').Major)</_StoreVersionMajor>
+      <_StoreVersionRevision>$([System.Version]::Parse('$(BinaryVersion)').Revision)</_StoreVersionRevision>
+    </PropertyGroup>
+    <Error Condition="'$(HybridMountDistributionChannel)' != 'Store' and '$(HybridMountDistributionChannel)' != 'Sideload'" Text="发行渠道必须为Store或Sideload。"/>
+    <Error Condition="'$(HybridMountDistributionChannel)' == 'Store' and ('$(Configuration)' != 'Release' or '$(HybridMountDeployment)' != 'Packaged' or '$(HybridMountRuntimeMode)' != 'Full' or '$(AppxPackageSigningEnabled)' == 'true')" Text="Store构建必须为Release／Packaged／Full且不使用侧载签名。"/>
+    <Error Condition="'$(HybridMountStoreSubmission)' == 'true' and ('$(_StoreVersionMajor)' == '0' or '$(_StoreVersionRevision)' != '0')" Text="Store正式提交要求非零首段且第四段为0；准备版不能作为正式提交包。"/>
+  </Target>
   <Target Name="ValidateRuntimeMode" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(HybridMountRuntimeMode)' != 'Full' and '$(HybridMountRuntimeMode)' != 'Small'" Text="HybridMountRuntimeMode必须为Full或Small。"/>
     <Error Condition="('$(HybridMountRuntimeMode)' == 'Full' and ('$(SelfContained)' != 'true' or '$(WindowsAppSDKSelfContained)' != 'true')) or ('$(HybridMountRuntimeMode)' == 'Small' and ('$(SelfContained)' != 'false' or '$(WindowsAppSDKSelfContained)' != 'false'))" Text="运行时模式与SelfContained／WindowsAppSDKSelfContained不一致。"/>
@@ -53,8 +62,11 @@
 			<Output TaskParameter="Result" PropertyName="_SourceManifestVersion" />
 		</XmlPeek>
 		<Error Condition="'$(_SourceManifestVersion)' != '$(BinaryVersion)'" Text="Package.appxmanifest 版本 $(_SourceManifestVersion) 与集中版本 $(BinaryVersion) 不一致；请同步源清单，确保 Visual Studio 打包向导显示正确版本。" />
-		<PropertyGroup>
-			<_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
+        <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Name"><Output TaskParameter="Result" PropertyName="_SourceIdentityName" /></XmlPeek>
+        <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest" Query="/*[local-name()='Package']/*[local-name()='Identity']/@Publisher"><Output TaskParameter="Result" PropertyName="_SourcePublisher" /></XmlPeek>
+        <Error Condition="'$(_SourceIdentityName)' != '$(HybridMountPackageName)' or '$(_SourcePublisher)' != '$(HybridMountPublisher)'" Text="包身份与集中发行身份不一致。"/>
+        <PropertyGroup>
+            <_ProductManifest>$(IntermediateOutputPath)HybridMount.appxmanifest</_ProductManifest>
 		</PropertyGroup>
         <HybridMountPrepareManifest Source="$(MSBuildProjectDirectory)\Package.appxmanifest" Destination="$(_ProductManifest)" ProjectDirectory="$(MSBuildProjectDirectory)" ShellProfile="$(HybridMountShellProfile)" />
 		<ItemGroup>

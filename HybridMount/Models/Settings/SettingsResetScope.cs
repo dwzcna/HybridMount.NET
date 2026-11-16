@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace HybridMount.Models.Settings;
@@ -9,7 +9,7 @@ internal sealed class SettingsResetScope
     internal bool Packaged {get;}
     internal string Mode=>Packaged?"Packaged":"Unpackaged";
     internal string RegistryPath=>RuntimeModePaths.RegistryPath(Packaged);
-    internal string ProductScope=>"HybridMount.NET."+Mode;
+    internal string ProductScope=>ProductIdentity.Scope(Packaged);
     internal IReadOnlyList<string> Directories {get;}
     internal string MountDataDirectory {get;}
     private SettingsResetScope(bool packaged,string[] directories,string mountDirectory){Packaged=packaged;Directories=Array.AsReadOnly(directories);MountDataDirectory=mountDirectory;}
@@ -17,7 +17,7 @@ internal sealed class SettingsResetScope
     internal static SettingsResetScope Create(bool packaged,string localAppData,string? packageFamily=null)
     {
         if(!Path.IsPathFullyQualified(localAppData)||localAppData.StartsWith(@"\\",StringComparison.Ordinal))throw new IOException(global::HybridMount.Models.Localization.ResourceMessage.Create("CannotVerifyThePackageDataFolder").Render());
-        var physical=Path.Combine(Path.GetFullPath(localAppData),"HybridMount.NET",packaged?"Packaged":"Unpackaged");
+        var physical=Path.Combine(Path.GetFullPath(localAppData),ProductIdentity.PhysicalDirectoryName(packaged),packaged?"Packaged":"Unpackaged");
         if(!packaged)return new(false,[physical],Path.Combine(physical,"Mounting"));
         if(string.IsNullOrWhiteSpace(packageFamily)||packageFamily is "." or ".."||packageFamily.IndexOfAny(Path.GetInvalidFileNameChars())>=0||packageFamily.Contains('/')||packageFamily.Contains('\\'))throw new IOException(global::HybridMount.Models.Localization.ResourceMessage.Create("CannotVerifyThePackageDataFolder").Render());
         var package=Path.Combine(Path.GetFullPath(localAppData),"Packages",packageFamily);

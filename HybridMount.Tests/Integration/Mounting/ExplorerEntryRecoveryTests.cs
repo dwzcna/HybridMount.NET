@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Recovery;
+using HybridMount.Infrastructure.Recovery;
 using HybridMount.Infrastructure.Settings;
 using HybridMount.Infrastructure.Shell;
 using HybridMount.Models.Mounting;
@@ -18,7 +18,7 @@ public sealed class ExplorerEntryRecoveryTests
     [InlineData("Other",false)]
     public void OnlyExactKnownProductIdentityIsRecognized(string mode,bool expected)
     {
-        var id=$"HybridMount.NET.{mode}!{Sid}!{Guid.NewGuid():N}";
+        var id=$"{(mode == "Packaged" ? "RyleD.HybridMount.NET.Packaged" : "HybridMount.NET." + mode)}!{Sid}!{Guid.NewGuid():N}";
         Assert.Equal(expected,ExplorerEntryRegistration.TryIdentity(id,Sid,out _));
         Assert.False(ExplorerEntryRegistration.TryIdentity(id,Sid+"-other",out _));
         Assert.False(ExplorerEntryRegistration.TryIdentity(id.Replace("HybridMount.","Foreign.HybridMount."),Sid,out _));
@@ -182,7 +182,7 @@ public sealed class ExplorerEntryRecoveryTests
     public void ExistingLegacyRecoveryDoesNotGainCrossModeIdentityPermission()
     {
         var mode=ApplicationPaths.DeploymentScope=="Packaged"?"Unpackaged":"Packaged";
-        Assert.False(OrphanedMountRecovery.TryParseId($"HybridMount.NET.{mode}!{Sid}!{Guid.NewGuid():N}",Sid,out _));
+        Assert.False(OrphanedMountRecovery.TryParseId($"{(mode == "Packaged" ? "RyleD.HybridMount.NET.Packaged" : "HybridMount.NET." + mode)}!{Sid}!{Guid.NewGuid():N}",Sid,out _));
     }
     [Fact]
     public void PrivateWireRoundtripRetainsBothViewProofsAndEvidence()
@@ -238,7 +238,7 @@ public sealed class ExplorerEntryRecoveryTests
         internal ExplorerEntryRecovery Service()=>new(Journals,()=>Managed,Access,Paths,_=>Notifications++);
         internal ExplorerEntryCandidate Add(string mode="Packaged",string? id=null,string? ns=null,bool manager=true,bool withNamespace=true,bool withClass=true)
         {
-            id??=$"HybridMount.NET.{mode}!{Sid}!{Guid.NewGuid():N}";ns??=Guid.NewGuid().ToString("B").ToUpperInvariant();
+            id??=$"{(mode == "Packaged" ? "RyleD.HybridMount.NET.Packaged" : "HybridMount.NET." + mode)}!{Sid}!{Guid.NewGuid():N}";ns??=Guid.NewGuid().ToString("B").ToUpperInvariant();
             void Add(string path,RecoveryRegistryTree tree)=>Registry.Data[(RegistryHive.CurrentUser,path)]=new(RegistryHive.CurrentUser,path,Sid,tree);
             if(manager)Add(RecoveryShellRegistration.Manager+"\\"+id,Tree([Text("NamespaceCLSID",ns),Text("DisplayNameResource","same name")],new(){{"UserSyncRoots",Tree([Text(Sid,@"C:\entry-test")])}}));
             if(withNamespace)Add(RecoveryShellRegistration.Namespace+ns,Tree([Text("",id)]));

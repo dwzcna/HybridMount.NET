@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Settings;
+using HybridMount.Models.Settings;
 using HybridMount.Infrastructure.Windows;
 namespace HybridMount.Infrastructure.Settings;
 
@@ -7,12 +7,12 @@ public static class ApplicationPaths
 {
     private static string DeploymentScopeFor(bool packaged) => packaged ? "Packaged" : "Unpackaged";
     public static string DeploymentScope => DeploymentScopeFor(WinRegisterService.IsPackaged());
-    public static string ProductScope => "HybridMount.NET." + DeploymentScope;
+    public static string ProductScope => ProductIdentity.Scope(WinRegisterService.IsPackaged());
     public static string RegistryPath => RegistryPathFor(WinRegisterService.IsPackaged());
     public static string RegistryPathFor(bool packaged) => RuntimeModePaths.RegistryPath(packaged);
     public static string MountDefinitionsRegistryPathFor(bool packaged) => RegistryPathFor(packaged) + @"\Mounts\" + DeploymentScopeFor(packaged);
-    /// <summary>物理缓存根供纯原生宿主直读；包清单仅为缩略图子树排除虚拟化。</summary>
-    public static string PhysicalDataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HybridMount.NET", DeploymentScope);
+    /// <summary>仅当前产品的物理诊断范围；打包版缩略图使用实际包LocalState。</summary>
+    public static string PhysicalDataDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), ProductIdentity.PhysicalDirectoryName(WinRegisterService.IsPackaged()), DeploymentScope);
     public static string DataDirectory
     {
         get

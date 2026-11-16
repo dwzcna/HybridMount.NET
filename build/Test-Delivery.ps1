@@ -1,6 +1,6 @@
 # 检查实际目录和ZIP的载荷，不启动产品界面或连接挂载。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[ValidateSet('Full','Small')][string]$RuntimeMode='Full')
+param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[ValidateSet('Full','Small')][string]$RuntimeMode='Full',[ValidateSet('Sideload')][string]$DistributionChannel='Sideload')
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Read-ManagedResources.ps1')
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -13,7 +13,7 @@ if($kind -eq 'zip') {
     $root=Join-Path $work ('extracted-'+[Guid]::NewGuid().ToString('N'))
     [IO.Compression.ZipFile]::ExtractToDirectory($source,$root)
 } else {$root=$source}
-$required=@('HybridMount.exe','HybridMount.dll','HybridMount.deps.json','HybridMount.runtimeconfig.json','HybridMount.Stock.exe','HybridMount.Ext.dll','HybridMount.Ext.resources.dll','HybridMount.pri','e_sqlite3.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','AWSSDK.SQS.dll','WebDAVClient.dll','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.ico','Assets/SyncExcluded.ico','Assets/SyncIssue.png','Assets/SyncExcluded.png','ThirdParty/nlohmann/LICENSE.txt','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt')
+$required=@('Privacy/ChineseSimplified.md','Privacy/ChineseTraditional.md','Privacy/English.md','HybridMount.exe','HybridMount.dll','HybridMount.deps.json','HybridMount.runtimeconfig.json','HybridMount.Stock.exe','HybridMount.Ext.dll','HybridMount.Ext.resources.dll','HybridMount.pri','e_sqlite3.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','AWSSDK.SQS.dll','WebDAVClient.dll','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.ico','Assets/SyncExcluded.ico','Assets/SyncIssue.png','Assets/SyncExcluded.png','ThirdParty/Dependencies.txt','ThirdParty/Resolved/Microsoft.NETCore.App.Runtime.win-x64/10.0.12/LICENSE.TXT','ThirdParty/Resolved/Microsoft.NETCore.App.Runtime.win-x64/10.0.12/THIRD-PARTY-NOTICES.TXT','ThirdParty/nlohmann/LICENSE.txt','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt')
 foreach($language in @('zh-CN','en-US','zh-HK')){$required+="$language/HybridMount.Ext.resources.dll.mui"}
 $required+=@('en-US/HybridMount.resources.dll','zh-HK/HybridMount.resources.dll')
 foreach($file in $required){if(-not(Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf)){throw "交付物缺少：$file"}}

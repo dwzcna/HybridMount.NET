@@ -5,6 +5,7 @@ param(
     [ValidateSet('Debug','Release')][string]$Configuration='Release',
     [ValidateSet('Packaged','Unpackaged')][string]$Deployment,
     [ValidateSet('Full','Small')][string]$RuntimeMode='Full',
+    [ValidateSet('Sideload','Store')][string]$DistributionChannel='Sideload',
     [switch]$Package,[switch]$Publish,[switch]$Test,[switch]$TestOnly,
     [switch]$RecordPerformance,[switch]$ForceBuild,
     [string]$ValidationDirectory,
@@ -32,6 +33,13 @@ if($WithoutThumbnails){$ShellProfile='Menus'}
 if($Test -and $Platform -eq 'ARM64' -and [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -ne 'Arm64'){throw 'ARM64测试须在ARM64主机执行；交叉编译请使用dotnet build测试工程。'}
 [xml]$versionProps=Get-Content -LiteralPath (Join-Path $repoRoot 'Directory.Build.props') -Raw
 $version=[string]$versionProps.Project.PropertyGroup[0].Version
+$packageIdentity=[string]$versionProps.Project.PropertyGroup[0].HybridMountPackageName
+$publisher=[string]$versionProps.Project.PropertyGroup[0].HybridMountPublisher
+if($DistributionChannel -eq 'Store' -and ($Configuration -ne 'Release' -or $Deployment -ne 'Packaged' -or $RuntimeMode -ne 'Full' -or -not $Package -or $Publish -or $CertificateThumbprint)){throw 'Store渠道仅接受Release／Packaged／Full的未签名MSIX，请使用Build-Store.ps1生成双架构候选。'}
+if($CertificateThumbprint) {
+    $certificate=Get-Item -LiteralPath ("Cert:/CurrentUser/My/"+$CertificateThumbprint) -ErrorAction Stop
+    if(-not $certificate.HasPrivateKey -or $certificate.Subject -cne $publisher -or $certificate.NotAfter -le [DateTime]::Now){throw '侧载签名证书必须有效、包含私钥且Subject与当前Publisher完全匹配；不使用旧开发证书。'}
+}
 if(-not $ValidationDirectory){$ValidationDirectory=Join-Path $repoRoot ('artifacts/validation/'+$version.Replace('.','')+'-work')}
 $validation=[IO.Path]::GetFullPath($ValidationDirectory)
 $validationRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts/validation'))
@@ -128,9 +136,9 @@ function Get-ManagedState([string[]]$Properties,[string]$Name) {
 }
 function Invoke-Managed([string]$Deploy,[ValidateSet('Build','Package','Publish')][string]$Action) {
     $name="managed-$Platform-$Configuration-$Deploy-$RuntimeMode-$Action"
-    $properties=@("/p:Configuration=$Configuration","/p:Platform=$Platform","/p:HybridMountDeployment=$Deploy","/p:HybridMountRuntimeMode=$RuntimeMode","/p:HybridMountShellProfile=$ShellProfile","/p:HybridMountBuildPurpose=$Action","/p:GenerateAppxPackageOnBuild=$($Action -eq 'Package')")
-    $packageDir=Join-Path $repoRoot "artifacts/packages/$version/$Platform/$Configuration/$($RuntimeMode.ToLowerInvariant())/$ShellProfile/"
-    $publishDir=Join-Path $repoRoot "artifacts/publish/$version/$Platform/$Configuration/$($RuntimeMode.ToLowerInvariant())/$ShellProfile/"
+    $properties=@("/p:Configuration=$Configuration","/p:Platform=$Platform","/p:HybridMountDeployment=$Deploy","/p:HybridMountRuntimeMode=$RuntimeMode","/p:HybridMountShellProfile=$ShellProfile","/p:HybridMountBuildPurpose=$Action","/p:HybridMountDistributionChannel=$DistributionChannel","/p:GenerateAppxPackageOnBuild=$($Action -eq 'Package')")
+    $packageDir=Join-Path $repoRoot "artifacts/packages/$version/$DistributionChannel/$packageIdentity/$Platform/$Configuration/$($RuntimeMode.ToLowerInvariant())/$ShellProfile/"
+    $publishDir=Join-Path $repoRoot "artifacts/publish/$version/$DistributionChannel/$packageIdentity/$Platform/$Configuration/$($RuntimeMode.ToLowerInvariant())/$ShellProfile/"
     $zip=Join-Path (Split-Path $publishDir.TrimEnd('/','\')) "HybridMount.NET_${version}_${Platform}_$($RuntimeMode.ToLowerInvariant())_${ShellProfile}.zip"
     if($Action -eq 'Package'){$properties+=@("/p:AppxPackageDir=$packageDir",'/p:UapAppxPackageBuildMode=SideloadOnly','/p:AppxBundle=Never','/p:AppxPackageSigningEnabled=false')}
     if($Action -eq 'Publish'){$profile="win-$($Platform.ToLowerInvariant())"+$(if($RuntimeMode -eq 'Small'){'-small'}else{''});$properties+=@("/p:PublishProfile=$profile","/p:PublishDir=$publishDir")}
@@ -165,7 +173,7 @@ function Invoke-Managed([string]$Deploy,[ValidateSet('Build','Package','Publish'
             $post=[HybridMount.BuildTools.BuildFingerprint]::Files($state.Paths,$state.Context)
             if($post -cne $state.Hash -or [HybridMount.BuildTools.BuildFingerprint]::Files([HybridMount.BuildTools.BuildFingerprint]::Sources($repoRoot),'source-set-v1') -cne $state.SourceHash){throw '构建期间输入发生变化，未登记成功；请重试。'}
         }
-        $pendingRecords.Add([pscustomobject]@{Path=$recordPath;Hash=$state.Hash;Outputs=$outputs;Details=@{Action=$Action;Platform=$Platform;Configuration=$Configuration;Deployment=$Deploy;RuntimeMode=$RuntimeMode;ShellProfile=$ShellProfile;Fixtures=$fixtureSet;Binlog=$(if($RecordPerformance){Join-Path $validation ($name+'.binlog')}else{$null})}})
+        $pendingRecords.Add([pscustomobject]@{Path=$recordPath;Hash=$state.Hash;Outputs=$outputs;Details=@{DistributionChannel=$DistributionChannel;PackageIdentity=$packageIdentity;Publisher=$publisher;Action=$Action;Platform=$Platform;Configuration=$Configuration;Deployment=$Deploy;RuntimeMode=$RuntimeMode;ShellProfile=$ShellProfile;Fixtures=$fixtureSet;Binlog=$(if($RecordPerformance){Join-Path $validation ($name+'.binlog')}else{$null})}})
         }
     }
     if($Action -eq 'Package') {
@@ -178,18 +186,18 @@ function Invoke-Managed([string]$Deploy,[ValidateSet('Build','Package','Publish'
                 if($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $CertificateThumbprint){Invoke-BuildStep (Join-Path $sdk 'signtool.exe') @('sign','/sha1',$CertificateThumbprint,'/fd','SHA256',$msix.FullName) 'sign'}
                 Invoke-BuildStep (Join-Path $sdk 'signtool.exe') @('verify','/pa','/all','/v',$msix.FullName) 'signature'
             }
-            Invoke-CheckStep ($name+'-package-validation') { & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ShellProfile $ShellProfile -RuntimeMode $RuntimeMode }
+            Invoke-CheckStep ($name+'-package-validation') { & (Join-Path $PSScriptRoot 'Test-Package.ps1') -Path $msix.FullName -Platform $Platform -ShellProfile $ShellProfile -RuntimeMode $RuntimeMode -DistributionChannel $DistributionChannel }
             Get-FileHash -LiteralPath $msix.FullName|ConvertTo-Json|Set-Content (Join-Path $validation 'package.sha256.json') -Encoding utf8
         }
     }
     if($Action -eq 'Publish') {
-        Invoke-CheckStep ($name+'-directory-validation') { & (Join-Path $PSScriptRoot 'Test-Delivery.ps1') -Path $publishDir -Platform $Platform -RuntimeMode $RuntimeMode }
+        Invoke-CheckStep ($name+'-directory-validation') { & (Join-Path $PSScriptRoot 'Test-Delivery.ps1') -Path $publishDir -Platform $Platform -RuntimeMode $RuntimeMode -DistributionChannel $DistributionChannel }
         if(-not $reuse.Reuse -or -not (Test-Path -LiteralPath $zip)) {
             $temporary=$zip+'.tmp';if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Force}
             [IO.Compression.ZipFile]::CreateFromDirectory($publishDir,$temporary,[IO.Compression.CompressionLevel]::Optimal,$false)
             [IO.File]::Move($temporary,$zip,$true)
         }
-        Invoke-CheckStep ($name+'-zip-validation') { & (Join-Path $PSScriptRoot 'Test-Delivery.ps1') -Path $zip -Platform $Platform -RuntimeMode $RuntimeMode }
+        Invoke-CheckStep ($name+'-zip-validation') { & (Join-Path $PSScriptRoot 'Test-Delivery.ps1') -Path $zip -Platform $Platform -RuntimeMode $RuntimeMode -DistributionChannel $DistributionChannel }
         Get-FileHash -LiteralPath $zip|ConvertTo-Json|Set-Content (Join-Path $validation 'zip.sha256.json') -Encoding utf8
     }
 }
@@ -220,6 +228,6 @@ try {
     $succeeded=$true
 } finally {
     $totalWatch.Stop()
-    [ordered]@{Version=$version;Platform=$Platform;Configuration=$Configuration;Deployment=$Deployment;RuntimeMode=$RuntimeMode;ShellProfile=$ShellProfile;TestOnly=[bool]$TestOnly;Fixtures=$fixtureSet;Succeeded=$succeeded;Seconds=$totalWatch.Elapsed.TotalSeconds;Phases=$phases.ToArray()}|ConvertTo-Json -Depth 7|Set-Content (Join-Path $validation 'build-performance.json') -Encoding utf8
+    [ordered]@{Version=$version;DistributionChannel=$DistributionChannel;PackageIdentity=$packageIdentity;Publisher=$publisher;Platform=$Platform;Configuration=$Configuration;Deployment=$Deployment;RuntimeMode=$RuntimeMode;ShellProfile=$ShellProfile;TestOnly=[bool]$TestOnly;Fixtures=$fixtureSet;Succeeded=$succeeded;Seconds=$totalWatch.Elapsed.TotalSeconds;Phases=$phases.ToArray()}|ConvertTo-Json -Depth 7|Set-Content (Join-Path $validation 'build-performance.json') -Encoding utf8
     if($owned){$mutex.ReleaseMutex()};$mutex.Dispose();Pop-Location
 }

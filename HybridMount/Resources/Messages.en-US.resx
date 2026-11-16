@@ -2846,4 +2846,7 @@ Uncached content will not be downloaded. Completed changes are not rolled back.<
   <data name="HomeOverviewMoreRunning" xml:space="preserve"><value>{0} more tasks running</value></data>
   <data name="HomeOverviewUpdateFailed" xml:space="preserve"><value>Task overview update failed; previous results kept: {0}</value></data>
   <data name="HomeApplicationTasks" xml:space="preserve"><value>Application tasks</value></data>
+  <data name="PreviousPackageConflict" xml:space="preserve"><value>The previous dwzcn.HybridMount.NET package is installed. Resolve pending work, protect local files, export .hmxbk and remove mounts in the previous version, then exit and uninstall it. This version does not take over its data. Configuration backups do not include file contents.</value></data>
+  <data name="PackageIdentityCheckFailed" xml:space="preserve"><value>Package identity or previous-package conflicts could not be verified. Startup stopped before connecting mounts or forwarding to another instance. Check the installation.</value></data>
+  <data name="PrivacyPolicyTitle" xml:space="preserve"><value>Privacy policy</value></data>
 </root>

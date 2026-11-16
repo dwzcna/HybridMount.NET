@@ -1130,4 +1130,5 @@
   <data name="HomeManageText.Text" xml:space="preserve"><value>Manage mounts</value></data>
   <data name="HomeAllTasks.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>View all tasks</value></data>
   <data name="HomeAllTasksText.Text" xml:space="preserve"><value>View all tasks</value></data>
+  <data name="SettingsPrivacyPolicy.Content" xml:space="preserve"><value>Privacy policy</value></data>
 </root>

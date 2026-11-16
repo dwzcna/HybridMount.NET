@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Diagnostics;
+using HybridMount.Commons.Diagnostics;
 using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Settings;
@@ -56,7 +56,7 @@ public sealed class StartupService(ILogWriter logger) : IStartupService
     /// <summary>有序退出期间只移除当前模式启动入口；不保存偏好或发日志，系统策略仍启用时停止还原。</summary>
     internal static async Task ClearForSettingsResetAsync(bool packaged,string productScope)
     {
-        if(productScope!="HybridMount.NET."+(packaged?"Packaged":"Unpackaged")||packaged!=WinRegisterService.IsPackaged())throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("TheDeploymentOrDataFoldersHaveChangedCheckAndConfirmAgain").Render());
+        if(productScope!=HybridMount.Models.Settings.ProductIdentity.Scope(packaged)||packaged!=WinRegisterService.IsPackaged())throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("TheDeploymentOrDataFoldersHaveChangedCheckAndConfirmAgain").Render());
         if(packaged)
         {
             var task=await StartupTask.GetAsync(TaskId);task.Disable();

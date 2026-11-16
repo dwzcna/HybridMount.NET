@@ -2846,4 +2846,7 @@ SHA-256：{5}</value>
   <data name="HomeOverviewMoreRunning" xml:space="preserve"><value>另有 {0} 项任务正在执行</value></data>
   <data name="HomeOverviewUpdateFailed" xml:space="preserve"><value>任务概览更新失败，保留上次结果：{0}</value></data>
   <data name="HomeApplicationTasks" xml:space="preserve"><value>应用任务</value></data>
+  <data name="PreviousPackageConflict" xml:space="preserve"><value>检测到旧版 dwzcn.HybridMount.NET 安装。请先在旧版处理未决任务、保护本地文件、导出 .hmxbk 并移除挂载，再退出和卸载旧包。新版不会接管旧包数据。配置备份不含文件正文。</value></data>
+  <data name="PackageIdentityCheckFailed" xml:space="preserve"><value>无法核验包身份或旧包冲突，已停止启动。请检查应用安装状态；未连接挂载或向旧实例转发请求。</value></data>
+  <data name="PrivacyPolicyTitle" xml:space="preserve"><value>隐私政策</value></data>
 </root>

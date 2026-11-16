@@ -1,0 +1,37 @@
+HybridMount.NET resolved dependency notices (0.0.25.0)
+Source: NuGet restore assets, nuspec copyright/license metadata, and package-provided license / NOTICE texts.
+Build-only dependencies are explicitly identified. This list does not imply every API is used.
+Full redistributes .NET and Windows App Runtime; Small requires them separately.
+
+AWSSDK.Core/4.0.102.14 | Apache-2.0 | 
+AWSSDK.S3/4.0.104.7 | Apache-2.0 | 
+AWSSDK.SQS/4.0.100.21 | Apache-2.0 | 
+CommunityToolkit.Common/8.2.1 | MIT | (c) .NET Foundation and Contributors. All rights reserved.
+CommunityToolkit.Mvvm/8.4.0 | MIT | (c) .NET Foundation and Contributors. All rights reserved.
+CommunityToolkit.WinUI.Controls.Segmented/8.2.251219 | MIT | (c) .NET Foundation and Contributors.  All rights reserved.
+CommunityToolkit.WinUI.Extensions/8.2.251219 | MIT | (c) .NET Foundation and Contributors.  All rights reserved.
+Microsoft.Data.Sqlite.Core/10.0.12 | MIT | © Microsoft Corporation. All rights reserved.
+Microsoft.Data.Sqlite/10.0.12 | MIT | © Microsoft Corporation. All rights reserved.
+Microsoft.Web.WebView2/1.0.3719.77 | LICENSE.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.Windows.AI.MachineLearning/2.1.74 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.Windows.SDK.BuildTools.MSIX/1.7.251221100 | sdk_license.txt | © Microsoft Corporation. All rights reserved. | build tools only, not redistributed as runtime payload
+Microsoft.Windows.SDK.BuildTools/10.0.28000.2705 | https://aka.ms/WinSDKLicenseURL | © Microsoft Corporation. All rights reserved. | build tools only, not redistributed as runtime payload
+Microsoft.WindowsAppSDK.AI/2.5.5 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.Base/2.0.4 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.DWrite/2.1.0 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.Foundation/2.3.12 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.InteractiveExperiences/2.1.9 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.ML/2.1.94 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.Runtime/2.5.1 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.Search/2.5.5 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.Widgets/2.0.5 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK.WinUI/2.3.9 | license.txt | © Microsoft Corporation. All rights reserved.
+Microsoft.WindowsAppSDK/2.5.1 | license.txt | © Microsoft Corporation. All rights reserved.
+SQLitePCLRaw.bundle_e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.core/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.lib.e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+SQLitePCLRaw.provider.e_sqlite3/2.1.12 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC
+System.Numerics.Tensors/9.0.0 | MIT | © Microsoft Corporation. All rights reserved.
+WebDAVClient/3.3.0 | MIT | Copyright © 2026 Sagui Itay
+Microsoft.NETCore.App.Runtime.win-arm64/10.0.12 | package-provided .NET runtime license and notices
+Microsoft.NETCore.App.Runtime.win-x64/10.0.12 | package-provided .NET runtime license and notices

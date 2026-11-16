@@ -156,7 +156,7 @@ std::vector<BYTE> ReadCachedThumbnail(const std::wstring& path,UINT size){Requir
 std::vector<BYTE> ReadThumbnailSnapshot(const std::wstring& path,UINT size,Json& grant,bool background){
     QueryTiming timing;StageTiming phases;
     ThumbnailReadStage="root";Require(size<=256);auto canonical=FullPath(path);auto marker=RootMarker(canonical);const auto mount=GuidN(marker.at("MountId"));
-    phases.Next(1);ThumbnailReadStage="database";ReadLease lease(PhysicalDataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db",background);auto& db=*lease.Value;
+    phases.Next(1);ThumbnailReadStage="database";ReadLease lease(DataDirectory()+L"\\Mounting\\Thumbnails\\"+Wide(mount)+L".db",background);auto& db=*lease.Value;
     {Statement schema(db,"PRAGMA user_version");Require(schema.Row()&&schema.Api.Int(schema.Value,0)==1);}
     {Statement count(db,"SELECT count(*) FROM roots");Require(count.Row()&&count.Api.Int(count.Value,0)==1);}
     {Statement row(db,"SELECT json FROM roots WHERE mount=?1 AND length(json)<=65536 LIMIT 2");row.Bind(1,mount);Require(row.Row(),HRESULT_FROM_WIN32(ERROR_NOT_FOUND));grant=Parse(row.Text(0));Require(!row.Row()&&grant.at("Enabled").get<bool>()&&GuidN(grant.at("MountId"))==mount&&Text(grant,"Owner")==CurrentSid(),E_ACCESSDENIED);ValidatePath(grant,canonical);}

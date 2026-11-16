@@ -7,20 +7,14 @@
  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
- xmlns:virtualization="http://schemas.microsoft.com/appx/manifest/virtualization/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
- IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap uap10 virtualization">
-	<Identity Name="dwzcn.HybridMount.NET" Publisher="CN=dwzcn" Version="0.0.24.0" />
+ IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap uap10">
+	<Identity Name="RyleD.HybridMount.NET" Publisher="CN=B14891C7-3483-4FD8-AC49-EA066227CC77" Version="0.0.25.0" />
 	<Properties>
 		<DisplayName>ms-resource:///Strings/PackageDisplayName</DisplayName>
         <Description>ms-resource:///Strings/PackageDescription</Description>
-		<PublisherDisplayName>dwzcn</PublisherDisplayName>
+		<PublisherDisplayName>RyleD</PublisherDisplayName>
 		<Logo>Assets\HybridMountStore.png</Logo>
-        <virtualization:FileSystemWriteVirtualization>
-            <virtualization:ExcludedDirectories>
-                <virtualization:ExcludedDirectory>$(KnownFolder:LocalAppData)\HybridMount.NET\Packaged\Mounting\Thumbnails</virtualization:ExcludedDirectory>
-            </virtualization:ExcludedDirectories>
-        </virtualization:FileSystemWriteVirtualization>
 	</Properties>
 	<Dependencies>
 		<TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
@@ -71,6 +65,5 @@
 	</Applications>
 	<Capabilities>
 		<rescap:Capability Name="runFullTrust" />
-        <rescap:Capability Name="unvirtualizedResources" />
 	</Capabilities>
 </Package>

@@ -55,7 +55,14 @@ inline std::wstring ModuleDirectory(){
     std::wstring path(32768,L'\0');auto length=GetModuleFileNameW(nullptr,path.data(),static_cast<DWORD>(path.size()));Require(length>0&&length<path.size());path.resize(length);return path.substr(0,path.find_last_of(L'\\'));
 }
 inline std::wstring LocalAppData(){PWSTR path{};Check(SHGetKnownFolderPath(FOLDERID_LocalAppData,KF_FLAG_DEFAULT,nullptr,&path));std::wstring result(path);CoTaskMemFree(path);return result;}
-inline std::wstring PhysicalDataDirectory(){return LocalAppData()+L"\\HybridMount.NET\\"+DeploymentScope();}
+/// <summary>实际包族来自内核；身份查询失败不得回退旧共享缓存，原生宿主仅打开当前包LocalState。</summary>
+inline std::wstring DataDirectory(){
+    UINT32 count{};auto status=GetCurrentPackageFamilyName(&count,nullptr);
+    if(status==APPMODEL_ERROR_NO_PACKAGE)return LocalAppData()+L"\\HybridMount.NET\\Unpackaged";
+    Require(status==ERROR_INSUFFICIENT_BUFFER&&count>1&&count<=2048);
+    std::wstring family(count,L'\0');status=GetCurrentPackageFamilyName(&count,family.data());if(status!=ERROR_SUCCESS)throw Failure(HRESULT_FROM_WIN32(status));family.resize(count-1);
+    return LocalAppData()+L"\\Packages\\"+family+L"\\LocalState";
+}
 inline std::string GuidN(const std::string& text){
     GUID value{};auto wide=Wide(text);if(wide.size()==32){for(auto ch:wide)Require(iswxdigit(ch)!=0);wide.insert(20,L"-");wide.insert(16,L"-");wide.insert(12,L"-");wide.insert(8,L"-");}if(wide.size()==36)wide=L"{"+wide+L"}";Check(CLSIDFromString(wide.c_str(),&value));Require(value!=GUID_NULL);
     wchar_t buffer[40]{};Require(StringFromGUID2(value,buffer,40)>0);std::string result;for(auto ch:std::wstring(buffer))if(ch!=L'{'&&ch!=L'}'&&ch!=L'-')result+=static_cast<char>(towlower(ch));return result;

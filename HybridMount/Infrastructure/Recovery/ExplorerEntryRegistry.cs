@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Windows;
+using HybridMount.Infrastructure.Windows;
 using HybridMount.Models.Recovery;
 using Microsoft.Win32;
 using System.Security.Principal;
@@ -69,7 +69,7 @@ internal sealed class ExplorerEntryRegistration(IExplorerEntryRegistry registry,
     {
         foreach (var value in new[] { "Packaged", "Unpackaged" })
         {
-            var prefix = "HybridMount.NET." + value + "!" + sid + "!";
+            var prefix = HybridMount.Models.Settings.ProductIdentity.Scope(value == "Packaged") + "!" + sid + "!";
             if (id.StartsWith(prefix, StringComparison.Ordinal) && Guid.TryParseExact(id[prefix.Length..], "N", out var guid) && guid != Guid.Empty)
             { mode = value; return true; }
         }

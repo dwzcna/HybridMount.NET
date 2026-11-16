@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.UI;
+using HybridMount.Models.UI;
 using HybridMount;
 using HybridMount.Controls.Mounting;
 using HybridMount.Models.Diagnostics;
@@ -109,6 +109,24 @@ public sealed partial class SettingsPage : Page,IDisposable,IAsyncDisposable
     {
         try{await global::Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:startupapps"));}
         catch(Exception error){App.Current.Logger.Log("启动","打开系统设置失败；"+HybridMount.Models.Diagnostics.SafeDiagnostic.ExceptionSummary(error),HybridMount.Models.UI.PageMessageSeverity.Error);}
+    }
+    /// <summary>在后台读取随包政策，使用原生弹窗；关闭、离页和退出沿用设置页取消链。</summary>
+    private async void ShowPrivacyPolicy(object sender, RoutedEventArgs args)
+    {
+        if (_disposed || App.Current.IsExiting || _resetDialog is not null || _resetCancel is not null) return;
+        using var cancel = new CancellationTokenSource(); _resetCancel = cancel;
+        try
+        {
+            var text = await HybridMount.Infrastructure.Settings.PrivacyPolicyReader.ReadAsync(UILanguageService.ResourceCulture.Name, cancel.Token);
+            if (_disposed || cancel.IsCancellationRequested || App.Current.IsExiting) return;
+            var content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
+            var dialog = UserInterface.Configure(new ContentDialog { XamlRoot = XamlRoot, Content = new ScrollViewer { Content = content }, DefaultButton = ContentDialogButton.Close },
+                ("Title", ResourceMessage.Create("PrivacyPolicyTitle")), ("CloseButtonText", ResourceMessage.Create("Close")));
+            _resetDialog = dialog; await UserInterface.ShowAsync(dialog);
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
+        catch (Exception error) { if (!_disposed) ViewModel.AppearanceMessage.Show(ResourceMessage.Raw(error.Message), PageMessageSeverity.Error); }
+        finally { _resetDialog = null; if (ReferenceEquals(_resetCancel, cancel)) _resetCancel = null; }
     }
     public void Dispose(){if(_disposed)return;_disposed=true;_densitySelection.Dispose();_explorerRecovery?.Dispose();_resetCancel?.Cancel();_resetDialog?.Hide();_localization?.Dispose();_localization=null;Loaded-=PageLoaded;_viewport.Stop();ViewModel.SetDialogPresenter(null);ViewModel.Dispose();}
     public async ValueTask DisposeAsync(){Dispose();await ViewModel.DisposeAsync();}

@@ -19,7 +19,7 @@ inline std::wstring ApplicationId(){
     std::wstring result(count,L'\0');if(GetCurrentApplicationUserModelId(&count,result.data())!=ERROR_SUCCESS)throw std::runtime_error("Application identity unavailable");result.resize(count-1);return result;
 }
 /// <summary>实验根与管道前缀；正式产品和另一部署模式不属于本进程。</summary>
-inline std::wstring ProductScope(){return L"HybridMount.NET."+DeploymentScope();}
+inline std::wstring ProductScope(){return DeploymentScope()==L"Packaged"?L"RyleD.HybridMount.NET.Packaged":L"HybridMount.NET.Unpackaged";}
 /// <summary>仅有实际包身份时设置桌面应用策略；保留本次子进程及其后代的包环境。</summary>
 inline DWORD ChildDesktopPolicy(){return PROCESS_CREATION_DESKTOP_APP_BREAKAWAY_OVERRIDE|PROCESS_CREATION_DESKTOP_APP_BREAKAWAY_DISABLE_PROCESS_TREE;}
 inline bool HasPackageIdentity(){return DeploymentScope()==L"Packaged";}

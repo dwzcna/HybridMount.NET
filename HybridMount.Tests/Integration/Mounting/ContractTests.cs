@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Settings;
+using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.IPC;
 using HybridMount.Infrastructure.Persistence;
@@ -64,7 +64,7 @@ public sealed class ContractTests
     [InlineData(true,"Packaged")][InlineData(false,"Unpackaged")]
     public void DeploymentRegistryPathsMatchTheDefinitionStoreLayout(bool packaged,string scope)
     {
-        var root=@"Software\HybridMount.NET\"+scope;
+        var root=@"Software\"+(packaged?"RyleD.HybridMount.NET":"HybridMount.NET")+"\\"+scope;
         Assert.Equal(root,ApplicationPaths.RegistryPathFor(packaged));
         Assert.Equal(root+@"\Mounts\"+scope,ApplicationPaths.MountDefinitionsRegistryPathFor(packaged));
         Assert.Equal(ApplicationPaths.RegistryPathFor(WinRegisterService.IsPackaged()),ApplicationPaths.RegistryPath);

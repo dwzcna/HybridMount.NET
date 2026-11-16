@@ -1,4 +1,5 @@
-﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Native;
 using HybridMount.Infrastructure.Recovery;
 using HybridMount.Infrastructure.Windows;
 using HybridMount.Infrastructure.Windows.CloudFiles;
@@ -137,6 +138,7 @@ internal static class ShellMaintenanceProcess
     private static void ValidatePeer(uint pid)
     {
         using var peer=Process.GetProcessById(checked((int)pid));using var self=Process.GetCurrentProcess();
+        NativeProcessIdentity.Verify(peer, Environment.ProcessPath!, "ShellMaintenance");
         if(peer.SessionId!=self.SessionId||!string.Equals(peer.MainModule?.FileName,Environment.ProcessPath,StringComparison.OrdinalIgnoreCase))throw new IOException("维护对端映像或会话不匹配。");
         if(!OpenProcessToken(peer.Handle,8,out var handle))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
         using(handle)using(var identity=new WindowsIdentity(handle.DangerousGetHandle()))

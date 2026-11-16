@@ -1,6 +1,11 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.24.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.25.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+
+MSIX 当前使用 `RyleD.HybridMount.NET` 包身份，发布者为 RyleD。若仍安装旧的 `dwzcn.HybridMount.NET`，新包会在实例转发和挂载初始化前停止。请先在旧版处理未决任务、保护需要的本地正文、导出 `.hmxbk` 并移除旧挂载，再退出和卸载旧包；新身份不接管旧数据或同步根，配置备份不包含文件正文。
+
+设置页提供三语言离线隐私政策，内容与随包文稿相同；[提交材料目录](docs/store/README.md)含隐私政策、商店文案和审核步骤。Store 采用完整运行时的 x64／ARM64 候选，仍提供 Full／Small 侧载及目录发行。0.0.25.x 是准备版，未提交或上架。
+
 
 页面、配置弹窗和动态对话框共用操作按钮与间距；设置按钮保持独立、靠右，窄窗和长文字按顺序换行。任务的普通、错误和冲突配色保持区分。
 
@@ -247,3 +252,6 @@ Small 的 MSIX 声明 Windows App Runtime 依赖；非打包目录包含引导�
 历史 WebDAV 长时验证为显式操作，不随普通测试自动联网。`build/Test-WebDav.ps1` 使用独立工作目录和当前用户 DPAPI 凭据，默认运行 65 分钟；配置与实际服务边界见 [LAN 测试记录](docs/Validation-0.0.5.3-WebDAV-LAN.md)。
 
 HTTPS WebDAV 遇到异常证书时，可在连接设置查看服务器、主体、颁发者、有效期和 SHA-256，核对后选择“信任此证书并重试”，再保存连接。信任仅属于该挂载的预期服务器；地址变化会清除指纹，异常证书更换需重新确认。可随时清除已确认的证书，系统证书验证成功时仍正常接受。
+
+
+Store 准备候选使用 `pwsh -File build/Build-Store.ps1`，生成同版本双架构 `.msixbundle` 和 `.msixupload`，不上传或安装。`-CheckOnly` 输出正式提交缺项；`-Submission` 只接纳首段非0、第四段0的统一四段版本，以及 `build/StoreSubmission.json` 中已补齐的真实材料和验收证据。该文件不得保存审核密码。侧载签名需显式指定与当前 Publisher 完全匹配的证书，不再默认使用旧证书。渠道和身份分别隔离构建输出与缓存。
