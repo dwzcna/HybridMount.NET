@@ -1,6 +1,6 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.23.5**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.23.6**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 页面、配置弹窗和动态对话框共用操作按钮与间距；设置按钮保持独立、靠右，窄窗和长文字按顺序换行。任务的普通、错误和冲突配色保持区分。
 

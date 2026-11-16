@@ -138,6 +138,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE9D9;" FontSize="16"/><TextBlock VerticalAlignment="Center" x:Uid="/Strings/MountCardTextBlockDiagnostics" loc:UserInterface.ResourceId="/Strings/MountCardTextBlockDiagnostics"/></StackPanel>
                             <Button.ContextFlyout><MenuFlyout Opening="OverflowOpening"><MenuFlyoutItem Tag="fullDiagnostics" Click="PerformAction" x:Uid="/Strings/MountCardMenuFlyoutItemFullDiagnostics" loc:UserInterface.ResourceId="/Strings/MountCardMenuFlyoutItemFullDiagnostics"/></MenuFlyout></Button.ContextFlyout>
                         </Button>
+                        <!-- 14 DIP问题徽标为圆形几何，半径7不随普通控件圆角变化。 -->
                         <Border Background="{ThemeResource MountIssueBadgeBackgroundBrush}" CornerRadius="7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-6,0" MinWidth="14" Height="14" IsHitTestVisible="False" Visibility="{x:Bind helpers:TextVisibility.ForFlag(Item.HasUploadIssues),Mode=OneWay}">
                             <TextBlock Text="{x:Bind Item.IssueBadge,Mode=OneWay}" Foreground="{ThemeResource MountIssueBadgeForegroundBrush}" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0"/>
                         </Border>

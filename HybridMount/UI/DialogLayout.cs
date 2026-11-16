@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -18,15 +18,31 @@ internal static class DialogLayout
     {
         private readonly ContentDialog _dialog;
         private XamlRoot? _root;
+        private readonly List<(DependencyProperty Property, Style Applied)> _buttonStyles = [];
+        private static readonly DependencyProperty[] ButtonStyleProperties =
+        [ContentDialog.PrimaryButtonStyleProperty, ContentDialog.SecondaryButtonStyleProperty, ContentDialog.CloseButtonStyleProperty];
         internal Lifetime(ContentDialog dialog) { _dialog = dialog; }
         internal void Start()
         {
             Stop();
             _root = _dialog.XamlRoot ?? throw new InvalidOperationException("对话框缺少所属窗口。");
+            ApplyButtonStyles();
             _root.Changed += Changed;
             _dialog.Opened += Opened;
             _dialog.Closed += Closed;
             Update();
+        }
+        /// <summary>显式解析已合并的WinUI样式，避免普通按钮落入不同的默认样式；默认按钮仍由原生状态切换为Accent。</summary>
+        private void ApplyButtonStyles()
+        {
+            var style = (Style)Application.Current.Resources["DefaultButtonStyle"];
+            foreach (var property in ButtonStyleProperties)
+            {
+                // 调用者显式提供的专用样式优先；只拥有并在关闭时清理本入口设置的局部值。
+                if (_dialog.ReadLocalValue(property) != DependencyProperty.UnsetValue) continue;
+                _dialog.SetValue(property, style);
+                _buttonStyles.Add((property, style));
+            }
         }
         private void Changed(XamlRoot sender, XamlRootChangedEventArgs args) => Update();
         private void Opened(ContentDialog sender, ContentDialogOpenedEventArgs args) => Update();
@@ -56,6 +72,9 @@ internal static class DialogLayout
         }
         internal void Stop()
         {
+            foreach (var (property, applied) in _buttonStyles)
+                if (ReferenceEquals(_dialog.ReadLocalValue(property), applied)) _dialog.ClearValue(property);
+            _buttonStyles.Clear();
             if (_root is null) return;
             _root.Changed -= Changed;
             _dialog.Opened -= Opened;
