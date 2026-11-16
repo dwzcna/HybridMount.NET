@@ -1,4 +1,5 @@
-﻿using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Native;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Models.Runtime;
@@ -55,7 +56,7 @@ public sealed class NativeTaskWatcherTests
     public async Task DurableAcceptanceAndSlowRoutingStayIndependentAcrossMounts()
     {
         using var area=new Area();var a=Directory.CreateDirectory(Path.Combine(area.Path,"a")).FullName;var b=Directory.CreateDirectory(Path.Combine(area.Path,"b")).FullName;
-        var repo=new MountRepository(Path.Combine(area.Path,"data"));await using var logger=new LoggerService(Path.Combine(area.Path,"logs.db"));await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();await using var dispatcher=new Services.FileTasks.TaskDispatcher(repo,logger);
+        var repo=new MountRepository(Path.Combine(area.Path,"data"),definitions:new MemoryMountDefinitionStore());await using var logger=new LoggerService(Path.Combine(area.Path,"logs.db"));await using var runtime=await NativeRuntimeClient.StartOwnedForTestsAsync();await using var dispatcher=new Services.FileTasks.TaskDispatcher(repo,logger);
         var mountA=Guid.NewGuid();var mountB=Guid.NewGuid();var sessionA=Guid.NewGuid().ToString("N");var sessionB=Guid.NewGuid().ToString("N");var blocked=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var routed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task<long> Stop(Guid mount,string session){var result=await runtime.InvokeAsync("testTaskWatchRemove",new{mountId=mount,sessionId=session});return NativeRuntimeProtocol.Read<long>(result.GetProperty("sequence"));}
         var ownerA=dispatcher.Register(mountA,sessionA,runtime,async(_,token)=>{entered.TrySetResult();await blocked.Task.WaitAsync(token);return [];},()=>Stop(mountA,sessionA));

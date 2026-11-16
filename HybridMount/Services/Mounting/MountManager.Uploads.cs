@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting.Renames;
+using HybridMount.Models.Mounting.Renames;
 using HybridMount.Helpers.Paths;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Files;
@@ -122,16 +122,6 @@ public sealed partial class MountManager
         var root=Root(id);await ScanLocalUploadsAsync(root,token,true).ConfigureAwait(false);
         return _repository.Uploads(id).Where(x=>x.State=="AwaitingConfirmation").OrderBy(x=>x.LocalPath,StringComparer.Ordinal).Select(x=>new UploadCandidate(x.LocalPath,x.IsDirectory,x.ExpectedVersion is null?"本地新增或改名":"现有文件本地修改")).ToArray();
     }
-    /// <summary>连接持有根锁时迁移旧授权；本版本已获用户授权纳入所有旧改动，但取消、冲突和未知结果保持保护。</summary>
-    private void MigrateContinuousUploads(Runtime root)
-    {
-        if(root.Definition.ContinuousUploadMigrated)return;
-        var entries=_repository.Entries(root.Definition.Id);
-        foreach(var item in _repository.Uploads(root.Definition.Id).Where(item=>item.State is "AwaitingConfirmation" or "Ignored"&&!item.CancelRequested))
-            ChangeUpload(item.Id,current=>current with{State=UploadRules.DeletedSourceAncestor(entries,current.SourcePath) is null?"Queued":"Conflict",Error=UploadRules.DeletedSourceAncestor(entries,current.SourcePath) is null?null:UploadRules.RemoteDeletedMessage,LastCheckedUtc=null});
-        root.Definition=root.Definition with{AutoUploadEnabled=true,UploadInitialReviewCompleted=true,ContinuousUploadMigrated=true};
-        _repository.SaveDefinition(root.Definition);
-    }
     /// <summary>仅供同程序集的确定性测试暂停发送；不持久化，也不向生产界面或 IPC 暴露。</summary>
     internal async Task SetSchedulingForTestsAsync(Guid id,bool enabled,CancellationToken token=default)
     {
@@ -187,19 +177,18 @@ public sealed partial class MountManager
             {if(requireComplete)throw new IOException("请先连接挂载，再完整扫描并确认已有改动。");return;}
             MountPathGuard.ValidateOperation(root.Definition,root.Definition.LocalPath);
             var queue=root.Uploads?.Scans;var scan=batch??queue?.StartFull()??LocalUploadScanBatch.Full;
-            var legacyRenames=!RenameLegacyChecked(root);
             var incomplete=false;var entries=_repository.Entries(root.Definition.Id);var seen=new HashSet<string>(StringComparer.Ordinal);
             var index=new LocalUploadScanIndex(entries);
             var records=_repository.Uploads(root.Definition.Id).Where(x=>!x.IsCopy).GroupBy(x=>x.LocalPath,StringComparer.Ordinal).ToDictionary(x=>x.Key,x=>x.First(),StringComparer.Ordinal);
             // 先捕获本批所有改名，再扫描旧名称的新对象；枚举顺序不能让新文件继承旧云基线。
-            foreach(var target in scan.Renames.Select(x=>x.NewPath).Concat(legacyRenames?entries.Where(x=>x.LocalPath!=x.SourcePath).Select(x=>x.LocalPath):[]).Distinct(StringComparer.Ordinal))
+            foreach(var target in scan.Renames.Select(x=>x.NewPath).Distinct(StringComparer.Ordinal))
             {
                 try
                 {
                     var targetPath=RelativePaths.ToLocal(root.Definition.LocalPath,target);if(LocalFileMetadata.TryRead(targetPath) is null)continue;
                     MountPathGuard.ValidateOperation(root.Definition,targetPath);var info=CloudFilesNative.Inspect(targetPath);var marker=info is null?null:MountPathGuard.ReadEntry(info.Value.Identity);
                     var mapped=marker is null?index.ActivePath(target):index.ById(marker.EntryId);
-                    ObserveExcludedRename(root,scan,target,LocalFileState.Read(targetPath),mapped,legacyRenames);
+                    ObserveExcludedRename(root,scan,target,LocalFileState.Read(targetPath),mapped);
                 }
                 catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){incomplete=true;root.ExclusionError=error.Message;_logger.QueueException("排除扫描","Warning","排除改名证据核对未完成",error);}
             }
@@ -221,7 +210,7 @@ public sealed partial class MountManager
                         var entry=marker is null?index.ActivePath(relative):index.ById(marker.EntryId);
                         entry??=marker is null?index.ReplacementBaseline(relative,prior?.EntryId):null;
                         var stamp=LocalFileState.Read(path);
-                        try{ObserveExcludedRename(root,scan,relative,stamp,entry,legacyRenames);}catch(Exception error)when(error is IOException or UnauthorizedAccessException){incomplete=true;root.ExclusionError=error.Message;_logger.QueueException("排除扫描","Warning","排除改名证据核对未完成",error);}
+                        try{ObserveExcludedRename(root,scan,relative,stamp,entry);}catch(Exception error)when(error is IOException or UnauthorizedAccessException){incomplete=true;root.ExclusionError=error.Message;_logger.QueueException("排除扫描","Warning","排除改名证据核对未完成",error);}
                         if(IsNewObjectAtRenamedSource(root.Definition.Id,relative,stamp)&&prior?.ObservedStamp.Split(':')[0]!=stamp.Identity){prior=null;entry=null;}
                         var excluded=FileExclusionRules.Matches(root.Definition.ExclusionRules,relative,stamp.IsDirectory);
                         stamp=ReconcileFileExclusion(root,relative,stamp,excluded,token);
@@ -236,10 +225,6 @@ public sealed partial class MountManager
                         if(prior?.State=="Excluded")prior=ChangeUpload(prior.Id,FileExclusionRules.Resume);
                         if(index.DeletedAncestor(relative) is not null)
                         {ObserveBlockedUpload(root,entry,prior,relative,stamp,clean);if(recursive&&stamp.IsDirectory)Scan(path);return;}
-                        // 修复旧版把同名替换误建为新增的未发送意图；只补历史基线，不清除失败、取消或重排同代内容。
-                        if(prior is {ExpectedVersion:null,EntryId:null,Receipt:null,BaselineSha256:null}&&!UploadRules.InFlight(prior)&&
-                            prior.SourcePath==relative&&entry is {Deleted:true,Materialized:true}&&entry.SourcePath==relative&&prior.IsDirectory==entry.IsDirectory)
-                            prior=ChangeUpload(prior.Id,x=>x with{EntryId=entry.Id,ExpectedVersion=entry.Version,BaselineSha256=_repository.Baseline(x.MountId,x.SourcePath,entry.Version)});
                         if(prior is null&&entry is not null&&entry.SourcePath==relative&&entry.IsDirectory!=stamp.IsDirectory)
                         {
                             SaveUpload(new(Guid.NewGuid().ToString("N"),root.Definition.Id,relative,relative,entry.IsDirectory,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,entry.Id,entry.Version,Error:UploadRules.TypeConflictMessage));
@@ -285,7 +270,6 @@ public sealed partial class MountManager
             }
             if(scan.IsFull&&!incomplete&&root.ExclusionMarkers is {} markers)
                 try{if(markers.HasMarks)markers.Prune(root.Definition);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception){root.ExclusionError="排除标记日志收尾未完成："+error.Message;_logger.QueueException("排除标记","Warning","恢复记录收尾未完成",error);}
-            if(scan.IsFull&&!incomplete)try{RenameJournal(root.Definition.Id).MarkLegacyChecked();}catch(IOException){RenameIntents(root.Definition.Id);}
             queue?.Completed(scan,DateTimeOffset.UtcNow,!incomplete);
             if(requireComplete&&incomplete)throw new IOException("部分本地条目无法读取元数据，首次确认尚未完成；请解除占用或权限问题后重新扫描。");
             foreach(var item in scan.MissingCandidates(_repository.Uploads(root.Definition.Id),seen))

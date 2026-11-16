@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
@@ -34,7 +34,7 @@ public sealed class UploadRetryTests
     }
     private sealed class SourceFactory(IFileSource source):IFileSourceFactory
     {
-        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         {await source.ProbeAsync(token);return source;}
     }
     private static IFileSourceFactory Factory(DavFixture dav,Action<ControlledSource> configure)

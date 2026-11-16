@@ -1,4 +1,5 @@
-﻿using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Native;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Windows.CloudFiles;
@@ -13,7 +14,7 @@ public sealed class NativeCloseDispatchTests
     [Fact(Timeout=20000)]
     public async Task SlowMountDoesNotBlockSharedCallerAndTenThousandClosesCoalesce()
     {
-        using var area=new Area();var repo=new MountRepository(Path.Combine(area.Path,"data"));await using var logger=new LoggerService(Path.Combine(area.Path,"log.db"));
+        using var area=new Area();var repo=new MountRepository(Path.Combine(area.Path,"data"),definitions:new MemoryMountDefinitionStore());await using var logger=new LoggerService(Path.Combine(area.Path,"log.db"));
         var calls=0;var fast=0;using var release=new ManualResetEventSlim();var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var slow=new CloudMountSession(new(Guid.NewGuid(),"slow",area.Path,false),null,repo,logger,localChanged:()=>{Interlocked.Increment(ref calls);entered.TrySetResult();Assert.True(release.Wait(TimeSpan.FromSeconds(10)));});
         await using var other=new CloudMountSession(new(Guid.NewGuid(),"other",area.Path,false),null,repo,logger,localChanged:()=>Interlocked.Increment(ref fast));
@@ -32,7 +33,7 @@ public sealed class NativeCloseDispatchTests
     [Fact(Timeout=20000)]
     public async Task CloseQueriesRespectRenameBarrierAndSharePinContentSnapshot()
     {
-        using var area=new Area();var repo=new MountRepository(Path.Combine(area.Path,"data"));await using var logger=new LoggerService(Path.Combine(area.Path,"log.db"));
+        using var area=new Area();var repo=new MountRepository(Path.Combine(area.Path,"data"),definitions:new MemoryMountDefinitionStore());await using var logger=new LoggerService(Path.Combine(area.Path,"log.db"));
         var mount=new MountDefinition(Guid.NewGuid(),"order",area.Path,false);repo.SaveEntry(mount.Id,new("entry","before.txt","before.txt","v",false));
         var content=new List<string>();var pins=new List<string>();await using var session=new CloudMountSession(mount,null,repo,logger,localContentReady:entry=>content.Add(entry.LocalPath));session.PinWorkCompleted+=pins.Add;
         using var release=new ManualResetEventSlim();var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

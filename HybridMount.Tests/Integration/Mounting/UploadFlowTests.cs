@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Diagnostics;
@@ -33,18 +33,23 @@ public sealed class UploadFlowTests
         Assert.True(test.Dav.Objects.ContainsKey("中文目录/零字节.txt"));File.Delete(renamed);await Task.Delay(2500);Assert.True(test.Dav.Objects.ContainsKey("中文目录/改名.txt"));
     }
     [Fact(Timeout=120000)]
-    public async Task LegacyDisabledMountUploadsOldIgnoredButPreservesCanceledGeneration()
+    public async Task CurrentQueuedUploadsResumeButCanceledGenerationDoesNotReplay()
     {
         await using var test=await Fixture.Create(false);
-        await File.WriteAllTextAsync(Path.Combine(test.Local,"纳入.txt"),"old ignored");await File.WriteAllTextAsync(Path.Combine(test.Local,"取消.txt"),"old canceled");
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"纳入.txt"),"queued content");
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"取消.txt"),"canceled content");
         await test.Manager.ScanUploadChangesAsync(test.Id);
-        foreach(var item in test.Repository.Uploads(test.Id))test.Repository.SaveUpload(item with{State=item.LocalPath=="纳入.txt"?"Ignored":"Canceled",CancelRequested=item.LocalPath=="取消.txt"});
-        await test.Manager.DisposeAsync();var definition=test.Repository.LoadDefinitions().Single() with{UploadInitialReviewCompleted=false,AutoUploadEnabled=false,ContinuousUploadMigrated=false};test.Repository.SaveDefinition(definition);
-        await File.WriteAllTextAsync(Path.Combine(test.Local,"旧新增.txt"),"new while offline");
-        test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);await test.Wait("纳入.txt");await test.Wait("旧新增.txt");
-        Assert.False(test.Dav.Objects.ContainsKey("取消.txt"));Assert.Equal("Canceled",test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="取消.txt").State);
-        Assert.True(test.Repository.LoadDefinitions().Single().ContinuousUploadMigrated);Assert.True(test.Repository.LoadDefinitions().Single().AutoUploadEnabled);
-        await test.Manager.DisconnectAsync(test.Id);await test.Manager.ConnectAsync(test.Id);Assert.False(test.Dav.Objects.ContainsKey("取消.txt"));
+        var canceled=test.Repository.Uploads(test.Id).Single(item=>item.LocalPath=="取消.txt");
+        Assert.True(test.Manager.Cancel(canceled.Id));
+        await test.Manager.DisposeAsync();
+        await File.WriteAllTextAsync(Path.Combine(test.Local,"离线新增.txt"),"new while offline");
+        test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);
+        await test.Wait("纳入.txt");await test.Wait("离线新增.txt");
+        Assert.False(test.Dav.Objects.ContainsKey("取消.txt"));
+        Assert.Equal("Canceled",test.Repository.Upload(canceled.Id)!.State);
+        await test.Manager.DisconnectAsync(test.Id);await test.Manager.ConnectAsync(test.Id);
+        Assert.False(test.Dav.Objects.ContainsKey("取消.txt"));
+        Assert.Equal("canceled content",await File.ReadAllTextAsync(Path.Combine(test.Local,"取消.txt")));
     }
     [Fact(Timeout=120000)]
     public async Task RemoteConflictCopyAndCacheProtection()

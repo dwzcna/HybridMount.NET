@@ -1,4 +1,5 @@
-﻿using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Windows.CloudFiles;
@@ -42,7 +43,7 @@ public sealed class S3RemoteSyncTests
         await Assert.ThrowsAnyAsync<IOException>(()=>engine.PollAsync(true,TimeSpan.Zero,default));
         Assert.Equal(before,repository.RemoteCollections(id,"scope").Single());Assert.Equal(pending,repository.RemotePending(id,"scope").Count);
         Assert.Contains(repository.RemoteShadow(id,"scope"),x=>x.Entry.Path=="文件.bin");Assert.DoesNotContain(repository.RemoteShadow(id,"scope"),x=>x.Entry.Path=="new.bin");
-        fixture.Server.Handler=handler;await new RemoteSyncEngine(id,"scope",source,source,new MountRepository(repository.DataDirectory)).PollAsync(true,TimeSpan.Zero,default);
+        fixture.Server.Handler=handler;await new RemoteSyncEngine(id,"scope",source,source,new MountRepository(repository.DataDirectory,definitions:new MemoryMountDefinitionStore())).PollAsync(true,TimeSpan.Zero,default);
         Assert.Contains(repository.RemotePending(id,"scope"),x=>x.Path=="文件.bin"&&x.Entry is null);
     }
     [Theory]

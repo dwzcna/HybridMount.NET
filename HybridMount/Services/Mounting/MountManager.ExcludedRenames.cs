@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.Paths;
+using HybridMount.Helpers.Paths;
 using HybridMount.Models.Mounting.Renames;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Persistence;
@@ -55,7 +55,6 @@ public sealed partial class MountManager
     /// <summary>索引保留原云路径，改名日志拥有退出同步意图；新旧路径只阻挡相关代次。</summary>
     private bool RenameBlocksSource(Guid mount,string source){var rows=RenameIntents(mount);return _renameErrors.ContainsKey(mount)||rows.Any(x=>!x.Finished&&(x.SourcePath==source||(x.DestinationPath??x.LocalPath)==source));}
     private IEnumerable<MountOperationSnapshot> RenameJournalIssues()=>_renameErrors.Where(x=>_roots.ContainsKey(x.Key)).Select(x=>new MountOperationSnapshot(x.Key.ToString("N"),"excludedRename","Failed",0,1,[],x.Value.Error,x.Key,ItemPath:"",Attention:new UploadAttention("改名恢复日志无法核对，该挂载暂停新写入；修复日志后可重新核对。"+x.Value.Error,"恢复日志",x.Value.Time,1,"Failed",ShellState:"应用内提示")));
-    private bool RenameLegacyChecked(Runtime root){try{return RenameJournal(root.Definition.Id).LegacyChecked;}catch(IOException){RenameIntents(root.Definition.Id);return true;}}
     /// <summary>显式只读核对不重设改名授权；坏日志重读仍不覆盖原文件。</summary>
     internal bool RecheckExcludedRename(string id)
     {
@@ -66,8 +65,8 @@ public sealed partial class MountManager
         RenameChange(row,x=>x with{ReadOnlyRequested=true,CheckedUtc=null});root?.Uploads?.Wake();return true;
     }
     private bool RenameOwnsUpload(LocalUpload upload)=>RenameIntents(upload.MountId).Any(x=>x.UploadId==upload.Id&&x.Stage!="Canceled"&&x.FileId==upload.ObservedStamp.Split(':')[0]);
-    /// <summary>扫描在任何排除提前返回之前保存关联；只有明确事件或升级前日志能创建远端改名授权。</summary>
-    private void ObserveExcludedRename(Runtime root,LocalUploadScanBatch batch,string relative,LocalFileStamp stamp,MountEntry? entry,bool legacy)
+    /// <summary>扫描在任何排除提前返回之前保存关联；只有明确当前事件能创建远端改名授权。</summary>
+    private void ObserveExcludedRename(Runtime root,LocalUploadScanBatch batch,string relative,LocalFileStamp stamp,MountEntry? entry)
     {
         #if HYBRIDMOUNT_HEADLESS_TEST
         if(!ObserveExcludedRenamesForTests)return;
@@ -81,7 +80,7 @@ public sealed partial class MountManager
         }
         if(!FileExclusionRules.Matches(root.Definition.ExclusionRules,relative))return;
         var notice=batch.Renames.LastOrDefault(x=>x.IntoExcluded!=false&&(x.NewPath==relative||entry is not null&&x.Entry?.Id==entry.Id));
-        if(notice is null&&!legacy)return;
+        if(notice is null)return;
         var origin=notice?.Entry??entry;var old=notice?.OldPath??origin?.SourcePath;
         if(string.IsNullOrEmpty(old)||old==relative||FileExclusionRules.Matches(root.Definition.ExclusionRules,old))return;
         var uploads=_repository.UploadsAtPath(root.Definition.Id,old);var upload=uploads.FirstOrDefault(x=>!x.IsCopy&&(x.ObservedStamp.Split(':')[0]==stamp.Identity||x.SnapshotIdentity==stamp.Identity));
@@ -95,7 +94,6 @@ public sealed partial class MountManager
                 !mapped.IsDirectory && (mapped.LocalPath == old || mapped.LocalPath == relative)) origin = mapped;
         }
         if(origin is null&&upload is null)return;
-        if(legacy&&(origin is null||ExclusionMarkers(root).ExistingMark(stamp.Identity,relative) is not {Phase:"Applied"}))return;
         if(origin is not null&&origin.LocalPath!=relative)_repository.SaveEntry(root.Definition.Id,origin with{LocalPath=relative,Protected=true});
         var version=origin?.Version??(upload?.State=="Completed"?upload.ExpectedVersion:null);
         var source=origin?.SourcePath??upload!.SourcePath;

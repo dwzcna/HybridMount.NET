@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Windows.CloudFiles;
@@ -10,33 +10,9 @@ using System.Security.Cryptography;
 
 namespace HybridMount.Tests.Integration.Protocols;
 
-/// <summary>跨版本只读迁出、持久保护合并及网络取消/重定向边界。</summary>
+/// <summary>持久保护合并及网络取消/重定向边界。</summary>
 public sealed class ProtocolRecoveryTests
 {
-    [Fact(Timeout=120000)]
-    public async Task LegacyMountMigratesThroughProductionReadOnlyRecovery()
-    {
-        var area=Path.Combine(Path.GetTempPath(),"HybridMount.LegacyTests",Guid.NewGuid().ToString("N"));
-        var local=Path.Combine(area,"view");Directory.CreateDirectory(local);
-        var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
-        var repository=new MountRepository(Path.Combine(area,"data"),registry);await using var logger=new LoggerService(Path.Combine(area,"log.db"));
-        Guid id;
-        await using(var previous=new MountManager(repository,logger,TestSourceFactory.Instance))
-        {
-            var mount=await previous.AddAsync("旧版迁出测试",local,true);id=mount.Id;
-            Assert.Null(mount.Source);Assert.False(CloudFilesNative.HasFullContent(Path.Combine(local,"范围读取.bin"),32*1024*1024+37));
-        }
-        var sourceDb=Path.Combine(repository.DataDirectory,"MockSources",id.ToString("N"),"source.db");var before=SHA256.HashData(await File.ReadAllBytesAsync(sourceDb));
-        await using(var production=new MountManager(repository,logger))
-        {
-            await production.StartAsync();Assert.Equal("MigrationOutRequired",Assert.Single(production.Mounts).Status);
-            var result=await WebDavTests.Finished(production,production.Queue(id,"remove"));Assert.True(result.State=="Completed",result.Error);
-            Assert.Empty(production.Mounts);Assert.Null(MountPathGuard.ReadRoot(local));
-            Assert.Contains("按需下载",await File.ReadAllTextAsync(Path.Combine(local,"说明.txt")));
-            Assert.Equal(before,SHA256.HashData(await File.ReadAllBytesAsync(sourceDb)));
-        }
-        Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);await logger.DisposeAsync();Directory.Delete(area,true);
-    }
     [Fact]
     public void StaleWorkerCannotClearLocalProtectionDeletionOrMaterialization()
     {

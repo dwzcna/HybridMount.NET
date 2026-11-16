@@ -1,4 +1,5 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Models.Protocols.S3;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Protocols.S3;
@@ -54,7 +55,7 @@ public sealed class SqsEventTests
         await using var fixture=new S3Fixture();var repository=Repository(fixture);var id=Guid.NewGuid();
         S3EventHint Hint(string seq,string scope="scope")=>new(Guid.NewGuid().ToString("N"),id,scope,"path","bucket",seq,"ObjectCreated:Put");
         repository.PersistSqsMessage("queue","one",[Hint("F"),Hint("10")]);Assert.Single(repository.S3EventHints(id,"scope"),x=>x.State=="Pending");
-        var restarted=new MountRepository(repository.DataDirectory);restarted.PersistSqsMessage("queue","one",[Hint("11")]);restarted.PersistSqsMessage("queue","old",[Hint("2")]);
+        var restarted=new MountRepository(repository.DataDirectory,definitions:new MemoryMountDefinitionStore());restarted.PersistSqsMessage("queue","one",[Hint("11")]);restarted.PersistSqsMessage("queue","old",[Hint("2")]);
         Assert.Equal("10",restarted.S3EventHints(id,"scope").Single(x=>x.State=="Pending").Sequence);
         restarted.PersistSqsMessage("queue","other-account",[Hint("1","other")]);Assert.Single(restarted.S3EventHints(id,"other"));
     }

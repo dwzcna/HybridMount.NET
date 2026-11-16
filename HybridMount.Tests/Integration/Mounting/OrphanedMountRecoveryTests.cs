@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Recovery;
+using HybridMount.Models.Recovery;
 using HybridMount.Commons.Windows;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
@@ -138,7 +138,7 @@ public sealed class OrphanedMountRecoveryTests
         Assert.True((await first).Completed);await Assert.ThrowsAsync<HybridMount.Infrastructure.Recovery.MissingOrphanedMountEvidenceException>(()=>second);Assert.Empty(Directory.EnumerateFileSystemEntries(test.Local));Assert.Equal(0,factory.Calls);
     }
     private sealed class NoSourceFactory:IFileSourceFactory
-    {internal int Calls;public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token){Calls++;throw new InvalidOperationException("Recovery must never create a remote source.");}}
+    {internal int Calls;public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token){Calls++;throw new InvalidOperationException("Recovery must never create a remote source.");}}
     private sealed class MemoryMountStore:IMountDefinitionStore
     {public IReadOnlyList<MountDefinition> LoadDefinitions()=>[];public void SaveDefinition(MountDefinition mount)=>throw new NotSupportedException();public void DeleteDefinition(Guid id)=>throw new NotSupportedException();public long CacheLimitBytes{get;set;}}
     private sealed class Shell:IRecoveryShellRegistration

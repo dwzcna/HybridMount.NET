@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.Paths;
+using HybridMount.Helpers.Paths;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Files.Content;
@@ -126,7 +126,7 @@ public sealed class WebDavTests
         Assert.Throws<ArgumentException>(()=>FileSourceFactory.Endpoint(new(FileSourceKind.WebDav,"http://example.com/")));
         var repository=new MountRepository(Path.Combine(fixture.Area,"data"),@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N"));
         foreach(var kind in new[]{FileSourceKind.Smb,FileSourceKind.Nfs})
-            await Assert.ThrowsAsync<NotSupportedException>(()=>new FileSourceFactory().CreateAsync(new(id,"reserved",fixture.Area,Source:new(kind)),repository,false,default));
+            await Assert.ThrowsAsync<NotSupportedException>(()=>new FileSourceFactory().CreateAsync(new(id,"reserved",fixture.Area,Source:new(kind)),repository,default));
     }
     [Fact(Timeout=120000)]
     public async Task RealCfApiWebDavRefreshCacheAndLocalProtection()

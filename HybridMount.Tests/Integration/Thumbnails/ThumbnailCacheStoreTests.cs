@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Thumbnails;
+using HybridMount.Infrastructure.Thumbnails;
 using Microsoft.Data.Sqlite;
 namespace HybridMount.Tests.Integration.Thumbnails;
 
@@ -45,20 +45,32 @@ public sealed class ThumbnailCacheStoreTests
         store.Trim(long.MaxValue);Assert.Null(store.Get(replacement,32));
     }
     [Fact]
-    public void ExactRootRemovalPreservesOtherRootsAndRejectsStaleSnapshot()
+    public void CurrentCatalogRemovalKeepsOtherMountsAndRejectsChangedIdentity()
     {
-        using var area=new Area();var store=area.Store;var root=store.Configure(area.Root);var other=store.Configure(area.Root with{MountId=Guid.NewGuid(),Path="C:\\other-root"});var first=area.Binding(root);var second=area.Binding(other) with{Path="C:\\other-root\\image.png"};
-        store.Publish(first,new Dictionary<int,byte[]>{{64,Png()}});store.Publish(second,new Dictionary<int,byte[]>{{64,Png()}});
-        Assert.False(store.RemoveRoot(root with{Epoch=root.Epoch+1}));Assert.NotNull(store.Get(first,64));Assert.True(store.RemoveRoot(root));Assert.Null(store.Root(root.MountId));Assert.NotNull(store.Get(second,64));
+        using var area=new Area();var catalog=new ThumbnailCacheCatalog(area.Path);
+        var first=catalog.Configure(area.Root with{Owner=ThumbnailCacheReader.CurrentOwner});
+        var second=catalog.Configure(first with{MountId=Guid.NewGuid(),Path="C:/other-root"});
+        var png=Png();catalog.Publish(area.Binding(first),new Dictionary<int,byte[]>{{64,png}});
+        var other=area.Binding(second) with{Path="C:/other-root/image.png"};catalog.Publish(other,new Dictionary<int,byte[]>{{64,png}});
+        Assert.Throws<IOException>(()=>catalog.Remove(new(first.MountId,"first",first.Path,RootIdentity:"changed")));
+        Assert.True(File.Exists(catalog.PathFor(first.MountId)));
+        catalog.Remove(new(first.MountId,"first",first.Path,RootIdentity:first.FileId));
+        Assert.False(File.Exists(catalog.PathFor(first.MountId)));
+        Assert.Equal(png,new ThumbnailCacheStore(catalog.PathFor(second.MountId)).Get(other,64));
     }
     [Fact]
-    public void LegacySharedDatabaseMigratesOnlyMatchingMountAndRetiresWhenEmpty()
+    public void OldSharedDatabaseIsNeitherReadMigratedNorRemoved()
     {
-        using var area=new Area();var legacy=area.Store;var first=legacy.Configure(area.Root with{Owner=ThumbnailCacheReader.CurrentOwner});var second=legacy.Configure(first with{MountId=Guid.NewGuid(),Path="C:\\other-root"});
-        var firstBinding=area.Binding(first);var secondBinding=area.Binding(second) with{Path="C:\\other-root\\image.png"};var png=Png();legacy.Publish(firstBinding,new Dictionary<int,byte[]>{{64,png}});legacy.Publish(secondBinding,new Dictionary<int,byte[]>{{64,png}});
-        var catalog=new ThumbnailCacheCatalog(area.Path);Assert.Equal(first,catalog.Configure(first));var firstStore=new ThumbnailCacheStore(catalog.PathFor(first.MountId));Assert.Equal(png,firstStore.Get(firstBinding,64));Assert.Null(legacy.Root(first.MountId));Assert.NotNull(legacy.Get(secondBinding,64));
-        Assert.Equal(second,catalog.Configure(second));Assert.False(File.Exists(legacy.Database));Assert.Equal(png,new ThumbnailCacheStore(catalog.PathFor(second.MountId)).Get(secondBinding,64));
-        catalog.Remove(new(first.MountId,"first",first.Path,RootIdentity:first.FileId));Assert.False(File.Exists(firstStore.Database));Assert.True(File.Exists(catalog.PathFor(second.MountId)));Assert.Equal(png,new ThumbnailCacheStore(catalog.PathFor(second.MountId)).Get(secondBinding,64));
+        using var area=new Area();var old=area.Store;
+        var root=old.Configure(area.Root with{Owner=ThumbnailCacheReader.CurrentOwner});
+        var binding=area.Binding(root);var png=Png();Assert.True(old.Publish(binding,new Dictionary<int,byte[]>{{64,png}}));
+        var before=File.ReadAllBytes(old.Database);
+        var catalog=new ThumbnailCacheCatalog(area.Path);var current=catalog.Configure(root);
+        var store=new ThumbnailCacheStore(catalog.PathFor(root.MountId));
+        Assert.Null(store.Get(binding,64));Assert.Equal(png,old.Get(binding,64));
+        Assert.True(store.Publish(binding with{Root=current},new Dictionary<int,byte[]>{{64,png}}));
+        catalog.Remove(new(root.MountId,"current",root.Path,RootIdentity:root.FileId));
+        Assert.False(File.Exists(store.Database));Assert.Equal(before,File.ReadAllBytes(old.Database));
     }
     [Fact]
     public void DatabaseDeletionRejectsChangedRootAndSharedContents()

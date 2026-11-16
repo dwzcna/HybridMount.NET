@@ -1,7 +1,7 @@
-﻿namespace HybridMount.Models.Mounting;
+namespace HybridMount.Models.Mounting;
 
-/// <summary>0 保留旧配置的迁出语义；SMB/NFS 仅预留适配器标识。</summary>
-public enum FileSourceKind { LegacyMock, WebDav, S3, Smb, Nfs, Synology }
+/// <summary>当前协议保留既有数字编码；0无效，SMB/NFS仅预留标识。</summary>
+public enum FileSourceKind { WebDav=1, S3=2, Smb=3, Nfs=4, Synology=5 }
 /// <summary>可持久化的非秘密连接参数；凭据通过挂载 ID 独立保存。</summary>
 public sealed record FileSourceConfiguration(FileSourceKind Kind, string Endpoint = "", string Bucket = "",
     string Prefix = "", string Region = "us-east-1", bool PathStyle = true, bool AllowHttp = false,

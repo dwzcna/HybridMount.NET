@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
@@ -68,7 +68,7 @@ public sealed class SynologyMountTests
     }
     private sealed class Factory(SynologyFakeDsm server):IFileSourceFactory
     {
-        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         {
             var source=new SynologyFileSource(mount.Source!,new CredentialStore(repository.DataDirectory).Load(mount.Id),new WholeFileCache(Path.Combine(repository.DataDirectory,"RangeCache",mount.Id.ToString("N"))),server,null);
             try

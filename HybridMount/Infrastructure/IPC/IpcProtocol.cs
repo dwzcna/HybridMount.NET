@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Settings;
+using HybridMount.Infrastructure.Settings;
 using HybridMount.Models;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -11,7 +11,7 @@ namespace HybridMount.Infrastructure.IPC;
 /// <summary>原生扩展与应用共用的有界协议：四字节小端长度后跟 UTF-8 JSON。</summary>
 public static class IpcProtocol
 {
-    /// <summary>首版传输版本，与产品源码版本分离。</summary>
+    /// <summary>当前公共传输版本，与产品源码版本分离。</summary>
     public const int Version = 2;
     /// <summary>单帧上限，避免异常输入造成无界分配。</summary>
     public const int MaximumFrameBytes = 1024 * 1024;
@@ -21,7 +21,6 @@ public static class IpcProtocol
     /// <summary>按用户与登录会话隔离的管道名，和原生端保持一致。</summary>
     public static string PipeName => $"{ApplicationPaths.ProductScope}.v2.{WindowsIdentity.GetCurrent().User?.Value ?? throw new InvalidOperationException("缺少用户 SID")}.{Process.GetCurrentProcess().SessionId}";
 
-    public static string LegacyPipeName => PipeName.Replace(".v2.",".v1.");
     /// <summary>验证请求结构；文件命令不探测或修改所选路径。</summary>
     public static bool IsValid(IpcRequest request)
     {

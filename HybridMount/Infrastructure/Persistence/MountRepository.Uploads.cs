@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
@@ -87,16 +87,16 @@ public sealed partial class MountRepository
         command.CommandText="INSERT INTO uploads VALUES($id,$m,$p,$j) ON CONFLICT(id) DO UPDATE SET json=$j,path=$p";
         command.Parameters.AddWithValue("$id",upload.Id);command.Parameters.AddWithValue("$m",upload.MountId.ToString("N"));command.Parameters.AddWithValue("$p",upload.LocalPath);command.Parameters.AddWithValue("$j",JsonSerializer.Serialize(upload));command.ExecuteNonQuery();return upload;
     }
-    /// <summary>兼容旧JSON并只补问题记录，不重建展示历史、改变任务状态或启动上传。</summary>
+    /// <summary>当前问题发布中断后只重排尚未解除的Published状态，不补历史问题或启动上传。</summary>
     internal void RecoverUploadAttention()
     {
         lock(_gate)
         {
             using var db=Open();using var tx=db.BeginTransaction();
-            foreach(var item in ReadUploadJson(db, null, "1=1", transaction: tx).Select(json =>
+            foreach(var item in ReadUploadJson(db, null, "json_extract(json,'$.Attention.ResolvedUtc') IS NULL AND json_extract(json,'$.Attention.ShellState')='Published'", transaction: tx).Select(json =>
                 JsonSerializer.Deserialize<LocalUpload>(json) ?? throw new IOException("上传记录为空。")))
             {
-                var recovered=UploadAttentionRules.Normalize(item,true);
+                var recovered=item;
                 if(recovered.Attention is {ResolvedUtc:null,ShellState:"Published"} attention)recovered=recovered with{Attention=attention with{ShellState="Pending"}};
                 if(recovered!=item)WriteUpload(db,recovered,tx);
             }

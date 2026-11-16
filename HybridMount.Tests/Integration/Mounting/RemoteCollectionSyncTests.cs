@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.Paths;
+using HybridMount.Helpers.Paths;
 using HybridMount.Infrastructure.Configuration;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -192,19 +192,19 @@ public sealed class RemoteCollectionSyncTests
         await using var fixture=new SyncDavFixture();fixture.Dav.WeakEtag=true;var repository=fixture.Repository();var local=Path.Combine(fixture.Dav.Area,"unused-view");Directory.CreateDirectory(local);
         var mount=new MountDefinition(Guid.NewGuid(),"恢复观测",local,Source:fixture.Dav.Options);new CredentialStore(repository.DataDirectory).Save(mount.Id,new("user","app-password"));
         var factory=new FileSourceFactory();SourceEntry changed;
-        await using(var first=await factory.CreateAsync(mount,repository,false,default))
+        await using(var first=await factory.CreateAsync(mount,repository,default))
         {
             var dav=Assert.IsType<WebDavFileSource>(first);var scope=dav.RemoteScope(0);var engine=new RemoteSyncEngine(mount.Id,scope,dav,dav,repository);
             await engine.PollAsync(false,TimeSpan.Zero,default);
             var item=fixture.Dav.Objects["文件.bin"];fixture.Dav.Objects["文件.bin"]=item with{Bytes=Enumerable.Repeat((byte)91,item.Bytes.Length).ToArray()};fixture.Sequence++;
             await engine.PollAsync(false,TimeSpan.Zero,default);changed=repository.RemoteShadow(mount.Id,scope).Single(x=>x.Entry.Path=="文件.bin").Entry;
         }
-        await using(var resumed=await factory.CreateAsync(mount,repository,false,default))
+        await using(var resumed=await factory.CreateAsync(mount,repository,default))
         {
             var metadata=await resumed.GetMetadataAsync("文件.bin");Assert.True(resumed.IsSameVersion(changed.Version,metadata.Version));
             var bytes=new byte[3];await resumed.ReadRangeAsync(metadata,0,bytes);Assert.Equal(new byte[]{91,91,91},bytes);
         }
-        await using var revised=await factory.CreateAsync(mount with{CredentialRevision=1},repository,false,default);
+        await using var revised=await factory.CreateAsync(mount with{CredentialRevision=1},repository,default);
         Assert.False(revised.IsSameVersion(changed.Version,(await revised.GetMetadataAsync("文件.bin")).Version));
     }
     [Fact]

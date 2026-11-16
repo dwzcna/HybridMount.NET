@@ -1,4 +1,5 @@
-﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Windows.CloudFiles;
 using HybridMount.Models.Mounting;
@@ -148,7 +149,7 @@ public sealed class RemoteDeletionTests
             db.Open();using var command=db.CreateCommand();command.CommandText="CREATE TABLE entries(id TEXT);INSERT INTO entries VALUES('preserved');PRAGMA user_version=2";command.ExecuteNonQuery();
         }
         var before=await File.ReadAllBytesAsync(path);var status=MountIndexFormat.Inspect(data);Assert.Equal("Old",status.State);
-        var error=Assert.Throws<MountIndexFormatException>(()=>new MountRepository(data));Assert.Equal(2,error.Format.Version);
+        var error=Assert.Throws<MountIndexFormatException>(()=>new MountRepository(data,definitions:new MemoryMountDefinitionStore()));Assert.Equal(2,error.Format.Version);
         Assert.Equal(before,await File.ReadAllBytesAsync(path));
     }
     /// <summary>通知风暴及停止后的迟到通知不以信号量已满或已释放异常作为正常控制流。</summary>

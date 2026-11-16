@@ -9,7 +9,7 @@
  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
  IgnorableNamespaces="uap desktop desktop3 desktop4 desktop5 com rescap uap10">
-	<Identity Name="RyleD.HybridMount.NET" Publisher="CN=B14891C7-3483-4FD8-AC49-EA066227CC77" Version="0.0.25.0" />
+	<Identity Name="RyleD.HybridMount.NET" Publisher="CN=B14891C7-3483-4FD8-AC49-EA066227CC77" Version="0.0.25.1" />
 	<Properties>
 		<DisplayName>ms-resource:///Strings/PackageDisplayName</DisplayName>
         <Description>ms-resource:///Strings/PackageDescription</Description>

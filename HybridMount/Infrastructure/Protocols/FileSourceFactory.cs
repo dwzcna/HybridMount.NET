@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Scheduling;
+using HybridMount.Commons.Scheduling;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Files.Content;
@@ -10,7 +10,7 @@ using HybridMount.Models.Configuration;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Infrastructure.Protocols;
 
-/// <summary>连接配置与密钥分离；旧版源仅在显式迁出时开启只读恢复。</summary>
+/// <summary>连接配置与密钥分离；仅创建明确的当前协议源；无协议或无适配器时拒绝。</summary>
 public sealed class FileSourceFactory : IFileSourceFactory
 {
     private static readonly IReadOnlyDictionary<FileSourceKind,IFileSourceProtocol> Protocols=new Dictionary<FileSourceKind,IFileSourceProtocol>
@@ -24,14 +24,9 @@ public sealed class FileSourceFactory : IFileSourceFactory
     }
     /// <summary>启动前注册未来适配器；不增加工程或修改统一契约。</summary>
     public void Register(FileSourceKind kind, Func<FileSourceConfiguration, SourceCredentials, string, IFileSource> adapter) => _adapters.Add(kind, adapter);
-    public async Task<IFileSource> CreateAsync(MountDefinition mount, IMountRepository repository, bool recovery, CancellationToken token)
+    public async Task<IFileSource> CreateAsync(MountDefinition mount, IMountRepository repository, CancellationToken token)
     {
-        var config = mount.Source ?? new(FileSourceKind.LegacyMock);
-        if (config.Kind == FileSourceKind.LegacyMock)
-        {
-            if (!recovery) throw new NotSupportedException("旧版模拟挂载仅支持下载并移除或清空；请新建网络挂载。");
-            return new LegacyRecoverySource(Path.Combine(repository.DataDirectory, "MockSources", mount.Id.ToString("N")));
-        }
+        var config = mount.Source ?? throw new NotSupportedException("挂载必须使用明确的当前协议配置。");
         if (!_adapters.TryGetValue(config.Kind, out var adapter)) throw new NotSupportedException("此协议尚未实现。");
         var cacheDirectory=Path.Combine(repository.DataDirectory,"RangeCache",mount.Id.ToString("N"));
         WholeFileCache.CleanupAbandoned(cacheDirectory);

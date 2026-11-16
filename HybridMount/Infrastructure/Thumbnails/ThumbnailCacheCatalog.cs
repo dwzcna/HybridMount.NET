@@ -1,19 +1,16 @@
-﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Infrastructure.Thumbnails;
 
-/// <summary>每挂载一个SQLite文件；只按GUID路由，旧共享库逐根迁移，移除不扫描或删除其他挂载。</summary>
+/// <summary>每挂载一个SQLite文件；仅路由当前挂载GUID数据库，移除不扫描或删除其他挂载。</summary>
 internal sealed class ThumbnailCacheCatalog(string directory)
 {
     private readonly string _directory=directory; // 路径验证延迟至实际启用后的访问，关闭门控不触碰输入路径。
     internal string PathFor(Guid mount)=>ThumbnailCachePaths.ForMount(_directory,mount);
     private ThumbnailCacheStore Store(Guid mount)=>new(PathFor(mount));
-    private ThumbnailCacheStore Legacy=>new(Path.Combine(_directory,"thumbnails.db"));
     internal ThumbnailCacheRoot Configure(ThumbnailCacheRoot requested)
     {
         var store=Store(requested.MountId);
-        if(Legacy.UsageBytes!=0&&store.Root(requested.MountId) is null&&Legacy.CopyMountTo(store,requested) is {} copied)
-        {if(Legacy.RemoveRoot(copied)&&Legacy.IsEmpty)Legacy.DeleteDatabase(null);}
         return store.Configure(requested,singleMount:true);
     }
     private ThumbnailCacheStore? StoreFor(string path)
@@ -33,12 +30,11 @@ internal sealed class ThumbnailCacheCatalog(string directory)
         {if(root.MountId!=mount.Id||root.Owner!=ThumbnailCacheReader.CurrentOwner||!Path.GetFullPath(root.Path).Equals(Path.GetFullPath(mount.LocalPath),StringComparison.OrdinalIgnoreCase)||mount.RootIdentity is not null&&root.FileId!=mount.RootIdentity)throw new IOException("缩略图库不属于待移除挂载，未删除。");}
         var store=Store(mount.Id);var root=store.Root(mount.Id);if(root is not null)Validate(root);
         if(store.UsageBytes!=0)store.DeleteDatabase(root);
-        var old=Legacy.Root(mount.Id);if(old is not null){Validate(old);if(!Legacy.RemoveRoot(old))throw new IOException("旧缩略图库迁移记录变化，未清理。");if(Legacy.IsEmpty)Legacy.DeleteDatabase(null);}
     }
     private IEnumerable<ThumbnailCacheStore> Stores()
     {
         if(!Directory.Exists(_directory))yield break;
-        foreach(var path in Directory.EnumerateFiles(_directory,"*.db")){var name=Path.GetFileNameWithoutExtension(path);if(Guid.TryParseExact(name,"N",out _)||name=="thumbnails")yield return new(path);}
+        foreach(var path in Directory.EnumerateFiles(_directory,"*.db")){var name=Path.GetFileNameWithoutExtension(path);if(Guid.TryParseExact(name,"N",out _))yield return new(path);}
     }
     internal long UsageBytes=>Stores().Sum(store=>store.UsageBytes);
     internal long Trim(long needed)

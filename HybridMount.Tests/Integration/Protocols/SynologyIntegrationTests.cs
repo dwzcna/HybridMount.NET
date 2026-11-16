@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Configuration;
@@ -30,7 +30,7 @@ public sealed class SynologyIntegrationTests:IDisposable
         var definition=new MountDefinition(Guid.NewGuid(),"NAS",_area,Source:SynologyTests.Options with{Kind=FileSourceKind.Smb});new CredentialStore(repo.DataDirectory).Save(definition.Id,new("user","password"));
         using(SynologySessionTicket.Use(ticket))
         {
-            await using var connected=await factory.CreateAsync(definition,repo,false,default);Assert.Empty(nextServer.Logins);
+            await using var connected=await factory.CreateAsync(definition,repo,default);Assert.Empty(nextServer.Logins);
             var entry=await connected.GetMetadataAsync("file.bin");Assert.Contains(";md5:",entry.Version);
         }
         Assert.True(ticket.IsReleased);Assert.DoesNotContain(firstServer.Requests,x=>x["api"]=="SYNO.API.Auth"&&x["method"]=="logout");

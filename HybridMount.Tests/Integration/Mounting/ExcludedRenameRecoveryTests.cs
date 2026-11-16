@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting.Renames;
+using HybridMount.Models.Mounting.Renames;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Windows.CloudFiles;
@@ -84,11 +84,20 @@ public sealed partial class ExcludedRenameFlowTests
         Assert.Equal(file.Bytes,await File.ReadAllBytesAsync(file.New));Assert.Single(test.Dav.Server.Requests,x=>x.Method=="MOVE"&&x.Target.EndsWith("/123.txt",StringComparison.Ordinal));
     }
     [Fact(Timeout=90000)]
-    public async Task LegacyEvidenceRecoversOnlyTheExactExcludedRename()
+    public async Task RestartWithoutCapturedRenameDoesNotInventRemoteMoveAuthorization()
     {
-        await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);test.Manager.ObserveExcludedRenamesForTests=false;var file=await Prepare(test,64,true);
-        File.Move(file.Old,file.New);await test.Manager.ScanUploadChangesAsync(test.Id);Assert.DoesNotContain(test.Manager.Operations,x=>x.Operation=="excludedRename");Assert.True(test.Dav.Objects.ContainsKey("123.txt"));await test.Manager.DisposeAsync();
-        File.Delete(Path.Combine(test.Repository.DataDirectory,"ExcludedRenames",test.Id.ToString("N")+".json"));test.Manager=new(test.Repository,test.Logger);await test.Manager.ConnectAsync(test.Id);await Wait(test);
-        Assert.Equal(file.Identity,LocalFileState.Read(file.New).Identity);Assert.Equal(file.Bytes,await File.ReadAllBytesAsync(file.New));Assert.False(test.Dav.Objects.ContainsKey("123.txt"));
+        await using var test=await UploadFlowTests.Fixture.Create(false,legacyPreviews:false);
+        test.Manager.ObserveExcludedRenamesForTests=false;var file=await Prepare(test,64,true);
+        File.Move(file.Old,file.New);await test.Manager.ScanUploadChangesAsync(test.Id);
+        Assert.DoesNotContain(test.Manager.Operations,x=>x.Operation=="excludedRename");
+        await test.Manager.DisposeAsync();
+        var journal=Path.Combine(test.Repository.DataDirectory,"ExcludedRenames",test.Id.ToString("N")+".json");
+        try{if(File.Exists(journal))File.Delete(journal);}
+        finally{test.Manager=new(test.Repository,test.Logger);}
+        await test.Manager.ConnectAsync(test.Id);await test.Manager.ScanUploadChangesAsync(test.Id);
+        Assert.DoesNotContain(test.Manager.Operations,x=>x.Operation=="excludedRename");
+        Assert.Equal(file.Identity,LocalFileState.Read(file.New).Identity);Assert.Equal(file.Bytes,await File.ReadAllBytesAsync(file.New));
+        Assert.True(test.Dav.Objects.ContainsKey("123.txt"));
+        Assert.DoesNotContain(test.Dav.Server.Requests,x=>x.Method is "MOVE" or "DELETE"&&x.Target.EndsWith("/123.txt",StringComparison.Ordinal));
     }
 }

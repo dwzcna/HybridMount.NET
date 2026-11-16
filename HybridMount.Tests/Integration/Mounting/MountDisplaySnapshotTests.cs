@@ -1,4 +1,5 @@
-﻿using HybridMount.Commons.Settings;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Models.Mounting;
@@ -17,7 +18,8 @@ public sealed class MountDisplaySnapshotTests
         var area=Path.Combine(Path.GetTempPath(),"HybridMount.Display61."+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(area);
         try
         {
-            var mount=new MountDefinition(Guid.NewGuid(),"memory snapshot",Path.Combine(area,"view"),false,RegistrationStage:MountRegistrationStage.NotRegistered);
+            var mount=new MountDefinition(Guid.NewGuid(),"memory snapshot",Path.Combine(area,"view"),false,Source:new(FileSourceKind.WebDav,"https://fixture.invalid/"),RegistrationStage:MountRegistrationStage.NotRegistered);
+            _=new MountRepository(Path.Combine(area,"data"),definitions:new MemoryMountDefinitionStore());
             var repository=new MountRepository(Path.Combine(area,"data"),definitions:new Store(mount));await using var logger=new LoggerService(Path.Combine(area,"log.db"));await using var manager=new MountManager(repository,logger);
             repository.SaveUpload(new("issue",mount.Id,"file.bin","file.bin",false,"stamp",1,"Failed",DateTimeOffset.UtcNow,Error:"failed"));
             var gate=typeof(MountRepository).GetField("_gate",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(repository)!;

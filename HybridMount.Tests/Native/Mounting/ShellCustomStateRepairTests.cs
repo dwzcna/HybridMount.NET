@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Windows.CloudFiles;
 using HybridMount.Models.Mounting;
 using HybridMount.Tests.Integration.Mounting;
@@ -6,7 +6,7 @@ using global::Windows.Storage;
 using global::Windows.Storage.Provider;
 namespace HybridMount.Tests.Native.Mounting;
 
-/// <summary>已捕获的空白状态向量回归；真实NTFS根验证无正文水合、无PUT、无身份或代次变化。</summary>
+/// <summary>当前属性清除与外部状态保护回归；真实NTFS根验证无正文水合、无PUT、无身份或代次变化。</summary>
 public sealed class ShellCustomStateRepairTests
 {
     [Fact]
@@ -37,19 +37,5 @@ public sealed class ShellCustomStateRepairTests
         test.Repository.UpdateUpload(row.Id,x=>x with{State="Canceled",CancelRequested=true});await test.Manager.PublishUploadIssuesAsync();var cleared=CloudCustomStateReader.Read(path);
         Assert.Equal(new[]{"42"},cleared.Ids);Assert.Equal(new[]{"其他状态"},cleared.Values);Assert.Equal(new[]{icon},cleared.Icons);
         Assert.Equal(network,test.Dav.Server.Requests.Count);Assert.Equal("unchanged content",await File.ReadAllTextAsync(path));Assert.Equal(row.Generation,test.Repository.Upload(row.Id)!.Generation);
-    }
-    [Fact(Timeout=60000)]
-    public async Task RestartRepairsLegacyClearedBlankPropertyWithoutReplayOrIdentityChange()
-    {
-        await using var test=await UploadFlowTests.Fixture.Create(false);var path=Path.Combine(test.Local,"legacy-property.txt");await File.WriteAllTextAsync(path,"keep bytes");await test.Manager.ScanUploadChangesAsync(test.Id);
-        var row=test.Repository.Uploads(test.Id).Single(x=>x.LocalPath=="legacy-property.txt");test.Repository.UpdateUpload(row.Id,x=>x with{State="Failed",Error="old failure"});await test.Manager.PublishUploadIssuesAsync();
-        test.Repository.UpdateUpload(row.Id,x=>x with{State="Canceled",CancelRequested=true});await test.Manager.PublishUploadIssuesAsync();
-        // 重现旧API调用产生的编号1、文字0、图标0；不在Explorer里打开这个测试条目。
-        await NativeTestFiles.SetPropertiesAsync(path,new ShellCustomProperty(1,"",""));
-        var legacy=CloudCustomStateReader.Read(path);Assert.Equal(new[]{"1"},legacy.Ids);Assert.Empty(legacy.Values);Assert.Empty(legacy.Icons);
-        test.Repository.UpdateUpload(row.Id,x=>x with{ObservedStamp=LocalFileState.Read(path).Key});await test.Manager.DisposeAsync();var identity=LocalFileState.Read(path).Identity;var network=test.Dav.Server.Requests.Count;
-        test.Manager=new(test.Repository,test.Logger);await test.Manager.SetSchedulingForTestsAsync(test.Id,false);await test.Manager.PublishUploadIssuesAsync();
-        Assert.Empty(CloudCustomStateReader.Read(path).Ids);var repaired=test.Repository.Upload(row.Id)!;Assert.Equal("Cleared",repaired.Attention!.ShellState);Assert.Equal("Canceled",repaired.State);Assert.Equal(row.Generation,repaired.Generation);
-        Assert.Equal(identity,LocalFileState.Read(path).Identity);Assert.Equal(network,test.Dav.Server.Requests.Count);Assert.Equal("keep bytes",await File.ReadAllTextAsync(path));
     }
 }

@@ -1,4 +1,5 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Protocols;
@@ -21,10 +22,10 @@ public sealed class ProtocolModuleBoundaryTests
     [InlineData(true)][InlineData(false)]
     public async Task Factory_releases_source_when_context_or_probe_initialization_fails(bool contextFails)
     {
-        await using var area=new DavFixture();var repo=new MountRepository(Path.Combine(area.Area,"boundary"));
+        await using var area=new DavFixture();var repo=new MountRepository(Path.Combine(area.Area,"boundary"),definitions:new MemoryMountDefinitionStore());
         var source=new ControlledSource{ContextFails=contextFails,ProbeFails=!contextFails};var factory=new FileSourceFactory();factory.Register(FileSourceKind.Smb,(_,_,_)=>source);
         var mount=new MountDefinition(Guid.NewGuid(),"边界",area.Area,Source:new(FileSourceKind.Smb,"https://example.test/"));
-        await Assert.ThrowsAsync<IOException>(()=>factory.CreateAsync(mount,repo,false,CancellationToken.None));
+        await Assert.ThrowsAsync<IOException>(()=>factory.CreateAsync(mount,repo,CancellationToken.None));
         Assert.Equal(1,source.AttachCalls);Assert.Equal(contextFails?0:1,source.ProbeCalls);Assert.Equal(1,source.DisposeCalls);
     }
     [Fact]

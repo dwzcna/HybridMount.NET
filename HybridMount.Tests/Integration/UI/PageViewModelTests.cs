@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.UI;
+using HybridMount.Models.UI;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
@@ -194,7 +194,7 @@ public sealed class PageViewModelTests
         public Exception? Failure;
         public readonly ConcurrentQueue<Guid> Calls=new();
         public readonly TaskCompletionSource Started=new(TaskCreationOptions.RunContinuationsAsynchronously),Release=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         {Calls.Enqueue(mount.Id);if(Calls.Count==1){Started.TrySetResult();await Release.Task.WaitAsync(token);}throw Failure??new IOException("reconnect failed");}
     }
     [Fact]

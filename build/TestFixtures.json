@@ -1,5 +1,6 @@
 {
-  "StoreIdentityTests": "None",
+  "MountDataBaselineTests": "None",
+  "FileSourceBaselineTests": "None",  "StoreIdentityTests": "None",
   "InteractionStateTests": "None",
   "TaskCardPresentationTests": "None",
   "HeaderLayoutTests": "None",

@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Infrastructure.Files.Uploads;
 using HybridMount.Commons.Settings;
 using HybridMount.Commons.UI;
@@ -59,7 +59,7 @@ public sealed class ConflictCopySnapshotTests
         await using var test=new Fixture(2);var copy=test.Copy();if(problem=="missing")File.Delete(test.Snapshot);if(problem=="length")File.AppendAllText(test.Snapshot,"changed");copy=problem switch{"generation"=>copy with{Generation=2},"stamp"=>copy with{SnapshotStamp=null},_=>copy};Assert.Throws<SourceConflictException>(()=>UploadCopySnapshot.Prepare(copy,_=>{}));
     }
     [Fact]
-    public async Task NoSnapshotPreservesLegacyQueueAndDialogExplicitlyDisclosesCurrentContent()
+    public async Task NoSavedSnapshotUsesCurrentContentOnlyAfterExplicitCopyRequest()
     {
         await using var test=new Fixture(1);test.Repository.UpdateUpload(test.Original.Id,x=>x with{SnapshotPath=null,SnapshotSha256=null,SnapshotStamp=null,SnapshotIdentity=null,SnapshotGeneration=0});var copy=test.Copy();Assert.Null(copy.SnapshotPath);Assert.Equal("Queued",copy.State);var vm=new TasksViewModel(test.Manager,new Dispatcher());
         try{Assert.Contains("没有快照时",vm.CopyContentNotice);Assert.Contains("上传准备时的当前本地内容",vm.CopyContentNotice);Assert.Contains("不是冲突时的内容",vm.CopyContentNotice);}
@@ -148,7 +148,7 @@ public sealed class ConflictCopySnapshotTests
         internal string Local=>Path.Combine(Mount.LocalPath,"file");
         internal Fixture(int size)
         {
-            var local=Path.Combine(_area,"mount");Directory.CreateDirectory(local);Mount=new(Guid.NewGuid(),"copy test",local,false,RootIdentity:MountPathGuard.FileIdentity(local),Source:new(FileSourceKind.WebDav,"https://example.test/dav/"),RegistrationStage:MountRegistrationStage.NotRegistered);Definitions.Items.Add(Mount);Repository=new(Path.Combine(_area,"data"),definitions:Definitions);_logger=new(Path.Combine(_area,"log.db"));Bytes=Enumerable.Repeat((byte)42,size).ToArray();File.WriteAllBytes(Local,Bytes);var stamp=LocalFileState.Read(Local);var staging=Path.Combine(Repository.DataDirectory,"UploadStaging",Mount.Id.ToString("N"));Directory.CreateDirectory(staging);Snapshot=Path.Combine(staging,"original.snapshot");File.WriteAllBytes(Snapshot,Bytes);Original=new("original",Mount.Id,"file","file",false,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,"entry","baseline",SnapshotPath:Snapshot,SnapshotSha256:Convert.ToHexString(SHA256.HashData(Bytes)),SnapshotStamp:stamp.Key,SnapshotIdentity:stamp.Identity,SnapshotGeneration:1,Total:size);Repository.SaveUpload(Original);Repository.SaveEntry(Mount.Id,new("entry","file","file","baseline",false,Protected:true,Materialized:true));Manager=new(Repository,_logger);
+            var local=Path.Combine(_area,"mount");Directory.CreateDirectory(local);Mount=new(Guid.NewGuid(),"copy test",local,false,RootIdentity:MountPathGuard.FileIdentity(local),Source:new(FileSourceKind.WebDav,"https://example.test/dav/"),RegistrationStage:MountRegistrationStage.NotRegistered);Repository=new(Path.Combine(_area,"data"),definitions:Definitions);Definitions.Items.Add(Mount);_logger=new(Path.Combine(_area,"log.db"));Bytes=Enumerable.Repeat((byte)42,size).ToArray();File.WriteAllBytes(Local,Bytes);var stamp=LocalFileState.Read(Local);var staging=Path.Combine(Repository.DataDirectory,"UploadStaging",Mount.Id.ToString("N"));Directory.CreateDirectory(staging);Snapshot=Path.Combine(staging,"original.snapshot");File.WriteAllBytes(Snapshot,Bytes);Original=new("original",Mount.Id,"file","file",false,stamp.Key,1,"Conflict",DateTimeOffset.UtcNow,"entry","baseline",SnapshotPath:Snapshot,SnapshotSha256:Convert.ToHexString(SHA256.HashData(Bytes)),SnapshotStamp:stamp.Key,SnapshotIdentity:stamp.Identity,SnapshotGeneration:1,Total:size);Repository.SaveUpload(Original);Repository.SaveEntry(Mount.Id,new("entry","file","file","baseline",false,Protected:true,Materialized:true));Manager=new(Repository,_logger);
         }
         internal LocalUpload Copy(string destination="copy")=>Repository.Upload(Manager.UploadAsCopy(Original.Id,destination))!;
         internal void Delete(string path,bool forget=false)=>typeof(MountManager).GetMethod("DeleteUploadSnapshot",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(Manager,[path,forget]);

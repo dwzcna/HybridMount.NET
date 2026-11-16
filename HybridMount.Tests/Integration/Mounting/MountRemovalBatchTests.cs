@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -78,7 +78,7 @@ public sealed class MountRemovalBatchTests
     private sealed class NoSourceFactory:IFileSourceFactory
     {
         internal int Calls;
-        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         {Calls++;throw new IOException("An offline removal must never create a network source.");}
     }
     private sealed class Fixture:IAsyncDisposable
@@ -93,7 +93,7 @@ public sealed class MountRemovalBatchTests
         internal MountDefinition Add(string name)
         {
             var path=Directory.CreateDirectory(Path.Combine(Area,name)).FullName;
-            var mount=new MountDefinition(Guid.NewGuid(),name,path,false,RootIdentity:MountPathGuard.FileIdentity(path),RegistrationStage:MountRegistrationStage.NotRegistered);
+            var mount=new MountDefinition(Guid.NewGuid(),name,path,false,RootIdentity:MountPathGuard.FileIdentity(path),Source:new(FileSourceKind.WebDav,"https://fixture.invalid/"),RegistrationStage:MountRegistrationStage.NotRegistered);
             Repository.SaveDefinition(mount);return mount;
         }
         internal void Start()=>Manager=new(Repository,Logger,Factory);

@@ -1,4 +1,5 @@
-﻿using HybridMount.Infrastructure.Persistence;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Infrastructure.Persistence;
 using HybridMount.Models.Mounting;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
@@ -11,7 +12,7 @@ public sealed class FileOperationRecoveryQueryTests(ITestOutputHelper output)
     [Fact]
     public void LargeHistoryUsesPrimaryKeyWithoutDeserializingUnrelatedRows()
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);
         var expected=Snapshot(mount,entry);repo.SaveOperation(expected);
         using var db=Open(area.Path);using(var tx=db.BeginTransaction())
         {
@@ -33,7 +34,7 @@ public sealed class FileOperationRecoveryQueryTests(ITestOutputHelper output)
     [InlineData("Running")][InlineData("Deferred")][InlineData("Interrupted")]
     public void MatchingRecoveryPreservesAttemptAndFailureEvidence(string state)
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);var expected=Snapshot(mount,entry) with{State=state};repo.SaveOperation(expected);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);var expected=Snapshot(mount,entry) with{State=state};repo.SaveOperation(expected);
         Assert.Equal(JsonSerializer.Serialize(expected),JsonSerializer.Serialize(repo.FindRecoverableFileOperation(expected.Id,mount,entry,"freeSpace")));
     }
     [Theory]
@@ -41,7 +42,7 @@ public sealed class FileOperationRecoveryQueryTests(ITestOutputHelper output)
     [InlineData("Completed")][InlineData("Canceled")][InlineData("Failed")][InlineData("Superseded")]
     public void ChangedOwnerContentOrTerminalStateCannotReuseAttempt(string field)
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);var row=Snapshot(mount,entry);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);var row=Snapshot(mount,entry);
         row=field switch{"mount"=>row with{MountId=Guid.NewGuid()},"entry"=>row with{OperationEntryId="other"},"operation"=>row with{Operation="keepOnDevice"},_=>row with{State=field}};
         repo.SaveOperation(row);Assert.Null(repo.FindRecoverableFileOperation(row.Id,mount,entry,"freeSpace"));
     }
@@ -49,7 +50,7 @@ public sealed class FileOperationRecoveryQueryTests(ITestOutputHelper output)
     [InlineData(true)][InlineData(false)]
     public void RecoveryKeepsOldContentEvidenceForVerifierInsteadOfCreatingNewAttempt(bool version)
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);var old=Snapshot(mount,entry);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();var entry=new MountEntry("entry","file","file","v1",false);var old=Snapshot(mount,entry);
         old=version?old with{OperationVersion="old-version"}:old with{OperationFileId="old-file-id"};repo.SaveOperation(old);
         var recovered=repo.FindRecoverableFileOperation(old.Id,mount,entry,"freeSpace");Assert.NotNull(recovered);Assert.Equal(old.AttemptId,recovered.AttemptId);Assert.Equal(old.OperationVersion,recovered.OperationVersion);Assert.Equal(old.OperationFileId,recovered.OperationFileId);
     }

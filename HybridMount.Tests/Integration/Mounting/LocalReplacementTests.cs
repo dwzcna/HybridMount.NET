@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Diagnostics;
+using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Windows.CloudFiles;
@@ -64,21 +64,20 @@ public sealed class LocalReplacementTests
         Assert.NotEqual(1u,CloudFilesNative.Inspect(path)?.Info.InSyncState??0);
     }
 
-    /// <summary>旧版误建的新增任务只修复版本绑定；取消／冲突不自动解除，显式重试才执行条件更新。</summary>
+    /// <summary>缺少绑定的未解决意图不从旧历史补写授权；取消、失败和冲突均不得自动上传。</summary>
     [Theory(Timeout=90000)]
     [InlineData("Conflict")][InlineData("Failed")][InlineData("Canceled")]
-    public async Task LegacyMisclassifiedIntentIsRepairedButRequiresExplicitRetry(string state)
+    public async Task UnresolvedIntentIsNotReconstructedFromFileIndex(string state)
     {
         await using var test=await Fixture.Create(FileSourceKind.WebDav);const string name="文件.bin";var path=Path.Combine(test.Local,name);
-        var original=test.Repository.Entries(test.Id).Single(x=>x.LocalPath==name);
-        File.Delete(path);await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));
-        await File.WriteAllTextAsync(path,"legacy replacement");await test.Manager.ScanUploadChangesAsync(test.Id);var queued=test.Record(name);
-        test.Repository.UpdateUpload(queued.Id,x=>x with{EntryId=null,ExpectedVersion=null,BaselineSha256=null,State=state,CancelRequested=state=="Canceled",Error="目标已有历史远端基线"});
-        await test.Manager.ScanUploadChangesAsync(test.Id);var repaired=test.Record(name);
-        Assert.Equal(original.Version,repaired.ExpectedVersion);Assert.Equal(original.Id,repaired.EntryId);Assert.Equal(state,repaired.State);Assert.Equal(queued.Generation,repaired.Generation);
-        await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await Task.Delay(2300);Assert.Equal(0,test.TargetWrites(name));
-        Assert.True(test.Manager.RetryUpload(queued.Id));await test.Wait(name,"Completed");
-        Assert.Equal("legacy replacement",Encoding.UTF8.GetString(test.Remote(name)));Assert.Equal(1,test.TargetWrites(name));
+        var remote=test.Remote(name);File.Delete(path);await WebDavTests.Finished(test.Manager,test.Manager.Queue(test.Id,"refresh"));
+        await File.WriteAllTextAsync(path,"unresolved replacement");await test.Manager.ScanUploadChangesAsync(test.Id);var queued=test.Record(name);
+        test.Repository.UpdateUpload(queued.Id,x=>x with{EntryId=null,ExpectedVersion=null,BaselineSha256=null,State=state,CancelRequested=state=="Canceled",Error="未解决的远端基线"});
+        await test.Manager.ScanUploadChangesAsync(test.Id);var preserved=test.Record(name);
+        Assert.Null(preserved.ExpectedVersion);Assert.Null(preserved.EntryId);Assert.Equal(state,preserved.State);Assert.Equal(queued.Generation,preserved.Generation);
+        await test.Manager.SetSchedulingForTestsAsync(test.Id,true);await Task.Delay(2300);
+        Assert.Equal(0,test.TargetWrites(name));Assert.Equal(remote,test.Remote(name));
+        Assert.Equal("unresolved replacement",await File.ReadAllTextAsync(path));
     }
 
     [Theory(Timeout=90000)]

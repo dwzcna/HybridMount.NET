@@ -1,4 +1,4 @@
-﻿using HybridMount.Infrastructure.Files;
+using HybridMount.Infrastructure.Files;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -51,38 +51,6 @@ internal sealed class ThumbnailCacheStore(string database)
         }
     }
     private T Write<T>(Func<SqliteConnection,T> action)=>Locked(()=>{using var db=Open(true);Initialize(db);return action(db);});
-    /// <summary>旧共享库以一致只读快照迁移指定挂载；目标事务提交后才允许源库精确退休，绝不复制其他根。</summary>
-    internal ThumbnailCacheRoot? CopyMountTo(ThumbnailCacheStore target,ThumbnailCacheRoot requested)
-    {
-        if(!File.Exists(database))return null;
-        using var source=Open(false);if(!Supported(source))throw new IOException("旧缩略图库版本不受支持，保留原库。");
-        using var snapshot=source.BeginTransaction(deferred:true);var root=ReadRoot(source,requested.MountId,snapshot);
-        if(root is null||root.Owner!=requested.Owner||root.FileId!=requested.FileId||root.Path!=requested.Path||root.Scope!=requested.Scope)return null;
-        var copied=target.Write(destination=>
-        {
-            using var tx=destination.BeginTransaction();EnsureSingleMount(destination,root.MountId,tx);if(ReadRoot(destination,root.MountId,tx) is not null)return false;
-            using(var add=destination.CreateCommand()){add.Transaction=tx;add.CommandText="INSERT INTO roots VALUES($m,$j)";add.Parameters.AddWithValue("$m",root.MountId.ToString("N"));add.Parameters.AddWithValue("$j",JsonSerializer.Serialize(root));add.ExecuteNonQuery();}
-            using(var rows=source.CreateCommand())
-            {
-                rows.Transaction=snapshot;rows.CommandText="SELECT entry,path,content,json FROM bindings WHERE mount=$m AND length(json)<=65536";rows.Parameters.AddWithValue("$m",root.MountId.ToString("N"));using var reader=rows.ExecuteReader();
-                while(reader.Read())
-                {
-                    var binding=JsonSerializer.Deserialize<ThumbnailCacheBinding>(reader.GetString(3));if(binding?.Root!=root||binding.ContentKey!=reader.GetString(2))continue;
-                    using var add=destination.CreateCommand();add.Transaction=tx;add.CommandText="INSERT INTO bindings VALUES($m,$e,$p,$c,$j)";add.Parameters.AddWithValue("$m",root.MountId.ToString("N"));add.Parameters.AddWithValue("$e",reader.GetString(0));add.Parameters.AddWithValue("$p",reader.GetString(1));add.Parameters.AddWithValue("$c",reader.GetString(2));add.Parameters.AddWithValue("$j",reader.GetString(3));add.ExecuteNonQuery();
-                }
-            }
-            using(var rows=source.CreateCommand())
-            {
-                rows.Transaction=snapshot;rows.CommandText="SELECT content,size,png,created FROM images WHERE content IN (SELECT content FROM bindings WHERE mount=$m) AND length(png) BETWEEN 33 AND 393216";rows.Parameters.AddWithValue("$m",root.MountId.ToString("N"));using var reader=rows.ExecuteReader();
-                while(reader.Read())
-                {
-                    var png=(byte[])reader[2];var size=reader.GetInt32(1);if(!ValidPng(png)||size is not(32 or 64 or 128 or 256))continue;
-                    using var add=destination.CreateCommand();add.Transaction=tx;add.CommandText="INSERT INTO images VALUES($c,$s,$p,$t)";add.Parameters.AddWithValue("$c",reader.GetString(0));add.Parameters.AddWithValue("$s",size);add.Parameters.Add("$p",SqliteType.Blob).Value=png;add.Parameters.AddWithValue("$t",reader.GetInt64(3));add.ExecuteNonQuery();
-                }
-            }
-            tx.Commit();return true;
-        });return copied?root:null;
-    }
     /// <summary>调用方已停止写入；同一命名锁内核对唯一根、正常检查点并关闭连接后精确删除库。读者占用或身份变化保留文件供重试。</summary>
     internal bool DeleteDatabase(ThumbnailCacheRoot? expected)=>Locked(()=>
     {
@@ -102,8 +70,6 @@ internal sealed class ThumbnailCacheStore(string database)
                 {Thread.Sleep(25);} // 原生只读句柄500ms空闲回收；只对共享占用有界退让，其他故障保持失败。
         return true;
     });
-    internal bool IsEmpty
-    {get{if(!File.Exists(database))return true;using var db=Open(false);if(!Supported(db))return false;using var command=db.CreateCommand();command.CommandText="SELECT count(*) FROM roots";return Convert.ToInt32(command.ExecuteScalar())==0;}}
     private static ThumbnailCacheRoot? ReadRoot(SqliteConnection db,Guid mount,SqliteTransaction? tx=null)
     {using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="SELECT json FROM roots WHERE mount=$m AND length(json)<=65536";cmd.Parameters.AddWithValue("$m",mount.ToString("N"));return cmd.ExecuteScalar() is string json?JsonSerializer.Deserialize<ThumbnailCacheRoot>(json):null;}
     /// <summary>改变启用、内容作用域、根路径或身份时撤销旧绑定；相同根重启保留epoch和图片。</summary>
@@ -187,12 +153,6 @@ internal sealed class ThumbnailCacheStore(string database)
     });
     /// <summary>只有本产品当前缓存根下的条目失效；删除绑定即可使全部尺寸同时失效。</summary>
     internal void Invalidate(Guid mount,string? entry=null)=>Write(db=>{using var cmd=db.CreateCommand();cmd.CommandText=entry is null?"DELETE FROM bindings WHERE mount=$m":"DELETE FROM bindings WHERE mount=$m AND entry=$e";cmd.Parameters.AddWithValue("$m",mount.ToString("N"));cmd.Parameters.AddWithValue("$e",entry??"");return cmd.ExecuteNonQuery();});
-    /// <summary>仅移除与调用者快照完全一致的根及其独占图像；并发重配置后拒绝清理，不影响其他挂载。</summary>
-    internal bool RemoveRoot(ThumbnailCacheRoot expected)=>Write(db=>
-    {
-        using var tx=db.BeginTransaction();if(ReadRoot(db,expected.MountId,tx)!=expected){tx.Rollback();return false;}
-        using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText="DELETE FROM images WHERE content IN (SELECT content FROM bindings WHERE mount=$m) AND content NOT IN (SELECT content FROM bindings WHERE mount<>$m);DELETE FROM bindings WHERE mount=$m;DELETE FROM roots WHERE mount=$m";cmd.Parameters.AddWithValue("$m",expected.MountId.ToString("N"));cmd.ExecuteNonQuery();tx.Commit();return true;
-    });
     internal long UsageBytes=>new[]{database,database+"-wal",database+"-shm"}.Sum(path=>{try{return LocalFileMetadata.TryRead(path)?.Length??0;}catch(IOException){return 0;}catch(UnauthorizedAccessException){return 0;}});
     /// <summary>后台按生成时间回收，依赖SQLite正常检查点与增量收缩，不手工删除正在使用的WAL。</summary>
     internal long Trim(long needed)=>Write(db=>

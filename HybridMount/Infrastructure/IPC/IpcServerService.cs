@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Diagnostics;
+using HybridMount.Commons.Diagnostics;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Models;
 using System.IO.Pipes;
@@ -68,11 +68,6 @@ public sealed class IpcServerService : IAsyncDisposable
     {
         if (Handler is not null) return Handler(request);
         if (!IpcProtocol.IsValid(request)) return new(IpcProtocol.Version, request.RequestId ?? "", "invalidRequest", "请求版本、操作或路径无效。");
-        if (request.Operation is "freeSpace" or "keepOnDevice")
-        {
-            var title = request.Operation == "freeSpace" ? "释放空间" : "始终保留在设备上";
-            _logger.Queue("资源管理器", "Information", $"{title}（占位）：{JsonSerializer.Serialize(request.Paths)}；0.0.1 不修改文件。");
-        }
         if (RequestReceived is { } subscribers)
             foreach (Action<IpcRequest> subscriber in subscribers.GetInvocationList())
                 try { subscriber(request); }
@@ -81,7 +76,7 @@ public sealed class IpcServerService : IAsyncDisposable
         {
             "ping" => new(IpcProtocol.Version, request.RequestId, "ready", "HybridMount.NET 已运行。"),
             "showWindow" => new(IpcProtocol.Version, request.RequestId, "accepted", "已请求恢复窗口。"),
-            _ => new(IpcProtocol.Version, request.RequestId, "notImplemented", "0.0.1 为占位菜单，操作已记录，未修改文件。")
+            _ => new(IpcProtocol.Version, request.RequestId, "notImplemented", "未配置此操作的处理器。")
         };
     }
     /// <summary>重复释放共用同一任务，结束管道后由宿主排空日志。</summary>

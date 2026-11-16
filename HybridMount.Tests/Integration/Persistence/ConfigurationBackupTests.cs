@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Configuration;
 using HybridMount.Infrastructure.Diagnostics;
@@ -293,7 +293,7 @@ public sealed class ConfigurationBackupTests
         Assert.Equal("Failed",result.Results[0].State);Assert.Empty(test.Manager.Mounts);Assert.Equal(0,test.Factory.Created);
     }
     [Theory]
-    [InlineData(FileSourceKind.LegacyMock)][InlineData(FileSourceKind.Smb)][InlineData(FileSourceKind.Nfs)]
+    [InlineData((FileSourceKind)0)][InlineData(FileSourceKind.Smb)][InlineData(FileSourceKind.Nfs)]
     public async Task ReservedProtocolsAreNotImported(FileSourceKind kind)
     {
         await using var test=new Area();var result=await test.Manager.ImportConfigurationsAsync([new(Dav() with {Source=new(kind)},test.Folder("a"))]);Assert.Equal("Failed",result.Results[0].State);Assert.Empty(test.Manager.Mounts);
@@ -363,7 +363,7 @@ public sealed class ConfigurationBackupTests
     private sealed class NeverConnectFactory:IFileSourceFactory
     {
         public int Created;
-        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token){Interlocked.Increment(ref Created);throw new InvalidOperationException("备份或导入不允许建立文件源。");}
+        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token){Interlocked.Increment(ref Created);throw new InvalidOperationException("备份或导入不允许建立文件源。");}
     }
     private sealed class Area:IAsyncDisposable
     {

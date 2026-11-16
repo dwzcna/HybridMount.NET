@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Mounting.Renames;
+using HybridMount.Models.Mounting.Renames;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Models.Mounting;
 using HybridMount.Services.Sync;
@@ -23,8 +23,8 @@ public sealed class ExcludedRenameJournalTests
         try
         {
             var journal=new ExcludedRenameJournal(directory,id);var row=new ExcludedRenameIntent(Guid.NewGuid().ToString("N"),id,"C:\\unit-root","root",ExcludedRenameJournal.CurrentOwner,new string('A',48),"123.txt","123.bak","123.txt","entry","version",null,0,"Queued",DateTimeOffset.UtcNow,SourceScope:new string('B',64));
-            journal.Add(row);journal.MarkLegacyChecked();var cancel=journal.Update(row.Id,x=>x with{CancelRequested=true});Assert.NotNull(cancel);Assert.Null(journal.Update(row.Id,x=>x with{Stage="Deleting"},row));
-            var restored=new ExcludedRenameJournal(directory,id);Assert.True(restored.LegacyChecked);Assert.True(Assert.Single(restored.Read()).CancelRequested);Assert.True(cancel!.Revision>row.Revision);
+            journal.Add(row);var cancel=journal.Update(row.Id,x=>x with{CancelRequested=true});Assert.NotNull(cancel);Assert.Null(journal.Update(row.Id,x=>x with{Stage="Deleting"},row));
+            var restored=new ExcludedRenameJournal(directory,id);Assert.True(Assert.Single(restored.Read()).CancelRequested);Assert.True(cancel!.Revision>row.Revision);
         }
         finally{if(Directory.Exists(directory))Directory.Delete(directory,true);}
     }
@@ -41,7 +41,7 @@ public sealed class ExcludedRenameJournalTests
             journal.Add(row);
             var first = journal.Read();
             Assert.Same(first, journal.Read());
-            journal.MarkLegacyChecked();
+
             Assert.Same(first, journal.Read());
             Assert.Same(row, journal.Find(row.Id));
             Assert.Throws<NotSupportedException>(() => { ((IList<ExcludedRenameIntent>)first)[0] = row with { Stage = "Canceled" }; });
@@ -76,4 +76,20 @@ public sealed class ExcludedRenameJournalTests
         }
         finally { Directory.Delete(directory, true); }
     }
+    [Fact]
+    public void OldJournalIsRejectedWithoutRewritingItsEvidence()
+    {
+        var directory=Directory.CreateTempSubdirectory("HybridMount.OldRename.").FullName;
+        var mount=Guid.NewGuid();var folder=Path.Combine(directory,"ExcludedRenames");Directory.CreateDirectory(folder);
+        var file=Path.Combine(folder,mount.ToString("N")+".json");
+        try
+        {
+            File.WriteAllText(file,System.Text.Json.JsonSerializer.Serialize(new{Schema=2,Mount=mount,LegacyChecked=true,Items=Array.Empty<object>()}));
+            var before=File.ReadAllBytes(file);
+            Assert.Throws<IOException>(()=>new ExcludedRenameJournal(directory,mount).Read());
+            Assert.Equal(before,File.ReadAllBytes(file));Assert.Single(Directory.GetFiles(folder));
+        }
+        finally{Directory.Delete(directory,true);}
+    }
+
 }

@@ -1,17 +1,24 @@
-﻿using HybridMount.Infrastructure.Persistence.Protocols;
+using HybridMount.Infrastructure.Persistence.Protocols;
 using Microsoft.Data.Sqlite;
 namespace HybridMount.Infrastructure.Persistence;
 
-/// <summary>拥有当前版SQLite索引；创建前只读检查格式，仅升级已知索引并先保留一致性备份，领域事务由仓库拥有。</summary>
+/// <summary>拥有当前版SQLite索引；创建前只读检查格式，旧格式拒绝且保留现场，领域事务由仓库拥有。</summary>
 internal sealed class MountDatabase
 {
     public string DataDirectory {get;}
     public MountDatabase(string directory,IReadOnlyList<IMountProtocolStorage> protocolStorage)
     {
-        DataDirectory=Path.GetFullPath(directory);UpgradeSchema(DataDirectory);MountIndexFormat.Inspect(DataDirectory).RequireCurrent();Directory.CreateDirectory(DataDirectory);
+        DataDirectory=Path.GetFullPath(directory);
+        var format=MountIndexFormat.Inspect(DataDirectory);format.RequireCurrent();Directory.CreateDirectory(DataDirectory);
+        var creating=format.State=="New";
+        // CreateNew与ReadWrite分开：已有文件或运行中丢失的数据库不得被ReadWriteCreate覆盖／重建。
+        if(creating){using var created=new FileStream(Path.Combine(DataDirectory,"mounts.db"),FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None);}
         using var db = Open(); using var cmd = db.CreateCommand();
         cmd.CommandText="PRAGMA user_version";
-        if(Convert.ToInt32(cmd.ExecuteScalar())>MountIndexFormat.CurrentVersion)throw new IOException("挂载索引版本较新，请使用新版 HybridMount。");
+        var current=Convert.ToInt32(cmd.ExecuteScalar());
+        if(creating?current!=0:current!=MountIndexFormat.CurrentVersion)throw new MountIndexFormatException(new(current>MountIndexFormat.CurrentVersion?"Newer":"Old",current));
+        if(!creating)return;
+        using var transaction=db.BeginTransaction();cmd.Transaction=transaction;
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS entries(mount TEXT NOT NULL,id TEXT NOT NULL,source TEXT NOT NULL COLLATE NOCASE,
                 local TEXT NOT NULL COLLATE NOCASE,version TEXT NOT NULL,directory INTEGER NOT NULL,deleted INTEGER NOT NULL,
@@ -55,7 +62,7 @@ internal sealed class MountDatabase
             CREATE INDEX IF NOT EXISTS uploads_attention ON uploads(mount) WHERE json_type(json,'$.Attention')='object' AND json_extract(json,'$.Attention.ResolvedUtc') IS NULL;
             CREATE INDEX IF NOT EXISTS entries_source_ordinal ON entries(mount,source COLLATE HM_PATH);
             CREATE INDEX IF NOT EXISTS entries_local_ordinal ON entries(mount,local COLLATE HM_PATH);
-            """+"\n"+string.Join("\n",protocolStorage.Select(module=>module.SchemaSql))+"\n"+TaskPresentationSchema+"\nPRAGMA user_version=8;"; cmd.ExecuteNonQuery();
+            """+"\n"+string.Join("\n",protocolStorage.Select(module=>module.SchemaSql))+"\n"+TaskPresentationSchema+"\nPRAGMA user_version=9;"; cmd.ExecuteNonQuery();transaction.Commit();
     }
     /// <summary>展示表与业务核验表独立；不把展示阶段当作Verified依赖或写入回执。</summary>
     internal const string TaskPresentationSchema="""
@@ -67,28 +74,11 @@ internal sealed class MountDatabase
         CREATE TABLE IF NOT EXISTS remote_task_batch_members(pending TEXT PRIMARY KEY,batch TEXT NOT NULL,ordinal INTEGER NOT NULL,path TEXT NOT NULL,category TEXT NOT NULL,state TEXT NOT NULL,reason TEXT,action TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS remote_members_batch ON remote_task_batch_members(batch,category,ordinal);
         """;
-    /// <summary>业务服务创建前串行调用。SQLite在线备份包含WAL已提交内容；升级失败回滚，原库和备份均保留。</summary>
-    internal static void UpgradeSchema(string directory)
-    {
-        var format=MountIndexFormat.Inspect(directory);format.RequireCurrent();
-        if(format.State!="Upgradeable")return;
-        var path=Path.Combine(directory,"mounts.db");
-        using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=path,Mode=SqliteOpenMode.ReadWrite,Pooling=false}.ToString());
-        db.Open();ConfigurePathComparison(db);
-        var backupDirectory=Path.Combine(directory,"Backups");Directory.CreateDirectory(backupDirectory);
-        var backupPath=Path.Combine(backupDirectory,"mounts-schema7-"+DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssfffffff")+"-"+Guid.NewGuid().ToString("N")+".db");
-        using(var backup=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=backupPath,Pooling=false}.ToString()))
-        {backup.Open();ConfigurePathComparison(backup);db.BackupDatabase(backup);}
-        using var tx=db.BeginTransaction();using var command=db.CreateCommand();command.Transaction=tx;
-        command.CommandText="PRAGMA user_version";
-        if(Convert.ToInt32(command.ExecuteScalar())!=7)throw new IOException("索引升级期间版本发生变化，未继续修改。");
-        command.CommandText=TaskPresentationSchema+"\nPRAGMA user_version=8;";command.ExecuteNonQuery();tx.Commit();
-    }
     /// <summary>每条业务或预检连接先注册相同的本地路径排序；不覆盖SQLite内置NOCASE或S3对象键身份。</summary>
     internal static void ConfigurePathComparison(SqliteConnection db)=>db.CreateCollation("HM_PATH",StringComparer.OrdinalIgnoreCase.Compare);
     public SqliteConnection Open()
     {
-        var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(DataDirectory,"mounts.db"),Pooling=false}.ToString());
+        var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(DataDirectory,"mounts.db"),Mode=SqliteOpenMode.ReadWrite,Pooling=false}.ToString());
         try{db.Open();ConfigurePathComparison(db);return db;}
         catch{db.Dispose();throw;}
     }

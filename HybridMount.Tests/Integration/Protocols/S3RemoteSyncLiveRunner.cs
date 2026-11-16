@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -116,7 +116,7 @@ public static class S3RemoteSyncLiveRunner
         AWSCredentials credentials=keys.SessionToken.Length==0?new BasicAWSCredentials(keys.AccessKey,keys.SecretKey):new SessionAWSCredentials(keys.AccessKey,keys.SecretKey,keys.SessionToken);return new AmazonS3Client(credentials,config);
     }
     private sealed class ProjectionFactory(string name):IFileSourceFactory
-    {public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)=>new Projection((S3FileSource)await new FileSourceFactory().CreateAsync(mount,repository,recovery,token),name);}
+    {public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)=>new Projection((S3FileSource)await new FileSourceFactory().CreateAsync(mount,repository,token),name);}
     private sealed class Projection(S3FileSource source,string name):IFileSource,IRemoteChangeSource,IRemoteSnapshotSource,IUploadDiagnosticsSource,IRemoteUsageSource
     {
         public FileSourceCapabilities Capabilities=>source.Capabilities;public SourceWriteCapabilities WriteCapabilities=>source.WriteCapabilities;

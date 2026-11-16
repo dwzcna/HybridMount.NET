@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -150,7 +150,7 @@ public static class RemoteSyncLiveRunner
     /// <summary>只把本轮唯一文件投影为本地根；实际发现和 REPORT 仍向真实共享发出，其他用户内容不入本地索引。</summary>
     private sealed class SingleFileFactory(string name) : IFileSourceFactory
     {
-        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         {
             // 保留正式认证处理器，补充安全的传输阶段分类，不记录授权头或服务正文。
             var source=new WebDavFileSource(mount.Source!,new CredentialStore(repository.DataDirectory).Load(mount.Id),new WholeFileCache(Path.Combine(repository.DataDirectory,"live-cache")),new WireErrors());

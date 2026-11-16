@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.Paths;
+using HybridMount.Helpers.Paths;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
@@ -130,7 +130,7 @@ public sealed class LargeDirectoryDiscoveryTests
     }
     private sealed class Factory(DavFixture dav,ListingGate gate):IFileSourceFactory
     {
-        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         {var source=dav.Source();if(TasksQueueService.CurrentBinding is {} binding)((IMountNetworkSource)source).BindQueue(binding);await source.ProbeAsync(token);return new SlowListing(source,gate);}
     }
     private sealed class Definitions:IMountDefinitionStore

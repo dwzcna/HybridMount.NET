@@ -140,7 +140,7 @@ public sealed class ContractTests
     }
     /// <summary>畸形客户端和故障订阅者不破坏管道，文件命令明确返回尚未实现。</summary>
     [Fact]
-    public async Task PipeRecoversAndPlaceholderDoesNotModifyFiles()
+    public async Task PipeRejectsVersionOneAndMissingHandlersDoNotModifyFiles()
     {
         var directory = Path.Combine(Path.GetTempPath(), "HybridMount.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -150,7 +150,8 @@ public sealed class ContractTests
             await using var logger = new LoggerService(Path.Combine(directory, "log.db"));
             var name = "HybridMount.Tests." + Guid.NewGuid().ToString("N");
             await using var server = new IpcServerService(logger, name);
-            server.RequestReceived += _ => throw new InvalidOperationException("测试订阅故障");
+            var accepted=0;
+            server.RequestReceived += _ => {Interlocked.Increment(ref accepted);throw new InvalidOperationException("测试订阅故障");};
             server.Start();
             await using (var malformed = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
             { await malformed.ConnectAsync(3000); await malformed.WriteAsync(new byte[4]); }
@@ -160,7 +161,12 @@ public sealed class ContractTests
                 Assert.Equal("notImplemented", response.Status);
             }
             Assert.Equal("original", await File.ReadAllTextAsync(file));
-            Assert.Equal(2, (await logger.ReadAsync()).Count(entry => entry.Source == "资源管理器"));
+            var oldRequest=await IpcClient.SendAsync(new(1,Guid.NewGuid().ToString(),"ping",[]),name);
+            Assert.Equal("invalidRequest",oldRequest.Status);
+            var logs=await logger.ReadAsync();
+            Assert.DoesNotContain(logs,entry=>entry.Source=="资源管理器");
+            Assert.Equal(2,accepted);
+            Assert.Contains(logs,entry=>entry.Message.StartsWith("请求通知失败",StringComparison.Ordinal));
             await server.DisposeAsync();
             await server.DisposeAsync();
         }

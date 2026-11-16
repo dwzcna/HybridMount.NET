@@ -1,4 +1,4 @@
-﻿using HybridMount.Models.Protocols.S3;
+using HybridMount.Models.Protocols.S3;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
@@ -161,7 +161,7 @@ public sealed class ConfigurationExportTests
     private sealed class Factory : IFileSourceFactory
     {
         internal int Calls;
-        public Task<IFileSource> CreateAsync(MountDefinition mount, IMountRepository repository, bool recovery, CancellationToken token) { Calls++; throw new IOException("Export cannot access source"); }
+        public Task<IFileSource> CreateAsync(MountDefinition mount, IMountRepository repository, CancellationToken token) { Calls++; throw new IOException("Export cannot access source"); }
     }
     private sealed class Store : IMountDefinitionStore
     {
@@ -179,8 +179,8 @@ public sealed class ConfigurationExportTests
         internal Area()
         {
             System.IO.Directory.CreateDirectory(Directory); var local = Path.Combine(Directory,"local"); System.IO.Directory.CreateDirectory(local);
-            var store = new Store(); store.SaveDefinition(new(Id,"offline",local,false,Source:new(FileSourceKind.WebDav,"https://never-connect.example.test/"),RegistrationStage:MountRegistrationStage.NotRegistered));
-            Repository = new(Path.Combine(Directory,"data"),definitions:store); Logger = new(Path.Combine(Directory,"logs.db"));
+            var store = new Store(); Repository = new(Path.Combine(Directory,"data"),definitions:store); store.SaveDefinition(new(Id,"offline",local,false,Source:new(FileSourceKind.WebDav,"https://never-connect.example.test/"),RegistrationStage:MountRegistrationStage.NotRegistered));
+            Logger = new(Path.Combine(Directory,"logs.db"));
             new CredentialStore(Repository.DataDirectory).Save(Id,new("account-secret","password-secret")); Manager = new(Repository,Logger,Factory);
         }
         public async ValueTask DisposeAsync() { await Manager.DisposeAsync(); await Logger.DisposeAsync(); if(System.IO.Directory.Exists(Directory))System.IO.Directory.Delete(Directory,true); }

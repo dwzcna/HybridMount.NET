@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Presentation;
+using HybridMount.Commons.Presentation;
 using HybridMount.Models.Protocols.S3;
 namespace HybridMount.Models.Mounting;
 
@@ -14,17 +14,17 @@ public sealed record SourceEntry(string StableId, string Path, bool IsDirectory,
 public class SourceConflictException(string message) : IOException(message);
 /// <summary>只读扫描的观测失效，可重新完整扫描；与真实版本写入冲突独立，不能用于重发写请求。</summary>
 public sealed class SourceRescanRequiredException(string message) : SourceConflictException(message);
-/// <summary>移除模式持久化后不可切换；默认值兼容旧版的保留文件流程。</summary>
+/// <summary>移除模式持久化后不可切换；当前默认值为保留文件流程。</summary>
 public enum MountRemovalMode { PreserveFiles, ClearContents, PreserveCachedFiles }
 /// <summary>Working 表示处理内容；Unregistering 表示内容已处理、正在解除注册。</summary>
 public enum MountRemovalStage { Working, Unregistering }
-/// <summary>旧配置默认未知，按实际注册及索引核对；注册中断不可冒充从未注册。</summary>
+/// <summary>按实际注册及索引核对；注册中断不可冒充从未注册。</summary>
 public enum MountRegistrationStage { Unknown, NotRegistered, Registering, Registered }
 /// <summary>根位置不可原地修改；未完成的移除必须按已保存的模式恢复。</summary>
-public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, FileSourceConfiguration? Source = null, MountRegistrationStage RegistrationStage = MountRegistrationStage.Unknown, bool AutoUploadEnabled = false, bool UploadInitialReviewCompleted = false, bool ContinuousUploadMigrated = false, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, long CredentialRevision = 0, SqsConfiguration? Sqs = null, bool CapacityAutoDetectEnabled = false, long? MaximumCapacityBytes = null, IReadOnlyList<FileExclusionRule>? ExclusionRules = null)
+public sealed record MountDefinition(Guid Id, string Name, string LocalPath, bool AutoConnect = true, bool RemovalPending = false, string? RootIdentity = null, MountRemovalMode RemovalMode = MountRemovalMode.PreserveFiles, MountRemovalStage RemovalStage = MountRemovalStage.Working, [property:System.Text.Json.Serialization.JsonRequired] FileSourceConfiguration? Source = null, [property:System.Text.Json.Serialization.JsonRequired] MountRegistrationStage RegistrationStage = MountRegistrationStage.NotRegistered, bool ThumbnailsEnabled = false, bool RemoteAutoDetectEnabled = true, int RemoteIncrementalSeconds = 60, int RemoteFullSeconds = 300, long CredentialRevision = 0, SqsConfiguration? Sqs = null, bool CapacityAutoDetectEnabled = false, long? MaximumCapacityBytes = null, IReadOnlyList<FileExclusionRule>? ExclusionRules = null)
 {
     private readonly FileExclusionRuleList? _exclusionRules=ExclusionRules is null?null:new(ExclusionRules);
-    /// <summary>缺失为旧行为；设置时复制规则，列表值相同的配置仍按记录值相等。</summary>
+    /// <summary>null表示不排除；设置时复制规则，列表值相同的配置仍按记录值相等。</summary>
     [System.Text.Json.Serialization.JsonConverter(typeof(FileExclusionRuleListConverter))]
     public IReadOnlyList<FileExclusionRule>? ExclusionRules{get=>_exclusionRules;init=>_exclusionRules=value is null?null:new(value);}
 }

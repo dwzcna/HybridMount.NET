@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Protocols;
+using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Protocols.Synology;
 using HybridMount.Models.Mounting;
 namespace HybridMount.Services.Mounting;
@@ -48,7 +48,7 @@ public sealed partial class MountManager
         if(draft.ExistingId is {} id)
         {
             var root=Root(id);if(root.RemovalRequested||root.Definition.RemovalPending)throw new IOException(HybridMount.Models.Localization.ResourceMessage.Create("ThisConfigurationIsBusyWithAnotherOperation").Render());
-            var previous=root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
+            var previous=root.Definition.Source??throw new IOException("挂载缺少当前协议配置。");
             if(previous.Kind!=draft.Source.Kind||(!CanEditRemoteRoot(id)&&(previous.Endpoint!=draft.Source.Endpoint||previous.Bucket!=draft.Source.Bucket||previous.Prefix!=draft.Source.Prefix||previous.AllowHttp!=draft.Source.AllowHttp)))throw new IOException("已有挂载不能更换远端根，请新建挂载。");
         }
         else _=ValidateNewMountRoot(draft.Name,draft.Path);

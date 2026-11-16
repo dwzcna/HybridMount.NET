@@ -1,4 +1,5 @@
-﻿using HybridMount.Models.Mounting.Tasks;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Models.Mounting.Tasks;
 using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Persistence;
@@ -35,7 +36,7 @@ public sealed class TaskSnapshotCostTests(ITestOutputHelper output)
     [Fact]
     public void DependencyQueriesKeepCrossScopeDirectoryAndSiblingBoundaries()
     {
-        using var scratch=new Scratch();var repo=new MountRepository(Path.Combine(scratch.Path,"data"));var mount=Guid.NewGuid();
+        using var scratch=new Scratch();var repo=new MountRepository(Path.Combine(scratch.Path,"data"),definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();
         var child=new RemotePendingChange("child",mount,"new","A/child",new("child","A/child",false,1,DateTimeOffset.UnixEpoch,"v"));
         var parent=new RemotePendingChange("parent",mount,"old","a",new("parent","a",true,0,DateTimeOffset.UnixEpoch,"v"),State:"Committing");repo.SaveRemotePending(parent);repo.SaveRemotePending(child);
         Assert.False(repo.RemoteDependenciesReady(child));repo.SaveRemotePending(parent with{State="Completed"});Assert.True(repo.RemoteDependenciesReady(child));
@@ -46,8 +47,8 @@ public sealed class TaskSnapshotCostTests(ITestOutputHelper output)
     public async Task ManagedSelectionIsStructuredAndKeepsCandidateProtection()
     {
         using var scratch=new Scratch();var definitions=new Definitions();var local=Path.Combine(scratch.Path,"mount");Directory.CreateDirectory(local);
-        var definition=new MountDefinition(Guid.NewGuid(),"managed",local,false);definitions.Items.Add(definition);
-        var repo=new MountRepository(Path.Combine(scratch.Path,"data"),definitions:definitions);await using var logger=new LoggerService(Path.Combine(scratch.Path,"logs.db"));
+        var definition=new MountDefinition(Guid.NewGuid(),"managed",local,false,Source:new(FileSourceKind.WebDav,"https://fixture.invalid/"));
+        var repo=new MountRepository(Path.Combine(scratch.Path,"data"),definitions:definitions);definitions.Items.Add(definition);await using var logger=new LoggerService(Path.Combine(scratch.Path,"logs.db"));
         await using var manager=new MountManager(repo,logger);
         foreach(var path in new[]{local,Path.Combine(local,"child"),scratch.Path})
         {

@@ -244,7 +244,7 @@ public sealed partial class MountManager : IAsyncDisposable
     {
         foreach(var root in _roots.Values){if(IsStopping)return;try{await EnsureInspectionAsync(root).ConfigureAwait(false);}catch(OperationCanceledException)when(IsStopping){return;}}
         foreach(var root in _roots.Values.Where(root=>root.Definition.AutoConnect && !root.Definition.RemovalPending && !root.SkipStartupConnection))
-            try { if(_factory is FileSourceFactory && root.Definition.Source is null) { Status(root,"MigrationOutRequired","旧版模拟源保留；请选择下载并移除或清空。");continue; } await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.QueueException("恢复挂载","Error","操作未完成",error); }
+            try { await ConnectAsync(root.Definition.Id,_stop.Token).ConfigureAwait(false); } catch(OperationCanceledException)when(IsStopping) { break; } catch(ConnectionStoppedException) { } catch(Exception error) { _logger.QueueException("恢复挂载","Error","操作未完成",error); }
     }
     /// <summary>同根共享一次启动核对；连接、编辑和收尾先等待，调用者不能在持根锁时进入。</summary>
     private Task EnsureInspectionAsync(Runtime root){lock(root.ConnectionSync)return root.RequiresInspection?root.Inspection??=InspectStartupRootAsync(root):Task.CompletedTask;}
@@ -294,13 +294,13 @@ public sealed partial class MountManager : IAsyncDisposable
             try
             {
             if(root.Definition.RemovalPending || root.RemovalRequested || !_roots.ContainsKey(id))throw new IOException("移除过程中不能更换凭据。");
-            var effective=settings??root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
+            var effective=settings??root.Definition.Source??throw new IOException("挂载缺少当前协议配置。");
             FileSourceFactory.Endpoint(effective);
             FileSourceFactory.ValidateProtocolOptions(effective);FileSourceFactory.ValidateProtocolCredentials(effective,credentials);
             if(acceptedTask is not null)Stage(acceptedTask,"OperationStageSaveConfiguration");
             if(settings is not null)
             {
-                var previous=root.Definition.Source??throw new IOException("旧版挂载不能更换协议。");
+                var previous=root.Definition.Source??throw new IOException("挂载缺少当前协议配置。");
                 if(previous.Kind!=settings.Kind || (!CanEditRemoteRoot(id) && (previous.Endpoint!=settings.Endpoint||previous.Bucket!=settings.Bucket||previous.Prefix!=settings.Prefix||previous.AllowHttp!=settings.AllowHttp)))
                     throw new IOException("已有挂载不能更换远端根，请新建挂载。");
                 FileSourceFactory.Endpoint(settings);
@@ -331,7 +331,7 @@ public sealed partial class MountManager : IAsyncDisposable
         return !CloudRootRegistration.IsOwnedRoot(root.Definition) && !CloudFilesNative.IsCloudPath(root.Definition.LocalPath) && !MountPathGuard.ContainsCloudPlaceholders(root.Definition.LocalPath) &&
             !_repository.HasMaterializedEntries(id);
     }
-    /// <summary>迁移旧配置时同时检查原生、WinRT、占位和索引；丢失的注册不自动接管。</summary>
+    /// <summary>按当前恢复状态核对原生、WinRT、占位和索引；丢失的注册不自动接管。</summary>
     private bool InspectRegistration(Runtime root)
     {
         var registered=CloudRootRegistration.IsOwnedRoot(root.Definition);
@@ -404,7 +404,7 @@ public sealed partial class MountManager : IAsyncDisposable
             await NativeRuntimeClient.PrepareConnectionAsync().ConfigureAwait(false);token.ThrowIfCancellationRequested();
             var registered=InspectRegistration(root);
             if(MountPathGuard.ReadRoot(root.Definition.LocalPath) is null && _repository.HasMaterializedEntries(root.Definition.Id))throw new IOException("原同步根注册已丢失；保留数据，不能自动重新注册。");
-            root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(root.Definition,_repository,false,token)).ConfigureAwait(false);
+            root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(root.Definition,_repository,token)).ConfigureAwait(false);
             ObserveProtocolCapabilities(root);
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);ObserveUploadSource(root);
             if(root.Source is IMountSourceRuntime preparing)await OutsideRootAsync(root,()=>preparing.BeforeRegistrationAsync(token)).ConfigureAwait(false);
@@ -421,7 +421,7 @@ public sealed partial class MountManager : IAsyncDisposable
                 root.Session=new CloudMountSession(root.Definition,root.Source,_repository,_logger,localContentReady:entry=>{InvalidateCacheUsage(RelativePaths.ToLocal(root.Definition.LocalPath,entry.LocalPath));QueueLocalPreview(root,entry);},localChanged:()=>root.Uploads?.RequestCloseScan()){PinResourcesReleasingForTests=cancel=>PinResourcesReleasingForTests?.Invoke(cancel)??Task.CompletedTask}; ConnectSession(root);
             }
             Stage(connectionId,"OperationStageReadChanges");
-            Reconcile(root);MigrateContinuousUploads(root);ScanLocalUploadsCore(root,token);
+            Reconcile(root);ScanLocalUploadsCore(root,token);
             IReadOnlyList<MountItemResult> refreshed;
             if(root.Source is IRemoteChangeSource)
             {
@@ -781,7 +781,7 @@ public sealed partial class MountManager : IAsyncDisposable
         });
         return job.Snapshot.Id;
     }
-    /// <summary>保存不可切换的移除意图；旧版 Pending 默认按保留文件恢复。</summary>
+    /// <summary>保存不可切换的当前移除意图；按已持久化模式恢复。</summary>
     private void MarkRemoval(Runtime root,MountRemovalMode mode)
     {
         if(root.Definition.RemovalPending && root.Definition.RemovalMode!=mode)throw new IOException("不能切换已开始的移除模式。");
@@ -847,7 +847,7 @@ public sealed partial class MountManager : IAsyncDisposable
         {
             root.QueueBinding??=TasksQueue.StartMount(mount.Id);
             using var queueContext=TasksQueue.Enter(root.QueueBinding,new(job.Snapshot.Id,mount.Id,root.QueueBinding.Generation,MountingPriority.User,DateTimeOffset.UtcNow,"remove"));
-            root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(mount,_repository,true,job.Cancel.Token)).ConfigureAwait(false);
+            root.Source=await OutsideRootAsync(root,()=>_factory.CreateAsync(mount,_repository,job.Cancel.Token)).ConfigureAwait(false);
             ObserveProtocolCapabilities(root);
             if(root.Source is IMountNetworkSource network)network.BindQueue(root.QueueBinding);
             root.Session=new CloudMountSession(mount,root.Source,_repository,_logger,localContentReady:entry=>QueueLocalPreview(root,entry));ConnectSession(root);

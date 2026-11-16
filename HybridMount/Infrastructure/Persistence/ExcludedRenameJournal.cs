@@ -1,4 +1,4 @@
-﻿using HybridMount.Helpers.Paths;
+using HybridMount.Helpers.Paths;
 using HybridMount.Models.Mounting.Renames;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Models.Mounting;
@@ -10,7 +10,7 @@ namespace HybridMount.Infrastructure.Persistence;
 /// <summary>每挂载独立原子JSON；读回校验归属和路径，损坏时停止本功能，绝不重建日志或扩大操作范围。</summary>
 internal sealed class ExcludedRenameJournal(string directory,Guid mount)
 {
-    private sealed record Document(int Schema,Guid Mount,bool LegacyChecked,ExcludedRenameIntent[] Items);
+    private sealed record Document(int Schema,Guid Mount,ExcludedRenameIntent[] Items);
     private readonly string _file=Path.Combine(directory,"ExcludedRenames",mount.ToString("N")+".json");
     private readonly object _gate=new();private Document? _document;
     private ExcludedRenameIntent[]? _viewItems;
@@ -20,12 +20,12 @@ internal sealed class ExcludedRenameJournal(string directory,Guid mount)
     private Document Load()
     {
         if(_document is not null)return _document;
-        if(!File.Exists(_file))return _document=new(2,mount,false,[]);
+        if(!File.Exists(_file))return _document=new(3,mount,[]);
         if(new FileInfo(_file).Length>16*1024*1024)throw new IOException("排除改名日志过长，保留原文件。");
         try
         {
-            var doc=JsonSerializer.Deserialize<Document>(File.ReadAllText(_file))??throw new IOException("排除改名日志为空。");
-            if(doc.Schema!=2||doc.Mount!=mount||doc.Items is null||doc.Items.Length>10000||doc.Items.Select(x=>x?.Id).Distinct().Count()!=doc.Items.Length)throw new IOException("排除改名日志格式无效。");
+            var doc=JsonSerializer.Deserialize<Document>(File.ReadAllText(_file),new JsonSerializerOptions{UnmappedMemberHandling=System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow})??throw new IOException("排除改名日志为空。");
+            if(doc.Schema!=3||doc.Mount!=mount||doc.Items is null||doc.Items.Length>10000||doc.Items.Select(x=>x?.Id).Distinct().Count()!=doc.Items.Length)throw new IOException("排除改名日志格式无效。");
             foreach(var row in doc.Items)Validate(row);return _document=doc;
         }
         catch(Exception error)when(error is JsonException or ArgumentException){throw new IOException("排除改名日志损坏，未改写原记录。",error);}
@@ -71,8 +71,6 @@ internal sealed class ExcludedRenameJournal(string directory,Guid mount)
             return _byId.GetValueOrDefault(id);
         }
     }
-    internal bool LegacyChecked{get{lock(_gate)return Load().LegacyChecked;}}
-    internal void MarkLegacyChecked(){lock(_gate){var doc=Load();if(!doc.LegacyChecked)Save(doc with{LegacyChecked=true});}}
     /// <summary>仅首次身份意图插入；调用者不能用旧快照覆盖并发取消或较新的改名。</summary>
     internal ExcludedRenameIntent Add(ExcludedRenameIntent intent)
     {

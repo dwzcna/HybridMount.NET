@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Models.Protocols.S3;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
@@ -87,7 +87,7 @@ public sealed class SqsMountIntegrationTests
         Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);
     }
     private sealed class NeverSource : IFileSourceFactory
-    {public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)=>throw new InvalidOperationException("导入不应连接远端");}
+    {public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)=>throw new InvalidOperationException("导入不应连接远端");}
     private sealed class DeniedQueue : ISqsQueueClient
     {
         public Task<IReadOnlyDictionary<string,string>> AttributesAsync(CancellationToken token)=>Task.FromResult<IReadOnlyDictionary<string,string>>(new Dictionary<string,string>{{"QueueArn","arn:aws:sqs:us-east-1:123456789012:hybrid-test"}});
@@ -96,7 +96,7 @@ public sealed class SqsMountIntegrationTests
         public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
     }
     private sealed class LocalS3Factory(S3Fixture fixture):IFileSourceFactory
-    {public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)=>Task.FromResult<IFileSource>(fixture.Source());}
+    {public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)=>Task.FromResult<IFileSource>(fixture.Source());}
     private sealed class Host : IAsyncDisposable
     {
         public readonly S3Fixture Fixture=new();public MountRepository Repository=null!;public LoggerService Logger=null!;public MountManager Manager=null!;public Guid Id;public string Local="",Registry="";

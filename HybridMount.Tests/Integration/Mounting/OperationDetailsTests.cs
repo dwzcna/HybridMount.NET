@@ -1,4 +1,5 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Persistence;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Models.Runtime;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -11,30 +12,13 @@ using HybridMount.Tests.Integration.Protocols;
 using Microsoft.Data.Sqlite;
 namespace HybridMount.Tests.Integration.Mounting;
 
-/// <summary>展示证据、升级和逻辑批次的隔离回归；不会读取正式配置或使用正式挂载。</summary>
+/// <summary>展示证据和逻辑批次的隔离回归；不会读取正式配置或使用正式挂载。</summary>
 public sealed class OperationDetailsTests
 {
     [Fact]
-    public void UpgradeKeepsBusinessDataAndCreatesConsistentVersionSevenBackup()
-    {
-        using var area=new Area();var repository=new MountRepository(area.Path);repository.SaveOperation(new("old","refresh","Completed",1,1,[],null));
-        MakeSeven(area.Path);Assert.Equal("Upgradeable",MountIndexFormat.Inspect(area.Path).State);
-        var upgraded=new MountRepository(area.Path);Assert.Equal("Current",MountIndexFormat.Inspect(area.Path).State);Assert.Equal("old",upgraded.FindOperation("old")!.Id);
-        var backup=Assert.Single(Directory.GetFiles(Path.Combine(area.Path,"Backups"),"*.db"));using var connection=Open(backup);using var query=connection.CreateCommand();query.CommandText="PRAGMA user_version";Assert.Equal(7L,query.ExecuteScalar());query.CommandText="SELECT id FROM operations";Assert.Equal("old",query.ExecuteScalar());
-    }
-    [Fact]
-    public void FailedUpgradeRollsBackAndRetainsEvidenceAndBackup()
-    {
-        using var area=new Area();_=new MountRepository(area.Path);MakeSeven(area.Path);
-        using(var db=Open(Path.Combine(area.Path,"mounts.db"))){using var command=db.CreateCommand();command.CommandText="CREATE VIEW operation_runs AS SELECT 1 AS id";command.ExecuteNonQuery();}
-        Assert.Throws<SqliteException>(()=>new MountRepository(area.Path));
-        using(var db=Open(Path.Combine(area.Path,"mounts.db"))){using var command=db.CreateCommand();command.CommandText="PRAGMA user_version";Assert.Equal(7L,command.ExecuteScalar());command.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='operation_steps'";Assert.Equal(0L,command.ExecuteScalar());}
-        Assert.Single(Directory.GetFiles(Path.Combine(area.Path,"Backups"),"*.db"));
-    }
-    [Fact]
     public void FailureDoesNotCompleteUnexecutedStepsAndRetryPreservesAttempt()
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());
         repo.BeginOperationRun("task","g1",["OperationStagePrepareSnapshot","OperationStageTransfer","OperationStageVerifyContent"]);repo.AdvanceOperation("task","OperationStagePrepareSnapshot");repo.AdvanceOperation("task","OperationStageTransfer");repo.EndOperationRun("task","Failed","server failed");
         var first=Assert.Single(repo.OperationRuns("task"));Assert.Equal(new[]{"Completed","Failed","Pending"},first.Steps.Select(step=>step.State));Assert.Equal("server failed",first.Steps[2].Reason);
         repo.BeginOperationRun("task","g1",["OperationStagePrepareSnapshot","OperationStageTransfer","OperationStageVerifyContent"],retry:true);repo.AdvanceOperation("task","OperationStageVerifyContent");repo.EndOperationRun("task","Completed");
@@ -44,7 +28,7 @@ public sealed class OperationDetailsTests
     [Fact]
     public void BatchesKeepLogicalRoundAndIndependentDownloadCancellation()
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();var detection=new RemoteDetection("round",mount,"scope","connection");
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();var detection=new RemoteDetection("round",mount,"scope","connection");
         for(var page=0;page<3;page++)repo.CommitDiscoveredBatch(mount,"scope",new(""),Enumerable.Range(page*256,256).Select(i=>new RemoteShadowEntry(new(i.ToString(),"file-"+i,false,1,DateTimeOffset.UnixEpoch,"v1"))).ToArray(),[],detection:detection);
         var first=Assert.Single(repo.RemoteBatches(mount));Assert.Equal(768,first.Total);Assert.Equal("Running",first.State);
         var member=repo.RemoteBatchMembers(first.Id).First();var download=repo.FindRemotePending(member.PendingId)! with{DownloadTask=true};repo.SaveRemotePending(download);
@@ -58,7 +42,7 @@ public sealed class OperationDetailsTests
     [Fact]
     public void CancelBeforeClassificationDoesNotCancelFutureIndependentDownload()
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();
         foreach(var path in new[]{"hot","cold"})repo.SaveEntry(mount,new(path,path,path,"v0",false,Materialized:true));
         repo.CommitDiscoveredBatch(mount,"scope",new(""),new[]{"hot","cold"}.Select(path=>new RemoteShadowEntry(new(path,path,false,1,DateTimeOffset.UnixEpoch,"v1"))).ToArray(),[],detection:new("round",mount,"scope","connection"));
         Assert.Empty(repo.ChangeRemoteBatch("round",false));repo.FinishRemoteDetection("round","Completed");
@@ -69,7 +53,7 @@ public sealed class OperationDetailsTests
     [Fact]
     public void HistoryPagingAndClearingKeepMemberOwnershipAfterIndexRemoval()
     {
-        using var area=new Area();var repo=new MountRepository(area.Path);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());
         for(var i=0;i<70;i++){repo.BeginOperationRun("many","generation",["OperationStageExecute"],retry:true);repo.AdvanceOperation("many","OperationStageExecute");repo.EndOperationRun("many","Failed","failure");}
         Assert.Equal(70,repo.OperationRunCount("many"));Assert.Equal(64,repo.OperationRuns("many").Count);Assert.Equal(6,repo.OperationRuns("many",64).Count);
         var mount=Guid.NewGuid();repo.CommitDiscoveredBatch(mount,"scope",new(""),[new(new("id","file",false,1,DateTimeOffset.UnixEpoch,"v1"))],[],detection:new("round",mount,"scope","connection"));
@@ -112,7 +96,7 @@ public sealed class OperationDetailsTests
     {
         var state=new NativeFileSnapshot(new("zero",0,0,0,0,false),0,0,0x11,new(0,0,1,1,0,1,[]),true);
         Assert.False(MountManager.RequiresRemoteDownload(state));Assert.True(MountManager.RequiresRemoteDownload(state with{State=1}));
-        using var area=new Area();var repo=new MountRepository(area.Path);var mount=Guid.NewGuid();var pending=new RemotePendingChange("task",mount,"scope","file",new("file","file",false,1,DateTimeOffset.UnixEpoch,"v1"),AttemptId:"first",AttemptGeneration:1);
+        using var area=new Area();var repo=new MountRepository(area.Path,definitions:new MemoryMountDefinitionStore());var mount=Guid.NewGuid();var pending=new RemotePendingChange("task",mount,"scope","file",new("file","file",false,1,DateTimeOffset.UnixEpoch,"v1"),AttemptId:"first",AttemptGeneration:1);
         repo.SaveRemotePending(pending);var next=pending with{AttemptId="second",AttemptGeneration=2};repo.SaveRemotePending(next);
         Assert.Equal("second",repo.SaveRemotePendingCurrent(pending with{State="Prepared"}).AttemptId);
         Assert.Throws<SourceConflictException>(()=>repo.CommitRemotePlaceholder(pending with{State="Completed"},null));
@@ -151,9 +135,6 @@ public sealed class OperationDetailsTests
         }
         finally{await using var cleanup=new MountManager(repo,logger);Assert.Equal("Completed",(await WebDavTests.Finished(cleanup,cleanup.Queue(mount.Id,"clearAndRemove"))).State);Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);}
     }
-    private static void MakeSeven(string directory)
-    {using var db=Open(Path.Combine(directory,"mounts.db"));using var command=db.CreateCommand();command.CommandText="DROP TABLE operation_steps;DROP TABLE operation_runs;DROP TABLE remote_task_batch_members;DROP TABLE remote_task_batches;PRAGMA user_version=7";command.ExecuteNonQuery();}
-    private static SqliteConnection Open(string path){var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=path,Pooling=false}.ToString());db.Open();MountDatabase.ConfigurePathComparison(db);return db;}
     private sealed class Area:IDisposable
     {internal string Path{get;}=Directory.CreateTempSubdirectory("HybridMount.OperationDetails.").FullName;public void Dispose(){Directory.Delete(Path,true);}}
 }

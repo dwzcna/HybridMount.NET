@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Diagnostics;
@@ -123,7 +123,7 @@ public sealed class ConnectionSubmissionTests
     private sealed class Factory:IFileSourceFactory
     {
         internal int Calls;internal readonly TaskCompletionSource Entered=new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token){Interlocked.Increment(ref Calls);Entered.TrySetResult();await Task.Delay(Timeout.Infinite,token);throw new IOException("unreachable");}
+        public async Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token){Interlocked.Increment(ref Calls);Entered.TrySetResult();await Task.Delay(Timeout.Infinite,token);throw new IOException("unreachable");}
     }
     private sealed class Area:IAsyncDisposable
     {

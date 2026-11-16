@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Mounting;
 using HybridMount.Commons.Settings;
 using HybridMount.Infrastructure.Persistence;
@@ -34,9 +34,11 @@ public sealed class MountingResponsibilityTests
         await using var fixture=new DavFixture();var registry=@"Software\HybridMount.NET.Tests\Definitions-"+Guid.NewGuid().ToString("N");
         try
         {
-            var store=new DefinitionStore{ReadFailure=true};var repository=new MountRepository(Path.Combine(fixture.Area,"definitions"),registry,store);
-            Assert.Throws<IOException>(()=>repository.LoadDefinitions());Assert.Equal(0,store.Writes);
-            store.ReadFailure=false;var definition=new MountDefinition(Guid.NewGuid(),"原定义",fixture.Area);
+            var store=new DefinitionStore{ReadFailure=true};var directory=Path.Combine(fixture.Area,"definitions");
+            Assert.Throws<IOException>(()=>new MountRepository(directory,registry,store));
+            Assert.False(Directory.Exists(directory));Assert.Equal(0,store.Writes);
+            store.ReadFailure=false;var repository=new MountRepository(directory,registry,store);
+            var definition=new MountDefinition(Guid.NewGuid(),"原定义",fixture.Area,Source:new(FileSourceKind.WebDav,"https://fixture.invalid/"));
             repository.SaveDefinition(definition);Assert.Equal(definition,Assert.Single(repository.LoadDefinitions()));
             store.SaveFailure=true;Assert.Throws<IOException>(()=>repository.SaveDefinition(definition with{Name="未保存"}));
             Assert.Equal(definition,Assert.Single(repository.LoadDefinitions()));Assert.Equal(1,store.Writes);

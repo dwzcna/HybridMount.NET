@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Persistence;
 using HybridMount.Infrastructure.Protocols;
@@ -9,9 +9,12 @@ namespace HybridMount.Tests.Fixtures.Protocols;
 internal sealed class TestSourceFactory : IFileSourceFactory
 {
     public static TestSourceFactory Instance { get; } = new();
-    public async Task<IFileSource> CreateAsync(MountDefinition mount, IMountRepository repository, bool recovery, CancellationToken token)
+    public async Task<IFileSource> CreateAsync(MountDefinition mount, IMountRepository repository, CancellationToken token)
     {
-        var source = new MockFileSource(Path.Combine(repository.DataDirectory,"MockSources",mount.Id.ToString("N")));
-        if (!recovery) await source.SeedAsync(token); return source;
+        var directory=Path.Combine(repository.DataDirectory,"MockSources",mount.Id.ToString("N"));
+        var hasContent=File.Exists(Path.Combine(directory,"source.db"));
+        var source=new MockFileSource(directory);
+        if(!hasContent)await source.SeedAsync(token);
+        return source;
     }
 }

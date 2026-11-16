@@ -1,4 +1,4 @@
-﻿namespace HybridMount.Models.Mounting;
+namespace HybridMount.Models.Mounting;
 
 /// <summary>独立于历史和索引的上传问题；展示发布阶段也随原上传JSON持久化，旧记录默认无此字段。</summary>
 public sealed record UploadAttention(string Reason,string Stage,DateTimeOffset OccurredUtc,long Generation,
@@ -20,8 +20,8 @@ public static class UploadAttentionRules
         if(issues.Length==0)return "";var first=issues[0];
         return (issues.Length>1?$"{issues.Length} 个同步问题；":"")+(IsRetryInProgress(first.State,first.Attention)?"正在重试；上次原因：":"")+first.Attention!.Reason;
     }
-    /// <summary>持久写入前统一归一化；恢复旧记录沿用原检查／变化时间，不能把启动误报为新失败。</summary>
-    public static LocalUpload Normalize(LocalUpload item,bool recovering=false)
+    /// <summary>持久写入前统一归一化；实际失败发生时记录时间；启动不为缺字段的旧历史补造原因。</summary>
+    public static LocalUpload Normalize(LocalUpload item)
     {
         var a=item.Attention;
         if(item.State=="Excluded")return item; // 排除是暂停，保留原问题及发生时间，不当作成功或再次重试。
@@ -32,7 +32,7 @@ public static class UploadAttentionRules
         {
             var reason=string.IsNullOrWhiteSpace(item.Error)?a?.Reason??"上传未完成，请查看详情并重试。":item.Error;
             var newEpisode=a is null||a.ResolvedUtc is not null||a.Generation!=item.Generation||a.Stage!=item.State||!a.FailureActive;
-            if(newEpisode)a=new(reason,item.State,recovering?item.LastCheckedUtc??item.ChangedUtc:DateTimeOffset.UtcNow,item.Generation,item.State,PublishedIdentity:a?.PublishedIdentity,ShellOriginalStamp:a?.ShellOriginalStamp);
+            if(newEpisode)a=new(reason,item.State,DateTimeOffset.UtcNow,item.Generation,item.State,PublishedIdentity:a?.PublishedIdentity,ShellOriginalStamp:a?.ShellOriginalStamp);
             else if(a!.Reason!=reason)a=a with{Reason=reason,ShellState="Pending",ShellError=null};
         }
         if(!failure&&a is {ResolvedUtc:null,FailureActive:true})a=a with{FailureActive=false,ShellState="Pending",ShellError=null};

@@ -22,4 +22,4 @@
 
 - 新库启动、旧库字节保持及拒绝、未知较新／损坏／权限分流，无DB旧配置拒绝；.hmxbk明密文往返、IPC1不监听、当前任务恢复与文件保护。
 - 最小x64、定向Debug／Release及必要完整回归，双架构构建、包检查；实际WinUI／Explorer、DPI／高对比、21H2、ARM64、WACK与Store重签未执行明确待测。
-- 证据artifacts/validation/00251-work/；README只写当前行为，变更、开发及Validation记录实际结果和逐项旧测试替代。提交“0.0.25.1｜…”后再准备统一1.0.0.0候选。
+- 证据artifacts/validation/00251-work/；README只写当前行为，变更、开发及Validation记录实际结果和逐项旧测试替代。提交“0.0.25.1｜…”后接已授权25.2许可核对，再准备统一1.0.0.0候选。

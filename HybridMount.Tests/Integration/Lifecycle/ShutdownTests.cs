@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -255,7 +255,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         public override Task<ListObjectsV2Response> ListObjectsV2Async(ListObjectsV2Request request,CancellationToken token=default)=>Task.FromException<ListObjectsV2Response>(new TaskCanceledException("HTTP internal timeout"));
     }
     private sealed class ControlledFactory(Func<CancellationToken,Task<IFileSource>> create):IFileSourceFactory
-    {public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)=>create(token);}
+    {public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)=>create(token);}
     /// <summary>只有空枚举与释放计数，工厂延迟由测试控制；不伪装网络层验收。</summary>
     private sealed class CountingSource:IFileSource
     {
@@ -280,7 +280,7 @@ public sealed class ShutdownTests(ITestOutputHelper output)
         {
             Local=Path.Combine(area,"stop-view-"+Id.ToString("N"));Directory.CreateDirectory(Local);RegistryPath=@"Software\HybridMount.NET.Tests\0052-"+Id.ToString("N");
             Repository=new(Path.Combine(area,"stop-data-"+Id.ToString("N")),RegistryPath);Logger=new(Path.Combine(area,"stop-logs-"+Id.ToString("N")+".db"));
-            Repository.SaveDefinition(new(Id,"停止回归",Local,true,RootIdentity:MountPathGuard.FileIdentity(Local),Source:settings,RegistrationStage:MountRegistrationStage.NotRegistered,AutoUploadEnabled:true,UploadInitialReviewCompleted:true,ContinuousUploadMigrated:true));
+            Repository.SaveDefinition(new(Id,"停止回归",Local,true,RootIdentity:MountPathGuard.FileIdentity(Local),Source:settings,RegistrationStage:MountRegistrationStage.NotRegistered));
             new CredentialStore(Repository.DataDirectory).Save(Id,credentials);Manager=new(Repository,Logger,factory);
         }
         public async ValueTask DisposeAsync()

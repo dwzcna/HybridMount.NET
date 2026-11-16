@@ -17,7 +17,9 @@ public sealed partial class MountRepository : IMountRepository
     /// <summary>装配定义与运行索引存储；可注入隔离定义存储，所有 DB 事务继续由仓库串行拥有。</summary>
     public MountRepository(string dataDirectory,string? registryPath=null,IMountDefinitionStore? definitions=null)
     {
-        _database=new MountDatabase(dataDirectory,_protocolStorage);_definitions=definitions??new RegistryMountDefinitionStore(registryPath);
+        _definitions=definitions??new RegistryMountDefinitionStore(registryPath);_definitions.EnsureCurrentFormat();
+        if(MountIndexFormat.Inspect(dataDirectory).State=="New"&&_definitions.LoadDefinitions().Count>0)throw new MountIndexFormatException(new("MissingIndex"));
+        _database=new MountDatabase(dataDirectory,_protocolStorage);
     }
     private SqliteConnection Open()=>_database.Open();
     public IReadOnlyList<MountDefinition> LoadDefinitions(){lock(_gate)return _definitions.LoadDefinitions();}

@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Helpers.Paths;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -64,7 +64,6 @@ public sealed class MountingTests
     [Fact(Timeout=120000)]
     public async Task RealCloudFilesHydrateProtectRestartAndRemove()
     {
-        await RecoverPreviousTestRoots();
         var area=Path.Combine(Path.GetTempPath(),"HybridMount.CfTests",Guid.NewGuid().ToString("N"));
         var local=Path.Combine(area,"view");var data=Path.Combine(area,"data");Directory.CreateDirectory(local);
         var registry=@"Software\HybridMount.NET.Tests\"+Guid.NewGuid().ToString("N");
@@ -124,31 +123,6 @@ public sealed class MountingTests
             // 未成功解除时保留测试现场及配置，避免删除尚未下载的云文件。
             if(id==default||(MountPathGuard.ReadRoot(local) is null&&!MountPathGuard.ContainsCloudPlaceholders(local)))
             {Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(registry,false);await logger.DisposeAsync();Directory.Delete(area,true);}
-        }
-    }
-    private static async Task RecoverPreviousTestRoots()
-    {
-        using var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\HybridMount.NET.Tests");
-        if(key is null)return;
-        foreach(var name in key.GetSubKeyNames())
-        {
-            var registry=@"Software\HybridMount.NET.Tests\"+name;
-            using var child=key.OpenSubKey(name);
-            if(child is null)continue;
-            foreach(var mountName in child.GetSubKeyNames())
-            {
-                using var mountKey=child.OpenSubKey(mountName);
-                if(mountKey?.GetValue("Definition") is not string json)continue;
-                var mount=System.Text.Json.JsonSerializer.Deserialize<MountDefinition>(json)!;
-                var testBase=Path.Combine(Path.GetTempPath(),"HybridMount.CfTests");
-                if(mount.Name!="CFAPI 测试"||!MountPathGuard.IsUnder(testBase,mount.LocalPath)||!Directory.Exists(mount.LocalPath)||MountPathGuard.ReadRoot(mount.LocalPath)?.MountId!=mount.Id)continue;
-                var area=Path.GetDirectoryName(mount.LocalPath)!;
-                var repository=new MountRepository(Path.Combine(area,"data"),registry);
-                await using var logger=new LoggerService(Path.Combine(area,"recovery.db"));
-                await using var manager=new MountManager(repository,logger,TestSourceFactory.Instance);
-                var job=manager.Queue(mount.Id,"remove");await Finished(manager,job);
-                // 仅解除测试注册，保留上次测试目录供诊断。
-            }
         }
     }
     private static async Task<MountOperationSnapshot> Finished(MountManager manager,string id)

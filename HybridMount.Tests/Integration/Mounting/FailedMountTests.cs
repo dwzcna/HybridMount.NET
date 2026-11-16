@@ -1,4 +1,4 @@
-﻿using HybridMount.Tests.Fixtures.Protocols;
+using HybridMount.Tests.Fixtures.Protocols;
 using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
@@ -189,7 +189,7 @@ public sealed class FailedMountTests
     {
         internal int Calls;
         internal Func<CancellationToken,Task<IFileSource>>? Connect;
-        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)
+        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token)
         { Calls++;return Connect is null?Task.FromException<IFileSource>(new IOException("read-only authentication failed")):Connect(token); }
     }
     private sealed class Fixture : IAsyncDisposable

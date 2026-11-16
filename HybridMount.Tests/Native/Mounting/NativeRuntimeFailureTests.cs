@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Files;
 using HybridMount.Infrastructure.Native;
@@ -42,7 +42,7 @@ public sealed class NativeRuntimeFailureTests
     private sealed class BatchFactory:IFileSourceFactory
     {
         internal Guid? Fail;
-        public Task<HybridMount.Commons.Protocols.IFileSource> CreateAsync(HybridMount.Models.Mounting.MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token)=>mount.Id==Fail?Task.FromException<HybridMount.Commons.Protocols.IFileSource>(new IOException("isolated reconnect failure")):new FileSourceFactory().CreateAsync(mount,repository,recovery,token);
+        public Task<HybridMount.Commons.Protocols.IFileSource> CreateAsync(HybridMount.Models.Mounting.MountDefinition mount,IMountRepository repository,CancellationToken token)=>mount.Id==Fail?Task.FromException<HybridMount.Commons.Protocols.IFileSource>(new IOException("isolated reconnect failure")):new FileSourceFactory().CreateAsync(mount,repository,token);
     }
     /// <summary>真实NTFS移出／跨根拒绝，说明与原权限结果同时存在，原路径和内容状态保持。</summary>
     [Theory(Timeout=90000)]

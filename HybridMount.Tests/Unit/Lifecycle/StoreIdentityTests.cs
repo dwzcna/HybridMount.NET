@@ -1,41 +1,15 @@
 using HybridMount.Infrastructure.Settings;
-using HybridMount.Infrastructure.Windows;
 using HybridMount.Models.Settings;
 using HybridMount.BuildTools;
 
 namespace HybridMount.Tests.Unit.Lifecycle;
 
-/// <summary>新包不能转发旧实例或接管旧配置；测试全部使用注入清单，不安装或卸载系统包。</summary>
+/// <summary>新包不能转发旧实例或接管旧配置；不扫描安装清单，不安装或卸载系统包。</summary>
 public sealed class StoreIdentityTests
 {
-    [Theory]
-    [InlineData("dwzcn.HybridMount.NET")]
-    [InlineData("DWZCN.HYBRIDMOUNT.NET")]
-    public void Previous_package_stops_startup_before_instance_acquisition(string previous)
-    {
-        Assert.Throws<PackageStartupConflictException>(() => PackageStartupGuard.Validate(true,
-            ProductIdentity.PackageName, ProductIdentity.Publisher, () => [previous, ProductIdentity.PackageName]));
-    }
     [Fact]
-    public void Current_identity_and_unrelated_packages_can_start()
+    public void Runtime_modes_keep_independent_scopes_without_package_enumeration()
     {
-        PackageStartupGuard.Validate(true, ProductIdentity.PackageName, ProductIdentity.Publisher,
-            () => [ProductIdentity.PackageName, "Other.Product", ProductIdentity.PreviousPackageName + ".Probe"]);
-    }
-    [Fact]
-    public void Identity_query_failure_does_not_start_or_enumerate_as_empty()
-    {
-        var reads = 0;
-        Assert.Throws<IOException>(() => PackageStartupGuard.Validate(true, "Other.Product", ProductIdentity.Publisher, () => { reads++; return []; }));
-        Assert.Throws<IOException>(() => PackageStartupGuard.Validate(true, ProductIdentity.PackageName, "CN=Other", () => { reads++; return []; }));
-        Assert.Equal(0, reads);
-        Assert.Throws<UnauthorizedAccessException>(() => PackageStartupGuard.Validate(true, ProductIdentity.PackageName,
-            ProductIdentity.Publisher, () => throw new UnauthorizedAccessException()));
-    }
-    [Fact]
-    public void Unpackaged_mode_does_not_query_packages_and_keeps_its_own_scope()
-    {
-        PackageStartupGuard.Validate(false, "", "", () => throw new InvalidOperationException());
         Assert.Equal("HybridMount.NET.Unpackaged", ProductIdentity.Scope(false));
         Assert.Equal("RyleD.HybridMount.NET.Packaged", ProductIdentity.Scope(true));
         Assert.NotEqual("HybridMount.NET.Packaged", ProductIdentity.Scope(true));

@@ -1,8 +1,10 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.25.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.25.1**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
-MSIX 当前使用 `RyleD.HybridMount.NET` 包身份，发布者为 RyleD。若仍安装旧的 `dwzcn.HybridMount.NET`，新包会在实例转发和挂载初始化前停止。请先在旧版处理未决任务、保护需要的本地正文、导出 `.hmxbk` 并移除旧挂载，再退出和卸载旧包；新身份不接管旧数据或同步根，配置备份不包含文件正文。
+MSIX 当前使用 `RyleD.HybridMount.NET` 包身份，发布者为 RyleD。配置、实例、管道和同步根按产品及运行模式隔离；应用不扫描已安装旧包，也不因旧包存在而弹窗拦截。请先保护文件正文、处理未决任务并导出 `.hmxbk` 后再切换产品；配置备份不包含文件正文。
+
+本机任务索引采用 schema9，配置定义采用当前版本标记，不升级旧库或旧配置。旧版、较新、损坏、访问失败及配置存在但索引丢失会分别报告并停止业务初始化；原数据保留，丢失的索引不会自动重建。可先在对应旧版处理并移除挂载，再按提示重置当前模式数据并导入现行 `.hmxbk`。`.hmxbk` 仍为 schema1，JSON 编码和可选凭据保护方式保持。
 
 设置页提供三语言离线隐私政策，内容与随包文稿相同；[提交材料目录](docs/store/README.md)含隐私政策、商店文案和审核步骤。Store 采用完整运行时的 x64／ARM64 候选，仍提供 Full／Small 侧载及目录发行。0.0.25.x 是准备版，未提交或上架。
 
@@ -31,7 +33,7 @@ WebDAV、S3 和群晖配置在本次只读身份认证成功、任务服务持�
 
 WebDAV、S3和群晖配置中的“协议能力”可在测试连接或连接后展开，显示支持、不支持、声明支持或--。结论仅适用于已验证范围；连接测试保持只读，未验证的写入能力不会因连接成功被标为支持。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名包含当前四段版本、架构和 Full／Small 模式。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名包含当前四段版本、架构和 Full／Small 模式。Windows 使用安装身份 `RyleD.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 WebDAV连接按目标地址族建立TCP，IPv4及IPv4映射地址使用纯IPv4连接；域名有界尝试IPv4／IPv6，保留系统代理及挂载级证书校验。连接测试先读取根集合，再有界查询OPTIONS。HTTPS证书区可独立获取叶证书SHA-256并直接填框；获取不需要账号或本地目录，不代表目录访问成功，请核对显示的证书公开信息。 支持RFC 9530 Repr-Digest（SHA-256／512）：弱或缺失ETag时以HEAD表示摘要补足内容变化判断，完整GET在头／尾摘要校验通过后才发布缓存；摘要不替代强ETag、条件写或独占锁。
 

@@ -1,9 +1,11 @@
-﻿using HybridMount.Models.Mounting;
+using HybridMount.Models.Mounting;
 namespace HybridMount.Commons.Settings;
 
 /// <summary>定义持久化边界；不探测协议、注册根或启动调度，失败由调用方处理。</summary>
 public interface IMountDefinitionStore
 {
+    /// <summary>创建索引前核验当前定义格式；注入的隔离存储不访问系统。</summary>
+    void EnsureCurrentFormat() { }
     /// <summary>读取全部定义；访问或解析失败必须抛出，不能返回伪空集。</summary>
     IReadOnlyList<MountDefinition> LoadDefinitions();
     /// <summary>保存一个完整定义，失败保留此前有效配置。</summary>

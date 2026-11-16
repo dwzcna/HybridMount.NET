@@ -1,4 +1,4 @@
-﻿using HybridMount.Commons.Persistence;
+using HybridMount.Commons.Persistence;
 using HybridMount.Commons.Protocols;
 using HybridMount.Infrastructure.Diagnostics;
 using HybridMount.Infrastructure.Files;
@@ -55,7 +55,7 @@ public sealed class IpcSynchronizationContextTests
         var registry=@"Software\HybridMount.NET.Tests\UIConnect\"+Guid.NewGuid().ToString("N");
         try
         {
-            var repository=new MountRepository(Path.Combine(area,"data"),registry);var mount=new MountDefinition(Guid.NewGuid(),"UI connection regression",local,false,RootIdentity:MountPathGuard.FileIdentity(local),RegistrationStage:MountRegistrationStage.NotRegistered);
+            var repository=new MountRepository(Path.Combine(area,"data"),registry);var mount=new MountDefinition(Guid.NewGuid(),"UI connection regression",local,false,RootIdentity:MountPathGuard.FileIdentity(local),Source:new(FileSourceKind.WebDav,"https://fixture.invalid/"),RegistrationStage:MountRegistrationStage.NotRegistered);
             repository.SaveDefinition(mount);await using var logger=new LoggerService(Path.Combine(area,"logs.db"));var factory=new RejectingFactory();await using var manager=new MountManager(repository,logger,factory);
             await NativeRuntimeClient.PrepareConnectionAsync();
             // 断言框架自身也可能捕获上下文；窗口阻塞区内只运行真实连接和不捕获上下文的失败收尾。
@@ -69,7 +69,7 @@ public sealed class IpcSynchronizationContextTests
     private sealed class RejectingFactory:IFileSourceFactory
     {
         internal int Calls;internal SynchronizationContext? CallerContext;
-        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,bool recovery,CancellationToken token){Calls++;CallerContext=SynchronizationContext.Current;return Task.FromException<IFileSource>(new IOException("isolated connection failure"));}
+        public Task<IFileSource> CreateAsync(MountDefinition mount,IMountRepository repository,CancellationToken token){Calls++;CallerContext=SynchronizationContext.Current;return Task.FromException<IFileSource>(new IOException("isolated connection failure"));}
     }
     /// <summary>阻塞拥有者模拟同步API边界，finally在原上下文外排空回调以使失败测试也完整收尾。</summary>
     private static async Task<T> WithoutMessagePump<T>(Func<Task<T>> work)
@@ -111,7 +111,7 @@ public sealed class IpcSynchronizationContextTests
         var area=Path.Combine(Path.GetTempPath(),"HybridMount.UIInspect."+Guid.NewGuid().ToString("N"));var local=Path.Combine(area,"view");Directory.CreateDirectory(local);var registry=@"Software\HybridMount.NET.Tests\UIInspect\"+Guid.NewGuid().ToString("N");
         try
         {
-            var repository=new MountRepository(Path.Combine(area,"data"),registry);repository.SaveDefinition(new(Guid.NewGuid(),"inspect",local,false,RootIdentity:MountPathGuard.FileIdentity(local),RegistrationStage:MountRegistrationStage.NotRegistered));await using var logger=new LoggerService(Path.Combine(area,"logs.db"));await using var manager=new MountManager(repository,logger,new RejectingFactory());
+            var repository=new MountRepository(Path.Combine(area,"data"),registry);repository.SaveDefinition(new(Guid.NewGuid(),"inspect",local,false,RootIdentity:MountPathGuard.FileIdentity(local),Source:new(FileSourceKind.WebDav,"https://fixture.invalid/"),RegistrationStage:MountRegistrationStage.NotRegistered));await using var logger=new LoggerService(Path.Combine(area,"logs.db"));await using var manager=new MountManager(repository,logger,new RejectingFactory());
             Assert.Equal("Checking",Assert.Single(manager.Mounts).Status);
             var state=await WithoutMessagePump(async()=>{await manager.StartAsync().ConfigureAwait(false);return Assert.Single(manager.Mounts).Status;});Assert.Equal("NotConnected",state);
         }
