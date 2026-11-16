@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <_HybridMountCompletionStamp>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)HybridMount.complete</_HybridMountCompletionStamp>
+  </PropertyGroup>
+  <!-- CPS按Set比较最旧输出。稳定的PRI、运行时及原生复制物只能验证存在，不能与所有C#输入混在默认集合中。 -->
+  <Target Name="CollectHybridMountUpToDateItems" BeforeTargets="CollectUpToDateCheckInputDesignTime;CollectUpToDateCheckOutputDesignTime;CollectUpToDateCheckBuiltDesignTime">
+    <ItemGroup>
+      <UpToDateCheckInput Include="@(Compile);@(Page);@(ApplicationDefinition);@(EmbeddedResource);@(PRIResource);@(Content)" Exclude="$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**;obj\**;bin\**" Set="HybridMountComplete"/>
+      <UpToDateCheckInput Include="$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)..\Directory.Build.props;$(MSBuildThisFileDirectory)..\Directory.Build.targets;$(MSBuildThisFileDirectory)..\Directory.Packages.props;$(MSBuildThisFileDirectory)..\global.json;$(MSBuildThisFileDirectory)*.targets;$(MSBuildThisFileDirectory)*.cs;$(MSBuildThisFileDirectory)NativeMUI.rcconfig;$(MSBuildProjectDirectory)\Package.appxmanifest;$(MSBuildProjectDirectory)\Properties\PublishProfiles\*.pubxml" Set="HybridMountComplete"/>
+      <UpToDateCheckInput Include="..\HybridMount.Ext\**\*.cpp;..\HybridMount.Ext\**\*.h;..\HybridMount.Ext\**\*.rc;..\HybridMount.Ext\*.def;..\HybridMount.Ext\*.vcxproj;..\HybridMount.Stock\**\*.cpp;..\HybridMount.Stock\**\*.h;..\HybridMount.Stock\*.vcxproj" Exclude="..\HybridMount.Ext\obj\**;..\HybridMount.Ext\bin\**;..\HybridMount.Stock\obj\**;..\HybridMount.Stock\bin\**" Set="HybridMountComplete"/>
+      <!-- 设计时Content刻意隐藏原生映像；快速生成仍必须观察真实复制源和各语言资源。 -->
+      <UpToDateCheckInput Include="$(MSBuildProjectDirectory)\Resources\**\*.resw;$(MSBuildProjectDirectory)\Resources\**\*.resx;$(MSBuildThisFileDirectory)..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll;$(MSBuildThisFileDirectory)..\HybridMount.Stock\bin\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Set="HybridMountComplete"/>
+      <UpToDateCheckOutput Include="$(_HybridMountCompletionStamp)" Set="HybridMountComplete"/>
+      <UpToDateCheckOutput Include="$(TargetDir)HybridMount.dll;$(TargetDir)HybridMount.exe;$(TargetDir)HybridMount.Stock.exe;$(TargetDir)HybridMount.Ext.dll;$(TargetDir)HybridMount.runtimeconfig.json;$(TargetDir)HybridMount.Ext.resources.dll;$(TargetDir)zh-CN\HybridMount.Ext.resources.dll.mui;$(TargetDir)en-US\HybridMount.Ext.resources.dll.mui;$(TargetDir)zh-HK\HybridMount.Ext.resources.dll.mui" Set="HybridMountPayload"/>
+      <UpToDateCheckOutput Include="$(TargetDir)resources.pri" Set="HybridMountPayload" Condition="'$(HybridMountDeployment)' == 'Packaged'"/>
+      <UpToDateCheckOutput Include="$(TargetDir)HybridMount.pri" Set="HybridMountPayload" Condition="'$(HybridMountDeployment)' == 'Unpackaged'"/>
+    </ItemGroup>
+  </Target>
+  <!-- 仅官方Build成功后登记实际完成；不触碰SDK或生成产物的时间戳，失败不能提前完成。 -->
+  <Target Name="RecordHybridMountBuildCompletion" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <WriteLinesToFile File="$(_HybridMountCompletionStamp)" Lines="$([System.DateTime]::UtcNow.ToString('O'))" Overwrite="true"/>
+    <ItemGroup><FileWrites Include="$(_HybridMountCompletionStamp)"/></ItemGroup>
+  </Target>
+</Project>

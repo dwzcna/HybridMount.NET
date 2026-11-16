@@ -1,4 +1,5 @@
 <Project>
+  <Import Project="HybridMount.ValidationCache.targets" Condition="'$(HybridMountValidationCacheImported)' != 'true'"/>
   <!-- 与VS及dotnet的MSBuild复用同一资源任务，不调用PowerShell脚本。 -->
   <UsingTask TaskName="HybridMountValidateResources" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <!-- 默认netstandard引用已涵盖本任务API；Task正文不支持MSBuild条件求值。 -->
@@ -7,6 +8,14 @@
     </Task>
   </UsingTask>
   <Target Name="ValidateHybridMountResources">
-    <HybridMountValidateResources RepositoryRoot="$(MSBuildThisFileDirectory).." PriDumpPath="$(LocalizationPriDump)" MuiRoot="$(LocalizationMuiRoot)" ManagedDumpPath="$(LocalizationManagedDump)" Platform="$(Platform)"/>
+    <PropertyGroup><_ResourceStamp>$(MSBuildProjectDirectory)\obj\HybridMountValidation\$(Platform)\$(Configuration)\resources.stamp</_ResourceStamp><_ResourceReusable>false</_ResourceReusable></PropertyGroup>
+    <HybridMount.BuildTools.ValidationFingerprintTask RepositoryRoot="$(MSBuildThisFileDirectory).." StampFile="$(_ResourceStamp)" Condition="'$(LocalizationPriDump)$(LocalizationMuiRoot)$(LocalizationManagedDump)' == ''">
+      <Output TaskParameter="Fingerprint" PropertyName="_ResourceFingerprint"/><Output TaskParameter="Reusable" PropertyName="_ResourceReusable"/>
+    </HybridMount.BuildTools.ValidationFingerprintTask>
+    <Delete Files="$(_ResourceStamp)" Condition="'$(_ResourceReusable)' != 'true'"/>
+    <HybridMountValidateResources Condition="'$(_ResourceReusable)' != 'true'" RepositoryRoot="$(MSBuildThisFileDirectory).." PriDumpPath="$(LocalizationPriDump)" MuiRoot="$(LocalizationMuiRoot)" ManagedDumpPath="$(LocalizationManagedDump)" Platform="$(Platform)"/>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(_ResourceStamp)'))"/>
+    <WriteLinesToFile File="$(_ResourceStamp)" Lines="$(_ResourceFingerprint)" Overwrite="true" WriteOnlyWhenDifferent="true" Condition="'$(_ResourceReusable)' != 'true' and '$(_ResourceFingerprint)' != '' and '$(LocalizationPriDump)$(LocalizationMuiRoot)$(LocalizationManagedDump)' == ''"/>
+    <Message Text="Localization reused: exact source contents unchanged" Importance="High" Condition="'$(_ResourceReusable)' == 'true'"/>
   </Target>
 </Project>

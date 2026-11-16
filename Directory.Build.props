@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.23.7</Version>
+    <Version>0.0.24.0</Version>
     <Configurations>Debug;Release</Configurations>
     <InformationalVersion>$(Version)</InformationalVersion>
     <BinaryVersion>$(Version)</BinaryVersion>
@@ -12,7 +12,32 @@
     <Copyright>Copyright © dwzcn 2026</Copyright>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
+  <!-- 必须在SDK计算还原目录前确定变体；发布配置也能单独选择正确的架构和运行时。 -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'HybridMount'">
+    <_HybridMountProfileName>$([System.IO.Path]::GetFileNameWithoutExtension('$(PublishProfile)'))</_HybridMountProfileName>
+    <_HybridMountProfileName>$(_HybridMountProfileName.ToLowerInvariant())</_HybridMountProfileName>
+    <_HybridMountKnownProfile Condition="'$(_HybridMountProfileName)' == 'win-x64' or '$(_HybridMountProfileName)' == 'win-x64-small' or '$(_HybridMountProfileName)' == 'win-arm64' or '$(_HybridMountProfileName)' == 'win-arm64-small'">true</_HybridMountKnownProfile>
+    <Configuration Condition="'$(_HybridMountKnownProfile)' == 'true'">Release</Configuration>
+    <Platform Condition="'$(_HybridMountKnownProfile)' == 'true' and $(_HybridMountProfileName.Contains('arm64'))">ARM64</Platform>
+    <Platform Condition="'$(_HybridMountKnownProfile)' == 'true' and !$(_HybridMountProfileName.Contains('arm64'))">x64</Platform>
+    <HybridMountRuntimeMode Condition="'$(HybridMountRuntimeMode)' == '' and '$(_HybridMountKnownProfile)' == 'true' and $(_HybridMountProfileName.Contains('-small'))">Small</HybridMountRuntimeMode>
+    <HybridMountRuntimeMode Condition="'$(HybridMountRuntimeMode)' == ''">Full</HybridMountRuntimeMode>
+    <HybridMountBuildPurpose Condition="'$(HybridMountBuildPurpose)' == '' and '$(_HybridMountKnownProfile)' == 'true'">Publish</HybridMountBuildPurpose>
+    <HybridMountBuildPurpose Condition="'$(HybridMountBuildPurpose)' == ''">Build</HybridMountBuildPurpose>
+    <HybridMountShellProfile Condition="'$(HybridMountShellProfile)' == ''">MenusAndThumbnails</HybridMountShellProfile>
+    <HybridMountDeployment Condition="'$(HybridMountDeployment)' == '' and ('$(_HybridMountKnownProfile)' == 'true' or '$(WindowsPackageType)' == 'None')">Unpackaged</HybridMountDeployment>
+    <HybridMountDeployment Condition="'$(HybridMountDeployment)' == ''">Packaged</HybridMountDeployment>
+    <BaseIntermediateOutputPath>obj\$(Platform)\$(Configuration)\$(HybridMountDeployment)\$(HybridMountRuntimeMode)\$(HybridMountShellProfile)\$(HybridMountBuildPurpose)\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'HybridMount.Tests' and '$(HybridMountTestFixtures)' != '' and '$(HybridMountTestFixtures)' != 'Full'">
+    <BaseIntermediateOutputPath>obj\$(Platform)\$(Configuration)\Fixtures\$(HybridMountTestFixtures)\</BaseIntermediateOutputPath>
+    <OutputPath>bin\$(Platform)\$(Configuration)\Fixtures\$(HybridMountTestFixtures)\</OutputPath>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <!-- BaseIntermediateOutputPath按变体隔离后，仍排除整个历史obj/bin树。 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+    <!-- 桌面MSBuild默认走AL生成卫星；使用SDK内置Csc路径，使语言程序集也遵守Deterministic。 -->
+    <GenerateSatelliteAssembliesForCore>true</GenerateSatelliteAssembliesForCore>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

@@ -1,10 +1,10 @@
 # HybridMount.NET
 
-当前源码版本 **0.0.23.7**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
+当前源码版本 **0.0.24.0**，面向 Windows 11 21H2 及以上，支持 x64／ARM64，使用 WinUI 3、.NET 10、MSIX 与 Windows Cloud Files API。
 
 页面、配置弹窗和动态对话框共用操作按钮与间距；设置按钮保持独立、靠右，窄窗和长文字按顺序换行。任务的普通、错误和冲突配色保持区分。
 
-首页提供设置、日志和管理挂载入口；内容宽度不足640 DIP时按顺序单列排列。任务概览显示最多三项执行中任务，以及本进程当前一轮任务的结束比例和成功／失败／取消／跳过数量。等待、冲突和结果待核对保持未结束；历史清理和隐藏到托盘不重置统计。查看所有任务会清除旧筛选；统计仅在当前进程保留，重启从恢复中的未结束任务开始。
+首页提供管理挂载、日志和设置入口；内容宽度不足640 DIP时按顺序单列排列。任务概览显示最多三项执行中任务，以及本进程当前一轮任务的结束比例和成功／失败／取消／跳过数量。等待、冲突和结果待核对保持未结束；历史清理和隐藏到托盘不重置统计。查看所有任务会清除旧筛选；统计仅在当前进程保留，重启从恢复中的未结束任务开始。
 
 打开配置对话框或系统选择器时，底层界面保留原本的启用外观，由原生模态限制输入；取消不重新扫描挂载。选择本地目录只填写路径，测试、认证和提交等实际工作会限制其冲突字段与操作。
 
@@ -26,7 +26,7 @@ WebDAV、S3 和群晖配置在本次只读身份认证成功、任务服务持�
 
 WebDAV、S3和群晖配置中的“协议能力”可在测试连接或连接后展开，显示支持、不支持、声明支持或--。结论仅适用于已验证范围；连接测试保持只读，未验证的写入能力不会因连接成功被标为支持。
 
-开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名使用 `HybridMount.NET_0.0.22.1_<架构>.msix`。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
+开始菜单与安装显示名称统一为 **HybridMount.NET**，MSIX 文件名包含当前四段版本、架构和 Full／Small 模式。Windows 使用全新安装身份 `dwzcn.HybridMount.NET`；配置请手动导入 .hmxbk，不迁移或接管旧包数据、旧挂载及其他运行模式。当前 `master` 保留四工程，未恢复 discard 分支的 .72 工程改名或 daemon 设计。Windows 接入由纯 C++ 后台负责，C# 界面和协议服务通过私有 NamedPipe 连接。
 
 WebDAV连接按目标地址族建立TCP，IPv4及IPv4映射地址使用纯IPv4连接；域名有界尝试IPv4／IPv6，保留系统代理及挂载级证书校验。连接测试先读取根集合，再有界查询OPTIONS。HTTPS证书区可独立获取叶证书SHA-256并直接填框；获取不需要账号或本地目录，不代表目录访问成功，请核对显示的证书公开信息。 支持RFC 9530 Repr-Digest（SHA-256／512）：弱或缺失ETag时以HEAD表示摘要补足内容变化判断，完整GET在头／尾摘要校验通过后才发布缓存；摘要不替代强ETag、条件写或独占锁。
 
@@ -183,9 +183,7 @@ Explorer 继续通过原生后台的 Windows 自定义存储提供程序属性�
 
 ## 构建
 
-当前主程序与测试目录、依赖与装配边界见 [源码结构](docs/SourceStructure-0.0.22.1.md)，测试入口与共享夹具见 [测试说明](docs/TestConsolidation-0.0.22.1.md)。四工程构建均执行同一结构与资源检查；测试工程按功能集中登记生产源码。
-
-安装 .NET SDK 10.0.401、Visual Studio 2026 的 C++ 桌面／ARM64 工具链、Windows SDK 10.0.26100.0 和 MSIX 工具。打开根目录的 **HybridMount.slnx**；解决方案仅包含以下四个工程：
+安装 .NET SDK 10.0.401、Visual Studio 2026 的 C++ 桌面／ARM64 工具链、Windows SDK 10.0.26100.0 和 MSIX 工具。`global.json` 固定 SDK；打开根目录的 **HybridMount.slnx**，四工程保持不变：
 
 | 工程 | 职责 |
 | --- | --- |
@@ -194,38 +192,55 @@ Explorer 继续通过原生后台的 Windows 自定义存储提供程序属性�
 | HybridMount.Ext | C++ COM菜单、缩略图处理器与媒体解码实现；由原生宿主加载 |
 | HybridMount.Tests | 生产服务契约及真实原生 DLL 集成测试 |
 
-Visual Studio 的解决方案配置仅保留 **Debug / Release**，平台为 x64 / ARM64，主工程默认打包运行并提供“打包和发布”菜单。非打包构建使用脚本参数 `-Deployment Unpackaged`；两种部署共用这两个配置，输出按架构、配置、Packaged / Unpackaged 隔离。部署和清单生成逻辑集中于 `build/HybridMount.Packaging.targets`，主工程文件只保留编译、依赖及资源声明。VS自动构建不依赖PowerShell：资源校验和清单副本由MSBuild内的C#任务完成，原生MUI直接调用工程所选SDK／VC工具。
+VS 仅有 Debug／Release 和 x64／ARM64，主工程默认 Packaged／Full。主工程“发布”中提供 `win-x64`、`win-arm64`、`win-x64-small`、`win-arm64-small` 四个配置；默认 Release 非打包目录。使用 MSIX 向导时选择同架构 Release，源清单与 Directory.Build.props 的四段版本必须一致。部署、运行时、Shell配置及构建／打包／发布的中间目录分别隔离。
 
-使用 Visual Studio“创建应用程序包”时，选择主程序的 Release 配置及 x64 或 ARM64；解决方案为 Debug／Release 显式启用部署；脚本非打包构建不部署。更新工程文件后重新加载 **HybridMount.slnx** 再打开向导。产品版本集中在 Directory.Build.props；供向导读取的 Package.appxmanifest 必须与其四段 BinaryVersion 一致，构建会拒绝版本不一致，自动增加修订号保持关闭。
+| 模式 | .NET | Windows App Runtime | 使用条件 |
+| --- | --- | --- | --- |
+| Full（默认） | 随包自包含 | 随包自包含 | 不要求另装这两项运行时 |
+| Small | 使用共享 .NET 10 | 使用系统框架 | 目标电脑预装同架构 .NET 10，以及 Microsoft.WindowsAppRuntime.2 ≥ 2.5.1.0 |
 
-也可在根目录使用保留的PowerShell 7手动入口进行构建、包检查或资源导出：
+Small 的 MSIX 声明 Windows App Runtime 依赖；非打包目录包含引导组件。两种模式保留同一产品身份，安装同架构的另一模式会替换该身份的安装，不能并存为两个产品。ARM64 交叉编译不能代替 ARM64 设备运行验证。
+
+在仓库根目录使用 PowerShell 7：
 
 ```powershell
-# 依次构建扩展、原生后台和主程序，再执行 x64 测试
-.\build\Build.ps1 -Platform x64 -Configuration Debug -Deployment Unpackaged -Test
+# 最小 x64 非打包构建；Stock通过原有引用构建Ext
+.\build\Build.ps1 -Platform x64 -Configuration Debug -Deployment Unpackaged
 
-# 可选定向回归；仍先构建同配置的隔离原生测试映像
-.\build\Build.ps1 -Platform x64 -Configuration Debug -Deployment Unpackaged -Test -TestFilter 'FullyQualifiedName~CloudConcurrencyTests'
+# 仅构建并运行定向测试；已知纯托管用例不准备C++夹具
+.\build\Build.ps1 -Platform x64 -Configuration Debug -TestOnly -TestFilter 'FullyQualifiedName~BuildInfrastructureTests'
 
-# 自包含 MSIX；-Package 默认选择 Packaged；不提供证书参数时输出未签名包
-.\build\Build.ps1 -Platform x64 -Configuration Release -Package
-.\build\Build.ps1 -Platform ARM64 -Configuration Release -Package
+# 完整门禁；真实服务、长时与停止专项仍按原显式入口执行
+.\build\Build.ps1 -Platform x64 -Configuration Release -TestOnly -TestGroup Gate
 
-# 使用当前用户证书存储中的匹配 Publisher 证书签名并验证
+# Full MSIX；提供证书时签名并验签，否则生成未签名包
 .\build\Build.ps1 -Platform x64 -Configuration Release -Package -CertificateThumbprint '<证书指纹>'
 
-# 从本项目矢量母版重新导出 PNG / ICO
+# Small MSIX，以及同架构目录和ZIP；不安装到当前机器
+.\build\Build.ps1 -Platform ARM64 -Configuration Release -RuntimeMode Small -Package -Publish
+
+# Full目录和ZIP；附带阶段耗时、目标日志和binlog
+.\build\Build.ps1 -Platform x64 -Configuration Release -Publish -RecordPerformance
+
+# 从本项目矢量母版重新导出PNG／ICO
 .\build\Update-Assets.ps1
 ```
 
-自动测试最多并行运行4个测试集合；单个用例内的并发调度验证保持1／4／128，停止专项默认继续排除。
+构建脚本只在实际输入集合、内容、工具链、还原资产、属性与完整输出均一致时复用已成功的托管构建；有变化执行官方完整链。`-ForceBuild` 可强制重建托管部分。首次构建还需核验全部输出内容，无变化复用的耗时应分别衡量。脚本串行使用同仓库输出；运行时请避免同时在 VS 构建。VS 快速生成另外登记输入、成功标记和必要产物；VS 自身按时间戳检查，保留旧时间戳的手工修改应使用脚本核验。
 
-构建产物位于 `artifacts\packages\<架构>`，构建日志、TRX 与包哈希位于 `artifacts\validation`。构建默认 `-ShellProfile MenusAndThumbnails`，也支持仅菜单 `Menus` 或系统集成 `Native`。ARM64 可以交叉构建，测试运行必须在 ARM64 主机进行。直接构建主工程前，先构建同架构、同配置的扩展和原生后台；推荐使用脚本或 slnx。
+`-TestOnly` 不构建主程序，按明确用例依赖选择资源／原生夹具；未知或复杂筛选保守准备完整夹具。测试最多并行4个集合，单用例的1／4／128并发保持。`-RecordPerformance` 将阶段JSON、日志、binlog和求值记录保存在 `artifacts/validation/00240-work/<运行ID>/`；性能记录可能包含本机路径，不应直接公开。
 
-已签名且证书受本机信任时，可通过 `Add-AppxPackage -Path '<包路径>'` 安装。MSIX 保留 StartupTask 与 ShellMaintenance，通过清单注册独立菜单宿主；无需手工使用 regsvr32。未打包登录启动继续使用当前用户 Run 项。
+| 产物 | 目录 |
+| --- | --- |
+| MSIX | `artifacts/packages/<版本>/<架构>/<配置>/<full或small>/<Shell配置>/` |
+| 非打包目录 | `artifacts/publish/<版本>/<架构>/<配置>/<full或small>/<Shell配置>/` |
+| ZIP | 与上述Shell目录同级，文件名含版本、架构、模式及Shell配置 |
 
-本版构建、验收记录及待测项目见 [docs/Validation-0.0.22.1.md](docs/Validation-0.0.22.1.md)，迁移来源见 [docs/Migration-0.0.1.md](docs/Migration-0.0.1.md)。路线图保存在根目录 HybridMount-devplan.md。原生 JSON 解析器 nlohmann/json 3.12.0 使用 MIT，随包保留 ThirdParty/nlohmann/LICENSE.txt。AWS SDK 的 S3 与 SQS 组件采用 Apache-2.0，随包附带 ThirdParty/AWSSDK/License.txt 和 Notice.txt；WebDAVClient 3.3.0 采用 MIT，随包附带实际 NuGet 包的 ThirdParty/WebDAVClient/LICENSE.txt 和 NOTICE.txt。
+构建默认 `-ShellProfile MenusAndThumbnails`，另有 `Menus`、`Native`。脚本检查实际 MSIX／目录／ZIP 中的架构、版本、依赖、三语言 PE／PRI／MUI 和许可证；编译通过不等于设备或 Explorer 验收通过。MSIX工具额外生成的 `_Test/Dependencies/` 不属于主MSIX载荷。正式交付请明确选择主MSIX及其目标电脑所需依赖。
 
+已签名且证书受信任时，可显式使用 `Add-AppxPackage` 安装；构建脚本不安装、不注册挂载、不重启 Explorer。原生源码与项目继续采用0.0.21.0布局，集中版本参与重新编译。
+
+当前源码结构见[源码结构](docs/SourceStructure-0.0.22.1.md)，测试分类见[测试说明](docs/TestConsolidation-0.0.22.1.md)，本版结果及待测项见[0.0.24.0验收](docs/Validation-0.0.24.0.md)。路线图位于 HybridMount-devplan.md。随包保留 nlohmann/json MIT、AWS SDK Apache-2.0、WebDAVClient MIT 及实际 NuGet 许可证／NOTICE。
 
 真实自动同步验收为显式操作，可使用 `build/Test-RemoteSync.ps1 -OriginalRoot D:\wdavtest`：只读原配置和 DPAPI 凭据，在既有远端目录内使用唯一文件及独立本地根，完成后精确清理，不批量上传原改动、不创建远端测试目录。
 

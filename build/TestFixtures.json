@@ -1,0 +1,14 @@
+{
+  "InteractionStateTests": "None",
+  "TaskCardPresentationTests": "None",
+  "HeaderLayoutTests": "None",
+  "TaskOverviewTests": "None",
+  "HomeOverviewViewModelTests": "None",
+  "PresentationTests": "None",
+  "PageStatusMessageTests": "None",
+  "MainWindowViewModelTests": "None",
+  "SourceStructureTests": "None",
+  "BuildInfrastructureTests": "None",
+  "LocalizationTests": "Resources",
+  "PageViewModelTests": "Runtime"
+}

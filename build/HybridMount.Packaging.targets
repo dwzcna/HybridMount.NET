@@ -9,12 +9,12 @@
 		<AppxPackage Condition="'$(HybridMountDeployment)' == 'Unpackaged'">false</AppxPackage>
 		<AppxPackage Condition="'$(HybridMountDeployment)' == 'Packaged'">true</AppxPackage>
 		<GenerateAppxPackageOnBuild Condition="'$(HybridMountDeployment)' == 'Unpackaged'">false</GenerateAppxPackageOnBuild>
-		<OutputPath>bin\$(Platform)\$(Configuration)\$(HybridMountDeployment)\</OutputPath>
-		<IntermediateOutputPath>obj\$(Platform)\$(Configuration)\$(HybridMountDeployment)\</IntermediateOutputPath>
+		<OutputPath>bin\$(Platform)\$(Configuration)\$(HybridMountDeployment)\$(HybridMountRuntimeMode)\$(HybridMountShellProfile)\$(HybridMountBuildPurpose)\</OutputPath>
+		<IntermediateOutputPath>$(BaseIntermediateOutputPath)</IntermediateOutputPath>
 		<AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
 		<AppxBundle>Never</AppxBundle>
         <!-- 安装包文件名与可见产品名一致，Windows安装身份继续兼容已有根。 -->
-        <AppxPackageName>HybridMount.NET_$(BinaryVersion)_$(Platform)</AppxPackageName>
+        <AppxPackageName>HybridMount.NET_$(BinaryVersion)_$(Platform)_$(HybridMountRuntimeMode)</AppxPackageName>
 		<AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
 		<GenerateAppInstallerFile>false</GenerateAppInstallerFile>
 		<HasPackageAndPublishMenu Condition="'$(HybridMountDeployment)' == 'Packaged'">true</HasPackageAndPublishMenu>
@@ -30,6 +30,13 @@
 	<ItemGroup Condition="'$(HybridMountDeployment)' == 'Packaged' and '$(EnableMsixTooling)' == 'true' and '$(DisableMsixProjectCapabilityAddedByProject)' != 'true'">
 		<ProjectCapability Include="Msix" />
 	</ItemGroup>
+
+  <Target Name="ValidateRuntimeMode" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(HybridMountRuntimeMode)' != 'Full' and '$(HybridMountRuntimeMode)' != 'Small'" Text="HybridMountRuntimeMode必须为Full或Small。"/>
+    <Error Condition="('$(HybridMountRuntimeMode)' == 'Full' and ('$(SelfContained)' != 'true' or '$(WindowsAppSDKSelfContained)' != 'true')) or ('$(HybridMountRuntimeMode)' == 'Small' and ('$(SelfContained)' != 'false' or '$(WindowsAppSDKSelfContained)' != 'false'))" Text="运行时模式与SelfContained／WindowsAppSDKSelfContained不一致。"/>
+    <Error Condition="'$(_HybridMountKnownProfile)' == 'true' and (($(_HybridMountProfileName.Contains('arm64')) and '$(Platform)' != 'ARM64') or (!$(_HybridMountProfileName.Contains('arm64')) and '$(Platform)' != 'x64'))" Text="发布配置与Platform不一致。"/>
+
+  </Target>
 
   <UsingTask TaskName="HybridMountPrepareManifest" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <!-- 默认netstandard引用已涵盖本任务API；Task正文不支持MSBuild条件求值。 -->

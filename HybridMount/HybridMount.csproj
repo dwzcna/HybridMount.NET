@@ -19,13 +19,15 @@
 		<RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
 		<PlatformTarget Condition="'$(Platform)' == 'ARM64'">ARM64</PlatformTarget>
 		<PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
-		<SelfContained>true</SelfContained>
-		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+		<SelfContained Condition="'$(HybridMountRuntimeMode)' == 'Full'">true</SelfContained>
+        <SelfContained Condition="'$(HybridMountRuntimeMode)' == 'Small'">false</SelfContained>
+		<WindowsAppSDKSelfContained>$(SelfContained)</WindowsAppSDKSelfContained>
 		<PublishTrimmed>false</PublishTrimmed>
 		<PublishAot>false</PublishAot>
 	</PropertyGroup>
 	<Import Project="..\build\HybridMount.Packaging.targets" />
     <Import Project="..\build\HybridMount.ResourceValidation.targets" />
+    <Import Project="..\build\HybridMount.Incremental.targets" />
     <Target Name="CheckUILocalization" BeforeTargets="BeforeBuild" DependsOnTargets="ValidateHybridMountResources" Condition="'$(DesignTimeBuild)' != 'true'" />
     <ItemGroup><EmbeddedResource Update="Resources\Messages*.resx"><Generator></Generator></EmbeddedResource></ItemGroup>
 	<ItemGroup>

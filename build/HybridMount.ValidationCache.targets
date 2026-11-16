@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup><HybridMountValidationCacheImported>true</HybridMountValidationCacheImported></PropertyGroup>
+  <UsingTask TaskName="HybridMount.BuildTools.ValidationFingerprintTask" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <Task><Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)BuildFingerprint.cs"/></Task>
+  </UsingTask>
+</Project>

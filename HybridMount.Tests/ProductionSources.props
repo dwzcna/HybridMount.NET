@@ -1,4 +1,5 @@
 <Project>
+  <ItemGroup><Compile Include="../build/BuildFingerprint.cs" Link="Production/Build/BuildFingerprint.cs" /></ItemGroup>
   <ItemGroup>
     <Compile Include="../build/ValidateStructureTask.cs" Link="BuildTools/ValidateStructureTask.cs" />
     <Compile Include="../HybridMount/GlobalUsings.cs" Link="Production/GlobalUsings.cs" />

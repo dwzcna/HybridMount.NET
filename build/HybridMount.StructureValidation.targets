@@ -1,4 +1,5 @@
 <Project>
+  <Import Project="HybridMount.ValidationCache.targets" Condition="'$(HybridMountValidationCacheImported)' != 'true'"/>
   <UsingTask TaskName="HybridMount.BuildTools.HybridMountValidateStructure" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <RepositoryRoot ParameterType="System.String" Required="true" />
@@ -8,6 +9,14 @@
     <Task><Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)ValidateStructureTask.cs" /></Task>
   </UsingTask>
   <Target Name="ValidateHybridMountStructure" BeforeTargets="BeforeCompile;ClCompile" Condition="'$(DesignTimeBuild)' != 'true'">
-    <HybridMount.BuildTools.HybridMountValidateStructure RepositoryRoot="$(MSBuildThisFileDirectory).." ProjectDirectory="$(MSBuildProjectDirectory)" ManagedSources="@(Compile)" />
+    <PropertyGroup><_StructureStamp>$(MSBuildProjectDirectory)\obj\HybridMountValidation\$(Platform)\$(Configuration)\structure-$(MSBuildProjectName).stamp</_StructureStamp></PropertyGroup>
+    <HybridMount.BuildTools.ValidationFingerprintTask RepositoryRoot="$(MSBuildThisFileDirectory).." ProjectDirectory="$(MSBuildProjectDirectory)" ManagedSources="@(Compile)" StampFile="$(_StructureStamp)">
+      <Output TaskParameter="Fingerprint" PropertyName="_StructureFingerprint"/><Output TaskParameter="Reusable" PropertyName="_StructureReusable"/>
+    </HybridMount.BuildTools.ValidationFingerprintTask>
+    <Delete Files="$(_StructureStamp)" Condition="'$(_StructureReusable)' != 'true'"/>
+    <HybridMount.BuildTools.HybridMountValidateStructure Condition="'$(_StructureReusable)' != 'true'" RepositoryRoot="$(MSBuildThisFileDirectory).." ProjectDirectory="$(MSBuildProjectDirectory)" ManagedSources="@(Compile)" />
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(_StructureStamp)'))"/>
+    <WriteLinesToFile File="$(_StructureStamp)" Lines="$(_StructureFingerprint)" Overwrite="true" WriteOnlyWhenDifferent="true" Condition="'$(_StructureReusable)' != 'true' and '$(_StructureFingerprint)' != ''"/>
+    <Message Text="Structure reused: source contents and project Compile registration unchanged" Importance="High" Condition="'$(_StructureReusable)' == 'true'"/>
   </Target>
 </Project>

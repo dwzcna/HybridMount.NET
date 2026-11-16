@@ -1,14 +1,19 @@
 # 检查实际交付包，不把成功编译当作打包内容正确的证据。
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails,[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails')
+param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][ValidateSet('x64','ARM64')][string]$Platform,[switch]$ExpectCloudThumbnails,[ValidateSet('Full','Small')][string]$RuntimeMode='Full',[ValidateSet('Native','Menus','MenusAndThumbnails')][string]$ShellProfile='MenusAndThumbnails')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead([IO.Path]::GetFullPath($Path))
 try {
     $entries = @{}
     foreach ($entry in $archive.Entries) { $entries[$entry.FullName.Replace('\','/')] = $entry }
-    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.Ext.resources.dll','HybridMount.exe','HybridMount.dll','HybridMount.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','coreclr.dll','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
+    foreach ($required in @('AppxManifest.xml','resources.pri','HybridMount.Ext.resources.dll','HybridMount.exe','HybridMount.dll','HybridMount.runtimeconfig.json','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','ThirdParty/nlohmann/LICENSE.txt','AWSSDK.Core.dll','AWSSDK.S3.dll','WebDAVClient.dll','AWSSDK.SQS.dll','ThirdParty/WebDAVClient/LICENSE.txt','ThirdParty/WebDAVClient/NOTICE.txt','ThirdParty/AWSSDK/License.txt','ThirdParty/AWSSDK/Notice.txt','ThirdParty/AWSSDK/SqsPackage.txt','Assets/HybridMount.ico','Assets/HybridMount.png','Assets/SyncIssue.png','Assets/SyncExcluded.png','Assets/SyncExcluded.ico','Assets/SyncIssue.ico')) {
         if (-not $entries.ContainsKey($required)) { throw "包缺少 $required" }
+    }
+    if($RuntimeMode -eq 'Full') {
+        foreach($required in @('coreclr.dll','System.Private.CoreLib.dll','Microsoft.ui.xaml.dll','Microsoft.WindowsAppRuntime.dll')){if(-not $entries.ContainsKey($required)){throw "Full包缺少框架载荷：$required"}}
+    } else {
+        foreach($forbidden in @('coreclr.dll','System.Private.CoreLib.dll','Microsoft.ui.xaml.dll','Microsoft.WindowsAppRuntime.dll')){if($entries.ContainsKey($forbidden)){throw "Small包夹带完整框架：$forbidden"}}
     }
     # 改名后的包只允许当前主映像，防止增量构建夹带旧入口。
     foreach($obsolete in @('HybridMount.NET.exe','HybridMount.NET.dll','HybridMount.NET.deps.json','HybridMount.NET.runtimeconfig.json')){
@@ -25,7 +30,7 @@ try {
     if ($manifest.Package.Identity.Version -ne $binaryVersion -or $manifest.Package.Identity.Name -ne 'dwzcn.HybridMount.NET') { throw 'MSIX 产品身份或版本不一致。' }
     if ($manifest.Package.Identity.ProcessorArchitecture -ne $Platform.ToLowerInvariant()) { throw '包声明架构不正确。' }
     # WinUI的编译XAML嵌入PRI；按真实资源URI验证迁移后的窗口、页面、控件和共享样式。
-    $resourceWork=Join-Path $PSScriptRoot ("..\artifacts\validation\package-resources-"+$Platform+"-"+$binaryVersion)
+    $resourceWork=Join-Path $PSScriptRoot ("..\artifacts\validation\package-resources-"+$Platform+"-"+$binaryVersion+'-'+$RuntimeMode)
     [IO.Directory]::CreateDirectory($resourceWork)|Out-Null
     $priFile=Join-Path $resourceWork 'resources.pri';$resourceXml=Join-Path $resourceWork 'resources.xml'
     [IO.File]::WriteAllBytes($priFile,(Read-Bytes 'resources.pri'))
@@ -47,34 +52,7 @@ try {
         [IO.File]::WriteAllBytes((Join-Path $resourceWork $name),(Read-Bytes $name))
     }
     [IO.File]::WriteAllBytes((Join-Path $resourceWork 'HybridMount.Ext.resources.dll'),(Read-Bytes 'HybridMount.Ext.resources.dll'))
-    # 从托管 PE 的资源目录读取标准 .resources；不加载程序集，不执行目标架构代码。
-    function Read-ManagedStrings([string]$imagePath,[string]$resourceName,[string]$culture,[string]$assemblyName) {
-        $imageStream=[IO.File]::OpenRead($imagePath)
-        $pe=[System.Reflection.PortableExecutable.PEReader]::new($imageStream)
-        try {
-            $metadata=[System.Reflection.Metadata.PEReaderExtensions]::GetMetadataReader($pe)
-            $identity=$metadata.GetAssemblyDefinition()
-            if($metadata.GetString($identity.Name) -ne $assemblyName -or $metadata.GetString($identity.Culture) -ne $culture){throw "托管语言资源身份不正确：$culture"}
-            $matches=@($metadata.ManifestResources | Where-Object {$metadata.GetString($metadata.GetManifestResource($_).Name) -eq $resourceName})
-            if($matches.Count -ne 1){throw "托管资源缺失或重复：$resourceName"}
-            $resource=$metadata.GetManifestResource($matches[0])
-            if(-not $resource.Implementation.IsNil){throw "托管资源不是内嵌数据：$resourceName"}
-            $address=$pe.PEHeaders.CorHeader.ResourcesDirectory.RelativeVirtualAddress+[int]$resource.Offset
-            $reader=$pe.GetSectionData($address).GetReader();$length=$reader.ReadInt32()
-            if($length -lt 0 -or $length -gt 16MB){throw '托管资源长度超限。'}
-            $payload=$reader.ReadBytes($length);$buffer=[IO.MemoryStream]::new($payload,$false)
-            $strings=[System.Resources.ResourceReader]::new($buffer)
-            try {
-                $values=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
-                $items=$strings.GetEnumerator()
-                while($items.MoveNext()) {
-                    if($items.Key -isnot [string] -or $items.Value -isnot [string]){throw '托管文案必须为字符串。'}
-                    $values.Add([string]$items.Key,[string]$items.Value)
-                }
-                return ,$values
-            } finally {$strings.Dispose();$buffer.Dispose()}
-        } finally {$pe.Dispose();$imageStream.Dispose()}
-    }
+    . (Join-Path $PSScriptRoot 'Read-ManagedResources.ps1')
     $managedDump=[Xml.XmlDocument]::new();$managedRoot=$managedDump.CreateElement('managed');[void]$managedDump.AppendChild($managedRoot)
     foreach($language in @('zh-CN','en-US','zh-HK')) {
         $imageName=if($language -eq 'zh-CN'){'HybridMount.dll'}else{"$language/HybridMount.resources.dll"}
@@ -114,11 +92,12 @@ try {
     $startup=@($main[0].Extensions.Extension | Where-Object {$_.Category -eq 'windows.startupTask'})
     if($startup.Count -ne 1 -or $startup[0].Executable -ne 'HybridMount.exe'){throw '登录启动入口未使用当前主映像。'}
     $expectedMachine = if ($Platform -eq 'ARM64') { 0xaa64 } else { 0x8664 }
-    foreach ($entryName in @('HybridMount.exe','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','coreclr.dll')) {
+    foreach ($entryName in (@('HybridMount.exe','HybridMount.dll','HybridMount.Ext.dll','HybridMount.Stock.exe','e_sqlite3.dll','Microsoft.WindowsAppRuntime.Bootstrap.dll')+$(if($RuntimeMode -eq 'Full'){@('coreclr.dll','hostfxr.dll','hostpolicy.dll','Microsoft.ui.xaml.dll','Microsoft.WindowsAppRuntime.dll')}))) {
         $bytes = Read-Bytes $entryName
         $pe = [BitConverter]::ToInt32($bytes,0x3c)
         if ([BitConverter]::ToUInt16($bytes,$pe+4) -ne $expectedMachine) { throw "$entryName 架构不正确。" }
     }
+    Assert-ManagedImageArchitecture (Read-Bytes 'Microsoft.WinUI.dll') $Platform
     # C++后台和扩展不得含CLR头，也不能意外携带隔离测试操作。
     foreach($entryName in @('HybridMount.Stock.exe','HybridMount.Ext.dll')){
         $bytes=Read-Bytes $entryName;$pe=[BitConverter]::ToInt32($bytes,0x3c);$optional=$pe+24
@@ -137,7 +116,13 @@ try {
         }
     }
     $runtime = [Text.Encoding]::UTF8.GetString((Read-Bytes 'HybridMount.runtimeconfig.json')) | ConvertFrom-Json
-    if ($runtime.runtimeOptions.framework -or $runtime.runtimeOptions.frameworks) { throw '主程序仍依赖共享 .NET 运行时。' }
+    if($RuntimeMode -eq 'Full') {
+        if($runtime.runtimeOptions.framework -or $runtime.runtimeOptions.frameworks){throw 'Full仍依赖共享.NET运行时。'}
+    } else {
+        $frameworks=@($runtime.runtimeOptions.framework)+@($runtime.runtimeOptions.frameworks)
+        if(-not @($frameworks|Where-Object{$_.name -eq 'Microsoft.NETCore.App' -and $_.version -like '10.*'}).Count){throw 'Small没有正确声明.NET 10共享框架。'}
+        if(-not $manifest.SelectNodes("//*[local-name()='PackageDependency' and starts-with(@Name,'Microsoft.WindowsAppRuntime.')]" ).Count){throw 'Small MSIX缺少Windows App Runtime框架依赖。'}
+    }
     if ($entries.Keys | Where-Object { $_ -match '(?i)EPaperKit|ProKit|Square44x44Logo|StoreLogo' }) { throw '包内出现旧产品资源或组件。' }
     $text = $manifest.OuterXml
     foreach ($registration in @('windows.startupTask','HybridMountStartup','ShellMaintenance')) {
@@ -161,6 +146,6 @@ try {
     $excluded=$manifest.SelectNodes("//*[local-name()='ExcludedDirectory']")
     if($excluded.Count -ne 1 -or $excluded[0].InnerText -ne '$(KnownFolder:LocalAppData)\HybridMount.NET\Packaged\Mounting\Thumbnails'){throw '共享缩略图目录的精确虚拟化排除不符。'}
     if(-not $manifest.SelectNodes("//*[local-name()='Capability' and @Name='unvirtualizedResources']").Count){throw '缺少共享缓存所需的受限能力。'}
-    Write-Host "包验证通过：$Platform / $version / 自包含 / Shell配置=$ShellProfile / 原生状态及维护入口保留，桌面效果另行验收。"
+    Write-Host "包验证通过：$Platform / $version / $RuntimeMode / Shell配置=$ShellProfile / 原生状态及维护入口保留，桌面效果另行验收。"
 
 } finally { $archive.Dispose() }

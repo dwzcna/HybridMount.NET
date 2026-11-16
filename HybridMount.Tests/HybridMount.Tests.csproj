@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
@@ -6,11 +6,14 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>$(DefineConstants);HYBRIDMOUNT_HEADLESS_TEST</DefineConstants>
+    <DefineConstants>$(DefineConstants);HYBRIDMOUNT_HEADLESS_TEST;HYBRIDMOUNT_FINGERPRINT_ONLY</DefineConstants>
     <PlatformTarget Condition="'$(Platform)' == 'ARM64'">ARM64</PlatformTarget>
     <PlatformTarget Condition="'$(Platform)' != 'ARM64'">x64</PlatformTarget>
   </PropertyGroup>
   <Import Project="ProductionSources.props" />
+  <PropertyGroup>
+    <HybridMountNativeResources Condition="'$(HybridMountNativeResources)' == ''">$(MSBuildProjectDirectory)\..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\</HybridMountNativeResources>
+  </PropertyGroup>
   <!-- 各集合共享本机CFAPI／物理缓存资源；限制集合级并行，单个用例内的1／4／128并发保持真实执行。 -->
   <ItemGroup>
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
@@ -27,14 +30,14 @@
     <PackageReference Include="WebDAVClient" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
-  <ItemGroup>
-    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.resources.dll" Link="HybridMount.Ext.resources.dll" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-CN\HybridMount.Ext.resources.dll.mui" Link="zh-CN\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\en-US\HybridMount.Ext.resources.dll.mui" Link="en-US\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\zh-HK\HybridMount.Ext.resources.dll.mui" Link="zh-HK\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest" />
+  <ItemGroup Condition="'$(HybridMountTestFixtures)' != 'None'">
+    <Content Include="$(HybridMountNativeResources)HybridMount.Ext.resources.dll" Link="HybridMount.Ext.resources.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(HybridMountNativeResources)zh-CN\HybridMount.Ext.resources.dll.mui" Link="zh-CN\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(HybridMountNativeResources)en-US\HybridMount.Ext.resources.dll.mui" Link="en-US\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(HybridMountNativeResources)zh-HK\HybridMount.Ext.resources.dll.mui" Link="zh-HK\HybridMount.Ext.resources.dll.mui" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\HybridMount.Stock\bin\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Link="HybridMount.Stock.exe" CopyToOutputDirectory="PreserveNewest" Condition="!Exists('..\artifacts\native-runtime-tests\$(Platform)\$(Configuration)\HybridMount.Stock.exe')" />
     <Content Include="..\artifacts\native-runtime-tests\$(Platform)\$(Configuration)\HybridMount.Stock.exe" Link="HybridMount.Stock.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\artifacts\native-runtime-tests\$(Platform)\$(Configuration)\HybridMount.Stock.exe')" />
-    <Content Include="..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\HybridMount.Ext\bin\$(Platform)\$(Configuration)\HybridMount.Ext.dll')" />
+    <Content Include="$(HybridMountNativeResources)HybridMount.Ext.dll" Link="HybridMount.Ext.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(HybridMountNativeResources)HybridMount.Ext.dll')" />
     <Content Include="..\HybridMount\Assets\SyncExcluded.ico" Link="Assets\SyncExcluded.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\HybridMount\Assets\SyncIssue.ico" Link="Assets\SyncIssue.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
@@ -55,6 +58,6 @@
       <_NativeRid>win-x64</_NativeRid>
       <_NativeRid Condition="'$(Platform)'=='ARM64'">win-arm64</_NativeRid>
     </PropertyGroup>
-    <Copy SourceFiles="$(TargetDir)runtimes\$(_NativeRid)\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" />
+    <Copy SourceFiles="$(TargetDir)runtimes\$(_NativeRid)\native\e_sqlite3.dll" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>
